@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: my-service
+  labels:
+    app: my-service
+subjects:
+  - kind: ServiceAccount
+    name: my-service
+    namespace: default
+roleRef:
+  kind: Role
+  name: my-service
+  apiGroup: rbac.authorization.k8s.io

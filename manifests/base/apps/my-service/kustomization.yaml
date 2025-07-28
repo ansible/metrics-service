@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - k8s/deployments.yaml
+  - k8s/services.yaml
+  - k8s/configmaps.yaml
+  - k8s/secrets.yaml
+  - k8s/serviceaccounts.yaml
+  - k8s/roles.yaml
+  - k8s/rolebindings.yaml
+
+commonLabels:
+  app: my-service
+
+namePrefix: my-service-
+
+images:
+  - name: my-service
+    newTag: latest

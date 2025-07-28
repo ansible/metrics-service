@@ -1,0 +1,96 @@
+# Example Dynaconf settings file for my_service
+# Copy this file to settings.yaml and customize for your environment
+
+# Environment Configuration
+environment: development
+
+# Security Settings
+secret_key: "your-secret-key-here-change-in-production"
+allowed_hosts:
+  - localhost
+  - 127.0.0.1
+
+# Database Configuration
+# Uncomment and configure for PostgreSQL production use
+# By default, the service uses SQLite for immediate development
+databases:
+  default:
+    engine: django.db.backends.postgresql  # Remove this line to use SQLite default
+    host: localhost
+    port: 55432
+    user: my_service
+    password: my_service
+    name: my_service
+    options:
+      sslmode: prefer
+
+# Cache Configuration
+caches:
+  default:
+    backend: django.core.cache.backends.redis.RedisCache
+    location: redis://localhost:6379/0
+
+# Email Configuration
+email:
+  backend: django.core.mail.backends.smtp.EmailBackend
+  host: smtp.example.com
+  port: 587
+  use_tls: true
+  user: your_email@example.com
+  password: your_email_password
+  from_email: noreply@example.com
+
+# CORS Configuration
+cors:
+  allow_all_origins: false
+  allowed_origins:
+    - http://localhost:3000
+    - http://127.0.0.1:3000
+  allow_credentials: true
+
+# Service Configuration
+service:
+  type: my-service
+  id: my-service-instance-id
+
+# Feature Flags
+feature_flags:
+  dispatcherd_enabled: false
+
+# Dispatcherd Configuration
+dispatcherd:
+  workers: 4
+  max_tasks: 100
+  timeout: 3600
+
+# OAuth2 Configuration
+oauth2:
+  access_token_expire: 3600
+  refresh_token_expire: 86400
+
+# JWT Configuration
+jwt:
+  expiration: 3600
+
+# Resource Server Configuration (for AAP integration)
+# Uncomment and configure for AAP Gateway integration
+# resource_server:
+#   url: https://aap-gateway:9080
+#   secret_key: your-service-secret
+#   validate_https: true
+
+# Logging Configuration Override
+# logging:
+#   version: 1
+#   disable_existing_loggers: false
+#   handlers:
+#     file:
+#       class: logging.handlers.RotatingFileHandler
+#       filename: /var/log/my_service/my_service.log
+#       maxBytes: 10485760
+#       backupCount: 5
+#       formatter: json
+#   loggers:
+#     my_service:
+#       level: INFO
+#       handlers: [console, file] 

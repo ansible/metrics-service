@@ -1,0 +1,17 @@
+# Requirements for immediate pip install
+# Note: For full development setup, use: pip install -e ".[dev]"
+
+Django>=4.2,<5.0
+djangorestframework>=3.15
+django-ansible-base
+django-split-settings>=1.2
+drf-spectacular>=0.27
+django-cors-headers>=4.0
+psycopg[binary]>=3.1
+redis>=4.5
+channels>=4.0
+dynaconf>=3.1.0
+python-ldap>=3.4.0
+django-auth-ldap>=5.2.0
+ldap-filter>=1.0.1
+dispatcherd>=2025.5.21 

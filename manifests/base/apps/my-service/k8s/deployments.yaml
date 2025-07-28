@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-service
+  labels:
+    app: my-service
+    component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-service
+      component: api
+  template:
+    metadata:
+      labels:
+        app: my-service
+        component: api
+    spec:
+      serviceAccountName: my-service
+      containers:
+        - name: my-service
+          image: my-service
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: MY_SERVICE_ENV
+              value: 'development'
+            - name: MY_SERVICE_DB_HOST
+              value: 'postgresql'
+            - name: MY_SERVICE_DB_PORT
+              value: '55432'
+            - name: MY_SERVICE_DB_NAME
+              value: 'my_service'
+            - name: MY_SERVICE_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: my-service-db
+                  key: username
+            - name: MY_SERVICE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-service-db
+                  key: password
+            - name: MY_SERVICE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: my-service-secrets
+                  key: secret-key
+            - name: MY_SERVICE_REDIS_URL
+              value: 'redis://redis:6379/0'
+          livenessProbe:
+            httpGet:
+              path: /health/liveness/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/readiness/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '100m'
+            limits:
+              memory: '512Mi'
+              cpu: '500m'
+          volumeMounts:
+            - name: static-files
+              mountPath: /app/staticfiles
+            - name: media-files
+              mountPath: /app/media
+      volumes:
+        - name: static-files
+          emptyDir: {}
+        - name: media-files
+          emptyDir: {}
