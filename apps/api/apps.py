@@ -1,5 +1,5 @@
 """
-API app configuration for my_service.
+API app configuration for metrics_service.
 """
 
 from django.apps import AppConfig

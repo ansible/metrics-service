@@ -1,5 +1,5 @@
 """
-API v1 views for my_service following AAP standards.
+API v1 views for metrics_service following AAP standards.
 """
 
 from rest_framework import viewsets, status

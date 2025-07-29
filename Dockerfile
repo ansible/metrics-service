@@ -1,9 +1,57 @@
 FROM registry.access.redhat.com/ubi9/python-311:latest
 
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+USER root
+RUN dnf update -y && \
+    dnf install -y gcc postgresql-devel openldap-devel && \
+    dnf clean all
+
+# Switch back to default user
+USER 1001
+
+# Upgrade pip
 RUN pip install --upgrade pip
 
-COPY requirements/requirements.in /tmp/requirements.in
-COPY requirements/requirements_dev.in /tmp/requirements_dev.in
+# Copy requirements first for better caching
+COPY requirements.txt /app/
+COPY pyproject.toml /app/
 
-RUN pip install -r /tmp/requirements.in
-RUN pip install -r /tmp/requirements_dev.in
+# Install Python dependencies directly without editable install to avoid permission issues
+RUN pip install -r requirements.txt
+
+# Copy the application code
+COPY --chown=1001:1001 . /app/
+
+# Copy and set up entrypoint script
+USER root
+COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Create necessary directories and files with proper permissions
+RUN mkdir -p /app/logs /app/static && \
+    touch /app/metrics_service/_version.py && \
+    chown -R 1001:1001 /app
+USER 1001
+
+# Create version file content manually since setuptools_scm has permission issues
+RUN echo '__version__ = "0.1.0"' > /app/metrics_service/_version.py
+
+# Expose port
+EXPOSE 8000
+
+# Health check using python instead of curl
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')" || exit 1
+
+# Set entrypoint and default command
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

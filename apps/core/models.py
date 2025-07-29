@@ -1,5 +1,5 @@
 """
-Core models for my_service.
+Core models for metrics_service.
 For full AAP/DAB features, install with: pip install -e ".[dev]"
 """
 

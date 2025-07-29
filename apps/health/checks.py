@@ -1,5 +1,5 @@
 """
-Health check implementations for my_service.
+Health check implementations for metrics_service.
 """
 
 import time

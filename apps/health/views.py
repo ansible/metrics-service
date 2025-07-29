@@ -1,5 +1,5 @@
 """
-Health check views for my_service.
+Health check views for metrics_service.
 """
 
 from django.http import JsonResponse
@@ -51,7 +51,7 @@ class HealthCheckView(View):
 
         response_data = {
             "status": overall_status,
-            "service": getattr(settings, "SERVICE_TYPE", "my-service"),
+            "service": getattr(settings, "SERVICE_TYPE", "metrics-service"),
             "version": "1.0.0",  # Update with actual version
             "checks": results,
             "available_checks": list(HEALTH_CHECKS.keys()),
@@ -73,7 +73,7 @@ class LivenessProbeView(View):
         return JsonResponse(
             {
                 "status": "alive",
-                "service": getattr(settings, "SERVICE_TYPE", "my-service"),
+                "service": getattr(settings, "SERVICE_TYPE", "metrics-service"),
             }
         )
 
@@ -107,7 +107,7 @@ class ReadinessProbeView(View):
 
         response_data = {
             "status": overall_status,
-            "service": getattr(settings, "SERVICE_TYPE", "my-service"),
+            "service": getattr(settings, "SERVICE_TYPE", "metrics-service"),
             "critical_checks": results,
         }
 

@@ -12,13 +12,13 @@ Click **"Use this template"** to create a new repository from this template.
 
 Replace the following template variables throughout your codebase:
 
-| Find               | Replace With                   | Example                      |
-| ------------------ | ------------------------------ | ---------------------------- |
-| `my-service`       | Your service name (kebab-case) | `inventory-service`          |
-| `my_service`       | Your service name (snake_case) | `inventory_service`          |
-| `My Service`       | Your service display name      | `Inventory Service`          |
-| `AAP Team`         | Your team name                 | `Inventory Team`             |
-| `team@example.com` | Your team email                | `inventory-team@company.com` |
+| Find                               | Replace With                   | Example                      |
+| ---------------------------------- | ------------------------------ | ---------------------------- |
+| `metrics-service`                  | Your service name (kebab-case) | `inventory-service`          |
+| `metrics_service`                  | Your service name (snake_case) | `inventory_service`          |
+| `Metrics Service`                  | Your service display name      | `Inventory Service`          |
+| `AAP Emerging Services`            | Your team name                 | `Inventory Team`             |
+| `aap-emerging-services@redhat.com` | Your team email                | `inventory-team@company.com` |
 
 ### 3. Setup Options
 
@@ -57,10 +57,27 @@ python manage.py runserver
 #### Option C: Docker Setup
 
 ```bash
+# Start all services (includes automatic initialization)
 docker-compose up
+
+# Or start in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f metrics-service
 ```
 
+The Docker setup includes automatic initialization that will:
+
+- ✅ Wait for database to be ready
+- ✅ Run database migrations automatically
+- ✅ Initialize Django-Ansible-Base ServiceID
+- ✅ Create static files directory
+- ✅ Start the Django development server
+
 Your service will be available at http://localhost:8000
+
+**Default admin credentials:** `admin` / `admin123` (create with: `docker-compose exec metrics-service python manage.py createsuperuser`)
 
 ## Current Status
 
@@ -190,7 +207,7 @@ This command:
 
    ```bash
    # Create PostgreSQL database
-   createdb my_service
+   createdb metrics_service
 
    # Run migrations
    python manage.py migrate
@@ -215,31 +232,31 @@ This command:
 
 ### Environment Variables
 
-Configure the service using environment variables with the `MY_SERVICE_` prefix:
+Configure the service using environment variables with the `metrics_service_` prefix:
 
 ```bash
 # Core settings
-MY_SERVICE_ENV=development
-MY_SERVICE_SECRET_KEY=your-secret-key
-MY_SERVICE_ALLOWED_HOSTS=localhost,127.0.0.1
+METRICS_SERVICE_ENV=development
+METRICS_SERVICE_SECRET_KEY=your-secret-key
+metrics_service_ALLOWED_HOSTS=localhost,127.0.0.1
 
 # Database
-MY_SERVICE_DB_HOST=localhost
-MY_SERVICE_DB_PORT=55432
-MY_SERVICE_DB_USER=my_service
-MY_SERVICE_DB_PASSWORD=my_service
-MY_SERVICE_DB_NAME=my_service
+METRICS_SERVICE_DB_HOST=localhost
+METRICS_SERVICE_DB_PORT=55432
+METRICS_SERVICE_DB_USER=metrics_service
+METRICS_SERVICE_DB_PASSWORD=metrics_service
+METRICS_SERVICE_DB_NAME=metrics_service
 
 # Cache
-MY_SERVICE_REDIS_URL=redis://localhost:6379/0
+metrics_service_REDIS_URL=redis://localhost:6379/0
 
 # Feature Flags
-MY_SERVICE_DISPATCHERD_ENABLED=false
+metrics_service_DISPATCHERD_ENABLED=false
 
 # Background Tasks (Dispatcherd)
-MY_SERVICE_DISPATCHERD_WORKERS=4
-MY_SERVICE_DISPATCHERD_MAX_TASKS=100
-MY_SERVICE_DISPATCHERD_TIMEOUT=3600
+metrics_service_DISPATCHERD_WORKERS=4
+metrics_service_DISPATCHERD_MAX_TASKS=100
+metrics_service_DISPATCHERD_TIMEOUT=3600
 ```
 
 ### Dynaconf Settings
@@ -254,9 +271,9 @@ databases:
     engine: django.db.backends.postgresql
     host: localhost
     port: 55432
-    user: my_service
-    password: my_service
-    name: my_service
+    user: metrics_service
+    password: metrics_service
+    name: metrics_service
 
 feature_flags:
   dispatcherd_enabled: false
@@ -327,7 +344,7 @@ pytest -m unit
 pytest -m integration
 
 # With coverage
-pytest --cov=my_service --cov=apps
+pytest --cov=metrics_service --cov=apps
 ```
 
 ### Database Migrations
@@ -361,10 +378,10 @@ This template includes comprehensive background task processing using `dispatche
 **Environment Variables:**
 
 ```bash
-MY_SERVICE_DISPATCHERD_ENABLED=true    # Enable/disable dispatcherd
-MY_SERVICE_DISPATCHERD_WORKERS=4       # Number of worker processes
-MY_SERVICE_DISPATCHERD_MAX_TASKS=100   # Max tasks per worker before respawn
-MY_SERVICE_DISPATCHERD_TIMEOUT=3600    # Task timeout in seconds
+metrics_service_DISPATCHERD_ENABLED=true    # Enable/disable dispatcherd
+metrics_service_DISPATCHERD_WORKERS=4       # Number of worker processes
+metrics_service_DISPATCHERD_MAX_TASKS=100   # Max tasks per worker before respawn
+metrics_service_DISPATCHERD_TIMEOUT=3600    # Task timeout in seconds
 ```
 
 **YAML Configuration:**
@@ -385,7 +402,7 @@ dispatcherd:
 
 ```bash
 # Enable dispatcherd
-export MY_SERVICE_DISPATCHERD_ENABLED=true
+export metrics_service_DISPATCHERD_ENABLED=true
 
 # Start with default settings
 python manage.py run_dispatcher
@@ -490,11 +507,29 @@ curl http://localhost:8000/health/?check=dispatcherd
 
 ```bash
 # Build image
-docker build -t my-service .
+docker build -t metrics-service .
 
-# Run container
-docker run -p 8000:8000 my-service
+# Run container (requires database)
+docker run -p 8000:8000 \
+  -e METRICS_SERVICE_DB_HOST=your-db-host \
+  -e METRICS_SERVICE_DB_USER=your-db-user \
+  -e METRICS_SERVICE_DB_PASSWORD=your-db-password \
+  -e METRICS_SERVICE_DB_NAME=your-db-name \
+  metrics-service
+
+# Or use docker-compose for complete stack
+docker-compose up -d
 ```
+
+**Automatic Initialization**: The Docker container includes an entrypoint script (`scripts/docker-entrypoint.sh`) that automatically:
+
+- Waits for database availability
+- Runs Django migrations
+- Initializes Django-Ansible-Base ServiceID
+- Creates required directories
+- Starts the application
+
+**Environment Variables**: See `docker-compose.yml` for all available configuration options.
 
 ### Kubernetes
 
@@ -502,7 +537,7 @@ For AAP-dev integration:
 
 ```bash
 # Enable service in AAP-dev
-export AAP_MY_SERVICE=true
+export AAP_METRICS_SERVICE=true
 export AAP_VERSION=2.6
 
 # Deploy to AAP-dev
@@ -514,12 +549,12 @@ make aap
 Set these environment variables for production:
 
 ```bash
-MY_SERVICE_ENV=production
-MY_SERVICE_DEBUG=false
-MY_SERVICE_SECRET_KEY=<secure-secret-key>
-MY_SERVICE_ALLOWED_HOSTS=yourdomain.com
-MY_SERVICE_DB_HOST=<production-db-host>
-MY_SERVICE_REDIS_URL=<production-redis-url>
+METRICS_SERVICE_ENV=production
+metrics_service_DEBUG=false
+METRICS_SERVICE_SECRET_KEY=<secure-secret-key>
+metrics_service_ALLOWED_HOSTS=yourdomain.com
+METRICS_SERVICE_DB_HOST=<production-db-host>
+metrics_service_REDIS_URL=<production-redis-url>
 ```
 
 ## Architecture
@@ -527,7 +562,7 @@ MY_SERVICE_REDIS_URL=<production-redis-url>
 ### Project Structure
 
 ```
-my-service/
+metrics-service/
 ├── apps/                          # Django applications
 │   ├── api/                       # API endpoints (versioned)
 │   │   └── v1/                    # API version 1
@@ -536,7 +571,7 @@ my-service/
 │   │   ├── tasks.py               # Background tasks
 │   │   └── management/            # Management commands
 │   └── health/                    # Health check endpoints
-├── my_service/                    # Main Django project
+├── metrics_service/                    # Main Django project
 │   └── settings/                  # Split settings
 ├── tests/                         # Test suite
 │   ├── unit/                      # Unit tests
@@ -618,9 +653,9 @@ resource_server:
 
 The service automatically registers with AAP Gateway when deployed in AAP-dev:
 
-- **Service Type**: `my-service`
-- **API Endpoints**: `/api/my-service/`
-- **Health Check**: `/api/my-service/health/`
+- **Service Type**: `metrics-service`
+- **API Endpoints**: `/api/metrics-service/`
+- **Health Check**: `/api/metrics-service/health/`
 
 ## Troubleshooting
 
@@ -652,7 +687,7 @@ The service automatically registers with AAP Gateway when deployed in AAP-dev:
 Enable debug mode for development:
 
 ```bash
-export MY_SERVICE_ENV=development
+export METRICS_SERVICE_ENV=development
 export DJANGO_DEBUG=true
 ```
 
@@ -662,15 +697,15 @@ Check application logs:
 
 ```bash
 # Development
-tail -f logs/my_service.log
+tail -f logs/metrics_service.log
 
 # Kubernetes
-kubectl logs deployment/my-service
+kubectl logs deployment/metrics-service
 ```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License - see the [LICENSE](LICENSE) file for details.
 
 ## Support
 

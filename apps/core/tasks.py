@@ -1,5 +1,5 @@
 """
-Background tasks for my_service using dispatcherd.
+Background tasks for metrics_service using dispatcherd.
 """
 
 import logging

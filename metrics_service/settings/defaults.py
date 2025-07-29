@@ -1,5 +1,5 @@
 """
-Base Django settings for my_service following AAP standards.
+Base Django settings for metrics_service following AAP standards.
 """
 
 import os
@@ -9,7 +9,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("MY_SERVICE_SECRET_KEY", "dev-secret-key-change-in-production")
+SECRET_KEY = os.environ.get("METRICS_SERVICE_SECRET_KEY", "dev-secret-key-change-in-production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -17,8 +17,8 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 # Service identification for AAP
-SERVICE_TYPE = "my-service"
-SERVICE_ID = os.environ.get("MY_SERVICE_ID", "generated-uuid")
+SERVICE_TYPE = "metrics-service"
+SERVICE_ID = os.environ.get("metrics_service_ID", "generated-uuid")
 
 # Application definition
 DJANGO_APPS = [
@@ -34,6 +34,8 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "drf_spectacular",
     "corsheaders",
+    "oauth2_provider",
+    "social_django",
 ]
 
 # DAB apps - For immediate setup without complex dependencies
@@ -87,7 +89,7 @@ MIDDLEWARE = [
     "ansible_base.lib.middleware.logging.LogTracebackMiddleware",
 ]
 
-ROOT_URLCONF = "my_service.urls"
+ROOT_URLCONF = "metrics_service.urls"
 
 TEMPLATES = [
     {
@@ -105,35 +107,35 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "my_service.wsgi.application"
-ASGI_APPLICATION = "my_service.asgi.application"
+WSGI_APPLICATION = "metrics_service.wsgi.application"
+ASGI_APPLICATION = "metrics_service.asgi.application"
 
 # Database
 # Default to SQLite for immediate development, override with environment variables for production
 DATABASES = {
     "default": {
-        "ENGINE": os.environ.get("MY_SERVICE_DB_ENGINE", "django.db.backends.sqlite3"),
-        "NAME": os.environ.get("MY_SERVICE_DB_NAME", BASE_DIR / "db.sqlite3"),
-        "HOST": os.environ.get("MY_SERVICE_DB_HOST", ""),
-        "PORT": os.environ.get("MY_SERVICE_DB_PORT", ""),
-        "USER": os.environ.get("MY_SERVICE_DB_USER", ""),
-        "PASSWORD": os.environ.get("MY_SERVICE_DB_PASSWORD", ""),
+        "ENGINE": os.environ.get("METRICS_SERVICE_DB_ENGINE", "django.db.backends.sqlite3"),
+        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", BASE_DIR / "db.sqlite3"),
+        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", ""),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", ""),
+        "USER": os.environ.get("METRICS_SERVICE_DB_USER", ""),
+        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", ""),
         "OPTIONS": {},
     }
 }
 
 # Override for PostgreSQL when environment variables are set
-if os.environ.get("MY_SERVICE_DB_ENGINE") == "django.db.backends.postgresql":
+if os.environ.get("METRICS_SERVICE_DB_ENGINE") == "django.db.backends.postgresql":
     DATABASES["default"].update(
         {
             "ENGINE": "django.db.backends.postgresql",
-            "HOST": os.environ.get("MY_SERVICE_DB_HOST", "127.0.0.1"),
-            "PORT": os.environ.get("MY_SERVICE_DB_PORT", "55432"),
-            "USER": os.environ.get("MY_SERVICE_DB_USER", "my_service"),
-            "PASSWORD": os.environ.get("MY_SERVICE_DB_PASSWORD", "my_service"),
-            "NAME": os.environ.get("MY_SERVICE_DB_NAME", "my_service"),
+            "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
+            "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+            "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+            "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
             "OPTIONS": {
-                "sslmode": os.environ.get("MY_SERVICE_DB_SSLMODE", "prefer"),
+                "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
             },
         }
     )
@@ -200,8 +202,8 @@ REST_FRAMEWORK = {
 
 # OpenAPI/Swagger Documentation
 SPECTACULAR_SETTINGS = {
-    "TITLE": "My Service API",
-    "DESCRIPTION": "API documentation for My Service",
+    "TITLE": "Metrics Service API",
+    "DESCRIPTION": "API documentation for Metrics Service",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SCHEMA_PATH_PREFIX": "/api/v[0-9]",
@@ -247,7 +249,7 @@ RESOURCE_SERVER = {
 RESOURCE_SERVER_SYNC_ENABLED = False
 
 # Background Task Configuration (Dispatcherd)
-DISPATCHERD_ENABLED = os.environ.get("MY_SERVICE_DISPATCHERD_ENABLED", "false").lower() == "true"
+DISPATCHERD_ENABLED = os.environ.get("metrics_service_DISPATCHERD_ENABLED", "false").lower() == "true"
 
 # Feature Flags
 FEATURE_FLAGS = {
@@ -258,16 +260,16 @@ FEATURE_FLAGS = {
 # Default to local memory cache for development, override for production
 CACHES = {
     "default": {
-        "BACKEND": os.environ.get("MY_SERVICE_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
-        "LOCATION": os.environ.get("MY_SERVICE_CACHE_LOCATION", "default"),
+        "BACKEND": os.environ.get("metrics_service_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
+        "LOCATION": os.environ.get("metrics_service_CACHE_LOCATION", "default"),
     }
 }
 
 # Override for Redis when environment variable is set
-if os.environ.get("MY_SERVICE_REDIS_URL"):
+if os.environ.get("metrics_service_REDIS_URL"):
     CACHES["default"] = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("MY_SERVICE_REDIS_URL"),
+        "LOCATION": os.environ.get("metrics_service_REDIS_URL"),
     }
 
 # Session Configuration
@@ -306,7 +308,7 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
-        "my_service": {
+        "metrics_service": {
             "handlers": ["console"],
             "level": "DEBUG",
             "propagate": False,

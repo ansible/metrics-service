@@ -1,5 +1,5 @@
 """
-Pytest configuration and fixtures for my_service tests.
+Pytest configuration and fixtures for metrics_service tests.
 """
 
 import pytest

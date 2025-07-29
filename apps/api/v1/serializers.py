@@ -1,5 +1,5 @@
 """
-API v1 serializers for my_service following AAP standards.
+API v1 serializers for metrics_service following AAP standards.
 """
 
 from rest_framework import serializers
