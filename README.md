@@ -502,7 +502,7 @@ For AAP-dev integration:
 
 ```bash
 # Enable service in AAP-dev
-export AAP_metrics_service=true
+export AAP_METRICS_SERVICE=true
 export AAP_VERSION=2.6
 
 # Deploy to AAP-dev
