@@ -52,18 +52,18 @@ try:
 except ImportError:
     pass
 
-# Register other ansible_base models as needed
-try:
-    from ansible_base.oauth2_provider.models import OAuth2Application, OAuth2AccessToken
+# # Register other ansible_base models as needed
+# try:
+#     from ansible_base.oauth2_provider.models import OAuth2Application, OAuth2AccessToken
 
-    RESOURCE_LIST.extend(
-        [
-            ResourceConfig(OAuth2Application),
-            ResourceConfig(OAuth2AccessToken),
-        ]
-    )
-except ImportError:
-    pass
+#     RESOURCE_LIST.extend(
+#         [
+#             ResourceConfig(OAuth2Application),
+#             ResourceConfig(OAuth2AccessToken),
+#         ]
+#     )
+# except ImportError:
+#     pass
 
 try:
     from ansible_base.rbac.models import RoleDefinition

@@ -14,10 +14,10 @@ Replace the following template variables throughout your codebase:
 
 | Find                               | Replace With                   | Example                      |
 | ---------------------------------- | ------------------------------ | ---------------------------- |
-| `metrics-service`                       | Your service name (kebab-case) | `inventory-service`          |
-| `metrics_service`                       | Your service name (snake_case) | `inventory_service`          |
-| `Metrics Service`                       | Your service display name      | `Inventory Service`          |
-| `AAP Emerging Services`                | Your team name                 | `Inventory Team`             |
+| `metrics-service`                  | Your service name (kebab-case) | `inventory-service`          |
+| `metrics_service`                  | Your service name (snake_case) | `inventory_service`          |
+| `Metrics Service`                  | Your service display name      | `Inventory Service`          |
+| `AAP Emerging Services`            | Your team name                 | `Inventory Team`             |
 | `aap-emerging-services@redhat.com` | Your team email                | `inventory-team@company.com` |
 
 ### 3. Setup Options
@@ -52,15 +52,32 @@ python manage.py createsuperuser
 
 # Start development server
 python manage.py runserver
-```   
+```
 
 #### Option C: Docker Setup
 
 ```bash
+# Start all services (includes automatic initialization)
 docker-compose up
+
+# Or start in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f metrics-service
 ```
 
+The Docker setup includes automatic initialization that will:
+
+- ✅ Wait for database to be ready
+- ✅ Run database migrations automatically
+- ✅ Initialize Django-Ansible-Base ServiceID
+- ✅ Create static files directory
+- ✅ Start the Django development server
+
 Your service will be available at http://localhost:8000
+
+**Default admin credentials:** `admin` / `admin123` (create with: `docker-compose exec metrics-service python manage.py createsuperuser`)
 
 ## Current Status
 
@@ -492,9 +509,27 @@ curl http://localhost:8000/health/?check=dispatcherd
 # Build image
 docker build -t metrics-service .
 
-# Run container
-docker run -p 8000:8000 metrics-service
+# Run container (requires database)
+docker run -p 8000:8000 \
+  -e METRICS_SERVICE_DB_HOST=your-db-host \
+  -e METRICS_SERVICE_DB_USER=your-db-user \
+  -e METRICS_SERVICE_DB_PASSWORD=your-db-password \
+  -e METRICS_SERVICE_DB_NAME=your-db-name \
+  metrics-service
+
+# Or use docker-compose for complete stack
+docker-compose up -d
 ```
+
+**Automatic Initialization**: The Docker container includes an entrypoint script (`scripts/docker-entrypoint.sh`) that automatically:
+
+- Waits for database availability
+- Runs Django migrations
+- Initializes Django-Ansible-Base ServiceID
+- Creates required directories
+- Starts the application
+
+**Environment Variables**: See `docker-compose.yml` for all available configuration options.
 
 ### Kubernetes
 

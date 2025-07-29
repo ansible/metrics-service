@@ -51,8 +51,9 @@ services:
       METRICS_SERVICE_DB_USER: metrics_service
       METRICS_SERVICE_DB_PASSWORD: metrics_service
       METRICS_SERVICE_DB_NAME: metrics_service
-      metrics_service_REDIS_URL: redis://redis:6379/0
-      metrics_service_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service
+      METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
+      METRICS_SERVICE_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service,0.0.0.0
+      METRICS_SERVICE_DEBUG: "true"
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
     networks:
       - metrics-service

@@ -34,6 +34,8 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "drf_spectacular",
     "corsheaders",
+    "oauth2_provider",
+    "social_django",
 ]
 
 # DAB apps - For immediate setup without complex dependencies
