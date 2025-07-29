@@ -1,5 +1,5 @@
 # """
-# Post-load settings processing for my_service.
+# Post-load settings processing for metrics_service.
 # This module performs validation and dynamic configuration after all settings
 # are loaded.
 # """
@@ -11,11 +11,11 @@
 # # Validate required environment variables for production
 # if not getattr(settings, "DEBUG", True):
 #     required_env_vars = [
-#         "MY_SERVICE_SECRET_KEY",
-#         "MY_SERVICE_DB_HOST",
-#         "MY_SERVICE_DB_USER",
-#         "MY_SERVICE_DB_PASSWORD",
-#         "MY_SERVICE_DB_NAME",
+#         "metrics_service_SECRET_KEY",
+#         "metrics_service_DB_HOST",
+#         "metrics_service_DB_USER",
+#         "metrics_service_DB_PASSWORD",
+#         "metrics_service_DB_NAME",
 #     ]
 
 #     missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -48,7 +48,7 @@
 #         raise ValueError(f"Missing required database fields: {', '.join(missing_db_fields)}")
 
 # # Configure logging based on environment
-# environment = os.environ.get("MY_SERVICE_ENV", "development")
+# environment = os.environ.get("metrics_service_ENV", "development")
 
 # if environment == "production":
 #     # Ensure log directory exists
@@ -61,7 +61,7 @@
 # # Process feature flags from environment
 # feature_flags = getattr(settings, "FEATURE_FLAGS", {})
 # for flag_name in feature_flags.keys():
-#     env_var = f"MY_SERVICE_{flag_name}"
+#     env_var = f"metrics_service_{flag_name}"
 #     if os.environ.get(env_var):
 #         feature_flags[flag_name] = os.environ.get(env_var, "false").lower() == "true"
 
@@ -73,8 +73,8 @@
 #             "read": "Read access",
 #             "write": "Write access",
 #         },
-#         "ACCESS_TOKEN_EXPIRE_SECONDS": int(os.environ.get("MY_SERVICE_OAUTH2_ACCESS_TOKEN_EXPIRE", "3600")),
-#         "REFRESH_TOKEN_EXPIRE_SECONDS": int(os.environ.get("MY_SERVICE_OAUTH2_REFRESH_TOKEN_EXPIRE", "3600")),
+#         "ACCESS_TOKEN_EXPIRE_SECONDS": int(os.environ.get("metrics_service_OAUTH2_ACCESS_TOKEN_EXPIRE", "3600")),
+#         "REFRESH_TOKEN_EXPIRE_SECONDS": int(os.environ.get("metrics_service_OAUTH2_REFRESH_TOKEN_EXPIRE", "3600")),
 #     }
 
 # # Configure JWT settings if enabled
@@ -82,15 +82,15 @@
 #     JWT_CONSUMER = {
 #         "JWT_SECRET_KEY": getattr(settings, "SECRET_KEY"),
 #         "JWT_ALGORITHM": getattr(settings, "JWT_CONSUMER_ALGORITHM", "HS256"),
-#         "JWT_EXPIRATION_DELTA": int(os.environ.get("MY_SERVICE_JWT_EXPIRATION", "3600")),
+#         "JWT_EXPIRATION_DELTA": int(os.environ.get("metrics_service_JWT_EXPIRATION", "3600")),
 #     }
 
 # # Configure dispatcherd if enabled
 # if feature_flags.get("DISPATCHERD_ENABLED"):
 #     DISPATCHERD_CONFIG = {
-#         "workers": int(os.environ.get("MY_SERVICE_DISPATCHERD_WORKERS", "4")),
-#         "max_tasks_per_worker": int(os.environ.get("MY_SERVICE_DISPATCHERD_MAX_TASKS", "100")),
-#         "task_timeout": int(os.environ.get("MY_SERVICE_DISPATCHERD_TIMEOUT", "3600")),
+#         "workers": int(os.environ.get("metrics_service_DISPATCHERD_WORKERS", "4")),
+#         "max_tasks_per_worker": int(os.environ.get("metrics_service_DISPATCHERD_MAX_TASKS", "100")),
+#         "task_timeout": int(os.environ.get("metrics_service_DISPATCHERD_TIMEOUT", "3600")),
 #     }
 
 # # Log configuration summary

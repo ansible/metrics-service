@@ -1,5 +1,5 @@
 """
-Health app configuration for my_service.
+Health app configuration for metrics_service.
 """
 
 from django.apps import AppConfig

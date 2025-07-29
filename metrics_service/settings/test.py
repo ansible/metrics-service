@@ -1,5 +1,5 @@
 """
-Test-specific settings for my_service.
+Test-specific settings for metrics_service.
 """
 
 from .defaults import *  # noqa: F401,F403
@@ -46,7 +46,7 @@ class DisableMigrations:
 MIGRATION_MODULES = DisableMigrations()
 
 # Logging configuration for tests (minimal)
-LOGGING["loggers"]["my_service"]["level"] = "WARNING"
+LOGGING["loggers"]["metrics_service"]["level"] = "WARNING"
 LOGGING["loggers"]["ansible_base"]["level"] = "WARNING"
 LOGGING["loggers"]["django"]["level"] = "WARNING"
 LOGGING["loggers"][""]["level"] = "ERROR"

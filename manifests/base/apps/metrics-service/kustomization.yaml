@@ -11,10 +11,10 @@ resources:
   - k8s/rolebindings.yaml
 
 commonLabels:
-  app: my-service
+  app: metrics-service
 
-namePrefix: my-service-
+namePrefix: metrics-service-
 
 images:
-  - name: my-service
+  - name: metrics-service
     newTag: latest

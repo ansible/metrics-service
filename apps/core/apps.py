@@ -1,5 +1,5 @@
 """
-Core app configuration for my_service.
+Core app configuration for metrics_service.
 """
 
 from django.apps import AppConfig

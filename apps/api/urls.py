@@ -1,5 +1,5 @@
 """
-Main API URL configuration for my_service.
+Main API URL configuration for metrics_service.
 """
 
 from django.urls import path, include

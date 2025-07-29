@@ -1,54 +1,54 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: my-service
+  name: metrics-service
   labels:
-    app: my-service
+    app: metrics-service
     component: api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: my-service
+      app: metrics-service
       component: api
   template:
     metadata:
       labels:
-        app: my-service
+        app: metrics-service
         component: api
     spec:
-      serviceAccountName: my-service
+      serviceAccountName: metrics-service
       containers:
-        - name: my-service
-          image: my-service
+        - name: metrics-service
+          image: metrics-service
           ports:
             - containerPort: 8000
               name: http
           env:
-            - name: MY_SERVICE_ENV
+            - name: metrics_service_ENV
               value: 'development'
-            - name: MY_SERVICE_DB_HOST
+            - name: metrics_service_DB_HOST
               value: 'postgresql'
-            - name: MY_SERVICE_DB_PORT
+            - name: metrics_service_DB_PORT
               value: '55432'
-            - name: MY_SERVICE_DB_NAME
-              value: 'my_service'
-            - name: MY_SERVICE_DB_USER
+            - name: metrics_service_DB_NAME
+              value: 'metrics_service'
+            - name: metrics_service_DB_USER
               valueFrom:
                 secretKeyRef:
-                  name: my-service-db
+                  name: metrics-service-db
                   key: username
-            - name: MY_SERVICE_DB_PASSWORD
+            - name: metrics_service_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: my-service-db
+                  name: metrics-service-db
                   key: password
-            - name: MY_SERVICE_SECRET_KEY
+            - name: metrics_service_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: my-service-secrets
+                  name: metrics-service-secrets
                   key: secret-key
-            - name: MY_SERVICE_REDIS_URL
+            - name: metrics_service_REDIS_URL
               value: 'redis://redis:6379/0'
           livenessProbe:
             httpGet:

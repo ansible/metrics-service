@@ -1,5 +1,5 @@
 """
-URL configuration for my_service project.
+URL configuration for metrics_service project.
 """
 
 from django.contrib import admin

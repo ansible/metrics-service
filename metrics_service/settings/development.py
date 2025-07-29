@@ -1,5 +1,5 @@
 # """
-# Development-specific settings for my_service.
+# Development-specific settings for metrics_service.
 # """
 
 # from .defaults import *  # noqa: F401,F403
@@ -14,9 +14,9 @@
 #         "ENGINE": "django.db.backends.postgresql",
 #         "HOST": "127.0.0.1",
 #         "PORT": "55432",
-#         "USER": "my_service",
-#         "PASSWORD": "my_service",
-#         "NAME": "my_service_dev",
+#         "USER": "metrics_service",
+#         "PASSWORD": "metrics_service",
+#         "NAME": "metrics_service_dev",
 #         "OPTIONS": {
 #             "sslmode": "disable",
 #         },
@@ -41,7 +41,7 @@
 # SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # # Logging configuration for development
-# LOGGING["loggers"]["my_service"]["level"] = "DEBUG"
+# LOGGING["loggers"]["metrics_service"]["level"] = "DEBUG"
 # LOGGING["loggers"]["ansible_base"]["level"] = "DEBUG"
 # LOGGING["loggers"]["django"]["level"] = "DEBUG"
 

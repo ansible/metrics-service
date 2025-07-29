@@ -19,7 +19,7 @@ from .models import Organization, Team
 
 
 class APIConfig(ServiceAPIConfig):
-    service_type = "my_service"
+    service_type = "metrics_service"
 
 
 # Service resource configuration for AAP resource sharing
