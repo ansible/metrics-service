@@ -25,25 +25,25 @@ spec:
             - containerPort: 8000
               name: http
           env:
-            - name: metrics_service_ENV
+            - name: METRICS_SERVICE_ENV
               value: 'development'
-            - name: metrics_service_DB_HOST
+            - name: METRICS_SERVICE_DB_HOST
               value: 'postgresql'
-            - name: metrics_service_DB_PORT
+            - name: METRICS_SERVICE_DB_PORT
               value: '55432'
-            - name: metrics_service_DB_NAME
+            - name: METRICS_SERVICE_DB_NAME
               value: 'metrics_service'
-            - name: metrics_service_DB_USER
+            - name: METRICS_SERVICE_DB_USER
               valueFrom:
                 secretKeyRef:
                   name: metrics-service-db
                   key: username
-            - name: metrics_service_DB_PASSWORD
+            - name: METRICS_SERVICE_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: metrics-service-db
                   key: password
-            - name: metrics_service_SECRET_KEY
+            - name: METRICS_SERVICE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: metrics-service-secrets

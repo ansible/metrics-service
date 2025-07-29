@@ -219,16 +219,16 @@ Configure the service using environment variables with the `metrics_service_` pr
 
 ```bash
 # Core settings
-metrics_service_ENV=development
-metrics_service_SECRET_KEY=your-secret-key
+METRICS_SERVICE_ENV=development
+METRICS_SERVICE_SECRET_KEY=your-secret-key
 metrics_service_ALLOWED_HOSTS=localhost,127.0.0.1
 
 # Database
-metrics_service_DB_HOST=localhost
-metrics_service_DB_PORT=55432
-metrics_service_DB_USER=metrics_service
-metrics_service_DB_PASSWORD=metrics_service
-metrics_service_DB_NAME=metrics_service
+METRICS_SERVICE_DB_HOST=localhost
+METRICS_SERVICE_DB_PORT=55432
+METRICS_SERVICE_DB_USER=metrics_service
+METRICS_SERVICE_DB_PASSWORD=metrics_service
+METRICS_SERVICE_DB_NAME=metrics_service
 
 # Cache
 metrics_service_REDIS_URL=redis://localhost:6379/0
@@ -514,11 +514,11 @@ make aap
 Set these environment variables for production:
 
 ```bash
-metrics_service_ENV=production
+METRICS_SERVICE_ENV=production
 metrics_service_DEBUG=false
-metrics_service_SECRET_KEY=<secure-secret-key>
+METRICS_SERVICE_SECRET_KEY=<secure-secret-key>
 metrics_service_ALLOWED_HOSTS=yourdomain.com
-metrics_service_DB_HOST=<production-db-host>
+METRICS_SERVICE_DB_HOST=<production-db-host>
 metrics_service_REDIS_URL=<production-redis-url>
 ```
 
@@ -652,7 +652,7 @@ The service automatically registers with AAP Gateway when deployed in AAP-dev:
 Enable debug mode for development:
 
 ```bash
-export metrics_service_ENV=development
+export METRICS_SERVICE_ENV=development
 export DJANGO_DEBUG=true
 ```
 

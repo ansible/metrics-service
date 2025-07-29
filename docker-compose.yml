@@ -43,14 +43,14 @@ services:
       redis:
         condition: service_started
     environment:
-      metrics_service_ENV: development
-      metrics_service_SECRET_KEY: dev-secret-key-change-in-production
-      metrics_service_DB_ENGINE: django.db.backends.postgresql
-      metrics_service_DB_HOST: postgres
-      metrics_service_DB_PORT: 5432
-      metrics_service_DB_USER: metrics_service
-      metrics_service_DB_PASSWORD: metrics_service
-      metrics_service_DB_NAME: metrics_service
+      METRICS_SERVICE_ENV: development
+      METRICS_SERVICE_SECRET_KEY: dev-secret-key-change-in-production
+      METRICS_SERVICE_DB_ENGINE: django.db.backends.postgresql
+      METRICS_SERVICE_DB_HOST: postgres
+      METRICS_SERVICE_DB_PORT: 5432
+      METRICS_SERVICE_DB_USER: metrics_service
+      METRICS_SERVICE_DB_PASSWORD: metrics_service
+      METRICS_SERVICE_DB_NAME: metrics_service
       metrics_service_REDIS_URL: redis://redis:6379/0
       metrics_service_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development

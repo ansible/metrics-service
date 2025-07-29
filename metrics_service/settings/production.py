@@ -13,13 +13,13 @@
 # DATABASES = {
 #     "default": {
 #         "ENGINE": "django.db.backends.postgresql",
-#         "HOST": os.environ.get("metrics_service_DB_HOST"),
-#         "PORT": os.environ.get("metrics_service_DB_PORT", "55432"),
-#         "USER": os.environ.get("metrics_service_DB_USER"),
-#         "PASSWORD": os.environ.get("metrics_service_DB_PASSWORD"),
-#         "NAME": os.environ.get("metrics_service_DB_NAME"),
+#         "HOST": os.environ.get("METRICS_SERVICE_DB_HOST"),
+#         "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
+#         "USER": os.environ.get("METRICS_SERVICE_DB_USER"),
+#         "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD"),
+#         "NAME": os.environ.get("METRICS_SERVICE_DB_NAME"),
 #         "OPTIONS": {
-#             "sslmode": os.environ.get("metrics_service_DB_SSLMODE", "require"),
+#             "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "require"),
 #         },
 #         "CONN_MAX_AGE": 60,
 #     }

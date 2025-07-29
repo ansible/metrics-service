@@ -11,11 +11,11 @@
 # # Validate required environment variables for production
 # if not getattr(settings, "DEBUG", True):
 #     required_env_vars = [
-#         "metrics_service_SECRET_KEY",
-#         "metrics_service_DB_HOST",
-#         "metrics_service_DB_USER",
-#         "metrics_service_DB_PASSWORD",
-#         "metrics_service_DB_NAME",
+#         "METRICS_SERVICE_SECRET_KEY",
+#         "METRICS_SERVICE_DB_HOST",
+#         "METRICS_SERVICE_DB_USER",
+#         "METRICS_SERVICE_DB_PASSWORD",
+#         "METRICS_SERVICE_DB_NAME",
 #     ]
 
 #     missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
@@ -48,7 +48,7 @@
 #         raise ValueError(f"Missing required database fields: {', '.join(missing_db_fields)}")
 
 # # Configure logging based on environment
-# environment = os.environ.get("metrics_service_ENV", "development")
+# environment = os.environ.get("METRICS_SERVICE_ENV", "development")
 
 # if environment == "production":
 #     # Ensure log directory exists

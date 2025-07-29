@@ -8,8 +8,8 @@ from ansible_base.lib import dynamic_config
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Set environment before including any settings
-os.environ.setdefault("metrics_service_ENV", "development")
-environment = os.environ.get("metrics_service_ENV", "development")
+os.environ.setdefault("METRICS_SERVICE_ENV", "development")
+environment = os.environ.get("METRICS_SERVICE_ENV", "development")
 
 # Include base Django-Ansible-Base settings
 settings_file = os.path.join(

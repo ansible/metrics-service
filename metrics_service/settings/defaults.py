@@ -9,7 +9,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("metrics_service_SECRET_KEY", "dev-secret-key-change-in-production")
+SECRET_KEY = os.environ.get("METRICS_SERVICE_SECRET_KEY", "dev-secret-key-change-in-production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -112,28 +112,28 @@ ASGI_APPLICATION = "metrics_service.asgi.application"
 # Default to SQLite for immediate development, override with environment variables for production
 DATABASES = {
     "default": {
-        "ENGINE": os.environ.get("metrics_service_DB_ENGINE", "django.db.backends.sqlite3"),
-        "NAME": os.environ.get("metrics_service_DB_NAME", BASE_DIR / "db.sqlite3"),
-        "HOST": os.environ.get("metrics_service_DB_HOST", ""),
-        "PORT": os.environ.get("metrics_service_DB_PORT", ""),
-        "USER": os.environ.get("metrics_service_DB_USER", ""),
-        "PASSWORD": os.environ.get("metrics_service_DB_PASSWORD", ""),
+        "ENGINE": os.environ.get("METRICS_SERVICE_DB_ENGINE", "django.db.backends.sqlite3"),
+        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", BASE_DIR / "db.sqlite3"),
+        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", ""),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", ""),
+        "USER": os.environ.get("METRICS_SERVICE_DB_USER", ""),
+        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", ""),
         "OPTIONS": {},
     }
 }
 
 # Override for PostgreSQL when environment variables are set
-if os.environ.get("metrics_service_DB_ENGINE") == "django.db.backends.postgresql":
+if os.environ.get("METRICS_SERVICE_DB_ENGINE") == "django.db.backends.postgresql":
     DATABASES["default"].update(
         {
             "ENGINE": "django.db.backends.postgresql",
-            "HOST": os.environ.get("metrics_service_DB_HOST", "127.0.0.1"),
-            "PORT": os.environ.get("metrics_service_DB_PORT", "55432"),
-            "USER": os.environ.get("metrics_service_DB_USER", "metrics_service"),
-            "PASSWORD": os.environ.get("metrics_service_DB_PASSWORD", "metrics_service"),
-            "NAME": os.environ.get("metrics_service_DB_NAME", "metrics_service"),
+            "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
+            "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+            "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+            "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
             "OPTIONS": {
-                "sslmode": os.environ.get("metrics_service_DB_SSLMODE", "prefer"),
+                "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
             },
         }
     )
