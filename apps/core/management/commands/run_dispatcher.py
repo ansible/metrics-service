@@ -48,7 +48,8 @@ class Command(BaseCommand):
             # Import and configure dispatcherd
             import dispatcherd
             import dispatcherd.config
-            from apps.core.tasks import TASK_FUNCTIONS
+            from apps.core.tasks import TASK_FUNCTIONS, TaskScheduler
+            import threading
 
             # Configure logging level
             import logging
@@ -66,6 +67,12 @@ class Command(BaseCommand):
 
             # Configure dispatcherd before running
             dispatcherd.config.setup()
+
+            # Start task scheduler in a separate thread
+            scheduler = TaskScheduler(poll_interval=30)
+            scheduler_thread = threading.Thread(target=scheduler.start, daemon=True)
+            scheduler_thread.start()
+            self.stdout.write(self.style.SUCCESS("Task scheduler started in background"))
 
             # Start dispatcherd service
             self.stdout.write(self.style.SUCCESS("Starting dispatcherd service..."))
