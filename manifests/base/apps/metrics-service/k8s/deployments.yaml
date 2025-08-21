@@ -18,9 +18,10 @@ spec:
         component: api
     spec:
       serviceAccountName: metrics-service
+      automountServiceAccountToken: false
       containers:
         - name: metrics-service
-          image: metrics-service
+          image: metrics-service:1.0.0
           ports:
             - containerPort: 8000
               name: http
@@ -70,9 +71,11 @@ spec:
             requests:
               memory: '256Mi'
               cpu: '100m'
+              ephemeral-storage: '256Mi'
             limits:
               memory: '512Mi'
               cpu: '500m'
+              ephemeral-storage: '512Mi'
           volumeMounts:
             - name: static-files
               mountPath: /app/staticfiles
