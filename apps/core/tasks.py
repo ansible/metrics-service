@@ -326,7 +326,6 @@ def schedule_next_occurrence(task):
             # Create a new task instance for the next occurrence
             new_task = Task.objects.create(
                 name=f"{task.name} (Next)",
-                description=task.description,
                 function_name=task.function_name,
                 task_data=task.task_data,
                 scheduled_time=next_run_time,
@@ -387,17 +386,20 @@ class TaskScheduler:
         self.running = True
         logger.info("Task scheduler started")
 
-        while self.running:
-            try:
-                self.process_ready_tasks()
-                self.cleanup_stale_tasks()
-                time.sleep(self.poll_interval)
-            except KeyboardInterrupt:
-                logger.info("Task scheduler stopped by user")
-                break
-            except Exception as e:
-                logger.error(f"Error in task scheduler: {str(e)}")
-                time.sleep(self.poll_interval)
+        try:
+            while self.running:
+                try:
+                    self.process_ready_tasks()
+                    self.cleanup_stale_tasks()
+                    time.sleep(self.poll_interval)
+                except KeyboardInterrupt:
+                    logger.info("Task scheduler stopped by user")
+                    break
+                except Exception as e:
+                    logger.error(f"Error in task scheduler: {str(e)}")
+                    time.sleep(self.poll_interval)
+        finally:
+            self.running = False
 
     def stop(self):
         """Stop the task scheduler."""

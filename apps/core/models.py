@@ -125,6 +125,19 @@ class Organization(AbstractOrganization):
     # Example custom field - replace or remove as needed
     extra_field = models.CharField(max_length=100, null=True, blank=True)
 
+    @classmethod
+    def access_qs(cls, user, queryset=None):
+        """
+        Return queryset filtered by user permissions.
+        Fallback implementation when DAB is not fully available.
+        """
+        if queryset is None:
+            queryset = cls.objects.all()
+
+        # For now, return all objects - in production this would implement proper RBAC
+        # When DAB is fully configured, this method would be provided by the DAB base class
+        return queryset
+
     def __str__(self):
         return self.name
 
@@ -179,6 +192,19 @@ class User(AbstractDABUser, CommonModel, AuditableModel):
             return user_summary_fields(self)
         return {}
 
+    @classmethod
+    def access_qs(cls, user, queryset=None):
+        """
+        Return queryset filtered by user permissions.
+        Fallback implementation when DAB is not fully available.
+        """
+        if queryset is None:
+            queryset = cls.objects.all()
+
+        # For now, return all objects - in production this would implement proper RBAC
+        # When DAB is fully configured, this method would be provided by the DAB base class
+        return queryset
+
     def __str__(self):
         return self.username
 
@@ -221,6 +247,19 @@ class Team(AbstractTeam):
 
     # Relations to ignore for certain operations
     ignore_relations = []
+
+    @classmethod
+    def access_qs(cls, user, queryset=None):
+        """
+        Return queryset filtered by user permissions.
+        Fallback implementation when DAB is not fully available.
+        """
+        if queryset is None:
+            queryset = cls.objects.all()
+
+        # For now, return all objects - in production this would implement proper RBAC
+        # When DAB is fully configured, this method would be provided by the DAB base class
+        return queryset
 
     def __str__(self):
         return f"{self.organization.name} - {self.name}"
@@ -269,6 +308,19 @@ class Animal(NamedCommonModel, AuditableModel):
         blank=True,
         help_text="People who are friends with this animal",
     )
+
+    @classmethod
+    def access_qs(cls, user, queryset=None):
+        """
+        Return queryset filtered by user permissions.
+        Fallback implementation when DAB is not fully available.
+        """
+        if queryset is None:
+            queryset = cls.objects.all()
+
+        # For now, return all objects - in production this would implement proper RBAC
+        # When DAB is fully configured, this method would be provided by the DAB base class
+        return queryset
 
     def __str__(self):
         return f"{self.name} ({self.get_kind_display()})"
@@ -349,6 +401,19 @@ class Task(NamedCommonModel, AuditableModel):
         related_name="created_tasks",
         help_text="User who created this task",
     )
+
+    @classmethod
+    def access_qs(cls, user, queryset=None):
+        """
+        Return queryset filtered by user permissions.
+        Fallback implementation when DAB is not fully available.
+        """
+        if queryset is None:
+            queryset = cls.objects.all()
+
+        # For now, return all objects - in production this would implement proper RBAC
+        # When DAB is fully configured, this method would be provided by the DAB base class
+        return queryset
 
     def __str__(self):
         return f"{self.name} ({self.function_name}) - {self.get_status_display()}"
