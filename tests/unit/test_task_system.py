@@ -3,11 +3,10 @@ Unit tests for the task system functionality.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta
-import json
 
 from apps.core.tasks import (
     cleanup_old_data,

@@ -5,7 +5,7 @@ Tests for health check functions.
 import pytest
 from unittest.mock import patch, Mock
 from django.test import TestCase, override_settings
-from apps.health.checks import check_feature_flags, check_dab_integration, check_dispatcherd, HEALTH_CHECKS
+from apps.health.checks import check_feature_flags, check_dispatcherd, HEALTH_CHECKS
 
 
 @pytest.mark.unit

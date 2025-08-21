@@ -202,27 +202,32 @@ class Command(BaseCommand):
         if task.created_by:
             self.stdout.write(f"Created by: {task.created_by.username}")
 
-        self.stdout.write(f"\nTask Data:")
+        self.stdout.write("\nTask Data:")
         self.stdout.write(json.dumps(task.task_data, indent=2))
 
         if task.result_data:
-            self.stdout.write(f"\nResult Data:")
+            self.stdout.write("\nTask Data:")
             self.stdout.write(json.dumps(task.result_data, indent=2))
 
         if task.error_message:
             self.stdout.write(f"\nError: {task.error_message}")
 
-        # Show dependencies
+        self._show_dependencies(task)
+        self._show_dependents(task)
+
+    def _show_dependencies(self, task):
+        """Helper to show dependencies of a task."""
         dependencies = task.dependencies.all()
         if dependencies:
-            self.stdout.write(f"\nDependencies:")
+            self.stdout.write("\nDependencies:")
             for dep in dependencies:
                 self.stdout.write(f"  - Requires {dep.prerequisite_task.name} to be {dep.required_status}")
 
-        # Show dependents
+    def _show_dependents(self, task):
+        """Helper to show dependents of a task."""
         dependents = task.dependents.all()
         if dependents:
-            self.stdout.write(f"\nDependent Tasks:")
+            self.stdout.write("\nDependent Tasks:")
             for dep in dependents:
                 self.stdout.write(f"  - {dep.dependent_task.name} depends on this task")
 
