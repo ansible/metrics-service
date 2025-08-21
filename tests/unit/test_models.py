@@ -4,7 +4,6 @@ Unit tests for core models.
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
 
 from apps.core.models import Animal, Organization, Team
 
