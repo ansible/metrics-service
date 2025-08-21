@@ -128,7 +128,6 @@ class Command(BaseCommand):
 
         task = Task.objects.create(
             name=options["name"],
-            description=options["description"] or "",
             function_name=options["function"],
             task_data=task_data,
             scheduled_time=scheduled_time,
@@ -295,7 +294,7 @@ class Command(BaseCommand):
                 raise CommandError(f"Task {task_id} not found")
 
         # Create the chain
-        chain = TaskChain.objects.create(name=options["name"], description=options["description"] or "")
+        chain = TaskChain.objects.create(name=options["name"])
 
         # Add tasks to chain
         for order, task in enumerate(tasks, 1):

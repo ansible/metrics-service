@@ -66,9 +66,7 @@ class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
         password = request.data.get("password")
 
         if not password:
-            return Response(
-                {"error": "Password is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Password is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         user.set_password(password)
         user.save()
@@ -113,9 +111,7 @@ class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
             organization.users.add(user)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except User.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
     @extend_schema(
         operation_id="organizations_remove_user",
@@ -134,9 +130,7 @@ class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
             organization.users.remove(user)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except User.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class TeamViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
@@ -168,7 +162,7 @@ class AnimalViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     queryset = Animal.objects.select_related("owner").all()
     serializer_class = AnimalSerializer
     permission_classes = [OAuth2ScopePermission, AnsibleBaseObjectPermissions]
-    search_fields = ["name", "description", "owner__username"]
+    search_fields = ["name", "owner__username"]
     filterset_fields = {
         "name": ["exact", "icontains"],
         "kind": ["exact"],
