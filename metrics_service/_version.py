@@ -10,7 +10,8 @@ __all__ = [
     "commit_id",
 ]
 
-TYPE_CHECKING = False
+from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     VERSION_TUPLE = tuple[int | str, ...]
     COMMIT_ID = str | None
