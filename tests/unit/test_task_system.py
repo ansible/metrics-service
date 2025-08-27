@@ -487,5 +487,4 @@ class TaskFunctionRegistryTestCase(TestCase):
                 self.assertIsInstance(result, dict)
                 self.assertIn("status", result)
             except Exception:
-                # Some functions may require specific data, that's ok
-                pass
+                self.fail(f"Function {func.__name__} raised an exception when called with empty dict")

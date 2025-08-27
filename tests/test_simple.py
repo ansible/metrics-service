@@ -7,13 +7,14 @@ import sys
 import unittest
 from unittest.mock import Mock, patch
 
+# Mock Django before importing
+import django
+from django.conf import settings
+
 # Add the project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-# Mock Django before importing
-import django
-from django.conf import settings
 
 # Configure minimal Django settings
 if not settings.configured:

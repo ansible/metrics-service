@@ -207,9 +207,9 @@ class APIViewsCoverageTestCase(APITestCase):
             url = reverse("api:schema")
             response = self.client.get(url)
             self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_404_NOT_FOUND])
-        except:
+        except Exception:
+            self.skipTest("API schema endpoint not configured")
             # Schema endpoint might not be configured
-            pass
 
     def test_api_pagination_edge_cases(self):
         """Test API pagination edge cases."""

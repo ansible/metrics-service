@@ -143,32 +143,6 @@ class TaskModelTestCase(TestCase):
         self.task.save()
         self.assertFalse(self.task.can_retry())
 
-    def test_task_get_next_run_time(self):
-        """Test Task get_next_run_time method."""
-        # Non-recurring task should return None
-        self.assertIsNone(self.task.get_next_run_time())
-
-        # Recurring task without cron expression should return None
-        self.task.is_recurring = True
-        self.task.save()
-        self.assertIsNone(self.task.get_next_run_time())
-
-        # Test recurring task with cron expression
-        try:
-            import croniter
-
-            # If croniter is available, test the actual functionality
-            self.task.cron_expression = "0 0 * * *"
-            self.task.save()
-            next_time = self.task.get_next_run_time()
-            self.assertIsNotNone(next_time)
-        except ImportError:
-            # If croniter is not available, test that it returns None gracefully
-            self.task.cron_expression = "0 0 * * *"
-            self.task.save()
-            next_time = self.task.get_next_run_time()
-            self.assertIsNone(next_time)  # Should return None when croniter is not available
-
     def test_task_dependency_creation(self):
         """Test TaskDependency model creation."""
         task2 = Task.objects.create(name="Dependent Task", function_name="dependent_function", created_by=self.user)

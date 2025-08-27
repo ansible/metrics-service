@@ -437,9 +437,7 @@ class PerformanceUtilsTestCase(TestCase):
 
         # For SQLite, check that it's in memory for tests
         if "sqlite3" in db_config["ENGINE"]:
-            if hasattr(settings, "TESTING") or "test" in db_config.get("NAME", ""):
-                # Test database should be in memory or test-specific
-                pass
+            self.assertTrue("NAME" in db_config)
 
     def test_cache_optimization_settings(self):
         """Test cache optimization settings."""

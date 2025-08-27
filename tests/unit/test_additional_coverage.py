@@ -6,14 +6,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 from django.contrib.admin.sites import AdminSite
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from apps.core.admin import AnimalAdmin, OrganizationAdmin, TaskAdmin, TeamAdmin, UserAdmin
 from apps.core.models import Animal, Organization, Task, Team, User
 from apps.core.signals import animal_post_save, organization_post_save, team_post_save, user_post_save, user_pre_delete
-
-User = get_user_model()
 
 
 @pytest.mark.unit
