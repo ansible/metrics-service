@@ -18,7 +18,7 @@ ALLOWED_HOSTS = ["*"]
 
 # Service identification for AAP
 SERVICE_TYPE = "metrics-service"
-SERVICE_ID = os.environ.get("metrics_service_ID", "generated-uuid")
+SERVICE_ID = os.environ.get("METRICS_SERVICE_ID", "generated-uuid")
 
 # Application definition
 DJANGO_APPS = [
@@ -249,7 +249,7 @@ RESOURCE_SERVER = {
 RESOURCE_SERVER_SYNC_ENABLED = False
 
 # Background Task Configuration (Dispatcherd)
-DISPATCHERD_ENABLED = os.environ.get("metrics_service_DISPATCHERD_ENABLED", "false").lower() == "true"
+DISPATCHERD_ENABLED = os.environ.get("METRICS_SERVICE_DISPATCHERD_ENABLED", "false").lower() == "true"
 
 # Feature Flags
 FEATURE_FLAGS = {
@@ -278,16 +278,16 @@ ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {}
 # Default to local memory cache for development, override for production
 CACHES = {
     "default": {
-        "BACKEND": os.environ.get("metrics_service_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
-        "LOCATION": os.environ.get("metrics_service_CACHE_LOCATION", "default"),
+        "BACKEND": os.environ.get("METRICS_SERVICE_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
+        "LOCATION": os.environ.get("METRICS_SERVICE_CACHE_LOCATION", "default"),
     }
 }
 
 # Override for Redis when environment variable is set
-if os.environ.get("metrics_service_REDIS_URL"):
+if os.environ.get("METRICS_SERVICE_REDIS_URL"):
     CACHES["default"] = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("metrics_service_REDIS_URL"),
+        "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL"),
     }
 
 # Session Configuration

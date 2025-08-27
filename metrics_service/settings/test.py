@@ -2,7 +2,9 @@
 Test-specific settings for metrics_service.
 """
 
-from .defaults import *  # noqa: F401,F403
+# Import all settings from defaults first
+from .defaults import *  # noqa: F403, F401
+from .defaults import FEATURE_FLAGS, LOGGING, REST_FRAMEWORK  # noqa: F401
 
 # Disable debug for tests
 DEBUG = False
@@ -59,8 +61,8 @@ FEATURE_FLAGS.update(
 )
 
 # Static files for tests
-STATIC_ROOT = "/tmp/static"
-MEDIA_ROOT = "/tmp/media"
+STATIC_ROOT = "/static"
+MEDIA_ROOT = "/media"
 
 # Security settings for tests
 SECRET_KEY = "test-secret-key"

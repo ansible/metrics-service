@@ -162,8 +162,6 @@ def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Task result dictionary
     """
-    from .models import Task, TaskExecution
-
     task_id = data.get("task_id")
     execution_id = data.get("execution_id")
 
@@ -171,110 +169,151 @@ def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
         return {"status": "error", "error": "No task_id provided"}
 
     try:
+        task, execution = _get_task_and_execution(task_id, execution_id)
+
+        # Validate task function exists
+        validation_result = _validate_task_function(task, execution)
+        if validation_result:
+            return validation_result
+
+        # Start task execution
+        _start_task_execution(task, execution)
+
+        # Execute the actual task function
+        task_function = TASK_FUNCTIONS[task.function_name]
+        result = task_function(task.task_data)
+
+        # Complete task execution
+        _complete_task_execution(task, execution, result)
+
+        # Handle post-execution tasks
+        _handle_post_execution(task)
+
+        return result
+
+    except Exception as e:
+        return _handle_task_execution_error(task_id, execution_id, e)
+
+
+def _get_task_and_execution(task_id, execution_id):
+    """Get task and execution objects with proper locking."""
+    from .models import Task, TaskExecution
+
+    with transaction.atomic():
+        task = Task.objects.select_for_update().get(id=task_id)
+        execution = None
+
+        if execution_id:
+            execution = TaskExecution.objects.get(id=execution_id)
+
+    return task, execution
+
+
+def _validate_task_function(task, execution):
+    """Validate that the task function exists and handle errors if not."""
+    function_name = task.function_name
+    if function_name not in TASK_FUNCTIONS:
+        error_msg = f"Task function '{function_name}' not found in TASK_FUNCTIONS"
+        logger.error(error_msg)
+
         with transaction.atomic():
-            task = Task.objects.select_for_update().get(id=task_id)
-            execution = None
+            if execution:
+                execution.status = "failed"
+                execution.error_message = error_msg
+                execution.completed_at = timezone.now()
+                execution.save()
+
+            task.status = "failed"
+            task.error_message = error_msg
+            task.attempts += 1
+            task.save()
+
+        return {"status": "error", "error": error_msg}
+    return None
+
+
+def _start_task_execution(task, execution):
+    """Start task execution by updating status and timestamps."""
+    with transaction.atomic():
+        task.status = "running"
+        task.started_at = timezone.now()
+        task.attempts += 1
+        task.save()
+
+        if execution:
+            execution.status = "running"
+            execution.save()
+
+
+def _complete_task_execution(task, execution, result):
+    """Complete task execution by updating status and results."""
+    with transaction.atomic():
+        task.refresh_from_db()
+
+        if result.get("status") == "success":
+            task.status = "completed"
+            task.result_data = result
+            task.error_message = ""
+        else:
+            task.status = "failed"
+            task.result_data = result
+            task.error_message = result.get("error", "Unknown error")
+
+        task.completed_at = timezone.now()
+        task.save()
+
+        if execution:
+            execution.refresh_from_db()
+            execution.status = task.status
+            execution.result_data = result
+            execution.error_message = task.error_message
+            execution.completed_at = timezone.now()
+            execution.save()
+
+
+def _handle_post_execution(task):
+    """Handle post-execution tasks like dependencies and recurring tasks."""
+    if task.status == "completed":
+        trigger_dependent_tasks(task)
+
+    if task.is_recurring and task.status == "completed":
+        schedule_next_occurrence(task)
+
+
+def _handle_task_execution_error(task_id, execution_id, exception):
+    """Handle errors during task execution."""
+    from .models import Task, TaskExecution
+
+    error_msg = f"Task execution failed: {str(exception)}"
+    logger.error(error_msg)
+
+    if isinstance(exception, Task.DoesNotExist):
+        error_msg = f"Task with id {task_id} not found"
+        logger.error(error_msg)
+        return {"status": "error", "error": error_msg}
+
+    # Update task status on exception
+    try:
+        with transaction.atomic():
+            task = Task.objects.get(id=task_id)
+            task.status = "failed"
+            task.error_message = error_msg
+            task.completed_at = timezone.now()
+            task.save()
 
             if execution_id:
-                execution = TaskExecution.objects.get(id=execution_id)
-
-            # Get the actual task function
-            function_name = task.function_name
-            if function_name not in TASK_FUNCTIONS:
-                error_msg = f"Task function '{function_name}' not found in TASK_FUNCTIONS"
-                logger.error(error_msg)
-
-                if execution:
+                try:
+                    execution = TaskExecution.objects.get(id=execution_id)
                     execution.status = "failed"
                     execution.error_message = error_msg
                     execution.completed_at = timezone.now()
                     execution.save()
+                except TaskExecution.DoesNotExist:
+                    pass
+    except Exception as save_error:
+        logger.error(f"Failed to update task status after error: {save_error}")
 
-                task.status = "failed"
-                task.error_message = error_msg
-                task.attempts += 1
-                task.save()
-
-                return {"status": "error", "error": error_msg}
-
-            # Update task status to running
-            task.status = "running"
-            task.started_at = timezone.now()
-            task.attempts += 1
-            task.save()
-
-            if execution:
-                execution.status = "running"
-                execution.save()
-
-        # Execute the actual task function
-        task_function = TASK_FUNCTIONS[function_name]
-        result = task_function(task.task_data)
-
-        # Update task with results
-        with transaction.atomic():
-            task.refresh_from_db()
-
-            if result.get("status") == "success":
-                task.status = "completed"
-                task.result_data = result
-                task.error_message = ""
-            else:
-                task.status = "failed"
-                task.result_data = result
-                task.error_message = result.get("error", "Unknown error")
-
-            task.completed_at = timezone.now()
-            task.save()
-
-            if execution:
-                execution.refresh_from_db()
-                execution.status = task.status
-                execution.result_data = result
-                execution.error_message = task.error_message
-                execution.completed_at = timezone.now()
-                execution.save()
-
-        # Trigger dependent tasks if this task completed successfully
-        if task.status == "completed":
-            trigger_dependent_tasks(task)
-
-        # Handle recurring tasks
-        if task.is_recurring and task.status == "completed":
-            schedule_next_occurrence(task)
-
-        return result
-
-    except Task.DoesNotExist:
-        error_msg = f"Task with id {task_id} not found"
-        logger.error(error_msg)
-        return {"status": "error", "error": error_msg}
-    except Exception as e:
-        error_msg = f"Task execution failed: {str(e)}"
-        logger.error(error_msg)
-
-        # Update task status on exception
-        try:
-            with transaction.atomic():
-                task.refresh_from_db()
-                task.status = "failed"
-                task.error_message = error_msg
-                task.completed_at = timezone.now()
-                task.save()
-
-                if execution_id:
-                    try:
-                        execution = TaskExecution.objects.get(id=execution_id)
-                        execution.status = "failed"
-                        execution.error_message = error_msg
-                        execution.completed_at = timezone.now()
-                        execution.save()
-                    except TaskExecution.DoesNotExist:
-                        pass
-        except Exception as save_error:
-            logger.error(f"Failed to update task status after error: {save_error}")
-
-        return {"status": "error", "error": error_msg}
+    return {"status": "error", "error": error_msg}
 
 
 def trigger_dependent_tasks(completed_task):
@@ -322,7 +361,7 @@ def schedule_next_occurrence(task):
         next_run_time = task.get_next_run_time()
         if next_run_time:
             # Create a new task instance for the next occurrence
-            new_task = Task.objects.create(
+            Task.objects.create(
                 name=f"{task.name} (Next)",
                 function_name=task.function_name,
                 task_data=task.task_data,
@@ -351,11 +390,10 @@ def submit_task_to_dispatcher(task):
 
     try:
         # Create execution record
-        execution = TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
+        TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
 
         # Submit to dispatcher using the existing dispatcherd system
         # This assumes dispatcherd is running and can handle the execute_db_task function
-        task_data = {"task_id": task.id, "execution_id": execution.id}
 
         # Update task status to indicate it's been submitted
         task.status = "pending"

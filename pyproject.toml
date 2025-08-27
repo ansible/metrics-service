@@ -133,25 +133,6 @@ extend-exclude = '''
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "N",   # pep8-naming
-    "B",   # flake8-bugbear
-    "C90", # mccabe complexity
-    "UP",  # pyupgrade
-    "S",   # flake8-bandit
-    "T20", # flake8-print
-    "SIM", # flake8-simplify
-]
-ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-    "S101",  # use of assert detected
-    "S311",  # pseudo-random generators not suitable for security/cryptographic purposes
-]
 exclude = [
     ".bzr",
     ".direnv",
@@ -175,13 +156,34 @@ exclude = [
     "migrations",
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "B",   # flake8-bugbear
+    "C90", # mccabe complexity
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit
+    "T20", # flake8-print
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "S101",  # use of assert detected
+    "S311",  # pseudo-random generators not suitable for security/cryptographic purposes
+]
+
+[tool.ruff.lint.per-file-ignores]
 "**/tests/**/*.py" = ["S101", "S106"]  # Allow assert and hardcoded passwords in tests
 "**/conftest.py" = ["S101"]
 "**/settings/**/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
 "manage.py" = ["T20"]
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 10
 
 [tool.isort]

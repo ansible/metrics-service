@@ -18,7 +18,6 @@ try:
         NamedCommonModel,
     )
     from ansible_base.lib.utils.models import user_summary_fields
-    from ansible_base.rbac.permission_registry import permission_registry
     from ansible_base.resource_registry.fields import AnsibleResourceField
 
     DAB_AVAILABLE = True
@@ -81,7 +80,7 @@ if DAB_AVAILABLE:
         except ValueError:
             # hasher can't be identified or is not loaded
             return False
-        return hasher.algorithm in get_hashers_by_algorithm().keys()
+        return hasher.algorithm in get_hashers_by_algorithm()
 
     def password_is_usable(password):
         """
@@ -432,10 +431,7 @@ class Task(NamedCommonModel, AuditableModel):
             return False
 
         # Check if scheduled time has passed
-        if self.scheduled_time and self.scheduled_time > timezone.now():
-            return False
-
-        return True
+        return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
     def can_retry(self):
         """Check if task can be retried."""
