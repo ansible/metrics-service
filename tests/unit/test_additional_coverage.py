@@ -98,7 +98,7 @@ class AdminCoverageTestCase(TestCase):
 
         # Create test data
         user = User.objects.create_user(username="creator", email="creator@example.com")
-        task = Task.objects.create(name="Test Task", function_name="test_func", created_by=user)
+        Task.objects.create(name="Test Task", function_name="test_func", created_by=user)
 
         # Test get_queryset if it exists
         if hasattr(admin, "get_queryset"):

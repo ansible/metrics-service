@@ -116,10 +116,7 @@ class Task(NamedCommonModel, AuditableModel):
             return False
 
         # Check if scheduled time has passed
-        if self.scheduled_time and self.scheduled_time > timezone.now():
-            return False
-
-        return True
+        return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
     def can_retry(self):
         """Check if task can be retried."""

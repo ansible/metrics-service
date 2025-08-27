@@ -186,8 +186,8 @@ class APIViewsCoverageTestCase(APITestCase):
     def test_filter_and_ordering(self):
         """Test filtering and ordering functionality."""
         # Create additional test data
-        org1 = Organization.objects.create(name="Alpha Org")
-        org2 = Organization.objects.create(name="Beta Org")
+        Organization.objects.create(name="Alpha Org")
+        Organization.objects.create(name="Beta Org")
 
         self.client.force_authenticate(user=self.admin_user)
         url = reverse("api:v1:organization-list")

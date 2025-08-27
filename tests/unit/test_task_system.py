@@ -39,7 +39,7 @@ class TaskFunctionsTestCase(TestCase):
     def test_cleanup_old_data_with_exception(self):
         """Test cleanup_old_data function with exception."""
         # Test with invalid data that might cause an exception
-        with patch("apps.core.tasks.logger") as mock_logger:
+        with patch("apps.core.tasks.logger"):
             # Test with invalid data
             data = {"days_old": "invalid"}
             result = cleanup_old_data(data)
@@ -392,7 +392,7 @@ class TaskSchedulerTestCase(TestCase):
         """Test TaskScheduler with tasks not ready to run."""
         # Create a task with future scheduled time
         future_time = timezone.now() + timedelta(hours=1)
-        task = Task.objects.create(
+        Task.objects.create(
             name="Future Task",
             function_name="cleanup_old_data",
             status="pending",
@@ -479,7 +479,7 @@ class TaskFunctionRegistryTestCase(TestCase):
 
     def test_task_function_signatures(self):
         """Test task functions have correct signatures."""
-        for func_name, func in TASK_FUNCTIONS.items():
+        for _func_name, func in TASK_FUNCTIONS.items():
             # Each function should accept data parameter
             # We can test this by calling with empty dict
             try:
