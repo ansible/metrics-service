@@ -14,7 +14,7 @@ drf-spectacular>=0.27
 django-ansible-base[jwt_consumer,api_documentation,rbac,rest_filters]
 
 # Database & Cache
-psycopg[binary]>=3.1
+psycopg>=3.1
 redis>=4.5
 
 # WebSocket Support  
