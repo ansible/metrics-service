@@ -111,4 +111,4 @@ class TestAPIDocumentation:
         """Test OpenAPI schema is accessible."""
         response = client.get("/api/schema/")
         assert response.status_code == status.HTTP_200_OK
-        assert response["content-type"] == "application/vnd.oai.openapi"
+        assert response["content-type"].startswith("application/vnd.oai.openapi")

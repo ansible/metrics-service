@@ -7,7 +7,7 @@ from rest_framework import serializers
 from apps.core.models import Animal, Organization, Team, User
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for User model following AAP patterns."""
 
     class Meta:
@@ -26,7 +26,6 @@ class UserSerializer(serializers.ModelSerializer):
             "last_login",
             "created",
             "modified",
-            "resource",
         ]
         read_only_fields = [
             "id",
@@ -35,7 +34,6 @@ class UserSerializer(serializers.ModelSerializer):
             "last_login",
             "created",
             "modified",
-            "resource",
         ]
         extra_kwargs = {
             "password": {"write_only": True},
@@ -62,7 +60,7 @@ class UserSerializer(serializers.ModelSerializer):
         return instance
 
 
-class OrganizationSerializer(serializers.ModelSerializer):
+class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for Organization model following AAP patterns."""
 
     users_count = serializers.SerializerMethodField()
@@ -82,14 +80,13 @@ class OrganizationSerializer(serializers.ModelSerializer):
             "admins_count",
             "created",
             "modified",
-            "resource",
         ]
+
         read_only_fields = [
             "id",
             "url",
             "created",
             "modified",
-            "resource",
             "users_count",
             "admins_count",
         ]
@@ -108,7 +105,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
         return obj.admins.count()
 
 
-class TeamSerializer(serializers.ModelSerializer):
+class TeamSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for Team model following AAP patterns."""
 
     organization_name = serializers.CharField(source="organization.name", read_only=True)
@@ -131,15 +128,14 @@ class TeamSerializer(serializers.ModelSerializer):
             "admins_count",
             "created",
             "modified",
-            "resource",
         ]
+
         read_only_fields = [
             "id",
             "url",
             "organization_name",
             "created",
             "modified",
-            "resource",
             "users_count",
             "admins_count",
         ]
@@ -160,7 +156,7 @@ class TeamSerializer(serializers.ModelSerializer):
         return obj.admins.count()
 
 
-class AnimalSerializer(serializers.ModelSerializer):
+class AnimalSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for Animal model following AAP patterns."""
 
     owner_username = serializers.CharField(source="owner.username", read_only=True)
@@ -173,7 +169,6 @@ class AnimalSerializer(serializers.ModelSerializer):
             "id",
             "url",
             "name",
-            "description",
             "kind",
             "kind_display",
             "age",

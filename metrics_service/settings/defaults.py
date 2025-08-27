@@ -229,6 +229,7 @@ ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = True
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
+ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {}
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
@@ -239,6 +240,19 @@ AUTHENTICATION_BACKENDS = [
 # JWT Consumer Configuration
 JWT_CONSUMER_ENABLED = True
 JWT_CONSUMER_ALGORITHM = "HS256"
+
+# OAuth2 Provider Configuration
+OAUTH2_PROVIDER = {
+    'SCOPES': {
+        'read': 'Read scope',
+        'write': 'Write scope',
+    },
+    'ACCESS_TOKEN_EXPIRE_SECONDS': 3600,
+    'REFRESH_TOKEN_EXPIRE_SECONDS': 3600 * 24,
+}
+OAUTH2_PROVIDER_APPLICATION_MODEL = 'oauth2_provider.Application'
+OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = 'oauth2_provider.AccessToken'
+OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = 'oauth2_provider.RefreshToken'
 
 # Resource Server Configuration
 RESOURCE_SERVER = {
