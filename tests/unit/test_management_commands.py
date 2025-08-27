@@ -2,17 +2,18 @@
 Unit tests for Django management commands.
 """
 
-import pytest
+from datetime import timedelta
 from io import StringIO
-from unittest.mock import patch, Mock, MagicMock
-from django.test import TestCase
+from unittest.mock import Mock, patch
+
+import pytest
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.contrib.auth import get_user_model
+from django.test import TestCase
 from django.utils import timezone
-from datetime import timedelta
 
-from apps.core.models import Task, TaskDependency, TaskChain
+from apps.core.models import Task, TaskChain, TaskDependency
 
 User = get_user_model()
 

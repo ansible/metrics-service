@@ -2,13 +2,6 @@
 URL configuration for metrics_service project.
 """
 
-from django.contrib import admin
-from django.urls import path, include
-from drf_spectacular.views import (
-    SpectacularAPIView,
-    SpectacularRedocView,
-    SpectacularSwaggerView,
-)
 from ansible_base.lib.dynamic_config.dynamic_urls import (
     api_urls,
     api_version_urls,
@@ -16,6 +9,13 @@ from ansible_base.lib.dynamic_config.dynamic_urls import (
 )
 from ansible_base.resource_registry.urls import (
     urlpatterns as resource_api_urls,
+)
+from django.contrib import admin
+from django.urls import include, path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
 )
 
 urlpatterns = [

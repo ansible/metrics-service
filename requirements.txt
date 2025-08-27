@@ -1,40 +1,10 @@
-# Core Dependencies - Required for basic functionality
-# Note: For full development setup, use: pip install -e ".[dev]"
+# This file is kept for legacy compatibility
+# For modern dependency management, use:
+#   uv sync                    # Install all dependencies
+#   uv sync --extra dev        # Install with development dependencies
+#   uv sync --extra test       # Install with test dependencies
+#   uv sync --extra ldap       # Install with LDAP support
+#
+# All dependencies are defined in pyproject.toml
 
-# Django Core
-Django>=4.2,<5.0
-djangorestframework>=3.15
-django-split-settings>=1.2
-django-cors-headers>=4.0
-
-# API Documentation
-drf-spectacular>=0.27
-
-# Django Ansible Base (Core functionality)
-django-ansible-base[jwt_consumer,api_documentation,rbac,rest_filters]
-
-# Database & Cache
-psycopg>=3.1
-redis>=4.5
-
-# WebSocket Support  
-channels>=4.0
-
-# Configuration Management
-dynaconf>=3.1.0
-
-# Testing Dependencies
-pytest>=7.4
-pytest-django>=4.5
-pytest-cov>=4.1
-coverage>=7.3
-
-# Authentication (Required by current codebase)
-social-auth-app-django>=5.0.0,<5.5
-django-oauth-toolkit>=2.2.0
-
-# Optional Dependencies - Install separately if needed:
-# LDAP Authentication:
-#   pip install python-ldap>=3.4.0 django-auth-ldap>=5.2.0 ldap-filter>=1.0.1
-# Background Tasks:
-dispatcherd>=2025.5.21
+# Install the project in editable mode -e .

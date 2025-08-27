@@ -6,9 +6,11 @@ Run this script with: python manage.py shell < examples/create_sample_tasks.py
 Or: python manage.py shell --command="exec(open('examples/create_sample_tasks.py').read())"
 """
 
-from django.utils import timezone
 from datetime import timedelta
-from apps.core.models import Task, TaskDependency, TaskChain, TaskChainMembership
+
+from django.utils import timezone
+
+from apps.core.models import Task, TaskChain, TaskChainMembership, TaskDependency
 
 print("=== Creating Sample Tasks ===")
 

@@ -2,7 +2,7 @@
 Main API URL configuration for metrics_service.
 """
 
-from django.urls import path, include
+from django.urls import include, path
 
 app_name = "api"
 

@@ -3,8 +3,9 @@ Django management command to run dispatcherd worker.
 """
 
 import logging
-from django.core.management.base import BaseCommand
+
 from django.conf import settings
+from django.core.management.base import BaseCommand
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +47,14 @@ class Command(BaseCommand):
 
         try:
             # Import and configure dispatcherd
-            import dispatcherd
-            import dispatcherd.config
-            from apps.core.tasks import TASK_FUNCTIONS, TaskScheduler
-            import threading
-
             # Configure logging level
             import logging
+            import threading
+
+            import dispatcherd
+            import dispatcherd.config
+
+            from apps.core.tasks import TASK_FUNCTIONS, TaskScheduler
 
             dispatcherd_logger = logging.getLogger("dispatcherd")
             dispatcherd_logger.setLevel(getattr(logging, log_level))

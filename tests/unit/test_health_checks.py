@@ -2,10 +2,12 @@
 Tests for health check functions.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
 from django.test import TestCase, override_settings
-from apps.health.checks import check_feature_flags, check_dispatcherd, HEALTH_CHECKS
+
+from apps.health.checks import HEALTH_CHECKS, check_dispatcherd, check_feature_flags
 
 
 @pytest.mark.unit

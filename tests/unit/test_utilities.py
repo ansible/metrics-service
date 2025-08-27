@@ -2,15 +2,16 @@
 Unit tests for utility functions and health checks.
 """
 
-import pytest
-from unittest.mock import patch, Mock
-from django.test import TestCase, RequestFactory
-from django.http import JsonResponse
-from django.contrib.auth import get_user_model
-from django.conf import settings
+from unittest.mock import Mock, patch
 
+import pytest
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.http import JsonResponse
+from django.test import RequestFactory, TestCase
+
+from apps.health.checks import check_cache, check_database
 from apps.health.views import HealthCheckView
-from apps.health.checks import check_database, check_cache
 
 User = get_user_model()
 
