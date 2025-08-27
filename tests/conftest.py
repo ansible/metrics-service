@@ -3,6 +3,7 @@ Pytest configuration and fixtures for metrics_service tests.
 """
 
 import os
+
 import django
 from django.conf import settings
 

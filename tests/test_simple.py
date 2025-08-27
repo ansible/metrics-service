@@ -19,16 +19,16 @@ from django.conf import settings
 if not settings.configured:
     settings.configure(
         USE_TZ=True,
-        SECRET_KEY='test-key',
+        SECRET_KEY="test-key",
         DATABASES={
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': ':memory:',
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": ":memory:",
             }
         },
         INSTALLED_APPS=[
-            'django.contrib.auth',
-            'django.contrib.contenttypes',
+            "django.contrib.auth",
+            "django.contrib.contenttypes",
         ],
         USE_I18N=False,
         USE_L10N=False,
@@ -55,11 +55,7 @@ class TestTaskFunctions(unittest.TestCase):
         """Test send_notification_email function."""
         from apps.core.tasks import send_notification_email
 
-        data = {
-            "recipient": "test@example.com",
-            "subject": "Test Subject",
-            "message": "Test message"
-        }
+        data = {"recipient": "test@example.com", "subject": "Test Subject", "message": "Test message"}
         result = send_notification_email(data)
 
         self.assertEqual(result["status"], "success")
@@ -80,12 +76,7 @@ class TestTaskFunctions(unittest.TestCase):
         """Test TASK_FUNCTIONS registry."""
         from apps.core.tasks import TASK_FUNCTIONS
 
-        expected_functions = [
-            "cleanup_old_data",
-            "send_notification_email",
-            "process_user_data",
-            "execute_db_task"
-        ]
+        expected_functions = ["cleanup_old_data", "send_notification_email", "process_user_data", "execute_db_task"]
 
         for func_name in expected_functions:
             self.assertIn(func_name, TASK_FUNCTIONS)
@@ -95,7 +86,7 @@ class TestTaskFunctions(unittest.TestCase):
 class TestHealthChecks(unittest.TestCase):
     """Test health check functions with correct names."""
 
-    @patch('django.db.connection.cursor')
+    @patch("django.db.connection.cursor")
     def test_check_database_success(self, mock_cursor):
         """Test successful database check."""
         from apps.health.checks import check_database
@@ -107,10 +98,10 @@ class TestHealthChecks(unittest.TestCase):
         result = check_database()
 
         self.assertIsInstance(result, dict)
-        self.assertIn('status', result)
-        self.assertEqual(result['status'], 'healthy')
+        self.assertIn("status", result)
+        self.assertEqual(result["status"], "healthy")
 
-    @patch('django.db.connection.cursor')
+    @patch("django.db.connection.cursor")
     def test_check_database_failure(self, mock_cursor):
         """Test database check failure."""
         from apps.health.checks import check_database
@@ -120,12 +111,12 @@ class TestHealthChecks(unittest.TestCase):
         result = check_database()
 
         self.assertIsInstance(result, dict)
-        self.assertEqual(result['status'], 'unhealthy')
-        self.assertIn('error', result)
+        self.assertEqual(result["status"], "unhealthy")
+        self.assertIn("error", result)
 
-    @patch('django.core.cache.cache.get')
-    @patch('django.core.cache.cache.set')
-    @patch('django.core.cache.cache.delete')
+    @patch("django.core.cache.cache.get")
+    @patch("django.core.cache.cache.set")
+    @patch("django.core.cache.cache.delete")
     def test_check_cache_success(self, mock_delete, mock_set, mock_get):
         """Test successful cache check."""
         from apps.health.checks import check_cache
@@ -135,7 +126,7 @@ class TestHealthChecks(unittest.TestCase):
         result = check_cache()
 
         self.assertIsInstance(result, dict)
-        self.assertIn('status', result)
+        self.assertIn("status", result)
         mock_set.assert_called()
         mock_get.assert_called()
 
@@ -168,9 +159,9 @@ class TestUtilities(unittest.TestCase):
         """Test that critical settings exist."""
         from django.conf import settings
 
-        self.assertTrue(hasattr(settings, 'SECRET_KEY'))
-        self.assertTrue(hasattr(settings, 'DATABASES'))
+        self.assertTrue(hasattr(settings, "SECRET_KEY"))
+        self.assertTrue(hasattr(settings, "DATABASES"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

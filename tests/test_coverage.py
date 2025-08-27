@@ -158,6 +158,7 @@ class TestTaskScheduler(unittest.TestCase):
         scheduler.stop()
         self.assertFalse(scheduler.running)
 
+
 class TestUtilities(unittest.TestCase):
     """Test utility functions."""
 
