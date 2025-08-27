@@ -2,6 +2,15 @@
 Pytest configuration and fixtures for metrics_service tests.
 """
 
+import os
+import django
+from django.conf import settings
+
+# Configure Django settings before any imports
+if not settings.configured:
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings.test")
+    django.setup()
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
