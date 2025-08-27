@@ -1,0 +1,81 @@
+name: "Pytest tests"
+
+on:
+  push:
+    branches: ['main']
+  pull_request_target:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout metrics-service (${{ github.ref }})"
+        uses: actions/checkout@v4
+        if: ${{ ! github.base_ref }}
+
+      - name: "Checkout metrics-service (${{ github.event.pull_request.head.ref }})"
+        uses: actions/checkout@v4
+        if: ${{ github.base_ref }}
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v6
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: "Set up postgresql"
+        run: |
+          sudo apt install postgresql postgresql-client
+          sudo systemctl start postgresql.service  # ubuntu
+
+      - name: "Wait for postgresql"
+        timeout-minutes: 1
+        run: |
+          until pg_isready; do
+            sleep 4
+          done
+
+      - name: "Run pytest"
+        run: |
+          uv run pytest -s -v --cov=. --cov-report=xml
+
+      - name: "Send code coverage report to Sonar Cloud"
+        uses: SonarSource/sonarqube-scan-action@v5
+        if: ${{ github.base_ref }}
+        env:
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_ORGANIZATION: ansible
+          SONAR_PROJECT_KEY: ansible_metrics-service
+          SONAR_TOKEN: ${{ secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.organization=ansible
+            -Dsonar.projectKey=ansible_metrics-service
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
+            -Dsonar.pullrequest.branch=${{ github.head_ref }}
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+            -Dsonar.pullrequest.provider=github
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+
+      - name: "Send code coverage report to Sonar Cloud"
+        uses: SonarSource/sonarqube-scan-action@v5
+        if: ${{ ! github.base_ref }}
+        env:
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_ORGANIZATION: ansible
+          SONAR_PROJECT_KEY: ansible_metrics-service
+          SONAR_TOKEN: ${{ secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.organization=ansible
+            -Dsonar.projectKey=ansible_metrics-service
+            -Dsonar.python.coverage.reportPaths=coverage.xml

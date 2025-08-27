@@ -447,9 +447,10 @@ class Task(NamedCommonModel, AuditableModel):
             return None
 
         try:
+            from datetime import datetime
+
             from croniter import croniter
             from django.utils import timezone
-            from datetime import datetime
 
             cron = croniter(self.cron_expression, timezone.now())
             return cron.get_next(datetime)

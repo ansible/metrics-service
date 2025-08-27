@@ -2,24 +2,25 @@
 Unit tests for the task system functionality.
 """
 
-import pytest
+from datetime import timedelta
 from unittest.mock import Mock, patch
+
+import pytest
 from django.test import TestCase
 from django.utils import timezone
-from datetime import timedelta
 
-from apps.core.tasks import (
-    cleanup_old_data,
-    send_notification_email,
-    process_user_data,
-    execute_db_task,
-    trigger_dependent_tasks,
-    schedule_next_occurrence,
-    submit_task_to_dispatcher,
-    TaskScheduler,
-    TASK_FUNCTIONS,
-)
 from apps.core.models import Task, TaskDependency, TaskExecution, User
+from apps.core.tasks import (
+    TASK_FUNCTIONS,
+    TaskScheduler,
+    cleanup_old_data,
+    execute_db_task,
+    process_user_data,
+    schedule_next_occurrence,
+    send_notification_email,
+    submit_task_to_dispatcher,
+    trigger_dependent_tasks,
+)
 
 
 @pytest.mark.unit

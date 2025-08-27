@@ -4,9 +4,10 @@ Additional tests for API views to improve coverage.
 
 import pytest
 from django.urls import reverse
-from rest_framework.test import APITestCase
 from rest_framework import status
-from apps.core.models import User, Organization, Team, Animal
+from rest_framework.test import APITestCase
+
+from apps.core.models import Animal, Organization, Team, User
 
 
 @pytest.mark.unit

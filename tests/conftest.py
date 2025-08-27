@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from rest_framework.test import APIClient
 
-from apps.core.models import Organization, Team, Animal
+from apps.core.models import Animal, Organization, Team
 
 User = get_user_model()
 

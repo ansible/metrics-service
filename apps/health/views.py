@@ -2,10 +2,11 @@
 Health check views for metrics_service.
 """
 
-from django.http import JsonResponse
-from django.conf import settings
-from django.views import View
 import logging
+
+from django.conf import settings
+from django.http import JsonResponse
+from django.views import View
 
 from .checks import HEALTH_CHECKS
 

@@ -6,11 +6,11 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
-from django.contrib.auth import get_user_model
 
-from apps.core.models import Task, TaskDependency, TaskChain, TaskChainMembership
+from apps.core.models import Task, TaskChain, TaskChainMembership, TaskDependency
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

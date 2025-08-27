@@ -2,21 +2,22 @@
 Unit tests for core models.
 """
 
-import pytest
-from django.test import TestCase
-from django.contrib.auth import get_user_model
-from django.utils import timezone
 from datetime import timedelta
 
+import pytest
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.utils import timezone
+
 from apps.core.models import (
-    Organization,
-    Team,
     Animal,
+    Organization,
     Task,
-    TaskDependency,
-    TaskExecution,
     TaskChain,
     TaskChainMembership,
+    TaskDependency,
+    TaskExecution,
+    Team,
 )
 
 User = get_user_model()

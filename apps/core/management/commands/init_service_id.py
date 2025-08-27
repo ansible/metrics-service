@@ -5,11 +5,10 @@ This command ensures that a ServiceID object exists in the database, which is
 required by the ansible-base resource registry system.
 """
 
-from django.core.management.base import BaseCommand
-
 from ansible_base.resource_registry.models.service_identifier import (
     ServiceID,
 )
+from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):

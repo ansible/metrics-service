@@ -2,18 +2,18 @@
 Health check implementations for metrics_service.
 """
 
+import logging
 import time
-from typing import Dict, Any
+from typing import Any
 
 from django.conf import settings
 from django.core.cache import cache
 from django.db import connection
-import logging
 
 logger = logging.getLogger(__name__)
 
 
-def check_database() -> Dict[str, Any]:
+def check_database() -> dict[str, Any]:
     """
     Check database connectivity and performance.
 
@@ -45,7 +45,7 @@ def check_database() -> Dict[str, Any]:
         }
 
 
-def check_cache() -> Dict[str, Any]:
+def check_cache() -> dict[str, Any]:
     """
     Check cache connectivity and performance.
 
@@ -85,7 +85,7 @@ def check_cache() -> Dict[str, Any]:
         }
 
 
-def check_feature_flags() -> Dict[str, Any]:
+def check_feature_flags() -> dict[str, Any]:
     """
     Check feature flags configuration.
 
@@ -110,7 +110,7 @@ def check_feature_flags() -> Dict[str, Any]:
         }
 
 
-def check_dab_integration() -> Dict[str, Any]:
+def check_dab_integration() -> dict[str, Any]:
     """
     Check Django-Ansible-Base integration.
 
@@ -143,7 +143,7 @@ def check_dab_integration() -> Dict[str, Any]:
         }
 
 
-def check_dispatcherd() -> Dict[str, Any]:
+def check_dispatcherd() -> dict[str, Any]:
     """
     Check dispatcherd configuration and status.
 

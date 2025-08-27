@@ -3,12 +3,12 @@ Unit tests for API views.
 """
 
 import pytest
-from django.urls import reverse
 from django.contrib.auth import get_user_model
-from rest_framework.test import APIClient, APITestCase
+from django.urls import reverse
 from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
 
-from apps.core.models import Organization, Team, Animal
+from apps.core.models import Animal, Organization, Team
 
 User = get_user_model()
 

@@ -3,19 +3,17 @@ Background tasks for metrics_service using dispatcherd.
 """
 
 import logging
-import json
 import os
 import time
-from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
-from django.utils import timezone
 from django.db import transaction
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
 
-def cleanup_old_data(data: Dict[str, Any]) -> Dict[str, Any]:
+def cleanup_old_data(data: dict[str, Any]) -> dict[str, Any]:
     """
     Clean up old data from the system.
 
@@ -59,7 +57,7 @@ def cleanup_old_data(data: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-def send_notification_email(data: Dict[str, Any]) -> Dict[str, Any]:
+def send_notification_email(data: dict[str, Any]) -> dict[str, Any]:
     """
     Send notification email to users.
 
@@ -100,7 +98,7 @@ def send_notification_email(data: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-def process_user_data(data: Dict[str, Any]) -> Dict[str, Any]:
+def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
     """
     Process user data in the background.
 
@@ -154,7 +152,7 @@ TASK_FUNCTIONS = {
 }
 
 
-def execute_db_task(data: Dict[str, Any]) -> Dict[str, Any]:
+def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
     """
     Execute a database-defined task.
 

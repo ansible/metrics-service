@@ -2,8 +2,6 @@
 Resource API configuration for Django-Ansible-Base resource registry.
 """
 
-from django.contrib.auth import get_user_model
-
 from ansible_base.resource_registry.registry import (
     ResourceConfig,
     ServiceAPIConfig,
@@ -14,6 +12,7 @@ from ansible_base.resource_registry.shared_types import (
     TeamType,
     UserType,
 )
+from django.contrib.auth import get_user_model
 
 from .models import Organization, Team
 

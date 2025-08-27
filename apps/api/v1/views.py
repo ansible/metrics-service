@@ -2,16 +2,16 @@
 API v1 views for metrics_service following AAP standards.
 """
 
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema
-
+from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
 from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
 from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
-from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
+from drf_spectacular.utils import extend_schema
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from apps.core.models import Animal, Organization, Team, User
+
 from .serializers import (
     AnimalSerializer,
     OrganizationSerializer,

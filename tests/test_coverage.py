@@ -2,10 +2,10 @@
 Simplified tests for coverage without complex Django setup.
 """
 
-import unittest
-from unittest.mock import patch, Mock, MagicMock
 import os
 import sys
+import unittest
+from unittest.mock import Mock, patch
 
 # Add the project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

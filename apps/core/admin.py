@@ -4,19 +4,17 @@ Admin configuration for core models.
 
 from django.contrib import admin
 from django.utils.html import format_html
-from django.urls import reverse
-from django.utils import timezone
 
 from .models import (
-    Organization,
-    User,
-    Team,
     Animal,
+    Organization,
     Task,
-    TaskDependency,
-    TaskExecution,
     TaskChain,
     TaskChainMembership,
+    TaskDependency,
+    TaskExecution,
+    Team,
+    User,
 )
 
 

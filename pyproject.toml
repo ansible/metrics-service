@@ -35,6 +35,9 @@ dependencies = [
     "redis>=4.5",
     "channels>=4.0",
     "dynaconf>=3.1.0",
+    "social-auth-app-django>=5.0.0,<5.5",
+    "django-oauth-toolkit>=2.2.0",
+    "dispatcherd>=2025.5.21",
 ]
 
 [project.optional-dependencies]
@@ -60,10 +63,6 @@ ldap = [
     "python-ldap>=3.4.0",
     "django-auth-ldap>=5.2.0",
     "ldap-filter>=1.0.1",
-]
-
-dispatcherd = [
-    "dispatcherd>=2025.5.21",
 ]
 
 test = [
@@ -92,6 +91,25 @@ packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.health"]
 
 [tool.setuptools_scm]
 write_to = "metrics_service/_version.py"
+
+[tool.uv]
+dev-dependencies = [
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "isort>=5.12",
+    "mypy>=1.5",
+    "django-stubs[compatible-mypy]>=4.2",
+    "djangorestframework-stubs[compatible-mypy]>=3.14",
+    "types-redis>=4.5",
+    "pytest>=7.4",
+    "pytest-django>=4.5",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.21",
+    "coverage>=7.3",
+    "factory-boy>=3.3",
+    "django-debug-toolbar>=4.2",
+    "pre-commit>=3.4",
+]
 
 [tool.black]
 line-length = 120

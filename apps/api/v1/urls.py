@@ -2,7 +2,7 @@
 URL configuration for API v1.
 """
 
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import AnimalViewSet, OrganizationViewSet, TeamViewSet, UserViewSet
