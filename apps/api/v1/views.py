@@ -5,6 +5,10 @@ This module provides ViewSets for the API v1 endpoints with reduced
 code duplication through the use of base ViewSet classes and mixins.
 """
 
+from typing import Any
+
+from django.http import HttpRequest
+
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
@@ -49,7 +53,7 @@ class UserViewSet(BaseViewSet):
         responses={200: UserSerializer},
     )
     @action(detail=False, methods=["get"])
-    def me(self, request):
+    def me(self, request: HttpRequest) -> Response:
         """
         Return current user information.
 
@@ -66,7 +70,7 @@ class UserViewSet(BaseViewSet):
         responses={204: None},
     )
     @action(detail=True, methods=["post"])
-    def set_password(self, request, pk=None):
+    def set_password(self, request: HttpRequest, pk: Any = None) -> Response:
         """
         Set password for a user.
 
@@ -163,7 +167,7 @@ class AnimalViewSet(BaseViewSet):
         responses={200: {"message": "string"}},
     )
     @action(detail=True, methods=["post"])
-    def feed(self, request, pk=None):
+    def feed(self, request: HttpRequest, pk: Any = None) -> Response:
         """
         Custom action to feed an animal.
 
@@ -188,7 +192,7 @@ class AnimalViewSet(BaseViewSet):
         responses={200: AnimalSerializer(many=True)},
     )
     @action(detail=False, methods=["get"])
-    def my_animals(self, request):
+    def my_animals(self, request: HttpRequest) -> Response:
         """
         Get animals owned by the current user.
 

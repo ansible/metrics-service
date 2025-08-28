@@ -263,11 +263,12 @@ RESOURCE_SERVER = {
 RESOURCE_SERVER_SYNC_ENABLED = False
 
 # Background Task Configuration (Dispatcherd)
-DISPATCHERD_ENABLED = os.environ.get("METRICS_SERVICE_DISPATCHERD_ENABLED", "false").lower() == "true"
+# Dispatcherd is always enabled in this service
+DISPATCHERD_ENABLED = True
 
 # Feature Flags
 FEATURE_FLAGS = {
-    "DISPATCHERD_ENABLED": DISPATCHERD_ENABLED,
+    "DISPATCHERD_ENABLED": True,
 }
 
 # Cache Configuration

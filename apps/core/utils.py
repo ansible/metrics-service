@@ -12,8 +12,13 @@ logger = logging.getLogger(__name__)
 
 
 def handle_task_error(
-    task_instance, execution_instance=None, error_message="", exception=None, task_id=None, execution_id=None
-):
+    task_instance: Any = None,
+    execution_instance: Any = None,
+    error_message: str = "",
+    exception: Exception | None = None,
+    task_id: int | None = None,
+    execution_id: int | None = None,
+) -> dict[str, Any]:
     """
     Standardized error handling for task execution.
 
@@ -76,7 +81,13 @@ def handle_task_error(
     return {"status": "error", "error": error_message}
 
 
-def update_task_status(task_instance, execution_instance=None, status="", result_data=None, error_message=""):
+def update_task_status(
+    task_instance: Any,
+    execution_instance: Any = None,
+    status: str = "",
+    result_data: dict[str, Any] | None = None,
+    error_message: str = "",
+) -> None:
     """
     Standardized task status updating.
 
@@ -127,7 +138,7 @@ def update_task_status(task_instance, execution_instance=None, status="", result
             execution_instance.save()
 
 
-def get_or_create_execution_record(task_instance, worker_id=None):
+def get_or_create_execution_record(task_instance: Any, worker_id: str | None = None) -> Any:
     """
     Get or create a task execution record.
 
@@ -154,7 +165,7 @@ def get_or_create_execution_record(task_instance, worker_id=None):
     return execution
 
 
-def validate_task_data(data: dict[str, Any], required_fields: list = None) -> str | None:
+def validate_task_data(data: dict[str, Any], required_fields: list[str] | None = None) -> str | None:
     """
     Validate task data against required fields.
 
@@ -241,7 +252,7 @@ def log_task_execution(task_name: str, operation: str, details: str = "", level:
     log_func(message)
 
 
-def get_related_object_safely(instance, field_name: str, default=None):
+def get_related_object_safely(instance: Any, field_name: str, default: Any = None) -> Any:
     """
     Safely get a related object from an instance.
 
@@ -264,7 +275,7 @@ def get_related_object_safely(instance, field_name: str, default=None):
         return default
 
 
-def get_count_safely(queryset_or_manager) -> int:
+def get_count_safely(queryset_or_manager: Any) -> int:
     """
     Safely get count from a queryset or manager.
 

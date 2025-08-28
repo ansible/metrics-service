@@ -2,6 +2,8 @@
 Base serializers to reduce code duplication in API serializers.
 """
 
+from typing import Any, Dict
+
 from rest_framework import serializers
 
 from apps.core.utils import get_count_safely
@@ -15,7 +17,7 @@ class CountFieldMixin:
     multiple serializers that need to count related objects.
     """
 
-    def get_users_count(self, obj):
+    def get_users_count(self, obj: Any) -> int:
         """
         Return count of users associated with the object.
 
@@ -27,7 +29,7 @@ class CountFieldMixin:
         """
         return get_count_safely(getattr(obj, "users", None))
 
-    def get_admins_count(self, obj):
+    def get_admins_count(self, obj: Any) -> int:
         """
         Return count of admins associated with the object.
 
@@ -39,7 +41,7 @@ class CountFieldMixin:
         """
         return get_count_safely(getattr(obj, "admins", None))
 
-    def get_friends_count(self, obj):
+    def get_friends_count(self, obj: Any) -> int:
         """
         Return count of friends associated with the object.
 
@@ -51,7 +53,7 @@ class CountFieldMixin:
         """
         return get_count_safely(getattr(obj, "people_friends", None))
 
-    def get_tasks_count(self, obj):
+    def get_tasks_count(self, obj: Any) -> int:
         """
         Return count of tasks associated with the object.
 
@@ -63,7 +65,7 @@ class CountFieldMixin:
         """
         return get_count_safely(getattr(obj, "tasks", None))
 
-    def get_executions_count(self, obj):
+    def get_executions_count(self, obj: Any) -> int:
         """
         Return count of executions associated with the object.
 
@@ -84,7 +86,7 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
     inherited by all model serializers to reduce code duplication.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the serializer with common setup.
 
@@ -95,7 +97,7 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
         super().__init__(*args, **kwargs)
         self._setup_common_fields()
 
-    def _setup_common_fields(self):
+    def _setup_common_fields(self) -> None:
         """
         Set up common read-only fields that appear in most serializers.
 
@@ -114,7 +116,7 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
             # Set read_only_fields if not already defined
             self.Meta.read_only_fields = common_readonly_fields
 
-    def validate(self, attrs):
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Common validation logic for all serializers.
 
@@ -130,7 +132,7 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
         # Add any common validation logic here
         return super().validate(attrs)
 
-    def to_representation(self, instance):
+    def to_representation(self, instance: Any) -> Dict[str, Any]:
         """
         Common representation logic for all serializers.
 
@@ -160,7 +162,7 @@ class PasswordHandlingMixin:
     serializers that need to manage password fields.
     """
 
-    def create(self, validated_data):
+    def create(self, validated_data: Dict[str, Any]) -> Any:
         """
         Create a new instance with proper password hashing.
 
@@ -179,7 +181,7 @@ class PasswordHandlingMixin:
 
         return instance
 
-    def update(self, instance, validated_data):
+    def update(self, instance: Any, validated_data: Dict[str, Any]) -> Any:
         """
         Update an instance with proper password handling.
 
@@ -228,7 +230,7 @@ class StatusFieldMixin:
     completed_at = serializers.DateTimeField(read_only=True, help_text="When the process completed")
     error_message = serializers.CharField(read_only=True, help_text="Error message if process failed")
 
-    def get_duration(self, obj):
+    def get_duration(self, obj: Any) -> float | None:
         """
         Return the duration of the process in seconds.
 

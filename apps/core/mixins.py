@@ -2,6 +2,11 @@
 Common mixins and base classes for reducing code duplication.
 """
 
+from typing import Any
+
+from django.contrib.auth import get_user_model
+from django.db.models import QuerySet
+
 from django.db import models
 
 
@@ -14,7 +19,7 @@ class AccessControlMixin:
     """
 
     @classmethod
-    def access_qs(cls, user, queryset=None):
+    def access_qs(cls, user: Any, queryset: QuerySet | None = None) -> QuerySet:
         """
         Return queryset filtered by user permissions.
 
@@ -66,7 +71,7 @@ class StatusTrackingMixin(models.Model):
     class Meta:
         abstract = True
 
-    def mark_started(self):
+    def mark_started(self) -> None:
         """
         Mark the process as started with current timestamp.
 
@@ -78,7 +83,7 @@ class StatusTrackingMixin(models.Model):
         self.started_at = timezone.now()
         self.save(update_fields=["started_at"])
 
-    def mark_completed(self, error_message=""):
+    def mark_completed(self, error_message: str = "") -> None:
         """
         Mark the process as completed with current timestamp.
 
@@ -94,7 +99,7 @@ class StatusTrackingMixin(models.Model):
         self.error_message = error_message
         self.save(update_fields=["completed_at", "error_message"])
 
-    def get_duration(self):
+    def get_duration(self) -> float | None:
         """
         Calculate the duration of the process in seconds.
 
@@ -110,18 +115,15 @@ class UserRelatedMixin(models.Model):
     """
     Abstract mixin for models that have user and admin relationships.
 
-    This mixin provides common user/admin relationship fields that can be
-    used across Organization, Team, and similar models.
+    This mixin provides common user/admin relationship methods that can be
+    used across Organization, Team, and similar models. The actual fields
+    should be defined in the concrete models to avoid conflicts.
     """
-
-    users = models.ManyToManyField("User", blank=True, help_text="Users associated with this object")
-
-    admins = models.ManyToManyField("User", blank=True, help_text="Administrators of this object")
 
     class Meta:
         abstract = True
 
-    def get_users_count(self):
+    def get_users_count(self) -> int:
         """
         Get the count of users associated with this object.
 
@@ -130,7 +132,7 @@ class UserRelatedMixin(models.Model):
         """
         return self.users.count()
 
-    def get_admins_count(self):
+    def get_admins_count(self) -> int:
         """
         Get the count of admins associated with this object.
 
@@ -139,7 +141,7 @@ class UserRelatedMixin(models.Model):
         """
         return self.admins.count()
 
-    def add_user(self, user):
+    def add_user(self, user: Any) -> None:
         """
         Add a user to this object.
 
@@ -151,7 +153,7 @@ class UserRelatedMixin(models.Model):
         """
         self.users.add(user)
 
-    def remove_user(self, user):
+    def remove_user(self, user: Any) -> None:
         """
         Remove a user from this object.
 
@@ -163,7 +165,7 @@ class UserRelatedMixin(models.Model):
         """
         self.users.remove(user)
 
-    def add_admin(self, user):
+    def add_admin(self, user: Any) -> None:
         """
         Add an admin to this object.
 
@@ -175,7 +177,7 @@ class UserRelatedMixin(models.Model):
         """
         self.admins.add(user)
 
-    def remove_admin(self, user):
+    def remove_admin(self, user: Any) -> None:
         """
         Remove an admin from this object.
 

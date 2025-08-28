@@ -2,6 +2,11 @@
 Base views to reduce code duplication in API views.
 """
 
+from typing import Any
+
+from django.db.models import QuerySet
+from django.http import HttpRequest
+
 from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
 from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
 from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
@@ -27,7 +32,7 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     ordering_fields = ["id", "created", "modified"]
     ordering = ["id"]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         """
         Filter queryset based on user permissions.
 
@@ -41,7 +46,7 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
             return self.queryset.model.access_qs(self.request.user, queryset=self.queryset)
         return self.queryset
 
-    def handle_exception(self, exc):
+    def handle_exception(self, exc: Exception) -> Response:
         """
         Handle exceptions in a standardized way.
 
@@ -59,7 +64,7 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
 
         return super().handle_exception(exc)
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: Any) -> None:
         """
         Perform object creation with common logic.
 
@@ -78,7 +83,7 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
         else:
             serializer.save()
 
-    def perform_update(self, serializer):
+    def perform_update(self, serializer: Any) -> None:
         """
         Perform object update with common logic.
 
@@ -102,7 +107,9 @@ class UserManagementMixin:
     ViewSets that need to manage user relationships (Organization, Team, etc.).
     """
 
-    def _add_user_to_field(self, request, field_name, success_message="User added successfully"):
+    def _add_user_to_field(
+        self, request: HttpRequest, field_name: str, success_message: str = "User added successfully"
+    ) -> Response:
         """
         Generic method to add a user to a specific field.
 
@@ -136,7 +143,9 @@ class UserManagementMixin:
             error_response = build_error_response(f"Failed to add user: {str(e)}")
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
-    def _remove_user_from_field(self, request, field_name, success_message="User removed successfully"):
+    def _remove_user_from_field(
+        self, request: HttpRequest, field_name: str, success_message: str = "User removed successfully"
+    ) -> Response:
         """
         Generic method to remove a user from a specific field.
 
@@ -177,7 +186,7 @@ class UserManagementMixin:
         responses={200: {"message": "string", "user_id": "integer"}},
     )
     @action(detail=True, methods=["post"])
-    def add_user(self, request, pk=None):
+    def add_user(self, request: HttpRequest, pk: Any = None) -> Response:
         """
         Add user to this object.
 
@@ -197,7 +206,7 @@ class UserManagementMixin:
         responses={200: {"message": "string", "user_id": "integer"}},
     )
     @action(detail=True, methods=["post"])
-    def remove_user(self, request, pk=None):
+    def remove_user(self, request: HttpRequest, pk: Any = None) -> Response:
         """
         Remove user from this object.
 
@@ -217,7 +226,7 @@ class UserManagementMixin:
         responses={200: {"message": "string", "user_id": "integer"}},
     )
     @action(detail=True, methods=["post"])
-    def add_admin(self, request, pk=None):
+    def add_admin(self, request: HttpRequest, pk: Any = None) -> Response:
         """
         Add admin to this object.
 
@@ -237,7 +246,7 @@ class UserManagementMixin:
         responses={200: {"message": "string", "user_id": "integer"}},
     )
     @action(detail=True, methods=["post"])
-    def remove_admin(self, request, pk=None):
+    def remove_admin(self, request: HttpRequest, pk: Any = None) -> Response:
         """
         Remove admin from this object.
 
@@ -259,7 +268,7 @@ class SearchFilterMixin:
     ViewSets that need similar search/filter capabilities.
     """
 
-    def get_search_fields(self):
+    def get_search_fields(self) -> list[str]:
         """
         Get search fields based on model fields.
 
@@ -285,7 +294,7 @@ class SearchFilterMixin:
 
         return search_fields
 
-    def get_filterset_fields(self):
+    def get_filterset_fields(self) -> dict[str, list[str]]:
         """
         Get filterset fields based on model fields.
 

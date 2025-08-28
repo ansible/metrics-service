@@ -3,10 +3,14 @@ Core models for metrics_service.
 For full AAP/DAB features, install with: pip install -e ".[dev]"
 """
 
+from typing import Any
+
+from datetime import datetime
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from .mixins import AccessControlMixin, StatusTrackingMixin
+from .mixins import AccessControlMixin, StatusTrackingMixin, UserRelatedMixin
 
 # Basic models for immediate setup
 # For full AAP features, replace with DAB abstract models when ready
@@ -95,7 +99,7 @@ if DAB_AVAILABLE:
         )
 
 
-class Organization(AbstractOrganization, AccessControlMixin):
+class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
     """
     Organization model with user and admin management capabilities.
 
@@ -113,6 +117,8 @@ class Organization(AbstractOrganization, AccessControlMixin):
     if DAB_AVAILABLE:
         resource = AnsibleResourceField(primary_key_field="id")
 
+    # UserRelatedMixin provides users and admins fields
+    # Override to customize related_name for organizations
     users = models.ManyToManyField(
         "User",
         related_name="member_of_organizations",
@@ -192,7 +198,7 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
                 self.password = make_password(self.password)
         super().save(*args, **kwargs)
 
-    def summary_fields(self):
+    def summary_fields(self) -> dict[str, Any]:
         """
         Return summary fields for this user.
 
@@ -213,7 +219,7 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
         return self.username
 
 
-class Team(AbstractTeam, AccessControlMixin):
+class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
     """
     Team model with hierarchical organization support.
 
@@ -238,6 +244,7 @@ class Team(AbstractTeam, AccessControlMixin):
         help_text="Parent teams for hierarchy support",
     )
 
+    # Override UserRelatedMixin fields to use proper User model and related_name
     users = models.ManyToManyField(
         User,
         related_name="teams",
@@ -404,7 +411,7 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         """
         return f"{self.name} ({self.function_name}) - {self.get_status_display()}"
 
-    def is_ready_to_run(self):
+    def is_ready_to_run(self) -> bool:
         """
         Check if task is ready to be executed.
 
@@ -425,7 +432,7 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         # Check if scheduled time has passed
         return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
-    def can_retry(self):
+    def can_retry(self) -> bool:
         """
         Check if task can be retried.
 
@@ -434,7 +441,7 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         """
         return self.attempts < self.max_attempts and self.status == "failed"
 
-    def get_next_run_time(self):
+    def get_next_run_time(self) -> datetime | None:
         """
         Calculate next run time for recurring tasks.
 

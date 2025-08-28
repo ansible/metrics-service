@@ -192,12 +192,6 @@ def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
         }
 
 
-# Task configuration for dispatcherd
-TASK_FUNCTIONS = {
-    "cleanup_old_data": cleanup_old_data,
-    "send_notification_email": send_notification_email,
-    "process_user_data": process_user_data,
-}
 
 
 def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
@@ -259,7 +253,7 @@ def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
         return handle_task_error(None, None, task_id=task_id, execution_id=execution_id, exception=e)
 
 
-def _get_task_and_execution(task_id, execution_id):
+def _get_task_and_execution(task_id: int, execution_id: int | None) -> tuple[Any, Any]:
     """Get task and execution objects with proper locking."""
     from .models import Task, TaskExecution
 
@@ -273,69 +267,13 @@ def _get_task_and_execution(task_id, execution_id):
     return task, execution
 
 
-def _validate_task_function(task, execution):
-    """Validate that the task function exists and handle errors if not."""
-    function_name = task.function_name
-    if function_name not in TASK_FUNCTIONS:
-        error_msg = f"Task function '{function_name}' not found in TASK_FUNCTIONS"
-        logger.error(error_msg)
-
-        with transaction.atomic():
-            if execution:
-                execution.status = "failed"
-                execution.error_message = error_msg
-                execution.completed_at = timezone.now()
-                execution.save()
-
-            task.status = "failed"
-            task.error_message = error_msg
-            task.attempts += 1
-            task.save()
-
-        return {"status": "error", "error": error_msg}
-    return None
 
 
-def _start_task_execution(task, execution):
-    """Start task execution by updating status and timestamps."""
-    with transaction.atomic():
-        task.status = "running"
-        task.started_at = timezone.now()
-        task.attempts += 1
-        task.save()
-
-        if execution:
-            execution.status = "running"
-            execution.save()
 
 
-def _complete_task_execution(task, execution, result):
-    """Complete task execution by updating status and results."""
-    with transaction.atomic():
-        task.refresh_from_db()
-
-        if result.get("status") == "success":
-            task.status = "completed"
-            task.result_data = result
-            task.error_message = ""
-        else:
-            task.status = "failed"
-            task.result_data = result
-            task.error_message = result.get("error", "Unknown error")
-
-        task.completed_at = timezone.now()
-        task.save()
-
-        if execution:
-            execution.refresh_from_db()
-            execution.status = task.status
-            execution.result_data = result
-            execution.error_message = task.error_message
-            execution.completed_at = timezone.now()
-            execution.save()
 
 
-def _handle_post_execution(task):
+def _handle_post_execution(task: Any) -> None:
     """Handle post-execution tasks like dependencies and recurring tasks."""
     if task.status == "completed":
         trigger_dependent_tasks(task)
@@ -344,43 +282,9 @@ def _handle_post_execution(task):
         schedule_next_occurrence(task)
 
 
-def _handle_task_execution_error(task_id, execution_id, exception):
-    """Handle errors during task execution."""
-    from .models import Task, TaskExecution
-
-    error_msg = f"Task execution failed: {str(exception)}"
-    logger.error(error_msg)
-
-    if isinstance(exception, Task.DoesNotExist):
-        error_msg = f"Task with id {task_id} not found"
-        logger.error(error_msg)
-        return {"status": "error", "error": error_msg}
-
-    # Update task status on exception
-    try:
-        with transaction.atomic():
-            task = Task.objects.get(id=task_id)
-            task.status = "failed"
-            task.error_message = error_msg
-            task.completed_at = timezone.now()
-            task.save()
-
-            if execution_id:
-                try:
-                    execution = TaskExecution.objects.get(id=execution_id)
-                    execution.status = "failed"
-                    execution.error_message = error_msg
-                    execution.completed_at = timezone.now()
-                    execution.save()
-                except TaskExecution.DoesNotExist:
-                    pass
-    except Exception as save_error:
-        logger.error(f"Failed to update task status after error: {save_error}")
-
-    return {"status": "error", "error": error_msg}
 
 
-def trigger_dependent_tasks(completed_task):
+def trigger_dependent_tasks(completed_task: Any) -> None:
     """
     Trigger tasks that depend on the completed task.
 
@@ -412,7 +316,7 @@ def trigger_dependent_tasks(completed_task):
         logger.error(f"Error triggering dependent tasks: {str(e)}")
 
 
-def schedule_next_occurrence(task):
+def schedule_next_occurrence(task: Any) -> None:
     """
     Schedule the next occurrence of a recurring task.
 
@@ -443,7 +347,7 @@ def schedule_next_occurrence(task):
         logger.error(f"Error scheduling next occurrence: {str(e)}")
 
 
-def submit_task_to_dispatcher(task):
+def submit_task_to_dispatcher(task: Any) -> None:
     """
     Submit a task to the dispatcher for execution.
 
@@ -477,11 +381,11 @@ class TaskScheduler:
     Service to continuously poll the database for ready tasks and submit them to the dispatcher.
     """
 
-    def __init__(self, poll_interval=30):
+    def __init__(self, poll_interval: int = 30) -> None:
         self.poll_interval = poll_interval
         self.running = False
 
-    def start(self):
+    def start(self) -> None:
         """Start the task scheduler."""
         self.running = True
         logger.info("Task scheduler started")
@@ -501,12 +405,12 @@ class TaskScheduler:
         finally:
             self.running = False
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the task scheduler."""
         self.running = False
         logger.info("Task scheduler stopping...")
 
-    def process_ready_tasks(self):
+    def process_ready_tasks(self) -> None:
         """Find and submit ready tasks to the dispatcher."""
         from .models import Task
 
@@ -526,7 +430,7 @@ class TaskScheduler:
         except Exception as e:
             logger.error(f"Error processing ready tasks: {str(e)}")
 
-    def cleanup_stale_tasks(self):
+    def cleanup_stale_tasks(self) -> None:
         """Clean up stale tasks that have been running too long."""
         from .models import Task
 
@@ -554,12 +458,12 @@ class TaskScheduler:
             logger.error(f"Error cleaning up stale tasks: {str(e)}")
 
 
-# Updated task configuration for dispatcherd
+# Task configuration for dispatcherd
 TASK_FUNCTIONS = {
     "cleanup_old_data": cleanup_old_data,
     "send_notification_email": send_notification_email,
     "process_user_data": process_user_data,
-    "execute_db_task": execute_db_task,  # New function for database tasks
+    "execute_db_task": execute_db_task,
 }
 
 # Legacy scheduled tasks configuration (kept for backward compatibility)
