@@ -80,27 +80,29 @@ class Command(BaseCommand):
             return
 
         try:
-            if action == "create":
-                self.create_task(options)
-            elif action == "list":
-                self.list_tasks(options)
-            elif action == "show":
-                self.show_task(options)
-            elif action == "cancel":
-                self.cancel_task(options)
-            elif action == "retry":
-                self.retry_task(options)
-            elif action == "add-dependency":
-                self.add_dependency(options)
-            elif action == "create-chain":
-                self.create_chain(options)
-            elif action == "cleanup":
-                self.cleanup_tasks(options)
-            else:
-                raise CommandError(f"Unknown action: {action}")
+            self._execute_action(action, options)
         except Exception as e:
             logger.error(f"Command failed: {str(e)}")
-            raise CommandError(str(e))
+            raise CommandError(str(e)) from e
+
+    def _execute_action(self, action, options):
+        """Execute the specified action with the given options."""
+        action_handlers = {
+            "create": self.create_task,
+            "list": self.list_tasks,
+            "show": self.show_task,
+            "cancel": self.cancel_task,
+            "retry": self.retry_task,
+            "add-dependency": self.add_dependency,
+            "create-chain": self.create_chain,
+            "cleanup": self.cleanup_tasks,
+        }
+
+        handler = action_handlers.get(action)
+        if handler:
+            handler(options)
+        else:
+            raise CommandError(f"Unknown action: {action}")
 
     def create_task(self, options):
         """Create a new task."""
@@ -109,7 +111,7 @@ class Command(BaseCommand):
             try:
                 task_data = json.loads(options["data"])
             except json.JSONDecodeError as e:
-                raise CommandError(f"Invalid JSON data: {e}")
+                raise CommandError(f"Invalid JSON data: {e}") from e
 
         scheduled_time = None
         if options["scheduled_time"]:
@@ -117,14 +119,14 @@ class Command(BaseCommand):
                 scheduled_time = datetime.strptime(options["scheduled_time"], "%Y-%m-%d %H:%M:%S")
                 scheduled_time = timezone.make_aware(scheduled_time)
             except ValueError as e:
-                raise CommandError(f"Invalid date format: {e}")
+                raise CommandError(f"Invalid date format: {e}") from e
 
         created_by = None
         if options["user"]:
             try:
                 created_by = User.objects.get(username=options["user"])
-            except User.DoesNotExist:
-                raise CommandError(f"User '{options['user']}' not found")
+            except User.DoesNotExist as e:
+                raise CommandError(f"User '{options['user']}' not found") from e
 
         task = Task.objects.create(
             name=options["name"],
@@ -174,11 +176,23 @@ class Command(BaseCommand):
         """Show detailed task information."""
         try:
             task = Task.objects.get(id=options["task_id"])
-        except Task.DoesNotExist:
-            raise CommandError(f"Task {options['task_id']} not found")
+        except Task.DoesNotExist as e:
+            raise CommandError(f"Task {options['task_id']} not found") from e
 
+        self._display_task_header(task)
+        self._display_task_basic_info(task)
+        self._display_task_timing_info(task)
+        self._display_task_data(task)
+        self._show_dependencies(task)
+        self._show_dependents(task)
+
+    def _display_task_header(self, task):
+        """Display task header information."""
         self.stdout.write(f"\nTask Details (ID: {task.id})")
         self.stdout.write("=" * 50)
+
+    def _display_task_basic_info(self, task):
+        """Display basic task information."""
         self.stdout.write(f"Name: {task.name}")
         if hasattr(task, "description") and task.description:
             self.stdout.write(f"Description: {task.description}")
@@ -189,6 +203,8 @@ class Command(BaseCommand):
         self.stdout.write(f"Created: {task.created}")
         self.stdout.write(f"Modified: {task.modified}")
 
+    def _display_task_timing_info(self, task):
+        """Display task timing information."""
         if task.scheduled_time:
             self.stdout.write(f"Scheduled: {task.scheduled_time}")
         if task.started_at:
@@ -202,18 +218,17 @@ class Command(BaseCommand):
         if task.created_by:
             self.stdout.write(f"Created by: {task.created_by.username}")
 
+    def _display_task_data(self, task):
+        """Display task data and results."""
         self.stdout.write("\nTask Data:")
         self.stdout.write(json.dumps(task.task_data, indent=2))
 
         if task.result_data:
-            self.stdout.write("\nTask Data:")
+            self.stdout.write("\nResult Data:")
             self.stdout.write(json.dumps(task.result_data, indent=2))
 
         if task.error_message:
             self.stdout.write(f"\nError: {task.error_message}")
-
-        self._show_dependencies(task)
-        self._show_dependents(task)
 
     def _show_dependencies(self, task):
         """Helper to show dependencies of a task."""
@@ -235,8 +250,8 @@ class Command(BaseCommand):
         """Cancel a task."""
         try:
             task = Task.objects.get(id=options["task_id"])
-        except Task.DoesNotExist:
-            raise CommandError(f"Task {options['task_id']} not found")
+        except Task.DoesNotExist as e:
+            raise CommandError(f"Task {options['task_id']} not found") from e
 
         if task.status in ["completed", "cancelled", "failed"]:
             raise CommandError(f"Cannot cancel task with status: {task.status}")
@@ -250,8 +265,8 @@ class Command(BaseCommand):
         """Retry a failed task."""
         try:
             task = Task.objects.get(id=options["task_id"])
-        except Task.DoesNotExist:
-            raise CommandError(f"Task {options['task_id']} not found")
+        except Task.DoesNotExist as e:
+            raise CommandError(f"Task {options['task_id']} not found") from e
 
         if not task.can_retry():
             raise CommandError(f"Cannot retry task: status={task.status}, attempts={task.attempts}/{task.max_attempts}")
@@ -270,7 +285,7 @@ class Command(BaseCommand):
             dependent_task = Task.objects.get(id=options["dependent"])
             prerequisite_task = Task.objects.get(id=options["prerequisite"])
         except Task.DoesNotExist as e:
-            raise CommandError(f"Task not found: {e}")
+            raise CommandError(f"Task not found: {e}") from e
 
         dependency, created = TaskDependency.objects.get_or_create(
             dependent_task=dependent_task,
@@ -295,8 +310,8 @@ class Command(BaseCommand):
             try:
                 task = Task.objects.get(id=task_id)
                 tasks.append(task)
-            except Task.DoesNotExist:
-                raise CommandError(f"Task {task_id} not found")
+            except Task.DoesNotExist as e:
+                raise CommandError(f"Task {task_id} not found") from e
 
         # Create the chain
         chain = TaskChain.objects.create(name=options["name"])

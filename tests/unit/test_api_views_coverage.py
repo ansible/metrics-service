@@ -186,8 +186,8 @@ class APIViewsCoverageTestCase(APITestCase):
     def test_filter_and_ordering(self):
         """Test filtering and ordering functionality."""
         # Create additional test data
-        org1 = Organization.objects.create(name="Alpha Org")
-        org2 = Organization.objects.create(name="Beta Org")
+        Organization.objects.create(name="Alpha Org")
+        Organization.objects.create(name="Beta Org")
 
         self.client.force_authenticate(user=self.admin_user)
         url = reverse("api:v1:organization-list")
@@ -207,9 +207,9 @@ class APIViewsCoverageTestCase(APITestCase):
             url = reverse("api:schema")
             response = self.client.get(url)
             self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_404_NOT_FOUND])
-        except:
+        except Exception:
+            self.skipTest("API schema endpoint not configured")
             # Schema endpoint might not be configured
-            pass
 
     def test_api_pagination_edge_cases(self):
         """Test API pagination edge cases."""

@@ -2,6 +2,7 @@
 Unit tests for Django management commands.
 """
 
+import contextlib
 from datetime import timedelta
 from io import StringIO
 from unittest.mock import Mock, patch
@@ -284,10 +285,8 @@ class RunTaskSchedulerCommandTestCase(TestCase):
         # Mock KeyboardInterrupt to stop the command
         mock_scheduler.start.side_effect = KeyboardInterrupt()
 
-        try:
+        with contextlib.suppress(KeyboardInterrupt):
             call_command("run_task_scheduler", stdout=out)
-        except KeyboardInterrupt:
-            pass
 
         # Should create scheduler with default poll interval
         mock_scheduler_class.assert_called_once_with(poll_interval=30)
@@ -302,10 +301,8 @@ class RunTaskSchedulerCommandTestCase(TestCase):
 
         out = StringIO()
 
-        try:
+        with contextlib.suppress(KeyboardInterrupt):
             call_command("run_task_scheduler", "--poll-interval", "60", "--log-level", "DEBUG", stdout=out)
-        except KeyboardInterrupt:
-            pass
 
         # Should create scheduler with custom poll interval
         mock_scheduler_class.assert_called_once_with(poll_interval=60)
@@ -323,10 +320,8 @@ class RunTaskSchedulerCommandTestCase(TestCase):
 
         out = StringIO()
 
-        try:
+        with contextlib.suppress(KeyboardInterrupt):
             call_command("run_task_scheduler", "--log-level", "ERROR", stdout=out)
-        except KeyboardInterrupt:
-            pass
 
         # Should configure logging level
         mock_logger.setLevel.assert_called()
