@@ -2,7 +2,7 @@ name: "Pytest tests"
 
 on:
   push:
-    branches: ['main']
+    branches: ['devel']
   pull_request_target:
 
 jobs:
@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout metrics-service (${{ github.ref }})"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         if: ${{ ! github.base_ref }}
 
       - name: "Checkout metrics-service (${{ github.event.pull_request.head.ref }})"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         if: ${{ github.base_ref }}
         with:
           ref: ${{ github.event.pull_request.head.ref }}
