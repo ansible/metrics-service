@@ -162,7 +162,7 @@ class ExecuteDbTaskTestCase(TestCase):
         result = execute_db_task(data)
 
         self.assertEqual(result["status"], "error")
-        self.assertIn("not found", result["error"])
+        self.assertIn("Task execution failed: Task matching query does not exist", result["error"])
 
     def test_execute_db_task_function_not_found(self):
         """Test execute_db_task with unknown function."""

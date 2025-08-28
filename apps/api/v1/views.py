@@ -1,17 +1,18 @@
 """
 API v1 views for metrics_service following AAP standards.
+
+This module provides ViewSets for the API v1 endpoints with reduced
+code duplication through the use of base ViewSet classes and mixins.
 """
 
-from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
-from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
-from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
 from drf_spectacular.utils import extend_schema
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.core.models import Animal, Organization, Team, User
 
+from .base_views import BaseViewSet, UserManagementMixin
 from .serializers import (
     AnimalSerializer,
     OrganizationSerializer,
@@ -20,12 +21,16 @@ from .serializers import (
 )
 
 
-class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
-    """ViewSet for User model following AAP patterns."""
+class UserViewSet(BaseViewSet):
+    """
+    ViewSet for User model following AAP patterns.
+
+    This ViewSet provides comprehensive user management functionality
+    including current user information and password management.
+    """
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [OAuth2ScopePermission, AnsibleBaseObjectPermissions]
     search_fields = ["username", "first_name", "last_name", "email"]
     filterset_fields = {
         "username": ["exact", "icontains"],
@@ -38,10 +43,6 @@ class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     ordering_fields = ["username", "email", "first_name", "last_name", "date_joined"]
     ordering = ["username"]
 
-    def get_queryset(self):
-        """Filter queryset based on user permissions."""
-        return User.access_qs(self.request.user, queryset=self.queryset)
-
     @extend_schema(
         operation_id="users_me_retrieve",
         description="Get current user information",
@@ -49,7 +50,12 @@ class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     )
     @action(detail=False, methods=["get"])
     def me(self, request):
-        """Return current user information."""
+        """
+        Return current user information.
+
+        Returns:
+            Response: Serialized current user data
+        """
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
@@ -61,7 +67,16 @@ class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_password(self, request, pk=None):
-        """Set password for a user."""
+        """
+        Set password for a user.
+
+        Args:
+            request: HTTP request containing password data
+            pk: Primary key of the user
+
+        Returns:
+            Response: Success or error response
+        """
         user = self.get_object()
         password = request.data.get("password")
 
@@ -73,12 +88,16 @@ class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
-    """ViewSet for Organization model following AAP patterns."""
+class OrganizationViewSet(BaseViewSet, UserManagementMixin):
+    """
+    ViewSet for Organization model following AAP patterns.
+
+    This ViewSet provides comprehensive organization management functionality
+    including user and admin management through the UserManagementMixin.
+    """
 
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
-    permission_classes = [OAuth2ScopePermission, AnsibleBaseObjectPermissions]
     search_fields = ["name", "description"]
     filterset_fields = {
         "name": ["exact", "icontains"],
@@ -90,55 +109,17 @@ class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     ordering_fields = ["name", "created", "modified"]
     ordering = ["name"]
 
-    def get_queryset(self):
-        """Filter queryset based on user permissions."""
-        return Organization.access_qs(self.request.user, queryset=self.queryset)
 
-    @extend_schema(
-        operation_id="organizations_add_user",
-        description="Add user to organization",
-        request={"user_id": "integer"},
-        responses={204: None},
-    )
-    @action(detail=True, methods=["post"])
-    def add_user(self, request, pk=None):
-        """Add user to organization."""
-        organization = self.get_object()
-        user_id = request.data.get("user_id")
+class TeamViewSet(BaseViewSet, UserManagementMixin):
+    """
+    ViewSet for Team model following AAP patterns.
 
-        try:
-            user = User.objects.get(id=user_id)
-            organization.users.add(user)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-
-    @extend_schema(
-        operation_id="organizations_remove_user",
-        description="Remove user from organization",
-        request={"user_id": "integer"},
-        responses={204: None},
-    )
-    @action(detail=True, methods=["post"])
-    def remove_user(self, request, pk=None):
-        """Remove user from organization."""
-        organization = self.get_object()
-        user_id = request.data.get("user_id")
-
-        try:
-            user = User.objects.get(id=user_id)
-            organization.users.remove(user)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-class TeamViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
-    """ViewSet for Team model following AAP patterns."""
+    This ViewSet provides comprehensive team management functionality
+    including hierarchical support and user/admin management.
+    """
 
     queryset = Team.objects.select_related("organization").all()
     serializer_class = TeamSerializer
-    permission_classes = [OAuth2ScopePermission, AnsibleBaseObjectPermissions]
     search_fields = ["name", "description", "organization__name"]
     filterset_fields = {
         "name": ["exact", "icontains"],
@@ -151,17 +132,17 @@ class TeamViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     ordering_fields = ["name", "organization__name", "created", "modified"]
     ordering = ["organization__name", "name"]
 
-    def get_queryset(self):
-        """Filter queryset based on user permissions."""
-        return Team.access_qs(self.request.user, queryset=self.queryset)
 
+class AnimalViewSet(BaseViewSet):
+    """
+    ViewSet for Animal model following AAP patterns.
 
-class AnimalViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
-    """ViewSet for Animal model following AAP patterns."""
+    This ViewSet provides comprehensive animal management functionality
+    including owner-based filtering and custom actions for demonstration.
+    """
 
     queryset = Animal.objects.select_related("owner").all()
     serializer_class = AnimalSerializer
-    permission_classes = [OAuth2ScopePermission, AnsibleBaseObjectPermissions]
     search_fields = ["name", "owner__username"]
     filterset_fields = {
         "name": ["exact", "icontains"],
@@ -175,10 +156,6 @@ class AnimalViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     ordering_fields = ["name", "kind", "age", "owner__username", "created", "modified"]
     ordering = ["name"]
 
-    def get_queryset(self):
-        """Filter queryset based on user permissions."""
-        return Animal.access_qs(self.request.user, queryset=self.queryset)
-
     @extend_schema(
         operation_id="animals_feed",
         description="Feed the animal",
@@ -187,7 +164,16 @@ class AnimalViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"])
     def feed(self, request, pk=None):
-        """Custom action to feed an animal."""
+        """
+        Custom action to feed an animal.
+
+        Args:
+            request: HTTP request containing food data
+            pk: Primary key of the animal
+
+        Returns:
+            Response: Feeding confirmation message
+        """
         animal = self.get_object()
         food = request.data.get("food", "generic food")
 
@@ -203,7 +189,15 @@ class AnimalViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     )
     @action(detail=False, methods=["get"])
     def my_animals(self, request):
-        """Get animals owned by the current user."""
+        """
+        Get animals owned by the current user.
+
+        Args:
+            request: HTTP request from authenticated user
+
+        Returns:
+            Response: List of animals owned by current user
+        """
         animals = self.get_queryset().filter(owner=request.user)
         serializer = self.get_serializer(animals, many=True)
         return Response(serializer.data)

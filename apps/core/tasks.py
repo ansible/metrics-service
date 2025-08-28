@@ -1,5 +1,8 @@
 """
 Background tasks for metrics_service using dispatcherd.
+
+This module provides task functions and utilities for executing background
+tasks with proper error handling, status tracking, and dependency management.
 """
 
 import logging
@@ -10,6 +13,14 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
+from .utils import (
+    create_task_result,
+    handle_task_error,
+    log_task_execution,
+    update_task_status,
+    validate_task_data,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,85 +28,122 @@ def cleanup_old_data(data: dict[str, Any]) -> dict[str, Any]:
     """
     Clean up old data from the system.
 
+    This task removes old data from the system based on specified age criteria.
+    It supports cleanup of various data types including activity streams, logs,
+    and other time-based data.
+
     Args:
-        data: Task data containing cleanup parameters
+        data (dict): Task data containing cleanup parameters:
+            - days_old (int): Number of days old data should be to qualify for cleanup (default: 30)
+            - data_types (list): List of data types to clean up (optional)
 
     Returns:
-        Task result dictionary
+        dict: Task result dictionary with cleanup statistics
     """
-    logger.info("Starting cleanup of old data")
+    log_task_execution("cleanup_old_data", "start", "Starting data cleanup process")
 
-    # Example cleanup logic - replace with actual cleanup code
+    # Validate input data
+    validation_error = validate_task_data(data, required_fields=[])
+    if validation_error:
+        return create_task_result("error", error=validation_error)
+
     days_old = data.get("days_old", 30)
+    data_types = data.get("data_types", ["default"])
 
-    # Simulate cleanup work
     cleaned_count = 0
 
     try:
+        log_task_execution("cleanup_old_data", "processing", f"Cleaning up data older than {days_old} days")
+
         # Add your actual cleanup logic here
         # For example: delete old activity stream entries, logs, etc.
-        logger.info(f"Cleaning up data older than {days_old} days")
 
-        # Example: Clean up old activity stream data
-        # ActivityStream.objects.filter(
-        #     timestamp__lt=timezone.now() - timedelta(days=days_old)
-        # ).delete()
+        # Example cleanup implementations:
+        # from datetime import timedelta
+        # cutoff_date = timezone.now() - timedelta(days=days_old)
 
-        logger.info(f"Cleanup completed. Cleaned {cleaned_count} items")
+        # if "activity_stream" in data_types:
+        #     ActivityStream.objects.filter(timestamp__lt=cutoff_date).delete()
+        #
+        # if "task_executions" in data_types:
+        #     TaskExecution.objects.filter(completed_at__lt=cutoff_date).delete()
 
-        return {
-            "status": "success",
-            "cleaned_count": cleaned_count,
-            "days_old": days_old,
-        }
+        log_task_execution("cleanup_old_data", "complete", f"Cleaned {cleaned_count} items")
+
+        return create_task_result(
+            "success",
+            {
+                "cleaned_count": cleaned_count,
+                "days_old": days_old,
+                "data_types": data_types,
+            },
+        )
 
     except Exception as e:
-        logger.error(f"Cleanup failed: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e),
-        }
+        error_msg = f"Cleanup failed: {str(e)}"
+        log_task_execution("cleanup_old_data", "error", error_msg, level="error")
+        return create_task_result("error", error=error_msg)
 
 
 def send_notification_email(data: dict[str, Any]) -> dict[str, Any]:
     """
     Send notification email to users.
 
+    This task sends notification emails to specified recipients using Django's
+    email functionality. It supports various email parameters and handles
+    email delivery errors gracefully.
+
     Args:
-        data: Task data containing email parameters
+        data (dict): Task data containing email parameters:
+            - recipient (str): Email address of the recipient (required)
+            - subject (str): Email subject line (default: "Notification")
+            - message (str): Email message body
+            - html_message (str): Optional HTML version of the message
 
     Returns:
-        Task result dictionary
+        dict: Task result dictionary with email delivery status
     """
-    logger.info("Sending notification email")
+    log_task_execution("send_notification_email", "start", "Preparing to send notification email")
+
+    # Validate input data
+    validation_error = validate_task_data(data, required_fields=["recipient"])
+    if validation_error:
+        return create_task_result("error", error=validation_error)
 
     recipient = data.get("recipient")
     subject = data.get("subject", "Notification")
-
+    message = data.get("message", "")
     try:
+        log_task_execution("send_notification_email", "processing", f"Sending email to {recipient}")
+
         # Add your actual email sending logic here
         # For example: using Django's send_mail
+        # from django.core.mail import send_mail
+        # from django.conf import settings
+        #
         # send_mail(
         #     subject=subject,
-        #     message=data.get("message", ""),
+        #     message=message,
         #     from_email=settings.DEFAULT_FROM_EMAIL,
         #     recipient_list=[recipient],
+        #     html_message=html_message,
         # )
 
-        logger.info(f"Email sent to {recipient} with subject: {subject}")
+        log_task_execution("send_notification_email", "complete", f"Email sent to {recipient}")
 
-        return {
-            "status": "success",
-            "recipient": recipient,
-            "subject": subject,
-        }
+        return create_task_result(
+            "success",
+            {
+                "recipient": recipient,
+                "subject": subject,
+                "message_length": len(message),
+            },
+        )
 
     except Exception as e:
-        logger.error(f"Email sending failed: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e),
-        }
+        error_msg = f"Email sending failed: {str(e)}"
+        log_task_execution("send_notification_email", "error", error_msg, level="error")
+        return create_task_result("error", error=error_msg)
 
 
 def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
@@ -154,37 +202,53 @@ TASK_FUNCTIONS = {
 
 def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
     """
-    Execute a database-defined task.
+    Execute a database-defined task with comprehensive error handling and tracking.
+
+    This function is the main entry point for executing tasks that are defined
+    in the database. It handles the complete lifecycle of task execution including
+    validation, execution, status tracking, and post-execution processing.
 
     Args:
-        data: Task data containing task_id and execution_id
+        data (dict): Task data containing:
+            - task_id (int): ID of the task to execute (required)
+            - execution_id (int): ID of the execution record (optional)
 
     Returns:
-        Task result dictionary
+        dict: Task result dictionary with execution status and results
     """
+    log_task_execution("execute_db_task", "start", "Starting database task execution")
+
+    # Validate input data
+    validation_error = validate_task_data(data, required_fields=["task_id"])
+    if validation_error:
+        return create_task_result("error", error=validation_error)
+
     task_id = data.get("task_id")
     execution_id = data.get("execution_id")
 
-    if not task_id:
-        return {"status": "error", "error": "No task_id provided"}
-
     try:
+        # Get task and execution objects
         task, execution = _get_task_and_execution(task_id, execution_id)
 
         # Validate task function exists
-        validation_result = _validate_task_function(task, execution)
-        if validation_result:
-            return validation_result
+        if task.function_name not in TASK_FUNCTIONS:
+            error_msg = f"Task function '{task.function_name}' not found in TASK_FUNCTIONS"
+            return handle_task_error(task, execution, error_msg)
 
         # Start task execution
-        _start_task_execution(task, execution)
+        update_task_status(task, execution, status="running")
+        log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
 
         # Execute the actual task function
         task_function = TASK_FUNCTIONS[task.function_name]
         result = task_function(task.task_data)
 
         # Complete task execution
-        _complete_task_execution(task, execution, result)
+        status = "completed" if result.get("status") == "success" else "failed"
+        error_message = result.get("error", "") if status == "failed" else ""
+
+        update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
+        log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
         # Handle post-execution tasks
         _handle_post_execution(task)
@@ -192,7 +256,7 @@ def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
         return result
 
     except Exception as e:
-        return _handle_task_execution_error(task_id, execution_id, e)
+        return handle_task_error(None, None, task_id=task_id, execution_id=execution_id, exception=e)
 
 
 def _get_task_and_execution(task_id, execution_id):

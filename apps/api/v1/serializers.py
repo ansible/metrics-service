@@ -1,14 +1,24 @@
 """
 API v1 serializers for metrics_service following AAP standards.
+
+This module provides serializers for the API v1 endpoints with reduced
+code duplication through the use of base serializer classes and mixins.
 """
 
 from rest_framework import serializers
 
 from apps.core.models import Animal, Organization, Team, User
 
+from .base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
 
-class UserSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for User model following AAP patterns."""
+
+class UserSerializer(BaseModelSerializer, PasswordHandlingMixin):
+    """
+    Serializer for User model following AAP patterns.
+
+    This serializer provides comprehensive user management functionality
+    including password handling and standard field configurations.
+    """
 
     class Meta:
         model = User
@@ -28,40 +38,22 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
             "modified",
         ]
         read_only_fields = [
-            "id",
-            "url",
             "date_joined",
             "last_login",
-            "created",
-            "modified",
         ]
         extra_kwargs = {
             "password": {"write_only": True},
             "url": {"view_name": "api:v1:user-detail"},
         }
 
-    def create(self, validated_data):
-        """Create a new user with proper password hashing."""
-        password = validated_data.pop("password", None)
-        user = User.objects.create(**validated_data)
-        if password:
-            user.set_password(password)
-            user.save()
-        return user
 
-    def update(self, instance, validated_data):
-        """Update user with proper password handling."""
-        password = validated_data.pop("password", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        if password:
-            instance.set_password(password)
-        instance.save()
-        return instance
+class OrganizationSerializer(BaseModelSerializer, CountFieldMixin):
+    """
+    Serializer for Organization model following AAP patterns.
 
-
-class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for Organization model following AAP patterns."""
+    This serializer provides organization management functionality with
+    user and admin count fields for efficient data retrieval.
+    """
 
     users_count = serializers.SerializerMethodField()
     admins_count = serializers.SerializerMethodField()
@@ -83,10 +75,6 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
         ]
 
         read_only_fields = [
-            "id",
-            "url",
-            "created",
-            "modified",
             "users_count",
             "admins_count",
         ]
@@ -96,17 +84,14 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
             "admins": {"view_name": "api:v1:user-detail"},
         }
 
-    def get_users_count(self, obj):
-        """Return count of users in organization."""
-        return obj.users.count()
 
-    def get_admins_count(self, obj):
-        """Return count of admins in organization."""
-        return obj.admins.count()
+class TeamSerializer(BaseModelSerializer, CountFieldMixin):
+    """
+    Serializer for Team model following AAP patterns.
 
-
-class TeamSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for Team model following AAP patterns."""
+    This serializer provides team management functionality with hierarchical
+    support and user/admin count fields for efficient data retrieval.
+    """
 
     organization_name = serializers.CharField(source="organization.name", read_only=True)
     users_count = serializers.SerializerMethodField()
@@ -131,11 +116,7 @@ class TeamSerializer(serializers.HyperlinkedModelSerializer):
         ]
 
         read_only_fields = [
-            "id",
-            "url",
             "organization_name",
-            "created",
-            "modified",
             "users_count",
             "admins_count",
         ]
@@ -147,17 +128,14 @@ class TeamSerializer(serializers.HyperlinkedModelSerializer):
             "admins": {"view_name": "api:v1:user-detail"},
         }
 
-    def get_users_count(self, obj):
-        """Return count of users in team."""
-        return obj.users.count()
 
-    def get_admins_count(self, obj):
-        """Return count of admins in team."""
-        return obj.admins.count()
+class AnimalSerializer(BaseModelSerializer, CountFieldMixin):
+    """
+    Serializer for Animal model following AAP patterns.
 
-
-class AnimalSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for Animal model following AAP patterns."""
+    This serializer provides animal management functionality with owner
+    information and friend count fields for demonstration purposes.
+    """
 
     owner_username = serializers.CharField(source="owner.username", read_only=True)
     kind_display = serializers.CharField(source="get_kind_display", read_only=True)
@@ -180,20 +158,12 @@ class AnimalSerializer(serializers.HyperlinkedModelSerializer):
             "modified",
         ]
         read_only_fields = [
-            "id",
-            "url",
             "owner_username",
             "kind_display",
             "friends_count",
-            "created",
-            "modified",
         ]
         extra_kwargs = {
             "url": {"view_name": "api:v1:animal-detail"},
             "owner": {"view_name": "api:v1:user-detail"},
             "people_friends": {"view_name": "api:v1:user-detail"},
         }
-
-    def get_friends_count(self, obj):
-        """Return count of people friends."""
-        return obj.people_friends.count()
