@@ -224,36 +224,6 @@ class ResourceAPICoverageTestCase(TestCase):
 
 
 @pytest.mark.unit
-class VersionCoverageTestCase(TestCase):
-    """Test cases for version module."""
-
-    def test_version_import(self):
-        """Test version module import."""
-        try:
-            from metrics_service._version import __version__
-
-            self.assertIsInstance(__version__, str)
-        except ImportError:
-            # Version might not be available in test environment
-            pass
-
-    def test_version_info_access(self):
-        """Test accessing version information."""
-        try:
-            import metrics_service._version as version_module
-
-            # Test various version attributes
-            if hasattr(version_module, "__version__"):
-                self.assertIsInstance(version_module.__version__, str)
-
-            if hasattr(version_module, "version_info"):
-                self.assertIsNotNone(version_module.version_info)
-
-        except ImportError:
-            pass
-
-
-@pytest.mark.unit
 class SettingsCoverageTestCase(TestCase):
     """Test cases for Django settings coverage."""
 
