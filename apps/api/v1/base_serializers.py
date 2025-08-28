@@ -2,7 +2,7 @@
 Base serializers to reduce code duplication in API serializers.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from rest_framework import serializers
 
@@ -116,7 +116,7 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
             # Set read_only_fields if not already defined
             self.Meta.read_only_fields = common_readonly_fields
 
-    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """
         Common validation logic for all serializers.
 
@@ -132,7 +132,7 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
         # Add any common validation logic here
         return super().validate(attrs)
 
-    def to_representation(self, instance: Any) -> Dict[str, Any]:
+    def to_representation(self, instance: Any) -> dict[str, Any]:
         """
         Common representation logic for all serializers.
 
@@ -162,7 +162,7 @@ class PasswordHandlingMixin:
     serializers that need to manage password fields.
     """
 
-    def create(self, validated_data: Dict[str, Any]) -> Any:
+    def create(self, validated_data: dict[str, Any]) -> Any:
         """
         Create a new instance with proper password hashing.
 
@@ -181,7 +181,7 @@ class PasswordHandlingMixin:
 
         return instance
 
-    def update(self, instance: Any, validated_data: Dict[str, Any]) -> Any:
+    def update(self, instance: Any, validated_data: dict[str, Any]) -> Any:
         """
         Update an instance with proper password handling.
 

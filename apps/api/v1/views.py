@@ -8,7 +8,6 @@ code duplication through the use of base ViewSet classes and mixins.
 from typing import Any
 
 from django.http import HttpRequest
-
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action

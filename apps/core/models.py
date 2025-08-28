@@ -3,9 +3,8 @@ Core models for metrics_service.
 For full AAP/DAB features, install with: pip install -e ".[dev]"
 """
 
-from typing import Any
-
 from datetime import datetime
+from typing import Any
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models

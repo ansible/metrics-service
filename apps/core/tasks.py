@@ -192,8 +192,6 @@ def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
         }
 
 
-
-
 def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
     """
     Execute a database-defined task with comprehensive error handling and tracking.
@@ -267,12 +265,6 @@ def _get_task_and_execution(task_id: int, execution_id: int | None) -> tuple[Any
     return task, execution
 
 
-
-
-
-
-
-
 def _handle_post_execution(task: Any) -> None:
     """Handle post-execution tasks like dependencies and recurring tasks."""
     if task.status == "completed":
@@ -280,8 +272,6 @@ def _handle_post_execution(task: Any) -> None:
 
     if task.is_recurring and task.status == "completed":
         schedule_next_occurrence(task)
-
-
 
 
 def trigger_dependent_tasks(completed_task: Any) -> None:

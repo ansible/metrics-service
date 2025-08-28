@@ -4,10 +4,8 @@ Common mixins and base classes for reducing code duplication.
 
 from typing import Any
 
-from django.contrib.auth import get_user_model
-from django.db.models import QuerySet
-
 from django.db import models
+from django.db.models import QuerySet
 
 
 class AccessControlMixin:
