@@ -38,12 +38,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Create necessary directories and files with proper permissions
 RUN mkdir -p /app/logs /app/static && \
-    touch /app/metrics_service/_version.py && \
     chown -R 1001:1001 /app
 USER 1001
-
-# Create version file content manually since setuptools_scm has permission issues
-RUN echo '__version__ = "0.1.0"' > /app/metrics_service/_version.py
 
 # Expose port
 EXPOSE 8000

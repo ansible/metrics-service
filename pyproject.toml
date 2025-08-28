@@ -89,8 +89,6 @@ Repository = "https://github.com/ansible/platform-service-template"
 [tool.setuptools]
 packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.health"]
 
-[tool.setuptools_scm]
-write_to = "metrics_service/_version.py"
 
 [tool.uv]
 dev-dependencies = [

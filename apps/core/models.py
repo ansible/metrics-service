@@ -3,8 +3,13 @@ Core models for metrics_service.
 For full AAP/DAB features, install with: pip install -e ".[dev]"
 """
 
+from datetime import datetime
+from typing import Any
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+
+from .mixins import AccessControlMixin, StatusTrackingMixin, UserRelatedMixin
 
 # Basic models for immediate setup
 # For full AAP features, replace with DAB abstract models when ready
@@ -93,9 +98,13 @@ if DAB_AVAILABLE:
         )
 
 
-class Organization(AbstractOrganization):
+class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
     """
-    Organization model.
+    Organization model with user and admin management capabilities.
+
+    This model represents an organization that can contain users and admins.
+    It inherits from AbstractOrganization for DAB compatibility and includes
+    access control functionality through AccessControlMixin.
     """
 
     class Meta:
@@ -107,6 +116,8 @@ class Organization(AbstractOrganization):
     if DAB_AVAILABLE:
         resource = AnsibleResourceField(primary_key_field="id")
 
+    # UserRelatedMixin provides users and admins fields
+    # Override to customize related_name for organizations
     users = models.ManyToManyField(
         "User",
         related_name="member_of_organizations",
@@ -124,26 +135,22 @@ class Organization(AbstractOrganization):
     # Example custom field - replace or remove as needed
     extra_field = models.CharField(max_length=100, null=True, blank=True)
 
-    @classmethod
-    def access_qs(cls, user, queryset=None):
-        """
-        Return queryset filtered by user permissions.
-        Fallback implementation when DAB is not fully available.
-        """
-        if queryset is None:
-            queryset = cls.objects.all()
-
-        # For now, return all objects - in production this would implement proper RBAC
-        # When DAB is fully configured, this method would be provided by the DAB base class
-        return queryset
-
     def __str__(self):
+        """
+        Return string representation of the organization.
+
+        Returns:
+            str: Organization name
+        """
         return self.name
 
 
-class User(AbstractDABUser, CommonModel, AuditableModel):
+class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
     """
-    Custom User model.
+    Custom User model with enhanced functionality.
+
+    This model extends the AbstractDABUser with additional functionality
+    including access control and proper password handling.
     """
 
     class Meta(AbstractDABUser.Meta):
@@ -174,6 +181,13 @@ class User(AbstractDABUser, CommonModel, AuditableModel):
     def save(self, *args, **kwargs):
         """
         Override save to handle password hashing when DAB is available.
+
+        Args:
+            *args: Positional arguments
+            **kwargs: Keyword arguments
+
+        Returns:
+            None
         """
         if DAB_AVAILABLE:
             if self.password == "":
@@ -183,34 +197,33 @@ class User(AbstractDABUser, CommonModel, AuditableModel):
                 self.password = make_password(self.password)
         super().save(*args, **kwargs)
 
-    def summary_fields(self):
+    def summary_fields(self) -> dict[str, Any]:
         """
         Return summary fields for this user.
+
+        Returns:
+            dict: Summary fields dictionary
         """
         if DAB_AVAILABLE:
             return user_summary_fields(self)
         return {}
 
-    @classmethod
-    def access_qs(cls, user, queryset=None):
-        """
-        Return queryset filtered by user permissions.
-        Fallback implementation when DAB is not fully available.
-        """
-        if queryset is None:
-            queryset = cls.objects.all()
-
-        # For now, return all objects - in production this would implement proper RBAC
-        # When DAB is fully configured, this method would be provided by the DAB base class
-        return queryset
-
     def __str__(self):
+        """
+        Return string representation of the user.
+
+        Returns:
+            str: Username
+        """
         return self.username
 
 
-class Team(AbstractTeam):
+class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
     """
-    Team model.
+    Team model with hierarchical organization support.
+
+    This model represents a team within an organization that can contain
+    users and admins, with support for team hierarchies.
     """
 
     class Meta:
@@ -230,6 +243,7 @@ class Team(AbstractTeam):
         help_text="Parent teams for hierarchy support",
     )
 
+    # Override UserRelatedMixin fields to use proper User model and related_name
     users = models.ManyToManyField(
         User,
         related_name="teams",
@@ -247,27 +261,22 @@ class Team(AbstractTeam):
     # Relations to ignore for certain operations
     ignore_relations = []
 
-    @classmethod
-    def access_qs(cls, user, queryset=None):
-        """
-        Return queryset filtered by user permissions.
-        Fallback implementation when DAB is not fully available.
-        """
-        if queryset is None:
-            queryset = cls.objects.all()
-
-        # For now, return all objects - in production this would implement proper RBAC
-        # When DAB is fully configured, this method would be provided by the DAB base class
-        return queryset
-
     def __str__(self):
+        """
+        Return string representation of the team.
+
+        Returns:
+            str: Organization name and team name
+        """
         return f"{self.organization.name} - {self.name}"
 
 
-class Animal(NamedCommonModel, AuditableModel):
+class Animal(NamedCommonModel, AuditableModel, AccessControlMixin):
     """
     Example model to demonstrate AAP patterns.
-    Replace with your actual business models.
+
+    This model demonstrates various AAP patterns including access control,
+    auditing, and relationships. Replace with your actual business models.
     """
 
     class Meta:
@@ -308,26 +317,22 @@ class Animal(NamedCommonModel, AuditableModel):
         help_text="People who are friends with this animal",
     )
 
-    @classmethod
-    def access_qs(cls, user, queryset=None):
-        """
-        Return queryset filtered by user permissions.
-        Fallback implementation when DAB is not fully available.
-        """
-        if queryset is None:
-            queryset = cls.objects.all()
-
-        # For now, return all objects - in production this would implement proper RBAC
-        # When DAB is fully configured, this method would be provided by the DAB base class
-        return queryset
-
     def __str__(self):
+        """
+        Return string representation of the animal.
+
+        Returns:
+            str: Animal name and kind
+        """
         return f"{self.name} ({self.get_kind_display()})"
 
 
-class Task(NamedCommonModel, AuditableModel):
+class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingMixin):
     """
-    Database model for scheduled tasks.
+    Database model for scheduled tasks with enhanced tracking capabilities.
+
+    This model provides comprehensive task scheduling and execution tracking
+    with support for dependencies, recurring tasks, and detailed status monitoring.
     """
 
     class Meta:
@@ -383,13 +388,8 @@ class Task(NamedCommonModel, AuditableModel):
 
     timeout_seconds = models.PositiveIntegerField(default=3600, help_text="Task timeout in seconds")
 
-    # Execution results
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-
+    # Execution results (inherited from StatusTrackingMixin)
     result_data = models.JSONField(default=dict, blank=True, help_text="JSON result data from task execution")
-
-    error_message = models.TextField(blank=True, help_text="Error message if task failed")
 
     # Ownership and organization
     created_by = models.ForeignKey(
@@ -401,24 +401,22 @@ class Task(NamedCommonModel, AuditableModel):
         help_text="User who created this task",
     )
 
-    @classmethod
-    def access_qs(cls, user, queryset=None):
-        """
-        Return queryset filtered by user permissions.
-        Fallback implementation when DAB is not fully available.
-        """
-        if queryset is None:
-            queryset = cls.objects.all()
-
-        # For now, return all objects - in production this would implement proper RBAC
-        # When DAB is fully configured, this method would be provided by the DAB base class
-        return queryset
-
     def __str__(self):
+        """
+        Return string representation of the task.
+
+        Returns:
+            str: Task name, function name, and status
+        """
         return f"{self.name} ({self.function_name}) - {self.get_status_display()}"
 
-    def is_ready_to_run(self):
-        """Check if task is ready to be executed."""
+    def is_ready_to_run(self) -> bool:
+        """
+        Check if task is ready to be executed.
+
+        Returns:
+            bool: True if task is ready to run, False otherwise
+        """
         from django.utils import timezone
 
         if self.status != "pending":
@@ -433,12 +431,22 @@ class Task(NamedCommonModel, AuditableModel):
         # Check if scheduled time has passed
         return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
-    def can_retry(self):
-        """Check if task can be retried."""
+    def can_retry(self) -> bool:
+        """
+        Check if task can be retried.
+
+        Returns:
+            bool: True if task can be retried, False otherwise
+        """
         return self.attempts < self.max_attempts and self.status == "failed"
 
-    def get_next_run_time(self):
-        """Calculate next run time for recurring tasks."""
+    def get_next_run_time(self) -> datetime | None:
+        """
+        Calculate next run time for recurring tasks.
+
+        Returns:
+            datetime or None: Next run time for recurring tasks, None if not recurring
+        """
         if not self.is_recurring or not self.cron_expression:
             return None
 
@@ -461,6 +469,9 @@ class Task(NamedCommonModel, AuditableModel):
 class TaskDependency(CommonModel):
     """
     Model to define task dependencies for chaining.
+
+    This model allows creating dependencies between tasks to ensure
+    proper execution order in complex workflows.
     """
 
     class Meta:
@@ -486,12 +497,21 @@ class TaskDependency(CommonModel):
     )
 
     def __str__(self):
+        """
+        Return string representation of the task dependency.
+
+        Returns:
+            str: Dependency relationship description
+        """
         return f"{self.dependent_task.name} depends on {self.prerequisite_task.name}"
 
 
 class TaskExecution(CommonModel, AuditableModel):
     """
     Model to track individual task executions for history and debugging.
+
+    This model provides detailed tracking of task execution attempts,
+    including timing, results, and error information.
     """
 
     class Meta:
@@ -519,18 +539,37 @@ class TaskExecution(CommonModel, AuditableModel):
     )
 
     def __str__(self):
+        """
+        Return string representation of the task execution.
+
+        Returns:
+            str: Task name and execution timestamp
+        """
         return f"{self.task.name} execution at {self.started_at}"
 
     def save(self, *args, **kwargs):
+        """
+        Override save to calculate execution time automatically.
+
+        Args:
+            *args: Positional arguments
+            **kwargs: Keyword arguments
+
+        Returns:
+            None
+        """
         # Calculate execution time if completed
         if self.completed_at and self.started_at:
             self.execution_time_seconds = (self.completed_at - self.started_at).total_seconds()
         super().save(*args, **kwargs)
 
 
-class TaskChain(NamedCommonModel, AuditableModel):
+class TaskChain(NamedCommonModel, AuditableModel, AccessControlMixin):
     """
     Model to define named task chains for complex workflows.
+
+    This model allows grouping tasks into ordered chains for executing
+    complex workflows with specific sequencing requirements.
     """
 
     class Meta:
@@ -547,12 +586,21 @@ class TaskChain(NamedCommonModel, AuditableModel):
     )
 
     def __str__(self):
+        """
+        Return string representation of the task chain.
+
+        Returns:
+            str: Task chain name
+        """
         return self.name
 
 
 class TaskChainMembership(CommonModel):
     """
     Through model for TaskChain to Task relationship with ordering.
+
+    This model defines the order and relationship between tasks within
+    a task chain, allowing for proper sequencing of workflow execution.
     """
 
     class Meta:
@@ -565,6 +613,12 @@ class TaskChainMembership(CommonModel):
     order = models.PositiveIntegerField(help_text="Order of task in the chain (lower numbers run first)")
 
     def __str__(self):
+        """
+        Return string representation of the task chain membership.
+
+        Returns:
+            str: Chain name, task name, and order
+        """
         return f"{self.chain.name} - {self.task.name} (order: {self.order})"
 
 
