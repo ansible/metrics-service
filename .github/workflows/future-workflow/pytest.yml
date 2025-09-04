@@ -1,4 +1,4 @@
-name: "Pytest tests"
+name: 'Pytest tests'
 
 on:
   push:
@@ -8,43 +8,55 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_metrics_service
+          POSTGRES_USER: metrics_service
+          POSTGRES_PASSWORD: metrics_service
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
-      - name: "Checkout metrics-service (${{ github.ref }})"
+      - name: 'Checkout metrics-service (${{ github.ref }})'
         uses: actions/checkout@v5
         if: ${{ ! github.base_ref }}
 
-      - name: "Checkout metrics-service (${{ github.event.pull_request.head.ref }})"
+      - name: 'Checkout metrics-service (${{ github.event.pull_request.head.ref }})'
         uses: actions/checkout@v5
         if: ${{ github.base_ref }}
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-      - name: "Install uv"
+      - name: 'Install uv'
         uses: astral-sh/setup-uv@v6
 
-      - name: "Set up Python"
+      - name: 'Set up Python'
         uses: actions/setup-python@v5
         with:
-          python-version-file: "pyproject.toml"
+          python-version-file: 'pyproject.toml'
 
-      - name: "Set up postgresql"
-        run: |
-          sudo apt install postgresql postgresql-client
-          sudo systemctl start postgresql.service  # ubuntu
-
-      - name: "Wait for postgresql"
-        timeout-minutes: 1
-        run: |
-          until pg_isready; do
-            sleep 4
-          done
-
-      - name: "Run pytest"
+      - name: 'Run pytest'
+        env:
+          METRICS_SERVICE_DB_HOST: localhost
+          METRICS_SERVICE_DB_PORT: 5432
+          METRICS_SERVICE_DB_USER: metrics_service
+          METRICS_SERVICE_DB_PASSWORD: metrics_service
+          METRICS_SERVICE_TEST_DB_NAME: test_metrics_service
+          METRICS_SERVICE_DB_SSLMODE: disable
+          DJANGO_SETTINGS_MODULE: metrics_service.settings.test
         run: |
           uv run pytest -s -v --cov=. --cov-report=xml
 
-      - name: "Send code coverage report to Sonar Cloud"
+      - name: 'Send code coverage report to Sonar Cloud'
         uses: SonarSource/sonarqube-scan-action@v5
         if: ${{ github.base_ref }}
         env:
@@ -64,7 +76,7 @@ jobs:
             -Dsonar.pullrequest.provider=github
             -Dsonar.python.coverage.reportPaths=coverage.xml
 
-      - name: "Send code coverage report to Sonar Cloud"
+      - name: 'Send code coverage report to Sonar Cloud'
         uses: SonarSource/sonarqube-scan-action@v5
         if: ${{ ! github.base_ref }}
         env:

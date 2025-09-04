@@ -42,7 +42,7 @@ pip install Django>=4.2 djangorestframework>=3.15 drf-spectacular>=0.27 django-c
 
 # Set up minimal configuration
 cp config/settings.yaml.example config/settings.yaml
-# Edit to remove 'engine: django.db.backends.postgresql' line for SQLite
+# Edit database configuration as needed
 
 # Run migrations
 python manage.py migrate
@@ -117,7 +117,7 @@ This template provides a production-ready foundation for building AAP services w
 - ✅ **AAP-Dev Integration** - Ready for local development with AAP ecosystem
 - ✅ **Security** - OAuth2, JWT, and role-based access control
 - ✅ **Testing** - Unit, integration, and functional test structure
-- ✅ **Immediate Runability** - Works out of the box with SQLite, scales to PostgreSQL
+- ✅ **Immediate Runability** - Uses PostgreSQL for production-ready deployment
 - ✅ **Template Ready** - Configured for GitHub template repository use
 
 ## Setup and Development
@@ -334,17 +334,26 @@ isort .
 Run the comprehensive test suite:
 
 ```bash
-# All tests
-pytest
+# Quick test with Docker PostgreSQL (recommended)
+./scripts/run-tests.sh
+
+# Test with local PostgreSQL
+./scripts/run-tests.sh --local
+
+# Run specific test path
+./scripts/run-tests.sh --path=tests/unit/
+
+# Verbose output
+./scripts/run-tests.sh --verbose
+
+# Manual testing (after environment setup)
+pytest --cov=metrics_service --cov=apps
 
 # Unit tests only
 pytest -m unit
 
 # Integration tests only
 pytest -m integration
-
-# With coverage
-pytest --cov=metrics_service --cov=apps
 ```
 
 ### Database Migrations

@@ -25,8 +25,15 @@ def setup_django_for_tests():
             SECRET_KEY="test-key",
             DATABASES={
                 "default": {
-                    "ENGINE": "django.db.backends.sqlite3",
-                    "NAME": ":memory:",
+                    "ENGINE": "django.db.backends.postgresql",
+                    "HOST": "127.0.0.1",
+                    "PORT": "55432",
+                    "USER": "metrics_service",
+                    "PASSWORD": "metrics_service",
+                    "NAME": "test_metrics_service",
+                    "OPTIONS": {
+                        "sslmode": "prefer",
+                    },
                 }
             },
             INSTALLED_APPS=[

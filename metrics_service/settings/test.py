@@ -2,6 +2,8 @@
 Test-specific settings for metrics_service.
 """
 
+import os
+
 # Import all settings from defaults first
 from .defaults import *  # noqa: F403, F401
 from .defaults import FEATURE_FLAGS, LOGGING, REST_FRAMEWORK  # noqa: F401
@@ -9,11 +11,21 @@ from .defaults import FEATURE_FLAGS, LOGGING, REST_FRAMEWORK  # noqa: F401
 # Disable debug for tests
 DEBUG = False
 
-# Use in-memory database for tests
+# Use PostgreSQL with test database for tests
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55433"),
+        "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+        "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "test_metrics_service"),
+        "OPTIONS": {
+            "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
+        },
+        "TEST": {
+            "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "test_metrics_service"),
+        },
     }
 }
 
@@ -36,16 +48,13 @@ PASSWORD_HASHERS = [
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 
-# Disable migrations for tests
-class DisableMigrations:
-    def __contains__(self, item):
-        return True
-
-    def __getitem__(self, item):
-        return None
-
-
-MIGRATION_MODULES = DisableMigrations()
+# For faster tests, we could disable migrations for specific apps
+# but keep Django core migrations enabled
+# MIGRATION_MODULES = {
+#     'core': None,
+#     'api': None,
+#     'health': None,
+# }
 
 # Logging configuration for tests (minimal)
 LOGGING["loggers"]["metrics_service"]["level"] = "WARNING"

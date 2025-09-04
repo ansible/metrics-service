@@ -111,34 +111,21 @@ WSGI_APPLICATION = "metrics_service.wsgi.application"
 ASGI_APPLICATION = "metrics_service.asgi.application"
 
 # Database
-# Default to SQLite for immediate development, override with environment variables for production
+# PostgreSQL as default database for development
 DATABASES = {
     "default": {
-        "ENGINE": os.environ.get("METRICS_SERVICE_DB_ENGINE", "django.db.backends.sqlite3"),
-        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", BASE_DIR / "db.sqlite3"),
-        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", ""),
-        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", ""),
-        "USER": os.environ.get("METRICS_SERVICE_DB_USER", ""),
-        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", ""),
-        "OPTIONS": {},
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
+        "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
+        "OPTIONS": {
+            "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
+        },
     }
 }
 
-# Override for PostgreSQL when environment variables are set
-if os.environ.get("METRICS_SERVICE_DB_ENGINE") == "django.db.backends.postgresql":
-    DATABASES["default"].update(
-        {
-            "ENGINE": "django.db.backends.postgresql",
-            "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
-            "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
-            "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
-            "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
-            "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
-            "OPTIONS": {
-                "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
-            },
-        }
-    )
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
