@@ -21,6 +21,8 @@ from drf_spectacular.views import (
 urlpatterns = [
     # Admin interface
     path("admin/", admin.site.urls),
+    # Dashboard interface
+    path("dashboard/", include("dashboard.urls")),
     # API endpoints
     path("api/", include("apps.api.urls")),
     # Health checks

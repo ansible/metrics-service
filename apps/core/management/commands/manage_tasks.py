@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from apps.core.models import Task, TaskChain, TaskChainMembership, TaskDependency
+from apps.core.models import Task, TaskChain, TaskChainMembership,
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

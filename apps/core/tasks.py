@@ -13,6 +13,18 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
+# Import dispatcherd task decorator
+try:
+    from dispatcherd.publish import task
+except ImportError:
+    # Fallback decorator if dispatcherd is not available
+    def task(queue=None, decorate=False):
+        def decorator(func):
+            return func
+
+        return decorator
+
+
 from .utils import (
     create_task_result,
     handle_task_error,
@@ -24,6 +36,7 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+@task(queue="metrics_cleanup", decorate=False)
 def cleanup_old_data(data: dict[str, Any]) -> dict[str, Any]:
     """
     Clean up old data from the system.
@@ -85,6 +98,7 @@ def cleanup_old_data(data: dict[str, Any]) -> dict[str, Any]:
         return create_task_result("error", error=error_msg)
 
 
+@task(queue="metrics_notifications", decorate=False)
 def send_notification_email(data: dict[str, Any]) -> dict[str, Any]:
     """
     Send notification email to users.
@@ -146,6 +160,7 @@ def send_notification_email(data: dict[str, Any]) -> dict[str, Any]:
         return create_task_result("error", error=error_msg)
 
 
+@task(queue="metrics_tasks", decorate=False)
 def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
     """
     Process user data in the background.
@@ -192,6 +207,7 @@ def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+@task(queue="metrics_tasks", decorate=False)
 def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
     """
     Execute a database-defined task with comprehensive error handling and tracking.
@@ -446,6 +462,152 @@ class TaskScheduler:
 
         except Exception as e:
             logger.error(f"Error cleaning up stale tasks: {str(e)}")
+
+
+class TaskScheduler:
+    """
+    Task scheduler that moves pending tasks from the database to the dispatcher queue.
+
+    This scheduler polls the database for pending tasks and publishes them to
+    the appropriate dispatcherd queue for execution.
+    """
+
+    def __init__(self, poll_interval: int = 30):
+        """
+        Initialize the task scheduler.
+
+        Args:
+            poll_interval: How often to check for pending tasks (in seconds)
+        """
+        self.poll_interval = poll_interval
+        self.running = False
+
+    def start(self):
+        """Start the task scheduler main loop."""
+        self.running = True
+        logger.info(f"Task scheduler started with {self.poll_interval}s poll interval")
+
+        while self.running:
+            try:
+                self.process_pending_tasks()
+                time.sleep(self.poll_interval)
+            except Exception as e:
+                logger.error(f"Error in task scheduler: {str(e)}")
+                time.sleep(self.poll_interval)
+
+    def stop(self):
+        """Stop the task scheduler."""
+        self.running = False
+        logger.info("Task scheduler stopped")
+
+    def process_pending_tasks(self):
+        """Process all pending tasks and publish them to dispatcher queues."""
+        try:
+            from .models import Task
+            from django.db.models import Q
+
+            # Get all pending tasks that are ready to run
+            # Include tasks with no scheduled_time (immediate execution) and tasks whose time has come
+            with transaction.atomic():
+                pending_tasks = Task.objects.filter(status="pending").filter(
+                    Q(scheduled_time__isnull=True) | Q(scheduled_time__lte=timezone.now())
+                )
+
+                if not pending_tasks.exists():
+                    return
+
+                logger.info(f"Found {pending_tasks.count()} pending tasks ready for execution")
+
+                for task in pending_tasks:
+                    try:
+                        # Lock this specific task for update
+                        locked_task = Task.objects.select_for_update().get(id=task.id, status="pending")
+                        self.publish_task(locked_task)
+                    except Task.DoesNotExist:
+                        # Task was already processed by another worker
+                        logger.debug(f"Task {task.id} already processed")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Failed to publish task {task.id}: {str(e)}")
+                        # Mark task as failed if we can't publish it
+                        try:
+                            failed_task = Task.objects.get(id=task.id)
+                            failed_task.status = "failed"
+                            failed_task.error_message = f"Failed to publish to dispatcher: {str(e)}"
+                            failed_task.completed_at = timezone.now()
+                            failed_task.save()
+                        except Exception as save_error:
+                            logger.error(f"Failed to mark task {task.id} as failed: {str(save_error)}")
+
+        except Exception as e:
+            logger.error(f"Error processing pending tasks: {str(e)}")
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+    def publish_task(self, task):
+        """
+        Publish a single task to the appropriate dispatcher queue.
+
+        Args:
+            task: Task instance to publish
+        """
+        try:
+            # Import dispatcherd submit function
+            from dispatcherd.publish import submit_task
+
+            # Determine the appropriate queue based on task type
+            queue = self.get_queue_for_task(task)
+
+            # Prepare task data for the function
+            function_data = task.task_data.copy() if task.task_data else {}
+            function_data["task_id"] = task.id
+
+            # Update task status to running
+            task.status = "running"
+            task.started_at = timezone.now()
+            task.save()
+
+            # Submit to dispatcher
+            # Get the actual function from TASK_FUNCTIONS
+            function_name = task.function_name
+            if function_name not in TASK_FUNCTIONS:
+                raise ValueError(f"Unknown task function: {function_name}")
+
+            task_func = TASK_FUNCTIONS[function_name]
+
+            # Submit the task
+            submit_task(task_func, kwargs=function_data, queue=queue)
+
+            logger.info(f"Submitted task {task.id} ({task.function_name}) to queue {queue}")
+
+        except Exception as e:
+            logger.error(f"Failed to submit task {task.id}: {str(e)}")
+            # Roll back the status change
+            task.status = "pending"
+            task.started_at = None
+            task.save()
+            raise
+
+    def get_queue_for_task(self, task):
+        """
+        Determine the appropriate queue for a task based on its function.
+
+        Args:
+            task: Task instance
+
+        Returns:
+            str: Queue name
+        """
+        # Map function names to queues
+        queue_mapping = {
+            "cleanup_old_data": "metrics_cleanup",
+            "send_notification_email": "metrics_notifications",
+            "process_user_data": "metrics_tasks",
+            "execute_db_task": "metrics_tasks",
+        }
+
+        return queue_mapping.get(task.function_name, "metrics_tasks")
 
 
 # Task configuration for dispatcherd

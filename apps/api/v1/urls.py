@@ -9,7 +9,7 @@ from .views import AnimalViewSet, OrganizationViewSet, TeamViewSet, UserViewSet
 
 app_name = "v1"
 
-# Create DRF router
+# Create DRF router for non-nested endpoints
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="user")
 router.register(r"organizations", OrganizationViewSet, basename="organization")
@@ -17,6 +17,8 @@ router.register(r"teams", TeamViewSet, basename="team")
 router.register(r"animals", AnimalViewSet, basename="animal")
 
 urlpatterns = [
-    # Include router URLs
+    # Nested API endpoints
+    path("tasks/", include("apps.api.v1.tasks.urls", namespace="tasks")),
+    # Include router URLs for other endpoints
     path("", include(router.urls)),
 ]

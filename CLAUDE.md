@@ -79,7 +79,7 @@ python examples/create_sample_tasks.py
 ### Docker
 
 ```bash
-# Start full stack with PostgreSQL and Redis
+# Start full stack with PostgreSQL, Redis, and task dispatcher
 docker-compose up
 
 # Start in background
@@ -87,6 +87,19 @@ docker-compose up -d
 
 # View logs
 docker-compose logs -f metrics-service
+docker-compose logs -f metrics-dispatcher
+```
+
+### Quick Start with Task Dashboard
+
+```bash
+# Start all services automatically (web server + task dispatcher)
+./start_services.sh
+
+# Or use Docker Compose
+docker-compose up
+
+# Access the dashboard at http://localhost:8000/dashboard/
 ```
 
 ## Architecture Overview
@@ -98,6 +111,7 @@ This is a Django-based service following Ansible Automation Platform (AAP) stand
 - **`apps/core/`** - Core business logic, models, and background tasks
 - **`apps/api/v1/`** - Versioned REST API endpoints with reduced code duplication
 - **`apps/health/`** - Health check endpoints for Kubernetes deployment
+- **`dashboard/`** - Web-based task management dashboard with real-time monitoring
 - **`metrics_service/settings/`** - Split Django settings (development, production, test)
 - **`tests/`** - Comprehensive test suite (unit, integration, functional)
 
@@ -114,7 +128,28 @@ This is a Django-based service following Ansible Automation Platform (AAP) stand
 - **Base classes** - `BaseViewSet` and `UserManagementMixin` reduce code duplication
 - **Versioned endpoints** - URL-based versioning (`/api/v1/`)
 - **Comprehensive filtering** - Field-based filtering, search, pagination, and sorting
+- **Task Management APIs** - Full CRUD operations for tasks with real-time status monitoring
 - **OpenAPI documentation** - Available at `/api/docs/`
+
+### Task Dashboard (`dashboard/`)
+
+The web-based dashboard provides a centralized interface for task management:
+
+- **Real-time Monitoring** - Live updates of running and pending tasks every 5 seconds
+- **Task Visualization** - Separate sections for running tasks, pending tasks, and complete history
+- **Task Creation** - Interactive form with function selection, parameter input, and scheduling
+- **Task Controls** - Retry failed tasks, cancel pending/running tasks
+- **Statistics Dashboard** - Live counters for task statuses (running, pending, completed, failed)
+- **Responsive Design** - Mobile-friendly interface using Tailwind CSS
+
+#### Dashboard Features
+
+- **URL**: `/dashboard/` (requires authentication)
+- **Auto-refresh**: Updates every 5 seconds without page reload
+- **Task Actions**: Create, retry, cancel tasks directly from the interface
+- **Function Discovery**: Automatically loads available task functions from the system
+- **JSON Parameter Input**: Support for complex task parameters via JSON input
+- **DateTime Scheduling**: Built-in date/time picker for scheduling future tasks
 
 ### Background Task System (`apps/core/tasks.py`)
 
@@ -166,6 +201,61 @@ Use pytest markers for test categorization:
 
 - Minimum 80% coverage enforced via pytest configuration
 - Coverage reports generated in HTML and XML formats
+
+## Task Management API Endpoints
+
+### Core Task Endpoints
+
+```bash
+# Get all tasks with filtering and pagination
+GET /api/v1/tasks/
+GET /api/v1/tasks/?status=running
+GET /api/v1/tasks/?status=pending
+
+# Create a new task
+POST /api/v1/tasks/
+{
+  "name": "My Task",
+  "function_name": "cleanup_old_data",
+  "task_data": {"days_old": 30},
+  "scheduled_time": "2024-09-04T15:30:00Z"  // Optional
+}
+
+# Get running tasks only
+GET /api/v1/tasks/running/
+
+# Get pending tasks only  
+GET /api/v1/tasks/pending/
+
+# Retry a failed task
+POST /api/v1/tasks/{id}/retry/
+
+# Cancel a pending or running task
+POST /api/v1/tasks/{id}/cancel/
+
+# Get available task functions
+GET /api/v1/tasks/available_functions/
+```
+
+### Task Execution History
+
+```bash
+# Get task execution history
+GET /api/v1/executions/
+GET /api/v1/executions/?task__name=My Task
+
+# Get specific execution details
+GET /api/v1/executions/{id}/
+```
+
+### Available Task Functions
+
+The system includes these built-in task functions:
+
+- **`cleanup_old_data`** - Clean up old data from the system
+- **`send_notification_email`** - Send notification emails to users  
+- **`process_user_data`** - Process user data in the background
+- **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
 
 ## Development Notes
 

@@ -153,6 +153,45 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
 
         return data
 
+    @classmethod
+    def build_common_fields(cls, base_fields: list[str], extra_fields: list[str] = None) -> list[str]:
+        """
+        Build common field lists for serializer Meta classes.
+
+        Args:
+            base_fields (list): Base fields specific to the model
+            extra_fields (list): Additional fields to include
+
+        Returns:
+            list: Complete field list
+        """
+        fields = ["id", "url"] + base_fields + ["created", "modified"]
+        
+        if extra_fields:
+            # Insert extra fields before timestamps
+            fields = fields[:-2] + extra_fields + fields[-2:]
+        
+        return fields
+
+    @classmethod
+    def build_extra_kwargs(cls, view_name: str, additional_kwargs: dict = None) -> dict:
+        """
+        Build common extra_kwargs for serializer Meta classes.
+
+        Args:
+            view_name (str): The view name for the URL field
+            additional_kwargs (dict): Additional kwargs to merge
+
+        Returns:
+            dict: Complete extra_kwargs dictionary
+        """
+        kwargs = {"url": {"view_name": view_name}}
+        
+        if additional_kwargs:
+            kwargs.update(additional_kwargs)
+        
+        return kwargs
+
 
 class PasswordHandlingMixin:
     """
