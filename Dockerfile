@@ -43,11 +43,6 @@ USER 1001
 
 # Expose port
 EXPOSE 8000
-
-# Health check using python instead of curl
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')" || exit 1
-
 # Set entrypoint and default command
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

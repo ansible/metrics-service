@@ -54,23 +54,24 @@ DAB_APPS = [
     "ansible_base.feature_flags",  # Add when needed
 ]
 
-# Uncomment the line below to enable all DAB features with development setup
-# DAB_APPS = [app.strip("# ") for app in [
-#     "ansible_base.rest_filters",
-#     "ansible_base.rest_pagination",
-#     "ansible_base.rbac",
-#     "ansible_base.authentication",
-#     "ansible_base.oauth2_provider",
-#     "ansible_base.activitystream",
-#     "ansible_base.jwt_consumer",
-#     "ansible_base.resource_registry",
-#     "ansible_base.feature_flags",
-# ]]
+DAB_APPS = [
+    app.strip("# ")
+    for app in [
+        "ansible_base.rest_filters",
+        "ansible_base.rest_pagination",
+        "ansible_base.rbac",
+        "ansible_base.authentication",
+        "ansible_base.oauth2_provider",
+        "ansible_base.activitystream",
+        "ansible_base.jwt_consumer",
+        "ansible_base.resource_registry",
+        "ansible_base.feature_flags",
+    ]
+]
 
 LOCAL_APPS = [
     "apps.core",
     "apps.api",
-    "apps.health",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS

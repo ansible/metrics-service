@@ -5,7 +5,6 @@ Simplified tests for coverage without complex Django setup.
 from unittest.mock import Mock, patch
 
 from .test_common import (
-    BaseHealthChecksTest,
     BaseTaskFunctionsTest,
     BaseTaskSchedulerTest,
     BaseUtilitiesTest,
@@ -36,10 +35,6 @@ class TestTaskFunctions(BaseTaskFunctionsTest):
         self.assertEqual(result["user_id"], 1)
         self.assertEqual(result["username"], "testuser")
         self.assertEqual(result["operation"], "sync")
-
-
-class TestHealthChecks(BaseHealthChecksTest):
-    """Test health check functions."""
 
 
 class TestTaskScheduler(BaseTaskSchedulerTest):

@@ -13,13 +13,11 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.core.models import Animal, Organization, Team, User
+from apps.core.models import Organization, User
 
 from .base_views import BaseViewSet, UserManagementMixin
 from .serializers import (
-    AnimalSerializer,
     OrganizationSerializer,
-    TeamSerializer,
     UserSerializer,
 )
 
@@ -111,96 +109,3 @@ class OrganizationViewSet(BaseViewSet, UserManagementMixin):
     }
     ordering_fields = ["name", "created", "modified"]
     ordering = ["name"]
-
-
-class TeamViewSet(BaseViewSet, UserManagementMixin):
-    """
-    ViewSet for Team model following AAP patterns.
-
-    This ViewSet provides comprehensive team management functionality
-    including hierarchical support and user/admin management.
-    """
-
-    queryset = Team.objects.select_related("organization").all()
-    serializer_class = TeamSerializer
-    search_fields = ["name", "description", "organization__name"]
-    filterset_fields = {
-        "name": ["exact", "icontains"],
-        "description": ["icontains"],
-        "organization": ["exact"],
-        "organization__name": ["exact", "icontains"],
-        "created": ["gte", "lte"],
-        "modified": ["gte", "lte"],
-    }
-    ordering_fields = ["name", "organization__name", "created", "modified"]
-    ordering = ["organization__name", "name"]
-
-
-class AnimalViewSet(BaseViewSet):
-    """
-    ViewSet for Animal model following AAP patterns.
-
-    This ViewSet provides comprehensive animal management functionality
-    including owner-based filtering and custom actions for demonstration.
-    """
-
-    queryset = Animal.objects.select_related("owner").all()
-    serializer_class = AnimalSerializer
-    search_fields = ["name", "owner__username"]
-    filterset_fields = {
-        "name": ["exact", "icontains"],
-        "kind": ["exact"],
-        "age": ["exact", "gte", "lte"],
-        "owner": ["exact"],
-        "owner__username": ["exact", "icontains"],
-        "created": ["gte", "lte"],
-        "modified": ["gte", "lte"],
-    }
-    ordering_fields = ["name", "kind", "age", "owner__username", "created", "modified"]
-    ordering = ["name"]
-
-    @extend_schema(
-        operation_id="animals_feed",
-        description="Feed the animal",
-        request={"food": "string"},
-        responses={200: {"message": "string"}},
-    )
-    @action(detail=True, methods=["post"])
-    def feed(self, request: HttpRequest, pk: Any = None) -> Response:
-        """
-        Custom action to feed an animal.
-
-        Args:
-            request: HTTP request containing food data
-            pk: Primary key of the animal
-
-        Returns:
-            Response: Feeding confirmation message
-        """
-        animal = self.get_object()
-        food = request.data.get("food", "generic food")
-
-        # Example custom logic
-        message = f"{animal.name} has been fed {food}!"
-
-        return Response({"message": message})
-
-    @extend_schema(
-        operation_id="animals_my_animals",
-        description="Get animals owned by current user",
-        responses={200: AnimalSerializer(many=True)},
-    )
-    @action(detail=False, methods=["get"])
-    def my_animals(self, request: HttpRequest) -> Response:
-        """
-        Get animals owned by the current user.
-
-        Args:
-            request: HTTP request from authenticated user
-
-        Returns:
-            Response: List of animals owned by current user
-        """
-        animals = self.get_queryset().filter(owner=request.user)
-        serializer = self.get_serializer(animals, many=True)
-        return Response(serializer.data)

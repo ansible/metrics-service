@@ -18,9 +18,6 @@ pip install -e .
 echo "🗄️  Running migrations..."
 python manage.py migrate
 
-echo "🔍 Running health check..."
-python manage.py check
-
 echo "🧪 Running basic tests..."
 python -m pytest tests/ -v -x || echo "Tests may fail on first run - this is expected"
 
@@ -29,13 +26,6 @@ timeout 10s python manage.py runserver 0.0.0.0:8001 &
 server_pid=$!
 
 sleep 3
-
-echo "📡 Testing API endpoints..."
-if curl -f http://localhost:8001/health/ > /dev/null 2>&1; then
-    echo "✅ Health endpoint working"
-else
-    echo "❌ Health endpoint failed"
-fi
 
 if curl -f http://localhost:8001/api/v1/ > /dev/null 2>&1; then
     echo "✅ API endpoint working"
@@ -50,4 +40,4 @@ rm -rf test_env
 rm -f db.sqlite3
 
 echo "🎉 Template test complete!"
-echo "✅ The template can run immediately without external dependencies" 
+echo "✅ The template can run immediately without external dependencies"

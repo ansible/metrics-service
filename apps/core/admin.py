@@ -6,7 +6,6 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from .models import (
-    Animal,
     Organization,
     Task,
     TaskChain,
@@ -46,16 +45,6 @@ class TeamAdmin(admin.ModelAdmin):
     filter_horizontal = ("users", "admins", "team_parents")
 
 
-@admin.register(Animal)
-class AnimalAdmin(admin.ModelAdmin):
-    """Admin for Animal model."""
-
-    list_display = ("name", "kind", "owner", "age")
-    list_filter = ("kind",)
-    search_fields = ("name", "owner__username")
-    filter_horizontal = ("people_friends",)
-
-
 class TaskExecutionInline(admin.TabularInline):
     """Inline admin for TaskExecution."""
 
@@ -90,7 +79,7 @@ class TaskAdmin(admin.ModelAdmin):
     )
     list_filter = ("status", "priority", "is_recurring", "function_name", "created_by")
     search_fields = ("name", "description", "function_name")
-    readonly_fields = ("started_at", "completed_at", "attempts")
+    readonly_fields = ("attempts",)
 
     fieldsets = (
         ("Basic Information", {"fields": ("name", "description", "function_name", "created_by")}),
@@ -100,7 +89,7 @@ class TaskAdmin(admin.ModelAdmin):
         (
             "Status & Results",
             {
-                "fields": ("status", "attempts", "started_at", "completed_at", "result_data", "error_message"),
+                "fields": ("status", "attempts", "result_data"),
                 "classes": ("collapse",),
             },
         ),

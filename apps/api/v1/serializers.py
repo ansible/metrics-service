@@ -7,7 +7,7 @@ code duplication through the use of base serializer classes and mixins.
 
 from rest_framework import serializers
 
-from apps.core.models import Animal, Organization, Team, User
+from apps.core.models import Organization, User
 
 from .base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
 
@@ -84,86 +84,38 @@ class OrganizationSerializer(BaseModelSerializer, CountFieldMixin):
             "admins": {"view_name": "api:v1:user-detail"},
         }
 
+    def get_related(self, obj):
+        """Return related URLs for this organization."""
+        request = self.context.get("request")
+        if not request:
+            return {}
 
-class TeamSerializer(BaseModelSerializer, CountFieldMixin):
-    """
-    Serializer for Team model following AAP patterns.
-
-    This serializer provides team management functionality with hierarchical
-    support and user/admin count fields for efficient data retrieval.
-    """
-
-    organization_name = serializers.CharField(source="organization.name", read_only=True)
-    users_count = serializers.SerializerMethodField()
-    admins_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Team
-        fields = [
-            "id",
-            "url",
-            "name",
-            "description",
-            "organization",
-            "organization_name",
-            "team_parents",
-            "users",
-            "admins",
-            "users_count",
-            "admins_count",
-            "created",
-            "modified",
-        ]
-
-        read_only_fields = [
-            "organization_name",
-            "users_count",
-            "admins_count",
-        ]
-        extra_kwargs = {
-            "url": {"view_name": "api:v1:team-detail"},
-            "organization": {"view_name": "api:v1:organization-detail"},
-            "team_parents": {"view_name": "api:v1:team-detail"},
-            "users": {"view_name": "api:v1:user-detail"},
-            "admins": {"view_name": "api:v1:user-detail"},
+        return {
+            "users": request.build_absolute_uri(f"/api/v1/organizations/{obj.id}/users/"),
+            # Future related endpoints can be added here, e.g.:
+            # "teams": request.build_absolute_uri(f"/api/v1/organizations/{obj.id}/teams/"),
         }
 
+    def get_object_role(self, obj):
+        """
+        Return object-level permissions for the current user using DAB permission system.
 
-class AnimalSerializer(BaseModelSerializer, CountFieldMixin):
-    """
-    Serializer for Animal model following AAP patterns.
+        Uses Django's has_perm() method which DAB extends to provide
+        comprehensive permission checking including RBAC roles.
+        """
+        request = self.context.get("request")
+        if not request or not request.user:
+            return {"add": False, "edit": False, "delete": False}
 
-    This serializer provides animal management functionality with owner
-    information and friend count fields for demonstration purposes.
-    """
+        user = request.user
+        app_label = obj._meta.app_label
+        model_name = obj._meta.model_name
 
-    owner_username = serializers.CharField(source="owner.username", read_only=True)
-    kind_display = serializers.CharField(source="get_kind_display", read_only=True)
-    friends_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Animal
-        fields = [
-            "id",
-            "url",
-            "name",
-            "kind",
-            "kind_display",
-            "age",
-            "owner",
-            "owner_username",
-            "people_friends",
-            "friends_count",
-            "created",
-            "modified",
-        ]
-        read_only_fields = [
-            "owner_username",
-            "kind_display",
-            "friends_count",
-        ]
-        extra_kwargs = {
-            "url": {"view_name": "api:v1:animal-detail"},
-            "owner": {"view_name": "api:v1:user-detail"},
-            "people_friends": {"view_name": "api:v1:user-detail"},
+        # Use Django's permission system (which DAB extends automatically)
+        permissions = {
+            "add": user.has_perm(f"{app_label}.add_{model_name}"),
+            "edit": user.has_perm(f"{app_label}.change_{model_name}", obj),
+            "delete": user.has_perm(f"{app_label}.delete_{model_name}", obj),
         }
+
+        return permissions

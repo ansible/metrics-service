@@ -9,7 +9,7 @@ from typing import Any
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from .mixins import AccessControlMixin, StatusTrackingMixin, UserRelatedMixin
+from .mixins import AccessControlMixin, UserRelatedMixin
 
 # Basic models for immediate setup
 # For full AAP features, replace with DAB abstract models when ready
@@ -271,63 +271,7 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
         return f"{self.organization.name} - {self.name}"
 
 
-class Animal(NamedCommonModel, AuditableModel, AccessControlMixin):
-    """
-    Example model to demonstrate AAP patterns.
-
-    This model demonstrates various AAP patterns including access control,
-    auditing, and relationships. Replace with your actual business models.
-    """
-
-    class Meta:
-        ordering = ["id"]
-        permissions = [("can_pet", "Can pet animal")]
-
-    # Exclude sensitive fields from activity stream
-    activity_stream_excluded_field_names = ["age"]
-
-    ANIMAL_KINDS = (
-        ("dog", "Dog"),
-        ("cat", "Cat"),
-        ("bird", "Bird"),
-        ("fish", "Fish"),
-    )
-
-    owner = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        help_text="The owner of this animal",
-    )
-
-    kind = models.CharField(
-        max_length=4,
-        choices=ANIMAL_KINDS,
-        default="dog",
-        help_text="The type of animal",
-    )
-
-    age = models.PositiveIntegerField(null=True, default=1, help_text="Age of the animal in years")
-
-    people_friends = models.ManyToManyField(
-        User,
-        related_name="animal_friends",
-        blank=True,
-        help_text="People who are friends with this animal",
-    )
-
-    def __str__(self):
-        """
-        Return string representation of the animal.
-
-        Returns:
-            str: Animal name and kind
-        """
-        return f"{self.name} ({self.get_kind_display()})"
-
-
-class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingMixin):
+class Task(NamedCommonModel, AuditableModel):
     """
     Database model for scheduled tasks with enhanced tracking capabilities.
 
@@ -434,7 +378,6 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
     def can_retry(self) -> bool:
         """
         Check if task can be retried.
-
         Returns:
             bool: True if task can be retried, False otherwise
         """
@@ -451,8 +394,6 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
             return None
 
         try:
-            from datetime import datetime
-
             from croniter import croniter
             from django.utils import timezone
 

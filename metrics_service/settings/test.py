@@ -91,7 +91,6 @@ INSTALLED_APPS = [
     "ansible_base.authentication",
     "apps.core",
     "apps.api",
-    "apps.health",
 ]
 
 # Test-specific feature flags

@@ -112,8 +112,7 @@ This template provides a production-ready foundation for building AAP services w
 - ✅ **API-First Design** - RESTful APIs with DRF, versioning, and OpenAPI documentation
 - ✅ **Modern Tooling** - Ruff, Black, mypy, pytest with comprehensive configuration
 - ✅ **Settings Management** - Dynaconf-based configuration with environment overrides
-- ✅ **Background Tasks** - Dispatcherd integration with multi-worker support, health monitoring, and scheduled tasks
-- ✅ **Health Monitoring** - Comprehensive health checks for Kubernetes deployment
+- ✅ **Background Tasks** - Dispatcherd integration with multi-worker support, and scheduled tasks
 - ✅ **AAP-Dev Integration** - Ready for local development with AAP ecosystem
 - ✅ **Security** - OAuth2, JWT, and role-based access control
 - ✅ **Testing** - Unit, integration, and functional test structure
@@ -226,7 +225,6 @@ This command:
    - API: http://localhost:8000/api/v1/
    - Admin: http://localhost:8000/admin/
    - API Docs: http://localhost:8000/api/docs/
-   - Health: http://localhost:8000/health/
 
 ## Configuration
 
@@ -369,7 +367,6 @@ This template includes comprehensive background task processing using `dispatche
 - **Optional Integration** - Include with `pip install -e ".[dispatcherd]"`
 - **Feature Flag Control** - Enable/disable via `DISPATCHERD_ENABLED`
 - **Multi-worker Support** - Configurable worker processes with auto-respawning
-- **Health Monitoring** - Built-in health checks and monitoring
 - **Predefined Tasks** - Ready-to-use task examples
 - **Scheduled Tasks** - Cron-like scheduling support
 
@@ -453,23 +450,6 @@ SCHEDULED_TASKS = {
         "schedule": 86400,  # Run daily (in seconds)
         "data": {"days_old": 30},
     },
-}
-```
-
-#### 🏥 Health Monitoring
-
-Check dispatcherd status:
-
-```bash
-# Check dispatcherd health
-curl http://localhost:8000/health/?check=dispatcherd
-
-# Response
-{
-  "status": "healthy|disabled|unhealthy",
-  "enabled": true,
-  "config": {...},
-  "details": "Dispatcherd configuration healthy"
 }
 ```
 
@@ -570,7 +550,6 @@ metrics-service/
 │   │   ├── models.py              # Database models
 │   │   ├── tasks.py               # Background tasks
 │   │   └── management/            # Management commands
-│   └── health/                    # Health check endpoints
 ├── metrics_service/                    # Main Django project
 │   └── settings/                  # Split settings
 ├── tests/                         # Test suite
@@ -600,13 +579,6 @@ metrics-service/
 - **Filtered**: Comprehensive filtering with field lookups
 - **Paginated**: Efficient pagination with metadata
 - **Documented**: OpenAPI 3.0 with Swagger UI and ReDoc
-
-#### Monitoring & Health
-
-- **Health Checks**: Database, cache, and service-specific checks
-- **Kubernetes Probes**: Liveness and readiness probes
-- **Logging**: Structured logging with request ID tracking
-- **Metrics**: Ready for Prometheus integration
 
 ## Contributing
 
@@ -655,7 +627,6 @@ The service automatically registers with AAP Gateway when deployed in AAP-dev:
 
 - **Service Type**: `metrics-service`
 - **API Endpoints**: `/api/metrics-service/`
-- **Health Check**: `/api/metrics-service/health/`
 
 ## Troubleshooting
 

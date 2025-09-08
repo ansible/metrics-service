@@ -23,8 +23,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # API endpoints
     path("api/", include("apps.api.urls")),
-    # Health checks
-    path("health/", include("apps.health.urls")),
     # OpenAPI schema and documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

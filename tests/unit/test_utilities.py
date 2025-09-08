@@ -1,247 +1,13 @@
 """
-Unit tests for utility functions and health checks.
+Unit tests for utility functions.
 """
-
-from unittest.mock import Mock, patch
 
 import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.http import JsonResponse
-from django.test import RequestFactory, TestCase
-
-from apps.health.checks import check_cache, check_database
-from apps.health.views import HealthCheckView
+from django.test import TestCase
 
 User = get_user_model()
-
-
-@pytest.mark.unit
-class HealthCheckViewTestCase(TestCase):
-    """Test cases for health check views."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.factory = RequestFactory()
-
-    def test_health_check_basic(self):
-        """Test basic health check endpoint."""
-        request = self.factory.get("/health/")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response, JsonResponse)
-
-        # Parse JSON response
-        import json
-
-        data = json.loads(response.content)
-
-        self.assertIn("status", data)
-        self.assertIn("checks", data)
-        self.assertIn("service", data)
-
-    def test_health_check_with_specific_check(self):
-        """Test health check with specific check parameter."""
-        request = self.factory.get("/health/?check=database")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        self.assertEqual(response.status_code, 200)
-
-        import json
-
-        data = json.loads(response.content)
-
-        # Should include database check
-        self.assertIn("checks", data)
-
-    @patch.dict(
-        "apps.health.checks.HEALTH_CHECKS",
-        {"database": Mock(return_value={"status": "unhealthy", "error": "Database connection failed"})},
-    )
-    def test_health_check_database_failure(self):
-        """Test health check when database check fails."""
-        request = self.factory.get("/health/?check=database")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        # Should still return 503 for unhealthy status
-        self.assertEqual(response.status_code, 503)
-
-        import json
-
-        data = json.loads(response.content)
-
-        self.assertEqual(data["status"], "unhealthy")
-
-    @patch.dict(
-        "apps.health.checks.HEALTH_CHECKS",
-        {"cache": Mock(return_value={"status": "unhealthy", "error": "Cache connection failed"})},
-    )
-    def test_health_check_cache_failure(self):
-        """Test health check when cache check fails."""
-        request = self.factory.get("/health/?check=cache")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        self.assertEqual(response.status_code, 503)
-
-        import json
-
-        data = json.loads(response.content)
-
-        self.assertEqual(data["status"], "unhealthy")
-
-    def test_health_check_multiple_checks(self):
-        """Test health check with multiple checks."""
-        request = self.factory.get("/health/?check=database&check=cache")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        self.assertEqual(response.status_code, 200)
-
-        import json
-
-        data = json.loads(response.content)
-
-        self.assertIn("checks", data)
-        self.assertIsInstance(data["checks"], dict)
-
-
-@pytest.mark.unit
-class DatabaseCheckTestCase(TestCase):
-    """Test cases for database health check."""
-
-    def test_database_check_success(self):
-        """Test successful database check."""
-        result = check_database()
-
-        self.assertIsInstance(result, dict)
-        self.assertIn("status", result)
-        self.assertEqual(result["status"], "healthy")
-
-    @patch("django.db.connection.cursor")
-    def test_database_check_failure(self, mock_cursor):
-        """Test database check failure."""
-        mock_cursor.side_effect = Exception("Database error")
-
-        result = check_database()
-
-        self.assertIsInstance(result, dict)
-        self.assertIn("status", result)
-        self.assertEqual(result["status"], "unhealthy")
-        self.assertIn("error", result)
-
-    @patch("django.db.connection.cursor")
-    def test_database_check_query_execution(self, mock_cursor):
-        """Test database check executes query."""
-        mock_cursor_instance = Mock()
-        mock_cursor.return_value.__enter__ = Mock(return_value=mock_cursor_instance)
-        mock_cursor.return_value.__exit__ = Mock(return_value=None)
-
-        check_database()
-
-        # Should execute a simple query
-        mock_cursor_instance.execute.assert_called()
-
-
-@pytest.mark.unit
-class CacheCheckTestCase(TestCase):
-    """Test cases for cache health check."""
-
-    def test_cache_check_success(self):
-        """Test successful cache check."""
-        result = check_cache()
-
-        self.assertIsInstance(result, dict)
-        self.assertIn("status", result)
-        self.assertEqual(result["status"], "healthy")
-
-    @patch("django.core.cache.cache.set")
-    def test_cache_check_set_failure(self, mock_set):
-        """Test cache check when set operation fails."""
-        mock_set.side_effect = Exception("Cache set error")
-
-        result = check_cache()
-
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["status"], "unhealthy")
-        self.assertIn("error", result)
-
-    @patch("django.core.cache.cache.get")
-    def test_cache_check_get_failure(self, mock_get):
-        """Test cache check when get operation fails."""
-        mock_get.side_effect = Exception("Cache get error")
-
-        result = check_cache()
-
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["status"], "unhealthy")
-        self.assertIn("error", result)
-
-    @patch("django.core.cache.cache.get")
-    @patch("django.core.cache.cache.set")
-    def test_cache_check_operations(self, mock_set, mock_get):
-        """Test cache check performs set and get operations."""
-        mock_get.return_value = "test_value"
-
-        check_cache()
-
-        # Should perform set and get operations
-        mock_set.assert_called()
-        mock_get.assert_called()
-
-    @patch("django.core.cache.cache.get")
-    @patch("django.core.cache.cache.set")
-    def test_cache_check_value_mismatch(self, mock_set, mock_get):
-        """Test cache check when retrieved value doesn't match."""
-        mock_get.return_value = "wrong_value"
-
-        result = check_cache()
-
-        # Depending on implementation, this might be unhealthy
-        self.assertIsInstance(result, dict)
-        self.assertIn("status", result)
-
-
-@pytest.mark.unit
-class DispatcherdHealthCheckTestCase(TestCase):
-    """Test cases for dispatcherd health check."""
-
-    @patch("django.conf.settings.DISPATCHERD_ENABLED", True)
-    def test_dispatcherd_check_enabled(self):
-        """Test dispatcherd health check when enabled."""
-        # This would test dispatcherd health check if it exists
-        # For now, we'll test the basic structure
-        request = RequestFactory().get("/health/?check=dispatcherd")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        self.assertEqual(response.status_code, 200)
-
-        import json
-
-        data = json.loads(response.content)
-
-        self.assertIn("status", data)
-
-    @patch("django.conf.settings.DISPATCHERD_ENABLED", False)
-    def test_dispatcherd_check_disabled(self):
-        """Test dispatcherd health check when disabled."""
-        request = RequestFactory().get("/health/?check=dispatcherd")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        self.assertEqual(response.status_code, 200)
-
-        import json
-
-        data = json.loads(response.content)
-
-        # Should indicate dispatcherd is disabled
-        self.assertIn("status", data)
 
 
 @pytest.mark.unit
@@ -258,7 +24,6 @@ class UtilityFunctionsTestCase(TestCase):
         # Test that our apps are installed
         self.assertIn("apps.core", settings.INSTALLED_APPS)
         self.assertIn("apps.api", settings.INSTALLED_APPS)
-        self.assertIn("apps.health", settings.INSTALLED_APPS)
 
     def test_rest_framework_settings(self):
         """Test REST framework settings."""
@@ -339,15 +104,6 @@ class APIUtilsTestCase(TestCase):
         except Exception as e:
             self.fail(f"API URL reversal failed: {e}")
 
-    def test_health_urls_structure(self):
-        """Test health URLs are properly structured."""
-        from django.urls import reverse
-
-        try:
-            reverse("health:health_check")
-        except Exception as e:
-            self.fail(f"Health URL reversal failed: {e}")
-
 
 @pytest.mark.unit
 class SecurityUtilsTestCase(TestCase):
@@ -397,22 +153,6 @@ class ErrorHandlingTestCase(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_health_check_error_handling(self):
-        """Test health check error handling."""
-        # Test health check with invalid parameters
-        request = RequestFactory().get("/health/?check=invalid_check")
-        view = HealthCheckView()
-        response = view.get(request)
-
-        # Should handle gracefully but return unhealthy status
-        self.assertEqual(response.status_code, 503)
-
-        import json
-
-        data = json.loads(response.content)
-
-        self.assertIn("status", data)
-
 
 @pytest.mark.unit
 class PerformanceUtilsTestCase(TestCase):
@@ -461,7 +201,6 @@ class IntegrationUtilsTestCase(TestCase):
         # Test that our apps are properly loaded
         self.assertTrue(apps.is_installed("apps.core"))
         self.assertTrue(apps.is_installed("apps.api"))
-        self.assertTrue(apps.is_installed("apps.health"))
 
         # Test that Django core apps are loaded
         self.assertTrue(apps.is_installed("django.contrib.auth"))
