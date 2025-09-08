@@ -22,7 +22,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 55432:55432
 
     steps:
       - name: 'Checkout metrics-service (${{ github.ref }})'
