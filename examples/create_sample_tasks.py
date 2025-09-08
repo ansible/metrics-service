@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from apps.core.models import Task, TaskChain, TaskChainMembership, TaskDependency
+from apps.tasks.models import Task, TaskChain, TaskChainMembership, TaskDependency
 
 # For now, create tasks without user ownership to avoid DAB permission issues
 

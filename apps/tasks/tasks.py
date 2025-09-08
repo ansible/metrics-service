@@ -177,7 +177,9 @@ def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
     operation = data.get("operation", "sync")
 
     try:
-        from .models import User
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
 
         user = User.objects.get(id=user_id)
         logger.info(f"Processing user: {user.username}")
@@ -380,88 +382,6 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
         task.save()
-
-
-class TaskScheduler:
-    """
-    Service to continuously poll the database for ready tasks and submit them to the dispatcher.
-    """
-
-    def __init__(self, poll_interval: int = 30) -> None:
-        self.poll_interval = poll_interval
-        self.running = False
-
-    def start(self) -> None:
-        """Start the task scheduler."""
-        self.running = True
-        logger.info("Task scheduler started")
-
-        try:
-            while self.running:
-                try:
-                    self.process_ready_tasks()
-                    self.cleanup_stale_tasks()
-                    time.sleep(self.poll_interval)
-                except KeyboardInterrupt:
-                    logger.info("Task scheduler stopped by user")
-                    break
-                except Exception as e:
-                    logger.error(f"Error in task scheduler: {str(e)}")
-                    time.sleep(self.poll_interval)
-        finally:
-            self.running = False
-
-    def stop(self) -> None:
-        """Stop the task scheduler."""
-        self.running = False
-        logger.info("Task scheduler stopping...")
-
-    def process_ready_tasks(self) -> None:
-        """Find and submit ready tasks to the dispatcher."""
-        from .models import Task
-
-        try:
-            # Find tasks that are ready to run
-            ready_tasks = Task.objects.filter(status="pending").order_by("priority", "scheduled_time", "created")
-
-            count = 0
-            for task in ready_tasks:
-                if task.is_ready_to_run():
-                    submit_task_to_dispatcher(task)
-                    count += 1
-
-            if count > 0:
-                logger.info(f"Submitted {count} ready tasks to dispatcher")
-
-        except Exception as e:
-            logger.error(f"Error processing ready tasks: {str(e)}")
-
-    def cleanup_stale_tasks(self) -> None:
-        """Clean up stale tasks that have been running too long."""
-        from .models import Task
-
-        try:
-            stale_cutoff = timezone.now() - timezone.timedelta(hours=1)
-
-            stale_tasks = Task.objects.filter(status="running", started_at__lt=stale_cutoff)
-
-            count = 0
-            for task in stale_tasks:
-                # Check if task has exceeded its timeout
-                if task.started_at and task.timeout_seconds:
-                    runtime = (timezone.now() - task.started_at).total_seconds()
-                    if runtime > task.timeout_seconds:
-                        task.status = "failed"
-                        task.error_message = f"Task timed out after {runtime} seconds"
-                        task.completed_at = timezone.now()
-                        task.save()
-                        count += 1
-
-            if count > 0:
-                logger.info(f"Marked {count} stale tasks as failed")
-
-        except Exception as e:
-            logger.error(f"Error cleaning up stale tasks: {str(e)}")
 
 
 class TaskScheduler:

@@ -69,6 +69,7 @@ DAB_APPS = [
 
 LOCAL_APPS = [
     "apps.core",
+    "apps.tasks",
     "apps.api",
     "apps.health",
     "apps.dashboard",

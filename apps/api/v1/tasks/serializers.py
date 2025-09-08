@@ -10,7 +10,7 @@ import json
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from apps.core.models import (
+from apps.tasks.models import (
     Task,
     TaskExecution,
 )
@@ -151,7 +151,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
 
     def validate_function_name(self, value):
         """Validate that the function name exists in available task functions."""
-        from apps.core.tasks import TASK_FUNCTIONS
+        from apps.tasks.tasks import TASK_FUNCTIONS
 
         if value not in TASK_FUNCTIONS:
             available_functions = list(TASK_FUNCTIONS.keys())

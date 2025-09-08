@@ -16,7 +16,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from apps.core.models import Task, TaskExecution
+from apps.tasks.models import Task, TaskExecution
 from apps.core.utils import build_error_response
 from ..base_views import BaseViewSet
 
@@ -289,7 +289,7 @@ class TaskViewSet(BaseViewSet):
         Returns:
             Response: List of available task function names and descriptions
         """
-        from apps.core.tasks import TASK_FUNCTIONS
+        from apps.tasks.tasks import TASK_FUNCTIONS
 
         functions = []
         for func_name, func in TASK_FUNCTIONS.items():
