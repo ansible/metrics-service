@@ -51,16 +51,6 @@ scheduled_task = Task.objects.create(
     priority=1,
 )
 
-# Task 5: Recurring task (daily at 2 AM)
-recurring_task = Task.objects.create(
-    name="Daily Health Check",
-    function_name="cleanup_old_data",
-    task_data={"days_old": 1},
-    cron_expression="0 2 * * *",  # Daily at 2 AM
-    is_recurring=True,
-    priority=2,
-)
-
 
 # Create dependencies (task chains)
 # Notification depends on cleanup completion

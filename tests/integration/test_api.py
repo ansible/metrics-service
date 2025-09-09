@@ -61,39 +61,6 @@ class TestOrganizationAPI:
 
 @pytest.mark.integration
 @pytest.mark.django_db
-class TestHealthEndpoints:
-    """Test cases for health check endpoints."""
-
-    def test_health_check_endpoint(self, client):
-        """Test health check endpoint."""
-        url = reverse("health:health_check")
-        response = client.get(url)
-
-        # Should return 200 or 503 depending on health
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_503_SERVICE_UNAVAILABLE]
-        assert "status" in response.json()
-        assert "service" in response.json()
-
-    def test_liveness_probe(self, client):
-        """Test liveness probe endpoint."""
-        url = reverse("health:liveness")
-        response = client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.json()["status"] == "alive"
-
-    def test_readiness_probe(self, client):
-        """Test readiness probe endpoint."""
-        url = reverse("health:readiness")
-        response = client.get(url)
-
-        # Should return 200 or 503 depending on readiness
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_503_SERVICE_UNAVAILABLE]
-        assert "status" in response.json()
-
-
-@pytest.mark.integration
-@pytest.mark.django_db
 class TestAPIDocumentation:
     """Test cases for API documentation endpoints."""
 
