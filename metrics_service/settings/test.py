@@ -29,11 +29,13 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "rest_framework",
+    "oauth2_provider",
     "ansible_base",
     "ansible_base.activitystream",
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
+    "ansible_base.oauth2_provider",
 ]
 
 LOCAL_APPS = [
@@ -48,12 +50,15 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 # Django ansible-base settings for testing
 ANSIBLE_BASE_ORGANIZATION_MODEL = "core.Organization"
 ANSIBLE_BASE_TEAM_MODEL = "core.Team"
-ANSIBLE_BASE_USER_MODEL = "auth.User"
-AUTH_USER_MODEL = "auth.User"
+ANSIBLE_BASE_USER_MODEL = "core.User"
+AUTH_USER_MODEL = "core.User"
 
 # RBAC settings
 ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {}
 ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {}
+ANSIBLE_BASE_BYPASS_SUPERUSER_FLAGS = ["is_superuser"]
+ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
+ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 
 # Service identification
 SERVICE_TYPE = "metrics-service"
@@ -70,8 +75,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# URLs
-ROOT_URLCONF = "metrics_service.urls"
+# URLs - simplified for testing to avoid oauth2 provider conflicts
+ROOT_URLCONF = "metrics_service.test_urls"
 
 # Templates
 TEMPLATES = [
@@ -158,6 +163,21 @@ STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 # Media files settings for tests
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+
+# OAuth2 Provider Configuration for testing
+OAUTH2_PROVIDER = {
+    "SCOPES": {
+        "read": "Read scope",
+        "write": "Write scope",
+    },
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
+}
+OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
+OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
+OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
+OAUTH2_PROVIDER_ID_TOKEN_MODEL = "oauth2_provider.IDToken"
+OAUTH2_PROVIDER_GRANT_MODEL = "oauth2_provider.Grant"
 
 # REST Framework settings for tests
 REST_FRAMEWORK = {

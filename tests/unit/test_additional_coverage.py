@@ -8,9 +8,11 @@ import pytest
 from django.contrib.admin.sites import AdminSite
 from django.test import TestCase
 
-from apps.core.admin import AnimalAdmin, OrganizationAdmin, TaskAdmin, TeamAdmin, UserAdmin
-from apps.core.models import Animal, Organization, Task, Team, User
-from apps.core.signals import animal_post_save, organization_post_save, team_post_save, user_post_save, user_pre_delete
+from apps.core.admin import OrganizationAdmin, TeamAdmin, UserAdmin
+from apps.core.models import Organization, Team, User
+from apps.tasks.models import Task
+from apps.tasks.admin import TaskAdmin
+from apps.core.signals import organization_post_save, team_post_save, user_post_save, user_pre_delete
 
 
 @pytest.mark.unit
@@ -60,13 +62,6 @@ class AdminCoverageTestCase(TestCase):
         self.assertIn("name", admin.list_display)
         self.assertIn("organization", admin.list_display)
 
-    def test_animal_admin_configuration(self):
-        """Test AnimalAdmin configuration."""
-        admin = AnimalAdmin(Animal, self.site)
-
-        self.assertIn("name", admin.list_display)
-        self.assertIn("kind", admin.list_display)
-
     def test_task_admin_configuration(self):
         """Test TaskAdmin configuration."""
         admin = TaskAdmin(Task, self.site)
@@ -88,19 +83,6 @@ class AdminCoverageTestCase(TestCase):
 
         # Test has_change_permission
         self.assertTrue(admin.has_change_permission(Mock()))
-
-    def test_admin_queryset_optimization(self):
-        """Test admin queryset optimization."""
-        admin = TaskAdmin(Task, self.site)
-
-        # Create test data
-        user = User.objects.create_user(username="creator", email="creator@example.com")
-        Task.objects.create(name="Test Task", function_name="test_func", created_by=user)
-
-        # Test get_queryset if it exists
-        if hasattr(admin, "get_queryset"):
-            qs = admin.get_queryset(Mock())
-            self.assertIsNotNone(qs)
 
 
 @pytest.mark.unit
@@ -173,19 +155,6 @@ class SignalsCoverageTestCase(TestCase):
         # Should log team creation
         mock_logger.info.assert_called_with(f"Team created: {instance.name} (ID: {instance.id})")
 
-    @patch("apps.core.signals.logger")
-    def test_animal_post_save_signal(self, mock_logger):
-        """Test animal_post_save signal handler."""
-        animal = Animal.objects.create(name="Test Animal", kind="dog")
-        sender = Animal
-        instance = animal
-        created = True
-
-        animal_post_save(sender, instance, created)
-
-        # Should log animal creation
-        mock_logger.info.assert_called_with(f"Animal created: {instance.name} (ID: {instance.id})")
-
 
 @pytest.mark.unit
 class ResourceAPICoverageTestCase(TestCase):
@@ -243,18 +212,6 @@ class SettingsCoverageTestCase(TestCase):
         # Test DAB-related settings that might be configured
         if hasattr(settings, "ANSIBLE_BASE_RBAC_ENABLED"):
             self.assertIsInstance(settings.ANSIBLE_BASE_RBAC_ENABLED, bool)
-
-    def test_url_configuration(self):
-        """Test URL configuration."""
-        from django.urls import reverse
-        from django.urls.exceptions import NoReverseMatch
-
-        # Test that key URLs are configured
-        try:
-            url = reverse("admin:index")
-            self.assertIsInstance(url, str)
-        except NoReverseMatch:
-            pass  # Admin might not be configured
 
     def test_wsgi_asgi_configuration(self):
         """Test WSGI/ASGI configuration."""

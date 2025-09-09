@@ -52,10 +52,9 @@ class BaseTaskFunctionsTest(unittest.TestCase):
 
     def test_cleanup_old_data(self):
         """Test cleanup_old_data function."""
-        from apps.tasks import cleanup_old_data
+        from apps.tasks.tasks import cleanup_old_data
 
-        data = {"days_old": 30}
-        result = cleanup_old_data(data)
+        result = cleanup_old_data(days_old=30)
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["days_old"], 30)
@@ -63,10 +62,9 @@ class BaseTaskFunctionsTest(unittest.TestCase):
 
     def test_send_notification_email(self):
         """Test send_notification_email function."""
-        from apps.tasks import send_notification_email
+        from apps.tasks.tasks import send_notification_email
 
-        data = {"recipient": "test@example.com", "subject": "Test Subject", "message": "Test message"}
-        result = send_notification_email(data)
+        result = send_notification_email(recipient="test@example.com", subject="Test Subject", message="Test message")
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["recipient"], "test@example.com")
@@ -74,9 +72,16 @@ class BaseTaskFunctionsTest(unittest.TestCase):
 
     def test_task_functions_registry(self):
         """Test TASK_FUNCTIONS registry."""
-        from apps.tasks import TASK_FUNCTIONS
+        from apps.tasks.tasks import TASK_FUNCTIONS
 
-        expected_functions = ["cleanup_old_data", "send_notification_email", "process_user_data", "execute_db_task"]
+        expected_functions = [
+            "cleanup_old_data",
+            "send_notification_email",
+            "process_user_data",
+            "execute_db_task",
+            "hello_world",
+            "sleep",
+        ]
 
         for func_name in expected_functions:
             self.assertIn(func_name, TASK_FUNCTIONS)

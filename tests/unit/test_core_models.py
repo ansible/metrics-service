@@ -9,16 +9,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.core.models import (
-    Animal,
-    Organization,
-    Task,
-    TaskChain,
-    TaskChainMembership,
-    TaskDependency,
-    TaskExecution,
-    Team,
-)
+from apps.core.models import Organization, Team
+from apps.tasks.models import Task, TaskChain, TaskChainMembership, TaskDependency, TaskExecution
 
 User = get_user_model()
 
@@ -69,18 +61,6 @@ class CoreModelsTestCase(TestCase):
 
         self.assertIn(self.user, self.team.users.all())
         self.assertIn(self.user, self.team.admins.all())
-
-    def test_animal_creation(self):
-        """Test Animal model creation."""
-        animal = Animal.objects.create(name="Fluffy", kind="cat", age=3, owner=self.user)
-
-        self.assertEqual(str(animal), "Fluffy (Cat)")
-        self.assertEqual(animal.owner, self.user)
-        self.assertEqual(animal.get_kind_display(), "Cat")
-
-        # Test many-to-many relationships
-        animal.people_friends.add(self.user)
-        self.assertIn(self.user, animal.people_friends.all())
 
 
 @pytest.mark.unit
@@ -295,14 +275,3 @@ class ModelMethodsTestCase(TestCase):
         self.assertEqual(task.get_priority_display(), "Low")
         task.priority = 4
         self.assertEqual(task.get_priority_display(), "Critical")
-
-    def test_animal_kind_choices(self):
-        """Test Animal kind choices."""
-        animal = Animal.objects.create(name="Test Animal", kind="dog")
-
-        valid_kinds = ["dog", "cat", "bird", "fish"]
-
-        for kind in valid_kinds:
-            animal.kind = kind
-            animal.save()
-            self.assertEqual(animal.kind, kind)

@@ -14,7 +14,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.core.models import Task, TaskChain, TaskDependency
+from apps.tasks.models import Task, TaskChain, TaskDependency
 
 User = get_user_model()
 

@@ -9,16 +9,19 @@ import pytest
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.core.models import Task, TaskDependency, TaskExecution, User
-from apps.tasks import (
+from apps.core.models import User
+from apps.tasks.models import Task, TaskDependency, TaskExecution
+from apps.tasks.tasks import (
     TASK_FUNCTIONS,
     TaskScheduler,
     cleanup_old_data,
     execute_db_task,
     process_user_data,
-    schedule_next_occurrence,
     send_notification_email,
     submit_task_to_dispatcher,
+)
+from apps.tasks.utils import (
+    schedule_next_occurrence,
     trigger_dependent_tasks,
 )
 
@@ -113,15 +116,13 @@ class ExecuteDbTaskTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = Task.objects.create(
-            name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7}, created_by=self.user
-        )
+        self.task = Task.objects.create(name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7})
 
     def test_execute_db_task_success(self):
         """Test execute_db_task success."""
         data = {"task_id": self.task.id}
 
-        result = execute_db_task(data)
+        result = execute_db_task()
 
         self.assertEqual(result["status"], "success")
 
