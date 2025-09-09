@@ -21,7 +21,7 @@ class TestTaskFunctions(BaseTaskFunctionsTest):
 
     def test_send_notification_email_default_subject(self):
         """Test send_notification_email with default subject."""
-        from apps.core.tasks import send_notification_email
+        from apps.tasks.tasks import send_notification_email
 
         data = {"recipient": "test@example.com"}
         result = send_notification_email(data)

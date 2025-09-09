@@ -69,13 +69,13 @@ def hello_world(**kwargs) -> dict[str, Any]:
 
 
 @task(queue="metrics_tasks", decorate=False)
-@task_execution_wrapper("Sleep")
-def sleep(time: int = 10) -> dict[str, Any]:
+@task_execution_wrapper("sleep")
+def sleep(duration: int = 10) -> dict[str, Any]:
     """
     Sleep for a given number of seconds.
     """
-    time.sleep(time)
-    message = f"Slept for {time} seconds"
+    time.sleep(duration)
+    message = f"Slept for {duration} seconds"
     print(f"Task executing: {message}")
 
     return create_task_result(
@@ -83,9 +83,11 @@ def sleep(time: int = 10) -> dict[str, Any]:
         {
             "message": message,
             "task_type": "sleep",
+            "duration": duration,
             "completed": True,
         },
     )
+
 
 @task(queue="metrics_cleanup", decorate=False)
 @task_execution_wrapper("cleanup_old_data")
@@ -492,4 +494,3 @@ TASK_FUNCTIONS = {
     "execute_db_task": execute_db_task,
     "sleep": sleep,
 }
-

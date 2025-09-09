@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.models import Task, TaskDependency, TaskExecution, User
-from apps.core.tasks import (
+from apps.tasks import (
     TASK_FUNCTIONS,
     TaskScheduler,
     cleanup_old_data,
@@ -39,7 +39,7 @@ class TaskFunctionsTestCase(TestCase):
     def test_cleanup_old_data_with_exception(self):
         """Test cleanup_old_data function with exception."""
         # Test with invalid data that might cause an exception
-        with patch("apps.core.tasks.logger"):
+        with patch("apps.tasks.logger"):
             # Test with invalid data
             data = {"days_old": "invalid"}
             result = cleanup_old_data(data)
@@ -180,7 +180,7 @@ class ExecuteDbTaskTestCase(TestCase):
         self.task.refresh_from_db()
         self.assertEqual(self.task.status, "failed")
 
-    @patch("apps.core.tasks.TASK_FUNCTIONS")
+    @patch("apps.tasks.TASK_FUNCTIONS")
     def test_execute_db_task_function_exception(self, mock_task_functions):
         """Test execute_db_task when task function raises exception."""
         # Mock function that raises exception
@@ -195,7 +195,7 @@ class ExecuteDbTaskTestCase(TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn("Test exception", result["error"])
 
-    @patch("apps.core.tasks.trigger_dependent_tasks")
+    @patch("apps.tasks.trigger_dependent_tasks")
     def test_execute_db_task_triggers_dependents(self, mock_trigger):
         """Test execute_db_task triggers dependent tasks on success."""
         data = {"task_id": self.task.id}
@@ -205,7 +205,7 @@ class ExecuteDbTaskTestCase(TestCase):
         self.assertEqual(result["status"], "success")
         mock_trigger.assert_called_once_with(self.task)
 
-    @patch("apps.core.tasks.schedule_next_occurrence")
+    @patch("apps.tasks.schedule_next_occurrence")
     def test_execute_db_task_schedules_recurring(self, mock_schedule):
         """Test execute_db_task schedules next occurrence for recurring tasks."""
         self.task.is_recurring = True
@@ -232,7 +232,7 @@ class TaskDependencyTestCase(TestCase):
             dependent_task=self.task2, prerequisite_task=self.task1, required_status="completed"
         )
 
-    @patch("apps.core.tasks.submit_task_to_dispatcher")
+    @patch("apps.tasks.submit_task_to_dispatcher")
     def test_trigger_dependent_tasks(self, mock_submit):
         """Test trigger_dependent_tasks function."""
         self.task1.status = "completed"
@@ -243,7 +243,7 @@ class TaskDependencyTestCase(TestCase):
         # Should submit task2 since its dependency is satisfied
         mock_submit.assert_called_once_with(self.task2)
 
-    @patch("apps.core.tasks.submit_task_to_dispatcher")
+    @patch("apps.tasks.submit_task_to_dispatcher")
     def test_trigger_dependent_tasks_wrong_status(self, mock_submit):
         """Test trigger_dependent_tasks with wrong prerequisite status."""
         self.task1.status = "failed"
@@ -254,7 +254,7 @@ class TaskDependencyTestCase(TestCase):
         # Should not submit task2 since dependency requires "completed" status
         mock_submit.assert_not_called()
 
-    @patch("apps.core.tasks.submit_task_to_dispatcher")
+    @patch("apps.tasks.submit_task_to_dispatcher")
     def test_trigger_dependent_tasks_not_ready(self, mock_submit):
         """Test trigger_dependent_tasks when dependent task is not ready."""
         # Create another prerequisite for task2
@@ -375,7 +375,7 @@ class TaskSchedulerTestCase(TestCase):
         self.assertEqual(self.scheduler.poll_interval, 1)
         self.assertFalse(self.scheduler.running)
 
-    @patch("apps.core.tasks.submit_task_to_dispatcher")
+    @patch("apps.tasks.submit_task_to_dispatcher")
     def test_process_ready_tasks(self, mock_submit):
         """Test TaskScheduler process_ready_tasks method."""
         # Create a ready task
@@ -387,7 +387,7 @@ class TaskSchedulerTestCase(TestCase):
 
         mock_submit.assert_called_once_with(task)
 
-    @patch("apps.core.tasks.submit_task_to_dispatcher")
+    @patch("apps.tasks.submit_task_to_dispatcher")
     def test_process_ready_tasks_not_ready(self, mock_submit):
         """Test TaskScheduler with tasks not ready to run."""
         # Create a task with future scheduled time
@@ -443,7 +443,7 @@ class TaskSchedulerTestCase(TestCase):
         task.refresh_from_db()
         self.assertEqual(task.status, "running")
 
-    @patch("apps.core.tasks.time.sleep")
+    @patch("apps.tasks.time.sleep")
     @patch.object(TaskScheduler, "process_ready_tasks")
     @patch.object(TaskScheduler, "cleanup_stale_tasks")
     def test_start_method(self, mock_cleanup, mock_process, mock_sleep):

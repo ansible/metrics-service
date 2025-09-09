@@ -87,7 +87,7 @@ Repository = "https://github.com/ansible/platform-service-template"
 "Bug Tracker" = "https://github.com/ansible/platform-service-template/issues"
 
 [tool.setuptools]
-packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.health"]
+packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.tasks", "apps.dashboard"]
 
 
 [tool.uv]

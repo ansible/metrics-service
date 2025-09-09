@@ -22,7 +22,7 @@ class TestTaskFunctions(BaseTaskFunctionsTest):
     @patch("apps.core.models.User")
     def test_process_user_data(self, mock_user_model):
         """Test process_user_data function."""
-        from apps.core.tasks import process_user_data
+        from apps.tasks import process_user_data
 
         # Mock user
         mock_user = Mock()

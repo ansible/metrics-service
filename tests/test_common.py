@@ -52,7 +52,7 @@ class BaseTaskFunctionsTest(unittest.TestCase):
 
     def test_cleanup_old_data(self):
         """Test cleanup_old_data function."""
-        from apps.core.tasks import cleanup_old_data
+        from apps.tasks import cleanup_old_data
 
         data = {"days_old": 30}
         result = cleanup_old_data(data)
@@ -63,7 +63,7 @@ class BaseTaskFunctionsTest(unittest.TestCase):
 
     def test_send_notification_email(self):
         """Test send_notification_email function."""
-        from apps.core.tasks import send_notification_email
+        from apps.tasks import send_notification_email
 
         data = {"recipient": "test@example.com", "subject": "Test Subject", "message": "Test message"}
         result = send_notification_email(data)
@@ -74,7 +74,7 @@ class BaseTaskFunctionsTest(unittest.TestCase):
 
     def test_task_functions_registry(self):
         """Test TASK_FUNCTIONS registry."""
-        from apps.core.tasks import TASK_FUNCTIONS
+        from apps.tasks import TASK_FUNCTIONS
 
         expected_functions = ["cleanup_old_data", "send_notification_email", "process_user_data", "execute_db_task"]
 
@@ -135,7 +135,7 @@ class BaseTaskSchedulerTest(unittest.TestCase):
 
     def test_task_scheduler_init(self):
         """Test TaskScheduler initialization."""
-        from apps.core.tasks import TaskScheduler
+        from apps.tasks import TaskScheduler
 
         scheduler = TaskScheduler(poll_interval=60)
         self.assertEqual(scheduler.poll_interval, 60)
@@ -143,7 +143,7 @@ class BaseTaskSchedulerTest(unittest.TestCase):
 
     def test_task_scheduler_stop(self):
         """Test TaskScheduler stop method."""
-        from apps.core.tasks import TaskScheduler
+        from apps.tasks import TaskScheduler
 
         scheduler = TaskScheduler()
         scheduler.running = True

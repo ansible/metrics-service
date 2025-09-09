@@ -17,7 +17,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from rest_framework.test import APIClient
 
-from apps.core.models import Animal, Organization, Team
+from apps.core.models import Organization, Team
 
 User = get_user_model()
 
@@ -98,9 +98,11 @@ def team(organization):
 
 
 @pytest.fixture
-def animal(user):
-    """Create a test animal."""
-    return Animal.objects.create(name="Test Pet", kind="dog", age=3, owner=user)
+def task(user):
+    """Create a test task."""
+    from apps.tasks.models import Task
+
+    return Task.objects.create(name="Test Task", function_name="hello_world", task_data={}, created_by=user)
 
 
 @pytest.fixture
