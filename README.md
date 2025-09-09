@@ -291,8 +291,6 @@ dispatcherd:
 - **Users**: `/api/v1/users/` - User management
 - **Organizations**: `/api/v1/organizations/` - Organization management
 - **Teams**: `/api/v1/teams/` - Team management
-- **Animals**: `/api/v1/animals/` - Example resource (replace with your models)
-
 ### Authentication
 
 The API supports multiple authentication methods:

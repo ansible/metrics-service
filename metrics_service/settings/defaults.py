@@ -34,7 +34,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "drf_spectacular",
     "corsheaders",
-    "oauth2_provider",
+    # "oauth2_provider",
     "social_django",
 ]
 
@@ -51,7 +51,6 @@ DAB_APPS = [
     "ansible_base.activitystream",  # Add when needed
     "ansible_base.jwt_consumer",  # Add when needed
     "ansible_base.resource_registry",  # Add when needed
-    "ansible_base.feature_flags",  # Add when needed
 ]
 
 # Uncomment the line below to enable all DAB features with development setup
@@ -71,8 +70,7 @@ LOCAL_APPS = [
     "apps.core",
     "apps.tasks",
     "apps.api",
-    "apps.health",
-    "dashboard",
+    "apps.dashboard",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
@@ -238,9 +236,9 @@ OAUTH2_PROVIDER = {
     "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
     "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
 }
-OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
-OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
-OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
+# OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
+# OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
+# OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
 
 # Resource Server Configuration
 RESOURCE_SERVER = {
@@ -254,10 +252,10 @@ RESOURCE_SERVER_SYNC_ENABLED = False
 # Dispatcherd is always enabled in this service
 DISPATCHERD_ENABLED = True
 
-# Feature Flags
-FEATURE_FLAGS = {
-    "DISPATCHERD_ENABLED": True,
-}
+# # Feature Flags
+# FEATURE_FLAGS = {
+#     "DISPATCHERD_ENABLED": True,
+# }
 
 # Cache Configuration
 # Default to local memory cache for development, override for production

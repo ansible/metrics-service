@@ -103,7 +103,7 @@ class Command(BaseCommand):
             dispatcherd.config.setup(dispatcherd_config)
 
             # Start task scheduler in a separate thread
-            scheduler = TaskScheduler(poll_interval=30)
+            scheduler = TaskScheduler(poll_interval=5)
             scheduler_thread = threading.Thread(target=scheduler.start, daemon=True)
             scheduler_thread.start()
             self.stdout.write(self.style.SUCCESS("Task scheduler started in background"))

@@ -27,17 +27,69 @@ except ImportError:
 
 from .utils import (
     create_task_result,
+    ensure_django_setup,
+    get_task_and_execution,
+    handle_post_execution,
     handle_task_error,
     log_task_execution,
+    task_execution_wrapper,
     update_task_status,
-    validate_task_data,
 )
 
 logger = logging.getLogger(__name__)
 
 
+@task(queue="metrics_tasks", decorate=False)
+@task_execution_wrapper("hello_world")
+def hello_world(**kwargs) -> dict[str, Any]:
+    """
+    Simple hello world task for testing.
+
+    This task prints "Hello World" and completes successfully.
+    Used for testing the dispatcherd integration.
+
+    Args:
+        **kwargs: Any keyword arguments (ignored)
+
+    Returns:
+        dict: Task result dictionary with success status
+    """
+    # Simple task that just prints hello world
+    message = "Hello World from dispatcherd!"
+    print(f"Task executing: {message}")
+
+    return create_task_result(
+        "success",
+        {
+            "message": message,
+            "task_type": "hello_world",
+            "completed": True,
+        },
+    )
+
+
+@task(queue="metrics_tasks", decorate=False)
+@task_execution_wrapper("Sleep")
+def sleep(time: int = 10) -> dict[str, Any]:
+    """
+    Sleep for a given number of seconds.
+    """
+    time.sleep(time)
+    message = f"Slept for {time} seconds"
+    print(f"Task executing: {message}")
+
+    return create_task_result(
+        "success",
+        {
+            "message": message,
+            "task_type": "sleep",
+            "completed": True,
+        },
+    )
+
 @task(queue="metrics_cleanup", decorate=False)
-def cleanup_old_data(data: dict[str, Any]) -> dict[str, Any]:
+@task_execution_wrapper("cleanup_old_data")
+def cleanup_old_data(**kwargs) -> dict[str, Any]:
     """
     Clean up old data from the system.
 
@@ -46,60 +98,45 @@ def cleanup_old_data(data: dict[str, Any]) -> dict[str, Any]:
     and other time-based data.
 
     Args:
-        data (dict): Task data containing cleanup parameters:
+        **kwargs: Task data containing cleanup parameters:
             - days_old (int): Number of days old data should be to qualify for cleanup (default: 30)
             - data_types (list): List of data types to clean up (optional)
 
     Returns:
         dict: Task result dictionary with cleanup statistics
     """
-    log_task_execution("cleanup_old_data", "start", "Starting data cleanup process")
-
-    # Validate input data
-    validation_error = validate_task_data(data, required_fields=[])
-    if validation_error:
-        return create_task_result("error", error=validation_error)
-
-    days_old = data.get("days_old", 30)
-    data_types = data.get("data_types", ["default"])
-
+    days_old = kwargs.get("days_old", 30)
+    data_types = kwargs.get("data_types", ["default"])
     cleaned_count = 0
 
-    try:
-        log_task_execution("cleanup_old_data", "processing", f"Cleaning up data older than {days_old} days")
+    log_task_execution("cleanup_old_data", "processing", f"Cleaning up data older than {days_old} days")
 
-        # Add your actual cleanup logic here
-        # For example: delete old activity stream entries, logs, etc.
+    # Add your actual cleanup logic here
+    # For example: delete old activity stream entries, logs, etc.
 
-        # Example cleanup implementations:
-        # from datetime import timedelta
-        # cutoff_date = timezone.now() - timedelta(days=days_old)
+    # Example cleanup implementations:
+    # from datetime import timedelta
+    # cutoff_date = timezone.now() - timedelta(days=days_old)
 
-        # if "activity_stream" in data_types:
-        #     ActivityStream.objects.filter(timestamp__lt=cutoff_date).delete()
-        #
-        # if "task_executions" in data_types:
-        #     TaskExecution.objects.filter(completed_at__lt=cutoff_date).delete()
+    # if "activity_stream" in data_types:
+    #     ActivityStream.objects.filter(timestamp__lt=cutoff_date).delete()
+    #
+    # if "task_executions" in data_types:
+    #     TaskExecution.objects.filter(completed_at__lt=cutoff_date).delete()
 
-        log_task_execution("cleanup_old_data", "complete", f"Cleaned {cleaned_count} items")
-
-        return create_task_result(
-            "success",
-            {
-                "cleaned_count": cleaned_count,
-                "days_old": days_old,
-                "data_types": data_types,
-            },
-        )
-
-    except Exception as e:
-        error_msg = f"Cleanup failed: {str(e)}"
-        log_task_execution("cleanup_old_data", "error", error_msg, level="error")
-        return create_task_result("error", error=error_msg)
+    return create_task_result(
+        "success",
+        {
+            "cleaned_count": cleaned_count,
+            "days_old": days_old,
+            "data_types": data_types,
+        },
+    )
 
 
 @task(queue="metrics_notifications", decorate=False)
-def send_notification_email(data: dict[str, Any]) -> dict[str, Any]:
+@task_execution_wrapper("send_notification_email")
+def send_notification_email(**kwargs) -> dict[str, Any]:
     """
     Send notification email to users.
 
@@ -108,7 +145,7 @@ def send_notification_email(data: dict[str, Any]) -> dict[str, Any]:
     email delivery errors gracefully.
 
     Args:
-        data (dict): Task data containing email parameters:
+        **kwargs: Task data containing email parameters:
             - recipient (str): Email address of the recipient (required)
             - subject (str): Email subject line (default: "Notification")
             - message (str): Email message body
@@ -117,100 +154,102 @@ def send_notification_email(data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         dict: Task result dictionary with email delivery status
     """
-    log_task_execution("send_notification_email", "start", "Preparing to send notification email")
+    recipient = kwargs.get("recipient")
+    if not recipient:
+        return create_task_result("error", error="Recipient is required")
 
-    # Validate input data
-    validation_error = validate_task_data(data, required_fields=["recipient"])
-    if validation_error:
-        return create_task_result("error", error=validation_error)
+    subject = kwargs.get("subject", "Notification")
+    message = kwargs.get("message", "")
 
-    recipient = data.get("recipient")
-    subject = data.get("subject", "Notification")
-    message = data.get("message", "")
-    try:
-        log_task_execution("send_notification_email", "processing", f"Sending email to {recipient}")
+    log_task_execution("send_notification_email", "processing", f"Sending email to {recipient}")
 
-        # Add your actual email sending logic here
-        # For example: using Django's send_mail
-        # from django.core.mail import send_mail
-        # from django.conf import settings
-        #
-        # send_mail(
-        #     subject=subject,
-        #     message=message,
-        #     from_email=settings.DEFAULT_FROM_EMAIL,
-        #     recipient_list=[recipient],
-        #     html_message=html_message,
-        # )
+    # Add your actual email sending logic here
+    # For example: using Django's send_mail
+    # from django.core.mail import send_mail
+    # from django.conf import settings
+    #
+    # send_mail(
+    #     subject=subject,
+    #     message=message,
+    #     from_email=settings.DEFAULT_FROM_EMAIL,
+    #     recipient_list=[recipient],
+    #     html_message=html_message,
+    # )
 
-        log_task_execution("send_notification_email", "complete", f"Email sent to {recipient}")
-
-        return create_task_result(
-            "success",
-            {
-                "recipient": recipient,
-                "subject": subject,
-                "message_length": len(message),
-            },
-        )
-
-    except Exception as e:
-        error_msg = f"Email sending failed: {str(e)}"
-        log_task_execution("send_notification_email", "error", error_msg, level="error")
-        return create_task_result("error", error=error_msg)
+    return create_task_result(
+        "success",
+        {
+            "recipient": recipient,
+            "subject": subject,
+            "message_length": len(message),
+        },
+    )
 
 
 @task(queue="metrics_tasks", decorate=False)
-def process_user_data(data: dict[str, Any]) -> dict[str, Any]:
+@task_execution_wrapper("process_user_data")
+def process_user_data(**kwargs) -> dict[str, Any]:
     """
     Process user data in the background.
 
     Args:
-        data: Task data containing user processing parameters
+        **kwargs: Task data containing user processing parameters
 
     Returns:
         Task result dictionary
     """
-    logger.info("Processing user data")
+    user_id = kwargs.get("user_id")
+    operation = kwargs.get("operation", "sync")
 
-    user_id = data.get("user_id")
-    operation = data.get("operation", "sync")
+    from django.contrib.auth import get_user_model
+    from django.utils import timezone
 
-    try:
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-
-        user = User.objects.get(id=user_id)
-        logger.info(f"Processing user: {user.username}")
-
-        if operation == "sync":
-            # Example: Sync user data with external systems
-            logger.info(f"Syncing user {user.username} with external systems")
-
-        elif operation == "validate":
-            # Example: Validate user data
-            logger.info(f"Validating user {user.username} data")
-
-        logger.info(f"User processing completed for {user.username}")
+    # Handle hello_world operation without requiring user_id
+    if operation == "hello_world":
+        message = kwargs.get("message", "Hello World from dispatcherd!")
+        logger.info(f"Hello World Task: {message}")
+        print(f"🎉 {message}")
 
         return {
             "status": "success",
-            "user_id": user_id,
-            "username": user.username,
+            "message": message,
+            "task_type": "hello_world",
+            "completed": True,
+            "timestamp": str(timezone.now()),
             "operation": operation,
         }
 
-    except Exception as e:
-        logger.error(f"User processing failed: {str(e)}")
+    # For other operations, require user_id
+    if not user_id:
         return {
             "status": "error",
-            "error": str(e),
+            "error": "user_id is required for this operation",
         }
+
+    User = get_user_model()
+    user = User.objects.get(id=user_id)
+    logger.info(f"Processing user: {user.username}")
+
+    if operation == "sync":
+        # Example: Sync user data with external systems
+        logger.info(f"Syncing user {user.username} with external systems")
+
+    elif operation == "validate":
+        # Example: Validate user data
+        logger.info(f"Validating user {user.username} data")
+
+    logger.info(f"User processing completed for {user.username}")
+
+    return {
+        "status": "success",
+        "user_id": user_id,
+        "username": user.username,
+        "operation": operation,
+    }
 
 
 @task(queue="metrics_tasks", decorate=False)
-def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
+def execute_db_task(**kwargs) -> dict[str, Any]:
     """
     Execute a database-defined task with comprehensive error handling and tracking.
 
@@ -219,26 +258,25 @@ def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
     validation, execution, status tracking, and post-execution processing.
 
     Args:
-        data (dict): Task data containing:
+        **kwargs: Task data containing:
             - task_id (int): ID of the task to execute (required)
             - execution_id (int): ID of the execution record (optional)
 
     Returns:
         dict: Task result dictionary with execution status and results
     """
+    ensure_django_setup()
     log_task_execution("execute_db_task", "start", "Starting database task execution")
 
-    # Validate input data
-    validation_error = validate_task_data(data, required_fields=["task_id"])
-    if validation_error:
-        return create_task_result("error", error=validation_error)
+    task_id = kwargs.get("task_id")
+    if not task_id:
+        return create_task_result("error", error="task_id is required")
 
-    task_id = data.get("task_id")
-    execution_id = data.get("execution_id")
+    execution_id = kwargs.get("execution_id")
 
     try:
         # Get task and execution objects
-        task, execution = _get_task_and_execution(task_id, execution_id)
+        task, execution = get_task_and_execution(task_id, execution_id)
 
         # Validate task function exists
         if task.function_name not in TASK_FUNCTIONS:
@@ -251,7 +289,7 @@ def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
 
         # Execute the actual task function
         task_function = TASK_FUNCTIONS[task.function_name]
-        result = task_function(task.task_data)
+        result = task_function(**task.task_data)
 
         # Complete task execution
         status = "completed" if result.get("status") == "success" else "failed"
@@ -261,98 +299,12 @@ def execute_db_task(data: dict[str, Any]) -> dict[str, Any]:
         log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
         # Handle post-execution tasks
-        _handle_post_execution(task)
+        handle_post_execution(task)
 
         return result
 
     except Exception as e:
         return handle_task_error(None, None, task_id=task_id, execution_id=execution_id, exception=e)
-
-
-def _get_task_and_execution(task_id: int, execution_id: int | None) -> tuple[Any, Any]:
-    """Get task and execution objects with proper locking."""
-    from .models import Task, TaskExecution
-
-    with transaction.atomic():
-        task = Task.objects.select_for_update().get(id=task_id)
-        execution = None
-
-        if execution_id:
-            execution = TaskExecution.objects.get(id=execution_id)
-
-    return task, execution
-
-
-def _handle_post_execution(task: Any) -> None:
-    """Handle post-execution tasks like dependencies and recurring tasks."""
-    if task.status == "completed":
-        trigger_dependent_tasks(task)
-
-    if task.is_recurring and task.status == "completed":
-        schedule_next_occurrence(task)
-
-
-def trigger_dependent_tasks(completed_task: Any) -> None:
-    """
-    Trigger tasks that depend on the completed task.
-
-    Args:
-        completed_task: The task that just completed
-    """
-    from .models import Task, TaskDependency
-
-    try:
-        # Find tasks that depend on this completed task
-        dependent_task_ids = TaskDependency.objects.filter(
-            prerequisite_task=completed_task, required_status=completed_task.status
-        ).values_list("dependent_task_id", flat=True)
-
-        # Check each dependent task to see if all its dependencies are satisfied
-        for task_id in dependent_task_ids:
-            try:
-                task = Task.objects.get(id=task_id)
-                if task.is_ready_to_run():
-                    # Submit task to scheduler
-                    submit_task_to_dispatcher(task)
-                    logger.info(f"Triggered dependent task: {task.name} (ID: {task.id})")
-
-            except Task.DoesNotExist:
-                logger.warning(f"Dependent task {task_id} not found")
-                continue
-
-    except Exception as e:
-        logger.error(f"Error triggering dependent tasks: {str(e)}")
-
-
-def schedule_next_occurrence(task: Any) -> None:
-    """
-    Schedule the next occurrence of a recurring task.
-
-    Args:
-        task: The recurring task to schedule
-    """
-    from .models import Task
-
-    try:
-        next_run_time = task.get_next_run_time()
-        if next_run_time:
-            # Create a new task instance for the next occurrence
-            Task.objects.create(
-                name=f"{task.name} (Next)",
-                function_name=task.function_name,
-                task_data=task.task_data,
-                scheduled_time=next_run_time,
-                cron_expression=task.cron_expression,
-                is_recurring=task.is_recurring,
-                priority=task.priority,
-                max_attempts=task.max_attempts,
-                timeout_seconds=task.timeout_seconds,
-                created_by=task.created_by,
-            )
-            logger.info(f"Scheduled next occurrence of {task.name} for {next_run_time}")
-
-    except Exception as e:
-        logger.error(f"Error scheduling next occurrence: {str(e)}")
 
 
 def submit_task_to_dispatcher(task: Any) -> None:
@@ -489,15 +441,15 @@ class TaskScheduler:
             task.save()
 
             # Submit to dispatcher
-            # Get the actual function from TASK_FUNCTIONS
-            function_name = task.function_name
-            if function_name not in TASK_FUNCTIONS:
-                raise ValueError(f"Unknown task function: {function_name}")
+            # Always use execute_db_task as the entry point to ensure proper execution pipeline
+            if task.function_name not in TASK_FUNCTIONS:
+                raise ValueError(f"Unknown task function: {task.function_name}")
 
-            task_func = TASK_FUNCTIONS[function_name]
+            # Use execute_db_task as the entry point for all tasks
+            task_func = TASK_FUNCTIONS["execute_db_task"]
 
-            # Submit the task
-            submit_task(task_func, kwargs=function_data, queue=queue)
+            # Submit the task with task_id as the main parameter
+            submit_task(task_func, kwargs={"task_id": task.id}, queue=queue)
 
             logger.info(f"Submitted task {task.id} ({task.function_name}) to queue {queue}")
 
@@ -521,6 +473,7 @@ class TaskScheduler:
         """
         # Map function names to queues
         queue_mapping = {
+            "hello_world": "metrics_tasks",
             "cleanup_old_data": "metrics_cleanup",
             "send_notification_email": "metrics_notifications",
             "process_user_data": "metrics_tasks",
@@ -532,17 +485,11 @@ class TaskScheduler:
 
 # Task configuration for dispatcherd
 TASK_FUNCTIONS = {
+    "hello_world": hello_world,
     "cleanup_old_data": cleanup_old_data,
     "send_notification_email": send_notification_email,
     "process_user_data": process_user_data,
     "execute_db_task": execute_db_task,
+    "sleep": sleep,
 }
 
-# Legacy scheduled tasks configuration (kept for backward compatibility)
-SCHEDULED_TASKS = {
-    "daily_cleanup": {
-        "function": "cleanup_old_data",
-        "schedule": 86400,  # Run daily (in seconds)
-        "data": {"days_old": 30},
-    },
-}

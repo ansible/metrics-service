@@ -3,10 +3,8 @@ Admin configuration for core models.
 """
 
 from django.contrib import admin
-from django.utils.html import format_html
 
 from .models import (
-    Animal,
     Organization,
     Team,
     User,
@@ -40,15 +38,3 @@ class TeamAdmin(admin.ModelAdmin):
     search_fields = ("name", "description", "organization__name")
     filter_horizontal = ("users", "admins", "team_parents")
 
-
-@admin.register(Animal)
-class AnimalAdmin(admin.ModelAdmin):
-    """Admin for Animal model."""
-
-    list_display = ("name", "kind", "owner", "age")
-    list_filter = ("kind",)
-    search_fields = ("name", "owner__username")
-    filter_horizontal = ("people_friends",)
-
-
-# Task-related admin classes have been moved to apps.tasks.admin

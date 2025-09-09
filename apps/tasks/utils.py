@@ -11,6 +11,147 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def ensure_django_setup():
+    """
+    Ensure Django is properly configured for dispatcherd workers.
+
+    This function must be called at the beginning of any task function
+    that needs to access Django models or ORM functionality, since
+    dispatcherd workers run in separate processes without Django initialized.
+    """
+    import django
+    from django.conf import settings
+
+    if not settings.configured:
+        import os
+
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings")
+        django.setup()
+
+
+def task_execution_wrapper(task_name: str):
+    """
+    Decorator to handle common task execution patterns.
+
+    This decorator:
+    - Ensures Django setup
+    - Logs task start and completion
+    - Handles exceptions with proper error responses
+    - Returns standardized task results
+
+    Args:
+        task_name: Name of the task for logging
+    """
+
+    def decorator(func):
+        def wrapper(**kwargs):
+            ensure_django_setup()
+            log_task_execution(task_name, "start", f"Starting {task_name} task")
+
+            try:
+                result = func(**kwargs)
+                log_task_execution(task_name, "complete", f"Task {task_name} completed successfully")
+                return result
+            except Exception as e:
+                error_msg = f"{task_name.title()} task failed: {str(e)}"
+                log_task_execution(task_name, "error", error_msg, level="error")
+                return create_task_result("error", error=error_msg)
+
+        return wrapper
+
+    return decorator
+
+
+def get_task_and_execution(task_id: int, execution_id: int | None) -> tuple[Any, Any]:
+    """Get task and execution objects with proper locking."""
+    from .models import Task, TaskExecution
+
+    with transaction.atomic():
+        task = Task.objects.select_for_update().get(id=task_id)
+        execution = None
+
+        if execution_id:
+            execution = TaskExecution.objects.get(id=execution_id)
+
+    return task, execution
+
+
+def trigger_dependent_tasks(completed_task: Any) -> None:
+    """
+    Trigger tasks that depend on the completed task.
+
+    Args:
+        completed_task: The task that just completed
+    """
+    from .models import Task, TaskDependency
+
+    try:
+        # Find tasks that depend on this completed task
+        dependent_task_ids = TaskDependency.objects.filter(
+            prerequisite_task=completed_task, required_status=completed_task.status
+        ).values_list("dependent_task_id", flat=True)
+
+        # Check each dependent task to see if all its dependencies are satisfied
+        for task_id in dependent_task_ids:
+            try:
+                task = Task.objects.get(id=task_id)
+                if task.is_ready_to_run():
+                    # Import here to avoid circular import
+                    from .tasks import submit_task_to_dispatcher
+
+                    submit_task_to_dispatcher(task)
+                    logger.info(f"Triggered dependent task: {task.name} (ID: {task.id})")
+
+            except Task.DoesNotExist:
+                logger.warning(f"Dependent task {task_id} not found")
+                continue
+
+    except Exception as e:
+        logger.error(f"Error triggering dependent tasks: {str(e)}")
+
+
+def schedule_next_occurrence(task: Any) -> None:
+    """
+    Schedule the next occurrence of a recurring task.
+
+    Args:
+        task: The recurring task to schedule
+    """
+    from .models import Task
+
+    try:
+        if not task.cron_expression:
+            logger.warning(f"Task {task.name} has no cron expression for recurring schedule")
+            return
+
+        # Create a new task instance for the next occurrence
+        next_task = Task.objects.create(
+            name=f"{task.name} (recurring)",
+            function_name=task.function_name,
+            task_data=task.task_data,
+            cron_expression=task.cron_expression,
+            is_recurring=True,
+            priority=task.priority,
+            max_attempts=task.max_attempts,
+            timeout_seconds=task.timeout_seconds,
+            created_by=task.created_by,
+        )
+
+        logger.info(f"Scheduled next occurrence: {next_task.name} (ID: {next_task.id})")
+
+    except Exception as e:
+        logger.error(f"Error scheduling next occurrence for task {task.name}: {str(e)}")
+
+
+def handle_post_execution(task: Any) -> None:
+    """Handle post-execution tasks like dependencies and recurring tasks."""
+    if task.status == "completed":
+        trigger_dependent_tasks(task)
+
+    if task.is_recurring and task.status == "completed":
+        schedule_next_occurrence(task)
+
+
 def handle_task_error(
     task_instance: Any = None,
     execution_instance: Any = None,

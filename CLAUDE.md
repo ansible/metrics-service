@@ -120,7 +120,7 @@ This is a Django-based service following Ansible Automation Platform (AAP) stand
 - **User** - Custom user model with Django-Ansible-Base integration
 - **Organization** - Organizations with user/admin management
 - **Team** - Teams within organizations with hierarchical support
-- **Animal** - Example model demonstrating AAP patterns (replace with actual business logic)
+
 - **Task/TaskExecution/TaskChain** - Comprehensive background task system with dependencies and scheduling
 
 ### API Architecture (`apps/api/v1/`)
@@ -237,16 +237,7 @@ POST /api/v1/tasks/{id}/cancel/
 GET /api/v1/tasks/available_functions/
 ```
 
-### Task Execution History
 
-```bash
-# Get task execution history
-GET /api/v1/executions/
-GET /api/v1/executions/?task__name=My Task
-
-# Get specific execution details
-GET /api/v1/executions/{id}/
-```
 
 ### Available Task Functions
 

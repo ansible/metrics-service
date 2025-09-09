@@ -7,7 +7,7 @@ code duplication through the use of base serializer classes and mixins.
 
 from rest_framework import serializers
 
-from apps.core.models import Animal, Organization, Team, User
+from apps.core.models import Organization, Team, User
 
 from .base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
 
@@ -126,44 +126,4 @@ class TeamSerializer(BaseModelSerializer, CountFieldMixin):
             "team_parents": {"view_name": "api:v1:team-detail"},
             "users": {"view_name": "api:v1:user-detail"},
             "admins": {"view_name": "api:v1:user-detail"},
-        }
-
-
-class AnimalSerializer(BaseModelSerializer, CountFieldMixin):
-    """
-    Serializer for Animal model following AAP patterns.
-
-    This serializer provides animal management functionality with owner
-    information and friend count fields for demonstration purposes.
-    """
-
-    owner_username = serializers.CharField(source="owner.username", read_only=True)
-    kind_display = serializers.CharField(source="get_kind_display", read_only=True)
-    friends_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Animal
-        fields = [
-            "id",
-            "url",
-            "name",
-            "kind",
-            "kind_display",
-            "age",
-            "owner",
-            "owner_username",
-            "people_friends",
-            "friends_count",
-            "created",
-            "modified",
-        ]
-        read_only_fields = [
-            "owner_username",
-            "kind_display",
-            "friends_count",
-        ]
-        extra_kwargs = {
-            "url": {"view_name": "api:v1:animal-detail"},
-            "owner": {"view_name": "api:v1:user-detail"},
-            "people_friends": {"view_name": "api:v1:user-detail"},
         }

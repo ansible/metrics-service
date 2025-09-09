@@ -2,7 +2,7 @@
 # Copy this file to settings.yaml and customize for your environment
 
 # Environment Configuration
-environment: development
+environment: default
 
 # Security Settings
 secret_key: 'your-secret-key-here-change-in-production'
@@ -53,7 +53,7 @@ service:
 
 # Feature Flags
 feature_flags:
-  dispatcherd_enabled: false
+  dispatcherd_enabled: true
 
 # Dispatcherd Configuration
 dispatcherd:
