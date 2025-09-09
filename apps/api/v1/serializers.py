@@ -1,24 +1,24 @@
 """
 API v1 serializers for metrics_service following AAP standards.
-
-This module provides serializers for the API v1 endpoints with reduced
-code duplication through the use of base serializer classes and mixins.
 """
 
 from rest_framework import serializers
 
 from apps.core.models import Organization, User
 
-from .base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
 
+class UserSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for User model following AAP patterns."""
 
-class UserSerializer(BaseModelSerializer, PasswordHandlingMixin):
-    """
-    Serializer for User model following AAP patterns.
-
-    This serializer provides comprehensive user management functionality
-    including password handling and standard field configurations.
-    """
+    confirm_password = serializers.CharField(
+        write_only=True, required=True, help_text="Confirm password - must match the password field"
+    )
+    organization = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="The organization this user belongs to",
+    )
 
     class Meta:
         model = User
@@ -26,37 +26,89 @@ class UserSerializer(BaseModelSerializer, PasswordHandlingMixin):
             "id",
             "url",
             "username",
+            "password",
+            "confirm_password",
             "email",
             "first_name",
             "last_name",
-            "is_active",
-            "is_staff",
             "is_superuser",
-            "date_joined",
-            "last_login",
+            "is_system_auditor",
+            "organization",
             "created",
             "modified",
         ]
         read_only_fields = [
-            "date_joined",
-            "last_login",
+            "id",
+            "url",
+            "created",
+            "modified",
         ]
         extra_kwargs = {
             "password": {"write_only": True},
             "url": {"view_name": "api:v1:user-detail"},
         }
 
+    def get_fields(self):
+        """Override to make user type fields conditionally read-only based on permissions."""
+        fields = super().get_fields()
+        request = self.context.get("request")
 
-class OrganizationSerializer(BaseModelSerializer, CountFieldMixin):
-    """
-    Serializer for Organization model following AAP patterns.
+        if request and request.user:
+            user = request.user
 
-    This serializer provides organization management functionality with
-    user and admin count fields for efficient data retrieval.
-    """
+            # Only superusers can modify user types
+            if not user.is_superuser:
+                fields["is_superuser"].read_only = True
+                fields["is_system_auditor"].read_only = True
+
+        return fields
+
+    def validate(self, data):
+        """Validate that password and confirm_password match."""
+        password = data.get("password")
+        confirm_password = data.get("confirm_password")
+
+        # Only check password confirmation if password is being set
+        if password:
+            if not confirm_password:
+                raise serializers.ValidationError(
+                    {"confirm_password": "Password confirmation is required when setting a password."}
+                )
+
+            if password != confirm_password:
+                raise serializers.ValidationError({"confirm_password": "Password and confirm password do not match."})
+
+        return data
+
+    def create(self, validated_data):
+        """Create a new user with proper password hashing."""
+        password = validated_data.pop("password", None)
+        validated_data.pop("confirm_password", None)  # Remove confirm_password, not needed for user creation
+        user = User.objects.create(**validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        """Update user with proper password handling."""
+        password = validated_data.pop("password", None)
+        validated_data.pop("confirm_password", None)  # Remove confirm_password, not needed for user update
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
+
+
+class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for Organization model following AAP patterns."""
 
     users_count = serializers.SerializerMethodField()
     admins_count = serializers.SerializerMethodField()
+    related = serializers.SerializerMethodField()
+    object_role = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
@@ -66,23 +118,35 @@ class OrganizationSerializer(BaseModelSerializer, CountFieldMixin):
             "name",
             "description",
             "extra_field",
-            "users",
-            "admins",
             "users_count",
             "admins_count",
+            "related",
+            "object_role",
             "created",
             "modified",
         ]
 
         read_only_fields = [
+            "id",
+            "url",
+            "created",
+            "modified",
             "users_count",
             "admins_count",
+            "related",
+            "object_role",
         ]
         extra_kwargs = {
             "url": {"view_name": "api:v1:organization-detail"},
-            "users": {"view_name": "api:v1:user-detail"},
-            "admins": {"view_name": "api:v1:user-detail"},
         }
+
+    def get_users_count(self, obj):
+        """Return count of users in organization."""
+        return obj.users.count()
+
+    def get_admins_count(self, obj):
+        """Return count of admins in organization."""
+        return obj.admins.count()
 
     def get_related(self, obj):
         """Return related URLs for this organization."""

@@ -31,7 +31,7 @@ class UserAdmin(admin.ModelAdmin):
     """Admin for User model."""
 
     list_display = ("username", "email", "first_name", "last_name", "is_active")
-    list_filter = ("is_active", "is_staff", "is_superuser")
+    list_filter = ("is_active", "is_system_auditor", "is_superuser")
     search_fields = ("username", "email", "first_name", "last_name")
 
 
