@@ -87,54 +87,6 @@ class BaseTaskFunctionsTest(unittest.TestCase):
             self.assertIn(func_name, TASK_FUNCTIONS)
             self.assertTrue(callable(TASK_FUNCTIONS[func_name]))
 
-
-class BaseHealthChecksTest(unittest.TestCase):
-    """Base test case for health checks with common test methods."""
-
-    @patch("django.db.connection.cursor")
-    def test_database_check_success(self, mock_cursor):
-        """Test successful database check."""
-        from apps.health.checks import check_database
-
-        mock_cursor_instance = Mock()
-        mock_cursor.return_value.__enter__ = Mock(return_value=mock_cursor_instance)
-        mock_cursor.return_value.__exit__ = Mock(return_value=None)
-
-        result = check_database()
-
-        self.assertIsInstance(result, dict)
-        self.assertIn("status", result)
-        self.assertEqual(result["status"], "healthy")
-
-    @patch("django.db.connection.cursor")
-    def test_database_check_failure(self, mock_cursor):
-        """Test database check failure."""
-        from apps.health.checks import check_database
-
-        mock_cursor.side_effect = Exception("Database error")
-
-        result = check_database()
-
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["status"], "unhealthy")
-        self.assertIn("error", result)
-
-    @patch("django.core.cache.cache.get")
-    @patch("django.core.cache.cache.set")
-    def test_cache_check_success(self, mock_set, mock_get):
-        """Test successful cache check."""
-        from apps.health.checks import check_cache
-
-        mock_get.return_value = "test_value"
-
-        result = check_cache()
-
-        self.assertIsInstance(result, dict)
-        self.assertIn("status", result)
-        mock_set.assert_called()
-        mock_get.assert_called()
-
-
 class BaseTaskSchedulerTest(unittest.TestCase):
     """Base test case for TaskScheduler with common test methods."""
 

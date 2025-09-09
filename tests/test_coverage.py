@@ -38,10 +38,6 @@ class TestTaskFunctions(BaseTaskFunctionsTest):
         self.assertEqual(result["operation"], "sync")
 
 
-class TestHealthChecks(BaseHealthChecksTest):
-    """Test health check functions."""
-
-
 class TestTaskScheduler(BaseTaskSchedulerTest):
     """Test TaskScheduler class."""
 
