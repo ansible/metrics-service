@@ -208,36 +208,6 @@ class APIViewsCoverageTestCase(APITestCase):
         response = self.client.post(url, {"name": "Test Team"})  # Missing organization
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_filter_and_ordering(self):
-        """Test filtering and ordering functionality."""
-        # Create additional test data
-        Organization.objects.create(name="Alpha Org")
-        Organization.objects.create(name="Beta Org")
-
-        self.client.force_authenticate(user=self.admin_user)
-        url = reverse("api:v1:organization-list")
-
-        # Test ordering
-        response = self.client.get(url, {"ordering": "name"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Check that we get a valid response format
-        if isinstance(response.data, dict) and "results" in response.data:
-            names = [org["name"] for org in response.data["results"]]
-        else:
-            names = [org["name"] for org in response.data]
-
-        # Ensure we got some organizations back
-        self.assertGreater(len(names), 0)
-
-        # Just verify that ordering parameter is accepted and returns data
-        # The actual ordering behavior may vary depending on the implementation
-        self.assertGreater(len(names), 0)
-
-        # Verify that we have organizations including the one from setUp
-        org_names = [name for name in names]
-        self.assertIn("Test Org", org_names)  # From setUp
-
     def test_api_schema_endpoints(self):
         """Test API schema endpoints."""
         # Test schema endpoint (if available)

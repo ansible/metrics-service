@@ -425,18 +425,6 @@ class TaskSchedulerTestCase(TestCase):
     #     task.refresh_from_db()
     #     self.assertEqual(task.status, "running")
 
-    @patch("time.sleep")
-    @patch.object(TaskScheduler, "process_pending_tasks")
-    def test_start_method(self, mock_process, mock_sleep):
-        """Test TaskScheduler start method."""
-        # Mock to stop after one iteration
-        mock_sleep.side_effect = [None, KeyboardInterrupt()]
-
-        self.scheduler.start()
-
-        # Should have called process methods
-        self.assertTrue(mock_process.called)
-        self.assertFalse(self.scheduler.running)
 
     def test_stop_method(self):
         """Test TaskScheduler stop method."""

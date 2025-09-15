@@ -87,6 +87,7 @@ class BaseTaskFunctionsTest(unittest.TestCase):
             self.assertIn(func_name, TASK_FUNCTIONS)
             self.assertTrue(callable(TASK_FUNCTIONS[func_name]))
 
+
 class BaseTaskSchedulerTest(unittest.TestCase):
     """Base test case for TaskScheduler with common test methods."""
 

@@ -2,10 +2,10 @@
 Simplified tests for coverage without complex Django setup.
 """
 
+import pytest
 from unittest.mock import Mock, patch
 
 from .test_common import (
-    BaseHealthChecksTest,
     BaseTaskFunctionsTest,
     BaseTaskSchedulerTest,
     BaseUtilitiesTest,
@@ -19,18 +19,22 @@ setup_django_for_tests()
 class TestTaskFunctions(BaseTaskFunctionsTest):
     """Test task functions directly without model dependencies."""
 
-    @patch("apps.core.models.User")
-    def test_process_user_data(self, mock_user_model):
+    @pytest.mark.django_db
+    @patch("django.contrib.auth.get_user_model")
+    def test_process_user_data(self, mock_get_user_model):
         """Test process_user_data function."""
         from apps.tasks import process_user_data
 
-        # Mock user
+        # Mock user and user model
         mock_user = Mock()
         mock_user.username = "testuser"
-        mock_user_model.objects.get.return_value = mock_user
+        mock_user.id = 1
 
-        data = {"user_id": 1, "operation": "sync"}
-        result = process_user_data(data)
+        mock_user_model = Mock()
+        mock_user_model.objects.get.return_value = mock_user
+        mock_get_user_model.return_value = mock_user_model
+
+        result = process_user_data(user_id=1, operation="sync")
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["user_id"], 1)
