@@ -37,4 +37,3 @@ class TeamAdmin(admin.ModelAdmin):
     list_filter = ("organization",)
     search_fields = ("name", "description", "organization__name")
     filter_horizontal = ("users", "admins", "team_parents")
-

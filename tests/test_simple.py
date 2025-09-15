@@ -2,8 +2,6 @@
 Simple tests that actually work without complex Django setup.
 """
 
-from unittest.mock import patch
-
 from .test_common import (
     BaseTaskFunctionsTest,
     BaseTaskSchedulerTest,

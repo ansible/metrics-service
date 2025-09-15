@@ -14,6 +14,7 @@ from apps.tasks.models import (
     Task,
     TaskExecution,
 )
+
 from ..base_serializers import BaseModelSerializer, StatusFieldMixin
 
 User = get_user_model()
@@ -166,7 +167,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
 
                 croniter(value)
             except (ValueError, TypeError) as e:
-                raise serializers.ValidationError(f"Invalid cron expression: {e}")
+                raise serializers.ValidationError(f"Invalid cron expression: {e}") from e
         return value
 
     def validate_task_data(self, value):
@@ -175,7 +176,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             try:
                 return json.loads(value)
             except json.JSONDecodeError as e:
-                raise serializers.ValidationError(f"Invalid JSON data: {e}")
+                raise serializers.ValidationError(f"Invalid JSON data: {e}") from e
         return value
 
     def validate_user(self, value):
@@ -183,8 +184,8 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         if value:
             try:
                 return User.objects.get(username=value)
-            except User.DoesNotExist:
-                raise serializers.ValidationError(f"User '{value}' not found")
+            except User.DoesNotExist as e:
+                raise serializers.ValidationError(f"User '{value}' not found") from e
         return None
 
     def create(self, validated_data):

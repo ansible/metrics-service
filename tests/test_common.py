@@ -5,7 +5,6 @@ Common test utilities and base classes to reduce duplication across test files.
 import os
 import sys
 import unittest
-from unittest.mock import Mock, patch
 
 # Mock Django before importing any Django modules
 import django

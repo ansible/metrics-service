@@ -56,7 +56,7 @@ def hello_world(**kwargs) -> dict[str, Any]:
     """
     # Simple task that just prints hello world
     message = "Hello World from dispatcherd!"
-    print(f"Task executing: {message}")
+    logger.info(f"Task executing: {message}")
 
     return create_task_result(
         "success",
@@ -76,7 +76,6 @@ def sleep(duration: int = 10) -> dict[str, Any]:
     """
     time.sleep(duration)
     message = f"Slept for {duration} seconds"
-    print(f"Task executing: {message}")
 
     return create_task_result(
         "success",
@@ -210,7 +209,6 @@ def process_user_data(**kwargs) -> dict[str, Any]:
     if operation == "hello_world":
         message = kwargs.get("message", "Hello World from dispatcherd!")
         logger.info(f"Hello World Task: {message}")
-        print(f"🎉 {message}")
 
         return {
             "status": "success",
@@ -228,8 +226,8 @@ def process_user_data(**kwargs) -> dict[str, Any]:
             "error": "user_id is required for this operation",
         }
 
-    User = get_user_model()
-    user = User.objects.get(id=user_id)
+    user_agent = get_user_model()
+    user = user_agent.objects.get(id=user_id)
     logger.info(f"Processing user: {user.username}")
 
     if operation == "sync":
@@ -377,8 +375,9 @@ class TaskScheduler:
     def process_pending_tasks(self):
         """Process all pending tasks and publish them to dispatcher queues."""
         try:
-            from .models import Task
             from django.db.models import Q
+
+            from .models import Task
 
             # Get all pending tasks that are ready to run
             # Include tasks with no scheduled_time (immediate execution) and tasks whose time has come

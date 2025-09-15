@@ -3,13 +3,12 @@ Core models for metrics_service.
 For full AAP/DAB features, install with: pip install -e ".[dev]"
 """
 
-from datetime import datetime
 from typing import Any
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from .mixins import AccessControlMixin, StatusTrackingMixin, UserRelatedMixin
+from .mixins import AccessControlMixin, UserRelatedMixin
 
 # Basic models for immediate setup
 # For full AAP features, replace with DAB abstract models when ready
@@ -269,6 +268,3 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
             str: Organization name and team name
         """
         return f"{self.organization.name} - {self.name}"
-
-
-

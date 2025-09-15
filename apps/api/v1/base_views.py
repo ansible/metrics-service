@@ -5,9 +5,8 @@ Base views to reduce code duplication in API views.
 from typing import Any
 
 from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
-from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
-
 from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
+from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
 from django.db.models import QuerySet
 from django.http import HttpRequest
 from drf_spectacular.utils import extend_schema

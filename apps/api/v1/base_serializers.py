@@ -166,11 +166,11 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
             list: Complete field list
         """
         fields = ["id", "url"] + base_fields + ["created", "modified"]
-        
+
         if extra_fields:
             # Insert extra fields before timestamps
             fields = fields[:-2] + extra_fields + fields[-2:]
-        
+
         return fields
 
     @classmethod
@@ -186,10 +186,10 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
             dict: Complete extra_kwargs dictionary
         """
         kwargs = {"url": {"view_name": view_name}}
-        
+
         if additional_kwargs:
             kwargs.update(additional_kwargs)
-        
+
         return kwargs
 
 

@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.models import User
-from apps.tasks.models import Task, TaskDependency, TaskExecution
+from apps.tasks.models import Task, TaskExecution
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
     TaskScheduler,
@@ -360,9 +360,7 @@ class TaskSchedulerTestCase(TestCase):
     def test_process_pending_tasks(self, mock_publish):
         """Test TaskScheduler process_pending_tasks method."""
         # Create a ready task
-        task = Task.objects.create(
-            name="Ready Task", function_name="cleanup_old_data", status="pending", created_by=self.user
-        )
+        Task.objects.create(name="Ready Task", function_name="cleanup_old_data", status="pending", created_by=self.user)
 
         self.scheduler.process_pending_tasks()
 
@@ -424,7 +422,6 @@ class TaskSchedulerTestCase(TestCase):
     #     # Task should still be running
     #     task.refresh_from_db()
     #     self.assertEqual(task.status, "running")
-
 
     def test_stop_method(self):
         """Test TaskScheduler stop method."""

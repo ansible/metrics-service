@@ -101,7 +101,6 @@ class ManageTasksCommandTestCase(TestCase):
     @patch("django.utils.timezone.make_aware")
     def test_manage_tasks_create_with_scheduled_time(self, mock_make_aware):
         """Test manage_tasks create with scheduled time."""
-        from datetime import datetime
 
         # Mock make_aware to return the naive datetime to avoid timezone issues in tests
         mock_make_aware.side_effect = lambda dt: dt

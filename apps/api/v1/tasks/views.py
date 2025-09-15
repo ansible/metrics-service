@@ -10,22 +10,22 @@ from typing import Any
 
 from django.http import HttpRequest
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from apps.tasks.models import Task, TaskExecution
 from apps.core.utils import build_error_response
-from ..base_views import BaseViewSet
+from apps.tasks.models import Task, TaskExecution
 
+from ..base_views import BaseViewSet
 from .serializers import (
-    TaskSerializer,
-    TaskCreateSerializer,
-    TaskListSerializer,
     TaskCleanupSerializer,
+    TaskCreateSerializer,
     TaskExecutionSerializer,
+    TaskListSerializer,
+    TaskSerializer,
 )
 
 

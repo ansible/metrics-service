@@ -2,8 +2,9 @@
 Simplified tests for coverage without complex Django setup.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from .test_common import (
     BaseTaskFunctionsTest,

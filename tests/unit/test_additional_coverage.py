@@ -10,9 +10,9 @@ from django.test import TestCase
 
 from apps.core.admin import OrganizationAdmin, TeamAdmin, UserAdmin
 from apps.core.models import Organization, Team, User
-from apps.tasks.models import Task
-from apps.tasks.admin import TaskAdmin
 from apps.core.signals import organization_post_save, team_post_save, user_post_save, user_pre_delete
+from apps.tasks.admin import TaskAdmin
+from apps.tasks.models import Task
 
 
 @pytest.mark.unit

@@ -85,6 +85,7 @@ class UserViewSetTestCase(APITestCase):
         # Response code depends on permissions, but should not be 401
         self.assertNotEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+
 @pytest.mark.unit
 class OrganizationViewSetTestCase(APITestCase):
     """Test cases for OrganizationViewSet."""
@@ -94,7 +95,6 @@ class OrganizationViewSetTestCase(APITestCase):
         self.client = APIClient()
         self.user = User.objects.create_superuser(username="orguser", email="org@example.com", password="testpass123")
         self.organization = Organization.objects.create(name="Test Organization")
-
 
     def test_organization_detail_authenticated(self):
         """Test organization detail endpoint."""
@@ -146,7 +146,6 @@ class TeamViewSetTestCase(APITestCase):
         self.user = User.objects.create_superuser(username="teamuser", email="team@example.com", password="testpass123")
         self.organization = Organization.objects.create(name="Test Organization")
         self.team = Team.objects.create(name="Test Team", organization=self.organization)
-
 
     def test_team_detail_authenticated(self):
         """Test team detail endpoint."""

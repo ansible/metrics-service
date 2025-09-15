@@ -97,8 +97,7 @@ class Command(BaseCommand):
             }
 
             logger.info(
-                f"Configuring dispatcherd with database: "
-                f"{db_config['HOST']}:{db_config['PORT']}/{db_config['NAME']}"
+                f"Configuring dispatcherd with database: {db_config['HOST']}:{db_config['PORT']}/{db_config['NAME']}"
             )
             dispatcherd.config.setup(dispatcherd_config)
 
