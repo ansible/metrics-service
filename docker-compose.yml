@@ -8,7 +8,8 @@ services:
       POSTGRES_USER: metrics_service
       POSTGRES_PASSWORD: metrics_service
     healthcheck:
-      test: ['CMD', 'pg_isready', '-U', 'metrics_service', '-d', 'metrics_service']
+      test:
+        ['CMD', 'pg_isready', '-U', 'metrics_service', '-d', 'metrics_service']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,7 +44,6 @@ services:
       redis:
         condition: service_started
     environment:
-      METRICS_SERVICE_ENV: development
       METRICS_SERVICE_SECRET_KEY: dev-secret-key-change-in-production
       METRICS_SERVICE_DB_ENGINE: django.db.backends.postgresql
       METRICS_SERVICE_DB_HOST: postgres
@@ -53,8 +53,8 @@ services:
       METRICS_SERVICE_DB_NAME: metrics_service
       METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
       METRICS_SERVICE_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service,0.0.0.0
-      METRICS_SERVICE_DEBUG: "true"
-      DJANGO_SETTINGS_MODULE: metrics_service.settings.development
+      METRICS_SERVICE_DEBUG: 'true'
+      DJANGO_SETTINGS_MODULE: metrics_service.settings
     networks:
       - metrics-service
 

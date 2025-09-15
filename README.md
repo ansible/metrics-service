@@ -236,7 +236,6 @@ Configure the service using environment variables with the `metrics_service_` pr
 
 ```bash
 # Core settings
-METRICS_SERVICE_ENV=development
 METRICS_SERVICE_SECRET_KEY=your-secret-key
 metrics_service_ALLOWED_HOSTS=localhost,127.0.0.1
 
@@ -696,7 +695,6 @@ The service automatically registers with AAP Gateway when deployed in AAP-dev:
 Enable debug mode for development:
 
 ```bash
-export METRICS_SERVICE_ENV=development
 export DJANGO_DEBUG=true
 ```
 
