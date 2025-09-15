@@ -4,8 +4,9 @@ This module performs validation and dynamic configuration after all settings
 are loaded.
 """
 
-import os
 import logging
+import os
+
 from django.conf import settings
 
 # Validate required environment variables for production
@@ -49,7 +50,7 @@ if db_config.get("ENGINE") == "django.db.backends.postgresql":
 
 # Process feature flags from environment
 feature_flags = getattr(settings, "FEATURE_FLAGS", {})
-for flag_name in feature_flags.keys():
+for flag_name in feature_flags():
     env_var = f"METRICS_SERVICE_{flag_name}"
     if os.environ.get(env_var):
         feature_flags[flag_name] = os.environ.get(env_var, "false").lower() == "true"
@@ -69,7 +70,7 @@ if "ansible_base.oauth2_provider" in installed_apps:
 # Configure JWT settings if enabled
 if getattr(settings, "JWT_CONSUMER_ENABLED", False):
     JWT_CONSUMER = {
-        "JWT_SECRET_KEY": getattr(settings, "SECRET_KEY"),
+        "JWT_SECRET_KEY": settings.SECRET_KEY,
         "JWT_ALGORITHM": getattr(settings, "JWT_CONSUMER_ALGORITHM", "HS256"),
         "JWT_EXPIRATION_DELTA": int(os.environ.get("METRICS_SERVICE_JWT_EXPIRATION", "3600")),
     }
