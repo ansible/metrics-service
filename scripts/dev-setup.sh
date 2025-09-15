@@ -145,4 +145,4 @@ if [ "$DOCKER_AVAILABLE" = true ]; then
     echo "To stop containers: docker-compose down"
     echo "To start full stack: docker-compose up"
 fi
-echo "" 
+echo ""

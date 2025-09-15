@@ -97,7 +97,6 @@ This is a Django-based service following Ansible Automation Platform (AAP) stand
 
 - **`apps/core/`** - Core business logic, models, and background tasks
 - **`apps/api/v1/`** - Versioned REST API endpoints with reduced code duplication
-- **`apps/health/`** - Health check endpoints for Kubernetes deployment
 - **`metrics_service/settings/`** - Split Django settings (development, production, test)
 - **`tests/`** - Comprehensive test suite (unit, integration, functional)
 
