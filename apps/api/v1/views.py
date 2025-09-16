@@ -22,7 +22,7 @@ from .serializers import (
 class UserViewSet(BaseViewSet, UserManagementMixin):
     """
     ViewSet for User model following AAP patterns.
-    
+
     This ViewSet provides comprehensive user management functionality
     including password setting and profile management.
     """
@@ -75,7 +75,7 @@ class UserViewSet(BaseViewSet, UserManagementMixin):
 class OrganizationViewSet(BaseViewSet, UserManagementMixin):
     """
     ViewSet for Organization model following AAP patterns.
-    
+
     This ViewSet provides comprehensive organization management functionality
     including user and admin management.
     """

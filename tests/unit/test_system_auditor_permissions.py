@@ -45,6 +45,11 @@ class SystemAuditorPermissionTests(APITestCase):
             username="regularuser", email="regular@example.com", password="regularpass123"
         )
 
+        # Create organization admin user
+        self.org_admin = User.objects.create_user(
+            username="orgadmin", email="orgadmin@example.com", password="orgadminpass123"
+        )
+
         # Create test organizations with different access patterns
         self.org1 = Organization.objects.create(name="Organization Alpha", description="First test organization")
 
@@ -52,6 +57,9 @@ class SystemAuditorPermissionTests(APITestCase):
 
         # Set up organization membership for regular user (only in org1)
         self.org1.users.add(self.regular_user)
+        
+        # Set up organization admin (admin of org1)
+        self.org1.admins.add(self.org_admin)
 
     def test_system_auditor_user_method(self):
         """Test is_system_auditor_user() method returns correct values."""
@@ -305,17 +313,10 @@ class SystemAuditorAccessQsTests(APITestCase):
         # Get queryset filtered for regular user
         regular_qs = Organization.access_qs(self.regular_user)
 
-        # NOTE: Current implementation returns all objects (fallback)
-        # When proper RBAC is implemented, this should be filtered
-        # For now, we document the expected behavior:
 
-        # Expected behavior when RBAC is fully implemented:
-        # self.assertEqual(regular_qs.count(), 1)
-        # self.assertIn(self.org1, regular_qs)
-        # self.assertNotIn(self.org2, regular_qs)
-
-        # Current fallback behavior:
-        self.assertEqual(regular_qs.count(), 2)  # Shows all due to fallback
+        self.assertEqual(regular_qs.count(), 1)
+        self.assertIn(self.org1, regular_qs)
+        self.assertNotIn(self.org2, regular_qs)
 
     def test_system_auditor_user_access_qs_shows_all_users(self):
         """Test system auditor sees all users in User.access_qs."""

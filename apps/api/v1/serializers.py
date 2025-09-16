@@ -161,7 +161,6 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
             # Future related endpoints can be added here, e.g.:
             # "teams": request.build_absolute_uri(f"/api/v1/organizations/{obj.id}/teams/"),
         }
-<<<<<<< HEAD
 
     def get_object_role(self, obj):
         """
@@ -186,5 +185,106 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
         }
 
         return permissions
-=======
->>>>>>> POCDashboardRefactor
+
+
+class TeamSerializer(BaseModelSerializer, CountFieldMixin):
+    """
+    Serializer for Team model following AAP patterns.
+    
+    This serializer provides comprehensive team data including
+    user counts, organization details, and permission information.
+    """
+
+    # Use CountFieldMixin for user counts
+    users_count = serializers.SerializerMethodField()
+    admins_count = serializers.SerializerMethodField()
+    
+    # Organization details
+    organization_name = serializers.CharField(source="organization.name", read_only=True)
+    organization_url = serializers.HyperlinkedRelatedField(
+        source="organization",
+        view_name="api:v1:organization-detail",
+        read_only=True
+    )
+    
+    # Related URLs and permissions
+    related = serializers.SerializerMethodField()
+    object_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Team
+        fields = [
+            "id",
+            "url", 
+            "name",
+            "description",
+            "organization",
+            "organization_name",
+            "organization_url",
+            "users_count",
+            "admins_count",
+            "related",
+            "object_role",
+            "created",
+            "modified",
+        ]
+        read_only_fields = [
+            "id",
+            "url",
+            "organization_name", 
+            "organization_url",
+            "users_count",
+            "admins_count",
+            "related",
+            "object_role",
+            "created",
+            "modified",
+        ]
+        extra_kwargs = {
+            "url": {"view_name": "api:v1:team-detail"},
+            "organization": {
+                "view_name": "api:v1:organization-detail",
+                "queryset": Organization.objects.all()
+            },
+        }
+
+    def get_users_count(self, obj):
+        """Return count of users in team."""
+        return obj.users.count()
+
+    def get_admins_count(self, obj):
+        """Return count of admins in team."""
+        return obj.admins.count()
+
+    def get_related(self, obj):
+        """Return related URLs for this team."""
+        request = self.context.get("request")
+        if not request:
+            return {}
+
+        return {
+            "users": request.build_absolute_uri(f"/api/v1/teams/{obj.id}/users/"),
+            "admins": request.build_absolute_uri(f"/api/v1/teams/{obj.id}/admins/"),
+            "organization": request.build_absolute_uri(f"/api/v1/organizations/{obj.organization.id}/"),
+        }
+
+    def get_object_role(self, obj):
+        """
+        Return object-level permissions for the current user.
+        """
+        request = self.context.get("request")
+        if not request or not request.user:
+            return {"add": False, "edit": False, "delete": False}
+
+        user = request.user
+        app_label = obj._meta.app_label
+        model_name = obj._meta.model_name
+
+        # Use Django's permission system
+        permissions = {
+            "add": user.has_perm(f"{app_label}.add_{model_name}"),
+            "edit": user.has_perm(f"{app_label}.change_{model_name}", obj),
+            "delete": user.has_perm(f"{app_label}.delete_{model_name}", obj),
+        }
+
+        return permissions
