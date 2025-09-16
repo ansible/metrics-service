@@ -1,48 +1,45 @@
 """
 API v1 views for metrics_service following AAP standards.
-
-This module provides ViewSets for the API v1 endpoints with reduced
-code duplication through the use of base ViewSet classes and mixins.
 """
 
-from typing import Any
-
-from django.http import HttpRequest
+from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
+from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
 from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.core.models import Organization, User
+from apps.core.permissions import SystemAuditorAwarePermissions
 
-from .base_views import BaseViewSet, UserManagementMixin
 from .serializers import (
     OrganizationSerializer,
     UserSerializer,
 )
 
 
-class UserViewSet(BaseViewSet):
-    """
-    ViewSet for User model following AAP patterns.
-
-    This ViewSet provides comprehensive user management functionality
-    including current user information and password management.
-    """
+class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
+    """ViewSet for User model following AAP patterns."""
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [OAuth2ScopePermission, SystemAuditorAwarePermissions]
     search_fields = ["username", "first_name", "last_name", "email"]
     filterset_fields = {
         "username": ["exact", "icontains"],
         "email": ["exact", "icontains"],
         "is_active": ["exact"],
-        "is_staff": ["exact"],
         "is_superuser": ["exact"],
-        "date_joined": ["gte", "lte"],
+        "is_system_auditor": ["exact"],
+        "created": ["gte", "lte"],
     }
-    ordering_fields = ["username", "email", "first_name", "last_name", "date_joined"]
+    ordering_fields = ["username", "email", "first_name", "last_name", "created"]
     ordering = ["username"]
+
+    def get_queryset(self):
+        """Filter queryset based on user permissions using DAB patterns."""
+        # Use DAB's access_qs method - when DAB is fully configured, this will handle all RBAC
+        return User.access_qs(self.request.user, queryset=self.queryset)
 
     @extend_schema(
         operation_id="users_me_retrieve",
@@ -50,13 +47,8 @@ class UserViewSet(BaseViewSet):
         responses={200: UserSerializer},
     )
     @action(detail=False, methods=["get"])
-    def me(self, request: HttpRequest) -> Response:
-        """
-        Return current user information.
-
-        Returns:
-            Response: Serialized current user data
-        """
+    def me(self, request):
+        """Return current user information."""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
@@ -67,17 +59,8 @@ class UserViewSet(BaseViewSet):
         responses={204: None},
     )
     @action(detail=True, methods=["post"])
-    def set_password(self, request: HttpRequest, pk: Any = None) -> Response:
-        """
-        Set password for a user.
-
-        Args:
-            request: HTTP request containing password data
-            pk: Primary key of the user
-
-        Returns:
-            Response: Success or error response
-        """
+    def set_password(self, request, pk=None):
+        """Set password for a user."""
         user = self.get_object()
         password = request.data.get("password")
 
@@ -89,16 +72,12 @@ class UserViewSet(BaseViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class OrganizationViewSet(BaseViewSet, UserManagementMixin):
-    """
-    ViewSet for Organization model following AAP patterns.
-
-    This ViewSet provides comprehensive organization management functionality
-    including user and admin management through the UserManagementMixin.
-    """
+class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
+    """ViewSet for Organization model following AAP patterns."""
 
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
+    permission_classes = [OAuth2ScopePermission, SystemAuditorAwarePermissions]
     search_fields = ["name", "description"]
     filterset_fields = {
         "name": ["exact", "icontains"],
@@ -109,3 +88,51 @@ class OrganizationViewSet(BaseViewSet, UserManagementMixin):
     }
     ordering_fields = ["name", "created", "modified"]
     ordering = ["name"]
+
+    def get_queryset(self):
+        """Filter queryset based on user permissions using DAB patterns."""
+        user = self.request.user
+        return Organization.access_qs(user, queryset=self.queryset)
+
+    @extend_schema(
+        operation_id="organizations_users",
+        description="Get users in organization OR add user to organization",
+        request={
+            "GET": None,  # No request body for GET
+            "POST": {"id": "integer", "disassociate": "boolean"},
+        },
+        responses={
+            200: UserSerializer(many=True),  # GET response
+            204: None,  # POST response
+        },
+    )
+    @action(detail=True, methods=["get", "post"])
+    def users(self, request, pk=None):
+        """Get users in organization OR add user to organization."""
+        organization = self.get_object()
+
+        if request.method == "GET":
+            # Return list of users (current behavior)
+            users = organization.users.all()
+            serializer = UserSerializer(users, many=True, context={"request": request})
+            return Response(serializer.data)
+
+        elif request.method == "POST":
+            # Add/remove user to/from organization
+            user_id = request.data.get("id")
+            disassociate = request.data.get("disassociate", False)
+
+            if not user_id:
+                return Response({"error": "User id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                user = User.objects.get(id=user_id)
+
+                if disassociate:
+                    organization.users.remove(user)
+                else:
+                    organization.users.add(user)
+
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)

@@ -100,7 +100,6 @@ class APIUtilsTestCase(TestCase):
             reverse("api:v1:user-list")
             reverse("api:v1:organization-list")
             reverse("api:v1:team-list")
-            reverse("api:v1:animal-list")
         except Exception as e:
             self.fail(f"API URL reversal failed: {e}")
 

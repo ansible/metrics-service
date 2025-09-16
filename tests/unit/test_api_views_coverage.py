@@ -7,7 +7,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.core.models import Animal, Organization, Team, User
+from apps.core.models import Organization, Team, User
 
 
 @pytest.mark.unit
@@ -68,60 +68,6 @@ class APIViewsCoverageTestCase(APITestCase):
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Organization.objects.filter(pk=self.organization.pk).exists())
-
-    def test_animal_list_view_methods(self):
-        """Test different HTTP methods on animal list view."""
-        self.client.force_authenticate(user=self.admin_user)
-        url = reverse("api:v1:animal-list")
-
-        # Test GET
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Test POST
-        data = {"name": "New Animal", "kind": "cat"}
-        response = self.client.post(url, data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_animal_detail_view_methods(self):
-        """Test different HTTP methods on animal detail view."""
-        animal = Animal.objects.create(name="Test Animal", kind="dog")
-
-        self.client.force_authenticate(user=self.admin_user)
-        url = reverse("api:v1:animal-detail", kwargs={"pk": animal.pk})
-
-        # Test GET
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Test PUT
-        data = {"name": "Updated Animal", "kind": "cat"}
-        response = self.client.put(url, data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Test DELETE
-        response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-    def test_animal_search_functionality(self):
-        """Test animal search functionality."""
-        # Create test animals
-        Animal.objects.create(name="Fluffy Cat", kind="cat")
-        Animal.objects.create(name="Buddy Dog", kind="dog")
-        Animal.objects.create(name="Charlie Cat", kind="cat")
-
-        self.client.force_authenticate(user=self.admin_user)
-        url = reverse("api:v1:animal-list")
-
-        # Test search by name
-        response = self.client.get(url, {"search": "Cat"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 2)
-
-        # Test search by kind
-        response = self.client.get(url, {"search": "dog"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
 
     def test_user_list_view_methods(self):
         """Test different HTTP methods on user list view."""
