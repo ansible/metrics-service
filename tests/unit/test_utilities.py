@@ -174,8 +174,11 @@ class PerformanceUtilsTestCase(TestCase):
 
         self.assertIn("ENGINE", db_config)
 
-        # For SQLite, check that it's in memory for tests
-        if "sqlite3" in db_config["ENGINE"]:
+        # For PostgreSQL, check that connection parameters are present
+        if "postgresql" in db_config["ENGINE"]:
+            self.assertTrue("HOST" in db_config)
+            self.assertTrue("PORT" in db_config)
+            self.assertTrue("USER" in db_config)
             self.assertTrue("NAME" in db_config)
 
     def test_cache_optimization_settings(self):

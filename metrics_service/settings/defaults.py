@@ -32,6 +32,7 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "rest_framework",
+    "rest_framework.authtoken",
     "drf_spectacular",
     "corsheaders",
     "oauth2_provider",
@@ -47,11 +48,11 @@ DAB_APPS = [
     "ansible_base.rest_pagination",  # Add when needed
     "ansible_base.rbac",  # Add when needed
     "ansible_base.authentication",  # Add when needed
-    "ansible_base.oauth2_provider",  # Add when needed
+    # "ansible_base.oauth2_provider",  # Disabled due to model conflicts
     "ansible_base.activitystream",  # Add when needed
     "ansible_base.jwt_consumer",  # Add when needed
     "ansible_base.resource_registry",  # Add when needed
-    "ansible_base.feature_flags",  # Add when needed
+    # "ansible_base.feature_flags",  # Disabled due to missing 'flags' module
 ]
 
 DAB_APPS = [
@@ -112,48 +113,35 @@ WSGI_APPLICATION = "metrics_service.wsgi.application"
 ASGI_APPLICATION = "metrics_service.asgi.application"
 
 # Database
-# Default to SQLite for immediate development, override with environment variables for production
+# PostgreSQL as default database for development
 DATABASES = {
     "default": {
-        "ENGINE": os.environ.get("METRICS_SERVICE_DB_ENGINE", "django.db.backends.sqlite3"),
-        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", BASE_DIR / "db.sqlite3"),
-        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", ""),
-        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", ""),
-        "USER": os.environ.get("METRICS_SERVICE_DB_USER", ""),
-        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", ""),
-        "OPTIONS": {},
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
+        "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
+        "OPTIONS": {
+            "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
+        },
     }
 }
 
-# Override for PostgreSQL when environment variables are set
-if os.environ.get("METRICS_SERVICE_DB_ENGINE") == "django.db.backends.postgresql":
-    DATABASES["default"].update(
-        {
-            "ENGINE": "django.db.backends.postgresql",
-            "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
-            "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
-            "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
-            "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
-            "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
-            "OPTIONS": {
-                "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
-            },
-        }
-    )
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": ("django.contrib.auth.password_validation.UserAttributeSimilarityValidator"),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator"),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+        "NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator"),
     },
 ]
 
@@ -180,22 +168,31 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Custom User Model
 AUTH_USER_MODEL = "core.User"
 
+# Redirect unauthenticated users to our custom login page
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/api/v1/"
+LOGOUT_REDIRECT_URL = "/login/"
+
+
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.BasicAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "UNAUTHENTICATED_USER": None,
+    "UNAUTHENTICATED_TOKEN": None,
     "DEFAULT_FILTER_BACKENDS": [
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": ("rest_framework.pagination.PageNumberPagination"),
     "PAGE_SIZE": 25,
-    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
+    "DEFAULT_VERSIONING_CLASS": ("rest_framework.versioning.NamespaceVersioning"),
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -230,7 +227,6 @@ ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = True
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
-ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {}
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
@@ -242,19 +238,6 @@ AUTHENTICATION_BACKENDS = [
 JWT_CONSUMER_ENABLED = True
 JWT_CONSUMER_ALGORITHM = "HS256"
 
-# OAuth2 Provider Configuration
-OAUTH2_PROVIDER = {
-    "SCOPES": {
-        "read": "Read scope",
-        "write": "Write scope",
-    },
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
-    "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
-}
-OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
-OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
-OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
-
 # Resource Server Configuration
 RESOURCE_SERVER = {
     # 'URL': 'https://aap-gw-proxy-1:9080',
@@ -264,19 +247,39 @@ RESOURCE_SERVER = {
 RESOURCE_SERVER_SYNC_ENABLED = False
 
 # Background Task Configuration (Dispatcherd)
-# Dispatcherd is always enabled in this service
-DISPATCHERD_ENABLED = True
+DISPATCHERD_ENABLED = os.environ.get("METRICS_SERVICE_DISPATCHERD_ENABLED", "false").lower() == "true"
 
 # Feature Flags
 FEATURE_FLAGS = {
-    "DISPATCHERD_ENABLED": True,
+    "DISPATCHERD_ENABLED": DISPATCHERD_ENABLED,
 }
+
+# OAuth2 Provider Configuration
+OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
+OAUTH2_PROVIDER_ID_TOKEN_MODEL = "oauth2_provider.IDToken"
+OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
+OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
+OAUTH2_PROVIDER = {
+    "SCOPES": {
+        "read": "Read access",
+        "write": "Write access",
+    },
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 86400,
+}
+
+# Ansible Base RBAC Model Registry
+ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {}
+ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {}
 
 # Cache Configuration
 # Default to local memory cache for development, override for production
 CACHES = {
     "default": {
-        "BACKEND": os.environ.get("METRICS_SERVICE_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
+        "BACKEND": os.environ.get(
+            "METRICS_SERVICE_CACHE_BACKEND",
+            "django.core.cache.backends.locmem.LocMemCache",
+        ),
         "LOCATION": os.environ.get("METRICS_SERVICE_CACHE_LOCATION", "default"),
     }
 }
@@ -288,9 +291,8 @@ if os.environ.get("METRICS_SERVICE_REDIS_URL"):
         "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL"),
     }
 
-# Session Configuration
-SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-SESSION_CACHE_ALIAS = "default"
+# Session Configuration - Use database for persistent sessions in development
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # Logging Configuration (will be enhanced in post_load.py)
 LOGGING = {
@@ -307,7 +309,7 @@ LOGGING = {
             "style": "{",
         },
         "verbose": {
-            "format": "{asctime} {levelname:<8} [{request_id}] {name} {message}",
+            "format": ("{asctime} {levelname:<8} [{request_id}] {name} {message}"),
             "style": "{",
         },
     },

@@ -192,7 +192,7 @@ FEATURE_FLAGS = {
 
 ### Database Configuration
 
-- **Development** - SQLite by default for immediate setup
+- **Development** - PostgreSQL for consistent development/production setup
 - **Production** - PostgreSQL with environment variable configuration
 - **Docker** - Includes PostgreSQL and Redis services
 
