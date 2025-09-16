@@ -74,7 +74,7 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         if password and confirm_password:
             if password != confirm_password:
                 raise serializers.ValidationError({"confirm_password": "Password and confirm password do not match."})
-        
+
         # If confirm_password is provided without password, that's an error
         elif confirm_password and not password:
             raise serializers.ValidationError(
