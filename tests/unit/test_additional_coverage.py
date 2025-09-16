@@ -8,9 +8,9 @@ import pytest
 from django.contrib.admin.sites import AdminSite
 from django.test import TestCase
 
-from apps.core.admin import AnimalAdmin, OrganizationAdmin, TaskAdmin, TeamAdmin, UserAdmin
-from apps.core.models import Animal, Organization, Task, Team, User
-from apps.core.signals import animal_post_save, organization_post_save, team_post_save, user_post_save, user_pre_delete
+from apps.core.admin import OrganizationAdmin, TaskAdmin, TeamAdmin, UserAdmin
+from apps.core.models import Organization, Task, Team, User
+from apps.core.signals import organization_post_save, team_post_save, user_post_save, user_pre_delete
 
 
 @pytest.mark.unit
@@ -59,13 +59,6 @@ class AdminCoverageTestCase(TestCase):
 
         self.assertIn("name", admin.list_display)
         self.assertIn("organization", admin.list_display)
-
-    def test_animal_admin_configuration(self):
-        """Test AnimalAdmin configuration."""
-        admin = AnimalAdmin(Animal, self.site)
-
-        self.assertIn("name", admin.list_display)
-        self.assertIn("kind", admin.list_display)
 
     def test_task_admin_configuration(self):
         """Test TaskAdmin configuration."""
@@ -172,19 +165,6 @@ class SignalsCoverageTestCase(TestCase):
 
         # Should log team creation
         mock_logger.info.assert_called_with(f"Team created: {instance.name} (ID: {instance.id})")
-
-    @patch("apps.core.signals.logger")
-    def test_animal_post_save_signal(self, mock_logger):
-        """Test animal_post_save signal handler."""
-        animal = Animal.objects.create(name="Test Animal", kind="dog")
-        sender = Animal
-        instance = animal
-        created = True
-
-        animal_post_save(sender, instance, created)
-
-        # Should log animal creation
-        mock_logger.info.assert_called_with(f"Animal created: {instance.name} (ID: {instance.id})")
 
 
 @pytest.mark.unit

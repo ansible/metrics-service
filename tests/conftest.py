@@ -17,7 +17,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from rest_framework.test import APIClient
 
-from apps.core.models import Animal, Organization, Team
+from apps.core.models import Organization, Team
 
 User = get_user_model()
 
@@ -81,7 +81,11 @@ def user():
 def admin_user():
     """Create a test admin user."""
     return User.objects.create_user(
-        username="admin", email="admin@example.com", password="adminpassword123", is_staff=True, is_superuser=True
+        username="admin",
+        email="admin@example.com",
+        password="adminpassword123",
+        is_system_auditor=False,
+        is_superuser=True,
     )
 
 
@@ -95,12 +99,6 @@ def organization():
 def team(organization):
     """Create a test team."""
     return Team.objects.create(name="Test Team", organization=organization)
-
-
-@pytest.fixture
-def animal(user):
-    """Create a test animal."""
-    return Animal.objects.create(name="Test Pet", kind="dog", age=3, owner=user)
 
 
 @pytest.fixture
