@@ -57,7 +57,7 @@ class SystemAuditorPermissionTests(APITestCase):
 
         # Set up organization membership for regular user (only in org1)
         self.org1.users.add(self.regular_user)
-        
+
         # Set up organization admin (admin of org1)
         self.org1.admins.add(self.org_admin)
 
@@ -150,7 +150,7 @@ class SystemAuditorPermissionTests(APITestCase):
         # Current behavior due to RBAC issue:
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-        # System auditor should be able to view org2 details  
+        # System auditor should be able to view org2 details
         url = reverse("api:v1:organization-detail", kwargs={"pk": self.org2.pk})
         response = self.client.get(url)
         # Expected when RBAC is fixed: self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -160,16 +160,15 @@ class SystemAuditorPermissionTests(APITestCase):
     def test_system_auditor_api_cannot_create_organizations(self):
         """Test system auditor cannot create organizations via API."""
         self.client.force_authenticate(user=self.system_auditor)
-        url = reverse("api:v1:organization-list")
+        reverse("api:v1:organization-list")
 
-        data = {"name": "New Organization", "description": "Auditor should not be able to create this"}
-        
+
         # NOTE: This test currently causes a 500 error due to missing DAB settings
         # When RBAC is properly configured, this should return 403
         # For now, we'll skip the actual request that causes the error
         # response = self.client.post(url, data, format="json")
         # self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        
+
         # Test passes by documenting expected behavior
         self.assertTrue(True, "System auditor should not be able to create organizations")
 
@@ -225,13 +224,13 @@ class SystemAuditorPermissionTests(APITestCase):
         # Cannot create users
         url = reverse("api:v1:user-list")
         data = {"username": "newuser", "email": "newuser@example.com", "password": "newpass123"}
-        
+
         # NOTE: This test currently causes a 500 error due to missing DAB settings
         # When RBAC is properly configured, this should return 403
         # For now, we'll skip the actual request that causes the error
         # response = self.client.post(url, data, format="json")
         # self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        
+
         # Test passes by documenting expected behavior
         self.assertTrue(True, "System auditor should not be able to create users")
 
