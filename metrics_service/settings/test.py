@@ -57,6 +57,12 @@ AUTH_USER_MODEL = "core.User"
 ANSIBLE_BASE_RBAC_MODEL_REGISTRY: dict[str, str] = {}
 ANSIBLE_BASE_MANAGED_ROLE_REGISTRY: dict[str, str] = {}
 ANSIBLE_BASE_BYPASS_SUPERUSER_FLAGS = ["is_superuser"]
+ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {
+    "create": "is_superuser",
+    "read": "is_superuser", 
+    "update": "is_superuser",
+    "delete": "is_superuser",
+}
 ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 
