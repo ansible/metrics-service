@@ -13,7 +13,7 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for User model following AAP patterns."""
 
     confirm_password = serializers.CharField(
-        write_only=True, required=True, help_text="Confirm password - must match the password field"
+        write_only=True, required=False, help_text="Confirm password - must match the password field"
     )
     organization = serializers.PrimaryKeyRelatedField(
         queryset=Organization.objects.all(),
@@ -46,7 +46,7 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
             "modified",
         ]
         extra_kwargs = {
-            "password": {"write_only": True},
+            "password": {"write_only": True, "required": False},
             "url": {"view_name": "api:v1:user-detail"},
         }
 
@@ -66,19 +66,20 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         return fields
 
     def validate(self, data):
-        """Validate that password and confirm_password match."""
+        """Validate that password and confirm_password match when both are provided."""
         password = data.get("password")
         confirm_password = data.get("confirm_password")
 
-        # Only check password confirmation if password is being set
-        if password:
-            if not confirm_password:
-                raise serializers.ValidationError(
-                    {"confirm_password": "Password confirmation is required when setting a password."}
-                )
-
+        # Only validate password confirmation if both password and confirm_password are provided
+        if password and confirm_password:
             if password != confirm_password:
                 raise serializers.ValidationError({"confirm_password": "Password and confirm password do not match."})
+        
+        # If confirm_password is provided without password, that's an error
+        elif confirm_password and not password:
+            raise serializers.ValidationError(
+                {"password": "Password is required when providing password confirmation."}
+            )
 
         return data
 
@@ -190,7 +191,7 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
 class TeamSerializer(BaseModelSerializer, CountFieldMixin):
     """
     Serializer for Team model following AAP patterns.
-    
+
     This serializer provides comprehensive team data including
     user counts, organization details, and permission information.
     """
@@ -198,15 +199,13 @@ class TeamSerializer(BaseModelSerializer, CountFieldMixin):
     # Use CountFieldMixin for user counts
     users_count = serializers.SerializerMethodField()
     admins_count = serializers.SerializerMethodField()
-    
+
     # Organization details
     organization_name = serializers.CharField(source="organization.name", read_only=True)
     organization_url = serializers.HyperlinkedRelatedField(
-        source="organization",
-        view_name="api:v1:organization-detail",
-        read_only=True
+        source="organization", view_name="api:v1:organization-detail", read_only=True
     )
-    
+
     # Related URLs and permissions
     related = serializers.SerializerMethodField()
     object_role = serializers.SerializerMethodField()
@@ -215,7 +214,7 @@ class TeamSerializer(BaseModelSerializer, CountFieldMixin):
         model = Team
         fields = [
             "id",
-            "url", 
+            "url",
             "name",
             "description",
             "organization",
@@ -231,7 +230,7 @@ class TeamSerializer(BaseModelSerializer, CountFieldMixin):
         read_only_fields = [
             "id",
             "url",
-            "organization_name", 
+            "organization_name",
             "organization_url",
             "users_count",
             "admins_count",
@@ -242,10 +241,7 @@ class TeamSerializer(BaseModelSerializer, CountFieldMixin):
         ]
         extra_kwargs = {
             "url": {"view_name": "api:v1:team-detail"},
-            "organization": {
-                "view_name": "api:v1:organization-detail",
-                "queryset": Organization.objects.all()
-            },
+            "organization": {"view_name": "api:v1:organization-detail", "queryset": Organization.objects.all()},
         }
 
     def get_users_count(self, obj):

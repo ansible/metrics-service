@@ -57,7 +57,7 @@ class SystemAuditorPermissionTests(APITestCase):
 
         # Set up organization membership for regular user (only in org1)
         self.org1.users.add(self.regular_user)
-        
+
         # Set up organization admin (admin of org1)
         self.org1.admins.add(self.org_admin)
 
@@ -312,7 +312,6 @@ class SystemAuditorAccessQsTests(APITestCase):
         """Test regular user only sees organizations they belong to."""
         # Get queryset filtered for regular user
         regular_qs = Organization.access_qs(self.regular_user)
-
 
         self.assertEqual(regular_qs.count(), 1)
         self.assertIn(self.org1, regular_qs)
