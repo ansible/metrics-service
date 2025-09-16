@@ -48,27 +48,25 @@ DAB_APPS = [
     "ansible_base.rest_pagination",  # Add when needed
     "ansible_base.rbac",  # Add when needed
     "ansible_base.authentication",  # Add when needed
-    # "ansible_base.oauth2_provider",  # Disabled due to model conflicts
+    # "ansible_base.oauth2_provider",  # Temporarily disabled due to model conflicts
     "ansible_base.activitystream",  # Add when needed
     "ansible_base.jwt_consumer",  # Add when needed
     "ansible_base.resource_registry",  # Add when needed
-    # "ansible_base.feature_flags",  # Disabled due to missing 'flags' module
+    # "ansible_base.feature_flags",  # Temporarily disabled due to missing 'flags' module
 ]
 
-DAB_APPS = [
-    app.strip("# ")
-    for app in [
-        "ansible_base.rest_filters",
-        "ansible_base.rest_pagination",
-        "ansible_base.rbac",
-        "ansible_base.authentication",
-        "ansible_base.oauth2_provider",
-        "ansible_base.activitystream",
-        "ansible_base.jwt_consumer",
-        "ansible_base.resource_registry",
-        "ansible_base.feature_flags",
-    ]
-]
+# Uncomment the line below to enable all DAB features with development setup
+# DAB_APPS = [app.strip("# ") for app in [
+#     "ansible_base.rest_filters",
+#     "ansible_base.rest_pagination",
+#     "ansible_base.rbac",
+#     "ansible_base.authentication",
+#     "ansible_base.oauth2_provider",
+#     "ansible_base.activitystream",
+#     "ansible_base.jwt_consumer",
+#     "ansible_base.resource_registry",
+#     "ansible_base.feature_flags",
+# ]]
 
 LOCAL_APPS = [
     "apps.core",
@@ -113,35 +111,48 @@ WSGI_APPLICATION = "metrics_service.wsgi.application"
 ASGI_APPLICATION = "metrics_service.asgi.application"
 
 # Database
-# PostgreSQL as default database for development
+# Default to SQLite for immediate development, override with environment variables for production
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
-        "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
-        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
-        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
-        "OPTIONS": {
-            "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
-        },
+        "ENGINE": os.environ.get("METRICS_SERVICE_DB_ENGINE", "django.db.backends.sqlite3"),
+        "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", BASE_DIR / "db.sqlite3"),
+        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", ""),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", ""),
+        "USER": os.environ.get("METRICS_SERVICE_DB_USER", ""),
+        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", ""),
+        "OPTIONS": {},
     }
 }
 
+# Override for PostgreSQL when environment variables are set
+if os.environ.get("METRICS_SERVICE_DB_ENGINE") == "django.db.backends.postgresql":
+    DATABASES["default"].update(
+        {
+            "ENGINE": "django.db.backends.postgresql",
+            "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
+            "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+            "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+            "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
+            "OPTIONS": {
+                "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
+            },
+        }
+    )
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": ("django.contrib.auth.password_validation.UserAttributeSimilarityValidator"),
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator"),
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator"),
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -173,7 +184,6 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/api/v1/"
 LOGOUT_REDIRECT_URL = "/login/"
 
-
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -190,9 +200,9 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
-    "DEFAULT_PAGINATION_CLASS": ("rest_framework.pagination.PageNumberPagination"),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
-    "DEFAULT_VERSIONING_CLASS": ("rest_framework.versioning.NamespaceVersioning"),
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -276,10 +286,7 @@ ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {}
 # Default to local memory cache for development, override for production
 CACHES = {
     "default": {
-        "BACKEND": os.environ.get(
-            "METRICS_SERVICE_CACHE_BACKEND",
-            "django.core.cache.backends.locmem.LocMemCache",
-        ),
+        "BACKEND": os.environ.get("METRICS_SERVICE_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
         "LOCATION": os.environ.get("METRICS_SERVICE_CACHE_LOCATION", "default"),
     }
 }
@@ -309,7 +316,7 @@ LOGGING = {
             "style": "{",
         },
         "verbose": {
-            "format": ("{asctime} {levelname:<8} [{request_id}] {name} {message}"),
+            "format": "{asctime} {levelname:<8} [{request_id}] {name} {message}",
             "style": "{",
         },
     },
