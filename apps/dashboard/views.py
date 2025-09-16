@@ -4,8 +4,10 @@ Dashboard views for task management and monitoring.
 
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_safe
 
 
+@require_safe
 def dashboard_view(request: HttpRequest) -> HttpResponse:
     """
     Main dashboard view for task management.
