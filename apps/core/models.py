@@ -31,15 +31,15 @@ except ImportError:
 
     # Simple base classes when DAB is not available
     class CommonModel(models.Model):
-        created = models.DateTimeField(auto_now_add=True)
-        modified = models.DateTimeField(auto_now=True)
+        created: models.DateTimeField = models.DateTimeField(auto_now_add=True)
+        modified: models.DateTimeField = models.DateTimeField(auto_now=True)
 
         class Meta:
             abstract = True
 
     class NamedCommonModel(CommonModel):
-        name = models.CharField(max_length=512)
-        description = models.TextField(blank=True, default="")
+        name: models.CharField = models.CharField(max_length=512)
+        description: models.TextField = models.TextField(blank=True, default="")
 
         class Meta:
             abstract = True
@@ -57,7 +57,7 @@ except ImportError:
             abstract = True
 
     class AbstractTeam(NamedCommonModel):
-        organization = models.ForeignKey("Organization", on_delete=models.CASCADE)
+        organization: models.ForeignKey = models.ForeignKey("Organization", on_delete=models.CASCADE)
 
         class Meta:
             abstract = True
@@ -117,14 +117,14 @@ class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
 
     # UserRelatedMixin provides users and admins fields
     # Override to customize related_name for organizations
-    users = models.ManyToManyField(
+    users: models.ManyToManyField = models.ManyToManyField(
         "User",
         related_name="member_of_organizations",
         blank=True,
         help_text="The list of users on this organization",
     )
 
-    admins = models.ManyToManyField(
+    admins: models.ManyToManyField = models.ManyToManyField(
         "User",
         related_name="admin_of_organizations",
         blank=True,
@@ -132,7 +132,7 @@ class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
     )
 
     # Example custom field - replace or remove as needed
-    extra_field = models.CharField(max_length=100, null=True, blank=True)
+    extra_field: models.CharField = models.CharField(max_length=100, null=True, blank=True)
 
     def __str__(self):
         """
@@ -156,7 +156,7 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
         ordering = ["id"]
 
     # Override the groups and user_permissions to avoid conflicts with auth.User
-    groups = models.ManyToManyField(
+    groups: models.ManyToManyField = models.ManyToManyField(
         "auth.Group",
         verbose_name="groups",
         blank=True,
@@ -164,7 +164,7 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
         related_name="core_user_set",
         related_query_name="core_user",
     )
-    user_permissions = models.ManyToManyField(
+    user_permissions: models.ManyToManyField = models.ManyToManyField(
         "auth.Permission",
         verbose_name="user permissions",
         blank=True,
@@ -235,7 +235,7 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
     if DAB_AVAILABLE:
         resource = AnsibleResourceField(primary_key_field="id")
 
-    team_parents = models.ManyToManyField(
+    team_parents: models.ManyToManyField = models.ManyToManyField(
         "Team",
         related_name="team_children",
         blank=True,
@@ -243,14 +243,14 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
     )
 
     # Override UserRelatedMixin fields to use proper User model and related_name
-    users = models.ManyToManyField(
+    users: models.ManyToManyField = models.ManyToManyField(
         User,
         related_name="teams",
         blank=True,
         help_text="The list of users on this team",
     )
 
-    admins = models.ManyToManyField(
+    admins: models.ManyToManyField = models.ManyToManyField(
         User,
         related_name="teams_administered",
         blank=True,
@@ -258,7 +258,7 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
     )
 
     # Relations to ignore for certain operations
-    ignore_relations = []
+    ignore_relations: list[str] = []
 
     def __str__(self):
         """

@@ -32,7 +32,12 @@ class AccessControlMixin:
             QuerySet: Filtered queryset based on user permissions
         """
         if queryset is None:
-            queryset = cls.objects.all()
+            # Use type annotation to resolve mypy issue
+            manager = getattr(cls, "objects", None)
+            if manager:
+                queryset = manager.all()
+            else:
+                raise AttributeError(f"{cls.__name__} has no 'objects' manager")
 
         # For now, return all objects - in production this would implement proper RBAC
         # When DAB is fully configured, this method would be provided by the DAB base class
@@ -128,7 +133,8 @@ class UserRelatedMixin(models.Model):
         Returns:
             int: Number of users
         """
-        return self.users.count()
+        count_result = self.users.count()
+        return int(count_result)
 
     def get_admins_count(self) -> int:
         """
@@ -137,7 +143,8 @@ class UserRelatedMixin(models.Model):
         Returns:
             int: Number of admins
         """
-        return self.admins.count()
+        count_result = self.admins.count()
+        return int(count_result)
 
     def add_user(self, user: Any) -> None:
         """

@@ -499,15 +499,3 @@ class CommandValidationTestCase(TestCase):
             or "sleep length must be non-negative" in combined_output
             or "Error in task scheduler" in combined_output
         )
-
-    # def test_run_dispatcher_invalid_workers(self):
-    #     """Test run_dispatcher with invalid number of workers."""
-    #     out = StringIO()
-    #     err = StringIO()
-
-    #     call_command("run_dispatcher", "--workers", "0", stdout=out, stderr=err)
-
-    #     # Should either fail gracefully or handle invalid workers
-    #     output = out.getvalue()
-    #     # Workers=0 might be handled gracefully or cause import error since dispatcherd likely isn't installed
-    #     self.assertTrue("Starting dispatcherd" in output or "Import failed" in output or "not enabled" in output)

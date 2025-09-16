@@ -43,7 +43,7 @@ class Organization(NamedCommonModel):
         blank=True,
     )
 
-    admins = models.ManyToManyField(
+    admins: models.ManyToManyField = models.ManyToManyField(
         User,
         related_name="admin_of_organizations",
         blank=True,
@@ -58,7 +58,7 @@ class Team(NamedCommonModel):
 
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE)
     users = models.ManyToManyField(User, related_name="teams", blank=True)
-    admins = models.ManyToManyField(User, related_name="teams_administered", blank=True)
+    admins: models.ManyToManyField = models.ManyToManyField(User, related_name="teams_administered", blank=True)
 
     class Meta:
         app_label = "tests"
@@ -86,7 +86,7 @@ class Task(NamedCommonModel, AuditableModel):
     function_name = models.CharField(max_length=255)
     task_data = models.JSONField(default=dict)
     scheduled_time = models.DateTimeField(null=True, blank=True)
-    cron_expression = models.CharField(max_length=100, null=True, blank=True)
+    cron_expression = models.CharField(max_length=100, blank=True, null=True)
     is_recurring = models.BooleanField(default=False)
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
     priority = models.IntegerField(choices=PRIORITY_CHOICES, default=2)

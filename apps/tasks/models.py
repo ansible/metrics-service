@@ -33,8 +33,8 @@ except ImportError:
             abstract = True
 
     class NamedCommonModel(CommonModel):
-        name = models.CharField(max_length=512)
-        description = models.TextField(blank=True, default="")
+        name: models.CharField = models.CharField(max_length=512)
+        description: models.TextField = models.TextField(blank=True, default="")
 
         class Meta:
             abstract = True
@@ -194,18 +194,18 @@ class TaskDependency(CommonModel):
         unique_together = ["dependent_task", "prerequisite_task"]
         verbose_name_plural = "Task Dependencies"
 
-    dependent_task = models.ForeignKey(
+    dependent_task: models.ForeignKey = models.ForeignKey(
         Task, on_delete=models.CASCADE, related_name="dependencies", help_text="Task that depends on another task"
     )
 
-    prerequisite_task = models.ForeignKey(
+    prerequisite_task: models.ForeignKey = models.ForeignKey(
         Task,
         on_delete=models.CASCADE,
         related_name="dependents",
         help_text="Task that must complete before dependent_task can run",
     )
 
-    required_status = models.CharField(
+    required_status: models.CharField = models.CharField(
         max_length=30,
         choices=Task.STATUS_CHOICES,
         default="completed",
@@ -234,24 +234,24 @@ class TaskExecution(CommonModel, AuditableModel):
         app_label = "tasks"
         ordering = ["-started_at"]
 
-    task = models.ForeignKey(
+    task: models.ForeignKey = models.ForeignKey(
         Task, on_delete=models.CASCADE, related_name="executions", help_text="The task that was executed"
     )
 
-    status = models.CharField(max_length=30, choices=Task.STATUS_CHOICES)
+    status: models.CharField = models.CharField(max_length=30, choices=Task.STATUS_CHOICES)
 
-    started_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
+    started_at: models.DateTimeField = models.DateTimeField(auto_now_add=True)
+    completed_at: models.DateTimeField = models.DateTimeField(null=True, blank=True)
 
-    worker_id = models.CharField(
+    worker_id: models.CharField = models.CharField(
         max_length=100, null=True, blank=True, help_text="ID of the worker that executed the task"
     )
 
     result_data = models.JSONField(default=dict, blank=True, help_text="JSON result data from this execution")
 
-    error_message = models.TextField(blank=True, help_text="Error message if execution failed")
+    error_message: models.TextField = models.TextField(blank=True, help_text="Error message if execution failed")
 
-    execution_time_seconds = models.FloatField(
+    execution_time_seconds: models.FloatField = models.FloatField(
         null=True, blank=True, help_text="Time taken to execute the task in seconds"
     )
 
@@ -293,13 +293,13 @@ class TaskChain(NamedCommonModel, AuditableModel, AccessControlMixin):
         app_label = "tasks"
         ordering = ["id"]
 
-    tasks = models.ManyToManyField(
+    tasks: models.ManyToManyField = models.ManyToManyField(
         Task, through="TaskChainMembership", related_name="chains", help_text="Tasks in this chain"
     )
 
-    is_active = models.BooleanField(default=True, help_text="Whether this chain is active")
+    is_active: models.BooleanField = models.BooleanField(default=True, help_text="Whether this chain is active")
 
-    created_by = models.ForeignKey(
+    created_by: models.ForeignKey = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_chains"
     )
 
@@ -326,10 +326,12 @@ class TaskChainMembership(CommonModel):
         unique_together = ["chain", "task"]
         ordering = ["order"]
 
-    chain = models.ForeignKey(TaskChain, on_delete=models.CASCADE)
-    task = models.ForeignKey(Task, on_delete=models.CASCADE)
+    chain: models.ForeignKey = models.ForeignKey(TaskChain, on_delete=models.CASCADE)
+    task: models.ForeignKey = models.ForeignKey(Task, on_delete=models.CASCADE)
 
-    order = models.PositiveIntegerField(help_text="Order of task in the chain (lower numbers run first)")
+    order: models.PositiveIntegerField = models.PositiveIntegerField(
+        help_text="Order of task in the chain (lower numbers run first)"
+    )
 
     def __str__(self):
         """

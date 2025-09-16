@@ -13,12 +13,11 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
-# Import dispatcherd task decorator
 try:
     from dispatcherd.publish import task
 except ImportError:
-    # Fallback decorator if dispatcherd is not available
-    def task(queue=None, decorate=False):
+
+    def task():
         def decorator(func):
             return func
 
@@ -111,19 +110,6 @@ def cleanup_old_data(**kwargs) -> dict[str, Any]:
     cleaned_count = 0
 
     log_task_execution("cleanup_old_data", "processing", f"Cleaning up data older than {days_old} days")
-
-    # Add your actual cleanup logic here
-    # For example: delete old activity stream entries, logs, etc.
-
-    # Example cleanup implementations:
-    # from datetime import timedelta
-    # cutoff_date = timezone.now() - timedelta(days=days_old)
-
-    # if "activity_stream" in data_types:
-    #     ActivityStream.objects.filter(timestamp__lt=cutoff_date).delete()
-    #
-    # if "task_executions" in data_types:
-    #     TaskExecution.objects.filter(completed_at__lt=cutoff_date).delete()
 
     return create_task_result(
         "success",

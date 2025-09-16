@@ -79,7 +79,7 @@ class APIViewsCoverageTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Test POST
-        data = {"name": "New Team", "organization": f"http://testserver/api/v1/organizations/{self.organization.pk}/"}
+        data = {"name": "New Team", "organization": f"https://testserver/api/v1/organizations/{self.organization.pk}/"}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -99,7 +99,7 @@ class APIViewsCoverageTestCase(APITestCase):
         # Test PUT
         data = {
             "name": "Updated Team",
-            "organization": f"http://testserver/api/v1/organizations/{self.organization.pk}/",
+            "organization": f"https://testserver/api/v1/organizations/{self.organization.pk}/",
         }
         response = self.client.put(url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

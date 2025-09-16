@@ -154,7 +154,7 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
         return data
 
     @classmethod
-    def build_common_fields(cls, base_fields: list[str], extra_fields: list[str] = None) -> list[str]:
+    def build_common_fields(cls, base_fields: list[str], extra_fields: list[str] | None = None) -> list[str]:
         """
         Build common field lists for serializer Meta classes.
 
@@ -174,7 +174,9 @@ class BaseModelSerializer(serializers.HyperlinkedModelSerializer, CountFieldMixi
         return fields
 
     @classmethod
-    def build_extra_kwargs(cls, view_name: str, additional_kwargs: dict = None) -> dict:
+    def build_extra_kwargs(
+        cls, view_name: str, additional_kwargs: dict[str, str] | None = None
+    ) -> dict[str, dict[str, str]]:
         """
         Build common extra_kwargs for serializer Meta classes.
 

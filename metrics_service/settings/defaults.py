@@ -202,7 +202,7 @@ SPECTACULAR_SETTINGS = {
 
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = True  # Only for development
-CORS_ALLOWED_ORIGINS = []  # Set in production
+CORS_ALLOWED_ORIGINS: list[str] = []  # Set in production
 
 # Django-Ansible-Base Configuration
 ANSIBLE_BASE_TEAM_MODEL = "core.Team"
@@ -215,7 +215,7 @@ ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = True
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
-ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {}
+ANSIBLE_BASE_RBAC_MODEL_REGISTRY: dict[str, str] = {}
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
@@ -241,7 +241,7 @@ OAUTH2_PROVIDER = {
 # OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
 
 # Resource Server Configuration
-RESOURCE_SERVER = {
+RESOURCE_SERVER: dict[str, str | bool | None] = {
     # 'URL': 'https://aap-gw-proxy-1:9080',
     # 'SECRET_KEY': '<service key>',
     # 'VALIDATE_HTTPS': False,
@@ -270,7 +270,7 @@ CACHES = {
 if os.environ.get("METRICS_SERVICE_REDIS_URL"):
     CACHES["default"] = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL"),
+        "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL") or "",
     }
 
 # Session Configuration

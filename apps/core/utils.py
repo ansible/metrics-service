@@ -47,13 +47,14 @@ def get_count_safely(queryset_or_manager: Any) -> int:
         int: Count of objects, 0 if error
     """
     try:
-        return queryset_or_manager.count()
+        count_result = queryset_or_manager.count()
+        return int(count_result)
     except Exception as e:
         logger.warning(f"Error getting count: {e}")
         return 0
 
 
-def build_error_response(message: str, details: dict[str, Any] = None, status_code: int = 400) -> dict[str, Any]:
+def build_error_response(message: str, details: dict[str, Any] | None = None, status_code: int = 400) -> dict[str, Any]:
     """
     Build a standardized error response dictionary.
 

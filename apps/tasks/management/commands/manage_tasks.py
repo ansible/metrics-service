@@ -287,7 +287,7 @@ class Command(BaseCommand):
         except Task.DoesNotExist as e:
             raise CommandError(f"Task not found: {e}") from e
 
-        dependency, created = TaskDependency.objects.get_or_create(
+        _dependency, created = TaskDependency.objects.get_or_create(
             dependent_task=dependent_task,
             prerequisite_task=prerequisite_task,
             defaults={"required_status": options["status"]},
