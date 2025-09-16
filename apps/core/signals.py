@@ -7,7 +7,7 @@ import logging
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 
-from .models import Organization, User
+from .models import Organization, Team, User
 
 logger = logging.getLogger(__name__)
 
@@ -34,3 +34,12 @@ def organization_post_save(sender, instance, created, **kwargs):
         logger.info(f"Organization created: {instance.name} (ID: {instance.id})")
     else:
         logger.info(f"Organization updated: {instance.name} (ID: {instance.id})")
+
+
+@receiver(post_save, sender=Team)
+def team_post_save(sender, instance, created, **kwargs):
+    """Handle Team post-save signal."""
+    if created:
+        logger.info(f"Team created: {instance.name} (ID: {instance.id})")
+    else:
+        logger.info(f"Team updated: {instance.name} (ID: {instance.id})")

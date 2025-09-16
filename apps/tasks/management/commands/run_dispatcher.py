@@ -4,7 +4,6 @@ Django management command to run dispatcherd worker.
 
 import logging
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -34,9 +33,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Handle the command execution."""
-        if not getattr(settings, "DISPATCHERD_ENABLED", False):
-            self.stdout.write(self.style.ERROR("Dispatcherd not enabled. Set DISPATCHERD_ENABLED=True"))
-            return
 
         workers = options["workers"]
         timeout = options["timeout"]
@@ -54,7 +50,7 @@ class Command(BaseCommand):
             import dispatcherd
             import dispatcherd.config
 
-            from apps.core.tasks import TASK_FUNCTIONS, TaskScheduler
+            from apps.tasks.tasks import TASK_FUNCTIONS, TaskScheduler
 
             dispatcherd_logger = logging.getLogger("dispatcherd")
             dispatcherd_logger.setLevel(getattr(logging, log_level))
@@ -68,10 +64,45 @@ class Command(BaseCommand):
             logger.info(f"  Available tasks: {task_list}")
 
             # Configure dispatcherd before running
-            dispatcherd.config.setup()
+            from django.conf import settings as django_settings
+
+            # Build dispatcherd configuration from Django database settings
+            db_config = django_settings.DATABASES["default"]
+
+            # Create PostgreSQL connection config for dispatcherd
+            pg_config = {
+                "dbname": db_config["NAME"],
+                "user": db_config["USER"],
+                "password": db_config["PASSWORD"],
+                "host": db_config["HOST"],
+                "port": db_config["PORT"],
+            }
+
+            # Configure dispatcherd with pg_notify
+            dispatcherd_config = {
+                "version": 2,
+                "brokers": {
+                    "pg_notify": {
+                        "config": pg_config,
+                        "channels": [
+                            "metrics_tasks",  # Main task channel
+                            "metrics_cleanup",  # Cleanup tasks channel
+                            "metrics_notifications",  # Notification tasks
+                        ],
+                    },
+                },
+                "service": {
+                    "pool_kwargs": {"max_workers": workers},
+                },
+            }
+
+            logger.info(
+                f"Configuring dispatcherd with database: {db_config['HOST']}:{db_config['PORT']}/{db_config['NAME']}"
+            )
+            dispatcherd.config.setup(dispatcherd_config)
 
             # Start task scheduler in a separate thread
-            scheduler = TaskScheduler(poll_interval=30)
+            scheduler = TaskScheduler(poll_interval=5)
             scheduler_thread = threading.Thread(target=scheduler.start, daemon=True)
             scheduler_thread.start()
             self.stdout.write(self.style.SUCCESS("Task scheduler started in background"))

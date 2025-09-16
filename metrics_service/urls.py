@@ -24,6 +24,8 @@ urlpatterns = [
     path("logout/", auth_views.LogoutView.as_view(next_page="/login/"), name="logout"),
     # Admin interface
     path("admin/", admin.site.urls),
+    # Dashboard interface
+    path("dashboard/", include("apps.dashboard.urls")),
     # API endpoints
     path("api/", include("apps.api.urls")),
     # OpenAPI schema and documentation

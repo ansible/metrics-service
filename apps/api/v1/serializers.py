@@ -4,7 +4,9 @@ API v1 serializers for metrics_service following AAP standards.
 
 from rest_framework import serializers
 
-from apps.core.models import Organization, User
+from apps.core.models import Organization, Team, User
+
+from .base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
@@ -159,6 +161,7 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
             # Future related endpoints can be added here, e.g.:
             # "teams": request.build_absolute_uri(f"/api/v1/organizations/{obj.id}/teams/"),
         }
+<<<<<<< HEAD
 
     def get_object_role(self, obj):
         """
@@ -183,3 +186,5 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
         }
 
         return permissions
+=======
+>>>>>>> POCDashboardRefactor

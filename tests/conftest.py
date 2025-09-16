@@ -81,11 +81,7 @@ def user():
 def admin_user():
     """Create a test admin user."""
     return User.objects.create_user(
-        username="admin",
-        email="admin@example.com",
-        password="adminpassword123",
-        is_system_auditor=False,
-        is_superuser=True,
+        username="admin", email="admin@example.com", password="adminpassword123", is_staff=True, is_superuser=True
     )
 
 
@@ -99,6 +95,14 @@ def organization():
 def team(organization):
     """Create a test team."""
     return Team.objects.create(name="Test Team", organization=organization)
+
+
+@pytest.fixture
+def task(user):
+    """Create a test task."""
+    from apps.tasks.models import Task
+
+    return Task.objects.create(name="Test Task", function_name="hello_world", task_data={}, created_by=user)
 
 
 @pytest.fixture

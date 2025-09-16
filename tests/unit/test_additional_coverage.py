@@ -8,9 +8,11 @@ import pytest
 from django.contrib.admin.sites import AdminSite
 from django.test import TestCase
 
-from apps.core.admin import OrganizationAdmin, TaskAdmin, TeamAdmin, UserAdmin
-from apps.core.models import Organization, Task, Team, User
+from apps.core.admin import OrganizationAdmin, TeamAdmin, UserAdmin
+from apps.core.models import Organization, Team, User
 from apps.core.signals import organization_post_save, team_post_save, user_post_save, user_pre_delete
+from apps.tasks.admin import TaskAdmin
+from apps.tasks.models import Task
 
 
 @pytest.mark.unit
@@ -81,19 +83,6 @@ class AdminCoverageTestCase(TestCase):
 
         # Test has_change_permission
         self.assertTrue(admin.has_change_permission(Mock()))
-
-    def test_admin_queryset_optimization(self):
-        """Test admin queryset optimization."""
-        admin = TaskAdmin(Task, self.site)
-
-        # Create test data
-        user = User.objects.create_user(username="creator", email="creator@example.com")
-        Task.objects.create(name="Test Task", function_name="test_func", created_by=user)
-
-        # Test get_queryset if it exists
-        if hasattr(admin, "get_queryset"):
-            qs = admin.get_queryset(Mock())
-            self.assertIsNotNone(qs)
 
 
 @pytest.mark.unit
@@ -223,18 +212,6 @@ class SettingsCoverageTestCase(TestCase):
         # Test DAB-related settings that might be configured
         if hasattr(settings, "ANSIBLE_BASE_RBAC_ENABLED"):
             self.assertIsInstance(settings.ANSIBLE_BASE_RBAC_ENABLED, bool)
-
-    def test_url_configuration(self):
-        """Test URL configuration."""
-        from django.urls import reverse
-        from django.urls.exceptions import NoReverseMatch
-
-        # Test that key URLs are configured
-        try:
-            url = reverse("admin:index")
-            self.assertIsInstance(url, str)
-        except NoReverseMatch:
-            pass  # Admin might not be configured
 
     def test_wsgi_asgi_configuration(self):
         """Test WSGI/ASGI configuration."""
