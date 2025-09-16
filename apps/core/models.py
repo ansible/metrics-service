@@ -97,7 +97,6 @@ if DAB_AVAILABLE:
 else:
     # Fallback password functions when DAB is not available - use Django's built-in functions
     from django.contrib.auth.hashers import make_password as django_make_password
-    from django.contrib.auth.hashers import check_password
 
     def password_is_hashed(password):
         """Simple fallback - assume any non-empty password is hashed."""

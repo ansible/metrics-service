@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from apps.core.models import Organization, Team, User
 
-from .base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
+from .base_serializers import BaseModelSerializer, CountFieldMixin
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
