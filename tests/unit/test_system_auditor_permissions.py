@@ -162,7 +162,6 @@ class SystemAuditorPermissionTests(APITestCase):
         self.client.force_authenticate(user=self.system_auditor)
         reverse("api:v1:organization-list")
 
-
         # NOTE: This test currently causes a 500 error due to missing DAB settings
         # When RBAC is properly configured, this should return 403
         # For now, we'll skip the actual request that causes the error
