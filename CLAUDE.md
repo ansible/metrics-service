@@ -67,7 +67,7 @@ isort .
 # Dispatcherd is always enabled in this service
 
 # Run task dispatcher
-python manage.py run_dispatcher
+python manage.py run_dispatcherd
 
 # Run task scheduler (polls for ready tasks)
 python manage.py run_task_scheduler
@@ -224,7 +224,7 @@ POST /api/v1/tasks/
 # Get running tasks only
 GET /api/v1/tasks/running/
 
-# Get pending tasks only  
+# Get pending tasks only
 GET /api/v1/tasks/pending/
 
 # Retry a failed task
@@ -237,14 +237,12 @@ POST /api/v1/tasks/{id}/cancel/
 GET /api/v1/tasks/available_functions/
 ```
 
-
-
 ### Available Task Functions
 
 The system includes these built-in task functions:
 
 - **`cleanup_old_data`** - Clean up old data from the system
-- **`send_notification_email`** - Send notification emails to users  
+- **`send_notification_email`** - Send notification emails to users
 - **`process_user_data`** - Process user data in the background
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
 
@@ -299,7 +297,7 @@ FEATURE_FLAGS = {
 1. Define task function in `apps/core/tasks.py`
 2. Add to `TASK_FUNCTIONS` dictionary
 3. Create Task model instance or use programmatic scheduling
-4. Test with dispatcherd: `python manage.py run_dispatcher`
+4. Test with dispatcherd: `python manage.py run_dispatcherd`
 
 ### API Development
 
