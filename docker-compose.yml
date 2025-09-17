@@ -8,7 +8,8 @@ services:
       POSTGRES_USER: metrics_service
       POSTGRES_PASSWORD: metrics_service
     healthcheck:
-      test: ['CMD', 'pg_isready', '-U', 'metrics_service', '-d', 'metrics_service']
+      test:
+        ['CMD', 'pg_isready', '-U', 'metrics_service', '-d', 'metrics_service']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -53,9 +54,9 @@ services:
       METRICS_SERVICE_DB_NAME: metrics_service
       METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
       METRICS_SERVICE_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service,0.0.0.0
-      METRICS_SERVICE_DEBUG: "true"
+      METRICS_SERVICE_DEBUG: 'true'
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
-      DISPATCHERD_ENABLED: "true"
+      DISPATCHERD_ENABLED: 'true'
     networks:
       - metrics-service
 
@@ -64,7 +65,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: metrics-service-dispatcher
-    command: 'python manage.py run_dispatcher --workers=2 --timeout=3600'
+    command: 'python manage.py run_dispatcherd --workers=2 --timeout=3600'
     volumes:
       - './:/app:z'
     depends_on:
@@ -83,7 +84,7 @@ services:
       METRICS_SERVICE_DB_NAME: metrics_service
       METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
-      DISPATCHERD_ENABLED: "true"
+      DISPATCHERD_ENABLED: 'true'
     networks:
       - metrics-service
 

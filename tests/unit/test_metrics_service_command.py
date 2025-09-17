@@ -313,17 +313,17 @@ class TestMetricsServiceCommand(TestCase):
     @patch.object(Command, "_monitor_dispatcher_process")
     @patch.object(Command, "_start_dispatcher_process")
     @patch.object(Command, "_build_dispatcher_command")
-    def test_run_dispatcher_success(self, mock_build, mock_start, mock_monitor):
-        """Test _run_dispatcher method success path."""
+    def test_run_dispatcherd_success(self, mock_build, mock_start, mock_monitor):
+        """Test _run_dispatcherd method success path."""
         self.command.stdout = self.out
 
-        mock_cmd = ["python", "manage.py", "run_dispatcher"]
+        mock_cmd = ["python", "manage.py", "run_dispatcherd"]
         mock_process = MagicMock()
 
         mock_build.return_value = mock_cmd
         mock_start.return_value = mock_process
 
-        self.command._run_dispatcher(4, 3600, 100, "INFO")
+        self.command._run_dispatcherd(4, 3600, 100, "INFO")
 
         # Verify all methods were called
         mock_build.assert_called_once_with(4, 3600, 100, "INFO")
@@ -331,12 +331,12 @@ class TestMetricsServiceCommand(TestCase):
         mock_monitor.assert_called_once_with(mock_process)
 
     @patch.object(Command, "_build_dispatcher_command")
-    def test_run_dispatcher_exception(self, mock_build):
-        """Test _run_dispatcher handles exceptions."""
+    def test_run_dispatcherd_exception(self, mock_build):
+        """Test _run_dispatcherd handles exceptions."""
         self.command.stdout = self.out
         mock_build.side_effect = Exception("Test dispatcher error")
 
-        self.command._run_dispatcher(4, 3600, 100, "INFO")
+        self.command._run_dispatcherd(4, 3600, 100, "INFO")
 
         output = self.out.getvalue()
         assert "Dispatcher error: Test dispatcher error" in output
@@ -347,7 +347,7 @@ class TestMetricsServiceCommand(TestCase):
             cmd = self.command._build_dispatcher_command(6, 7200, 200, "DEBUG")
 
         assert isinstance(cmd, list)
-        assert "run_dispatcher" in cmd
+        assert "run_dispatcherd" in cmd
         assert "--workers=6" in cmd
         assert "--timeout=7200" in cmd
         assert "--max-tasks=200" in cmd
@@ -381,7 +381,7 @@ class TestMetricsServiceCommand(TestCase):
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
 
-        cmd = ["python", "manage.py", "run_dispatcher"]
+        cmd = ["python", "manage.py", "run_dispatcherd"]
         result = self.command._start_dispatcher_process(cmd)
 
         mock_popen.assert_called_once_with(
@@ -397,7 +397,7 @@ class TestMetricsServiceCommand(TestCase):
         self.command.stdout = self.out
         mock_popen.side_effect = Exception("Process creation failed")
 
-        cmd = ["python", "manage.py", "run_dispatcher"]
+        cmd = ["python", "manage.py", "run_dispatcherd"]
         result = self.command._start_dispatcher_process(cmd)
 
         assert result is None

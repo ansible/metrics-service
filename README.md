@@ -294,6 +294,7 @@ dispatcherd:
 - **Users**: `/api/v1/users/` - User management
 - **Organizations**: `/api/v1/organizations/` - Organization management
 - **Teams**: `/api/v1/teams/` - Team management
+
 ### Authentication
 
 The API supports multiple authentication methods:
@@ -457,10 +458,10 @@ dispatcherd:
 export metrics_service_DISPATCHERD_ENABLED=true
 
 # Start with default settings
-python manage.py run_dispatcher
+python manage.py run_dispatcherd
 
 # Start with custom configuration
-python manage.py run_dispatcher --workers 8 --timeout 7200 --max-tasks 200 --log-level DEBUG
+python manage.py run_dispatcherd --workers 8 --timeout 7200 --max-tasks 200 --log-level DEBUG
 ```
 
 **Command Options:**

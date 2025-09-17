@@ -23,7 +23,7 @@ class Command(BaseCommand):
     """
     Management command to run the complete metrics service.
 
-    This command starts both the Django runserver and the run_dispatcher
+    This command starts both the Django runserver and the run_dispatcherd
     commands in parallel, allowing the full service to be started with a
     single command.
     """
@@ -168,7 +168,7 @@ class Command(BaseCommand):
     def _start_dispatcher_thread(self, config):
         """Start dispatcher in a separate thread."""
         dispatcher_thread = threading.Thread(
-            target=self._run_dispatcher,
+            target=self._run_dispatcherd,
             args=(config["workers"], config["timeout"], config["max_tasks"], config["log_level"]),
             daemon=True,
         )
@@ -260,7 +260,7 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Django server error: {str(e)}"))
 
-    def _run_dispatcher(self, workers, timeout, max_tasks, log_level):
+    def _run_dispatcherd(self, workers, timeout, max_tasks, log_level):
         """
         Run the dispatcher service.
 
@@ -299,7 +299,7 @@ class Command(BaseCommand):
         return [
             sys.executable,
             str(manage_py),
-            "run_dispatcher",
+            "run_dispatcherd",
             f"--workers={workers}",
             f"--timeout={timeout}",
             f"--max-tasks={max_tasks}",

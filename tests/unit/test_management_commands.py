@@ -334,11 +334,11 @@ class RunTaskSchedulerCommandTestCase(TestCase):
 
 @pytest.mark.unit
 class RunDispatcherCommandTestCase(TestCase):
-    """Test cases for run_dispatcher management command."""
+    """Test cases for run_dispatcherd management command."""
 
     @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcher_enabled(self):
-        """Test run_dispatcher when enabled but dispatcherd not available."""
+    def test_run_dispatcherd_enabled(self):
+        """Test run_dispatcherd when enabled but dispatcherd not available."""
         # These tests are skipped because:
         # 1. dispatcherd is not installed in the test environment
         # 2. The command tries to start actual background processes
@@ -346,18 +346,18 @@ class RunDispatcherCommandTestCase(TestCase):
         pass
 
     @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcher_import_error(self):
-        """Test run_dispatcher with import error."""
+    def test_run_dispatcherd_import_error(self):
+        """Test run_dispatcherd with import error."""
         pass
 
     @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcher_with_task_scheduler(self):
-        """Test run_dispatcher attempts to start task scheduler."""
+    def test_run_dispatcherd_with_task_scheduler(self):
+        """Test run_dispatcherd attempts to start task scheduler."""
         pass
 
     @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcher_exception_handling(self):
-        """Test run_dispatcher exception handling."""
+    def test_run_dispatcherd_exception_handling(self):
+        """Test run_dispatcherd exception handling."""
         pass
 
 
@@ -399,8 +399,8 @@ class CommandArgumentsTestCase(TestCase):
         output = captured_output.getvalue()
         self.assertIn("poll-interval", output)
 
-    def test_run_dispatcher_help(self):
-        """Test run_dispatcher help output."""
+    def test_run_dispatcherd_help(self):
+        """Test run_dispatcherd help output."""
         import sys
         from io import StringIO
 
@@ -409,7 +409,7 @@ class CommandArgumentsTestCase(TestCase):
 
         try:
             with self.assertRaises(SystemExit):
-                call_command("run_dispatcher", "--help")
+                call_command("run_dispatcherd", "--help")
         finally:
             sys.stdout = old_stdout
 

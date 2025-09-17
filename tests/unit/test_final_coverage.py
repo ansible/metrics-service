@@ -133,7 +133,7 @@ class TestStatusFieldMixin(TestCase):
         mock_obj.get_duration.return_value = 123.45
 
         result = self.mixin.get_duration(mock_obj)
-        assert result == 123.45
+        assert abs(result - 123.45) < 1e-9
 
     def test_get_duration_without_method(self):
         """Test get_duration when object doesn't have get_duration method."""
