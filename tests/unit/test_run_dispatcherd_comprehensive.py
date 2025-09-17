@@ -557,7 +557,7 @@ class TestRunDispatcherdEdgeCases(TestCase):
         """Test command with zero workers."""
         options = {"workers": 0, "timeout": 3600, "max_tasks": 100, "log_level": "INFO"}
 
-        captured_config = None
+        captured_config = {}
 
         def capture_config(config):
             nonlocal captured_config
@@ -580,7 +580,7 @@ class TestRunDispatcherdEdgeCases(TestCase):
         # This would typically be caught by argument parser, but test the internal handling
         options = {"workers": -1, "timeout": -100, "max_tasks": -50, "log_level": "INFO"}
 
-        captured_config = None
+        captured_config = {}
 
         def capture_config(config):
             nonlocal captured_config
