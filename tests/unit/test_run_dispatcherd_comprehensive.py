@@ -419,9 +419,9 @@ class TestRunDispatcherdIntegration(TestCase):
 
         options = {"workers": 3, "timeout": 2400, "max_tasks": 75, "log_level": "DEBUG"}
 
-        captured_config = None
+        captured_config = {}
 
-        def capture_config(config):
+        def capture_config(config: dict):
             nonlocal captured_config
             captured_config = config
 
