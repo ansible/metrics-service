@@ -1,5 +1,29 @@
 """
-Utility functions to reduce code duplication across the application.
+Core utility functions and helpers for the metrics service.
+
+This module provides reusable utility functions that reduce code duplication
+across the application. These utilities handle common patterns such as safe
+object access, JSON processing, timestamp generation, and configuration
+management.
+
+Functions:
+    get_related_object_safely: Safe access to related model objects
+    parse_json_safely: Safe JSON parsing with error handling
+    generate_unique_id: Generate unique identifiers for objects
+    get_current_timestamp: Get standardized timestamps
+    format_duration: Format time durations for display
+    validate_json_data: Validate JSON data structure
+
+Security Features:
+    - Safe JSON parsing prevents injection attacks
+    - Input validation on all utility functions
+    - Logging of security-relevant operations
+    - Error handling that doesn't expose internal details
+
+Performance Considerations:
+    - Efficient related object access patterns
+    - Minimal database queries in utility functions
+    - Cached timestamp operations where appropriate
 """
 
 import json

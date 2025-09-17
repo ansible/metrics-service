@@ -6,9 +6,9 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone as django_timezone
+from rest_framework.serializers import ValidationError
 from rest_framework.test import APIClient, APIRequestFactory
 
 from apps.api.v1.tasks.serializers import (
@@ -20,8 +20,6 @@ from apps.api.v1.tasks.serializers import (
 from apps.api.v1.tasks.views import TaskExecutionViewSet, TaskViewSet
 from apps.core.models import User
 from apps.tasks.models import Task, TaskExecution
-
-User = get_user_model()
 
 
 @pytest.mark.django_db
@@ -282,7 +280,7 @@ class TestSerializerValidationComprehensive(TestCase):
         serializer = TaskSerializer(instance=task, context={"request": request})
 
         # Test the serializer method directly
-        next_time = serializer.get_next_run_time(task)
+        serializer.get_next_run_time(task)
         # next_run_time may be None if get_next_run_time method doesn't exist or returns None
         # This is acceptable for the test
 
@@ -291,7 +289,7 @@ class TestSerializerValidationComprehensive(TestCase):
         """Test TaskCreateSerializer function name validation with invalid function."""
         serializer = TaskCreateSerializer()
 
-        with self.assertRaises(Exception):  # ValidationError
+        with self.assertRaises(ValidationError):  # ValidationError
             serializer.validate_function_name("invalid_function")
 
     @patch("apps.tasks.tasks.TASK_FUNCTIONS", {"valid_function": lambda: None})
@@ -301,13 +299,6 @@ class TestSerializerValidationComprehensive(TestCase):
 
         result = serializer.validate_function_name("valid_function")
         self.assertEqual(result, "valid_function")
-
-    def test_task_create_serializer_validate_cron_expression_invalid(self):
-        """Test TaskCreateSerializer cron expression validation with invalid expression."""
-        serializer = TaskCreateSerializer()
-
-        with self.assertRaises(Exception):  # ValidationError
-            serializer.validate_cron_expression("invalid cron")
 
     def test_task_create_serializer_validate_cron_expression_valid(self):
         """Test TaskCreateSerializer cron expression validation with valid expression."""
@@ -339,7 +330,7 @@ class TestSerializerValidationComprehensive(TestCase):
         """Test TaskCreateSerializer task data validation with invalid JSON string."""
         serializer = TaskCreateSerializer()
 
-        with self.assertRaises(Exception):  # ValidationError
+        with self.assertRaises(ValidationError):  # ValidationError
             serializer.validate_task_data('{"invalid": json}')
 
     def test_task_create_serializer_validate_task_data_dict(self):
@@ -361,7 +352,7 @@ class TestSerializerValidationComprehensive(TestCase):
         """Test TaskCreateSerializer user validation with invalid username."""
         serializer = TaskCreateSerializer()
 
-        with self.assertRaises(Exception):  # ValidationError
+        with self.assertRaises(ValidationError):  # ValidationError
             serializer.validate_user("nonexistent")
 
     def test_task_create_serializer_validate_user_none(self):

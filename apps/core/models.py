@@ -1,6 +1,50 @@
 """
-Core models for metrics_service.
-For full AAP/DAB features, install with: pip install -e ".[dev]"
+Core data models for the metrics service following AAP standards.
+
+This module defines the core data models that form the foundation of the metrics
+service. The models are designed to integrate seamlessly with Django Ansible Base
+(DAB) when available, while providing graceful fallbacks for basic Django setups.
+
+Models:
+    User: Enhanced user model with system auditor capabilities and DAB integration
+    Organization: Organizational units with hierarchical membership management
+    Team: Teams within organizations with member management and permissions
+
+DAB Integration:
+    When Django Ansible Base is available (install with pip install -e ".[dev]"):
+    - Full RBAC permission system
+    - Activity stream audit logging
+    - Resource registry for cross-service communication
+    - Enhanced authentication backends
+    - Advanced user management features
+
+Fallback Mode:
+    When DAB is not available, provides basic Django functionality:
+    - Standard Django User model extension
+    - Basic organization and team models
+    - Essential timestamp tracking
+    - Core permission checking methods
+
+Features:
+    - System auditor role support with read-only access patterns
+    - Flexible organization membership with admin capabilities
+    - Team management with parent organization relationships
+    - Comprehensive access control methods (can_view, can_manage, etc.)
+    - QuerySet filtering based on user permissions and memberships
+    - Activity tracking and audit logging (when DAB available)
+
+Security:
+    - System auditor isolation with read-only enforcement
+    - Organization-based access control
+    - Team membership validation
+    - Permission checking at model level
+    - Safe queryset filtering to prevent unauthorized access
+
+Performance:
+    - Efficient QuerySet methods with optimized database queries
+    - Related object prefetching in access_qs methods
+    - Minimal database hits for permission checking
+    - Indexed fields for common query patterns
 """
 
 from django.contrib.auth.models import AbstractUser

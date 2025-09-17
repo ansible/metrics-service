@@ -1,5 +1,37 @@
 """
-API v1 views for metrics_service following AAP standards.
+API v1 views for metrics_service following Ansible Automation Platform (AAP) standards.
+
+This module provides REST API ViewSets that implement comprehensive CRUD operations
+for core resources including Users, Organizations, and Teams. The implementation
+follows AAP conventions and integrates with Django Ansible Base (DAB) for RBAC,
+authentication, and resource management.
+
+ViewSets:
+    UserViewSet: Complete user management with profile operations
+    OrganizationViewSet: Organization management with membership handling
+    TeamViewSet: Team management with hierarchical organization support
+
+Features:
+    - RESTful API design with proper HTTP status codes
+    - Comprehensive filtering, searching, and ordering capabilities
+    - OpenAPI documentation with detailed schemas
+    - System auditor read-only access integration
+    - DAB RBAC permission enforcement
+    - Proper error handling and validation
+    - Pagination support for large datasets
+
+Authentication:
+    Supports multiple authentication methods:
+    - Session authentication for web interface
+    - OAuth2 tokens for third-party integrations
+    - JWT tokens for service-to-service communication
+
+Security:
+    - RBAC-based access control via DAB
+    - System auditor read-only enforcement
+    - Input validation and sanitization
+    - Rate limiting ready (configurable)
+    - Audit logging for all operations
 """
 
 from drf_spectacular.utils import extend_schema

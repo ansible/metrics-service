@@ -48,7 +48,7 @@ class MockModelNoAccess(models.Model):
 
 
 # Test ViewSet using BaseViewSet
-class TestViewSetForTesting(BaseViewSet):
+class MockViewSetForTesting(BaseViewSet):
     queryset = MockModel.objects.all()
     serializer_class = MockSerializer
 
@@ -61,7 +61,7 @@ class TestBaseViewSetComprehensive(TestCase):
         self.factory = APIRequestFactory()
         self.user = User.objects.create_user(username="testuser", email="test@example.com")
         self.admin_user = User.objects.create_superuser(username="admin", email="admin@example.com")
-        self.viewset = TestViewSetForTesting()
+        self.viewset = MockViewSetForTesting()
 
     def test_base_viewset_initialization(self):
         """Test BaseViewSet can be initialized with proper attributes."""

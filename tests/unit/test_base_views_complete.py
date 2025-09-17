@@ -3,7 +3,7 @@ Complete test coverage for apps/api/v1/base_views.py focusing on missing lines.
 Lines to cover: 124-144, 160-180, 200, 220, 240, 260
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from django.test import TestCase
@@ -85,5 +85,3 @@ class TestUserManagementMixinActions(TestCase):
 
         response = mixin.remove_admin(request, pk=1)
         self.assertEqual(response.status_code, 200)
-
-

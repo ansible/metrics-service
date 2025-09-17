@@ -1,8 +1,44 @@
 """
-Task-related ViewSets for the API v1 endpoints.
+Task Management API ViewSets for background task operations.
 
-This module provides ViewSets for task management functionality
-converted from the manage_tasks.py command to REST API endpoints.
+This module provides comprehensive REST API endpoints for managing background tasks
+and task executions. It converts functionality previously available only through
+the manage_tasks.py management command into a full-featured REST API with proper
+authentication, validation, and monitoring capabilities.
+
+ViewSets:
+    TaskViewSet: Complete task lifecycle management with CRUD operations
+    TaskExecutionViewSet: Task execution monitoring and history tracking
+
+Features:
+    - Task creation with scheduling and recurring task support
+    - Task status monitoring and real-time updates
+    - Task retry and cancellation operations
+    - Task cleanup and maintenance operations
+    - Comprehensive filtering and search capabilities
+    - Available task function discovery
+    - Task execution history and metrics
+
+Operations:
+    Create Tasks: POST /api/v1/tasks/ with function_name and parameters
+    List Tasks: GET /api/v1/tasks/ with filtering by status, function, etc.
+    Retry Tasks: POST /api/v1/tasks/{id}/retry/ for failed tasks
+    Cancel Tasks: POST /api/v1/tasks/{id}/cancel/ for pending/running tasks
+    Cleanup Tasks: POST /api/v1/tasks/cleanup/ to remove old completed tasks
+
+Task Functions:
+    Supports all registered task functions including:
+    - cleanup_old_data: System maintenance tasks
+    - send_notification_email: Email notifications
+    - process_user_data: User data processing
+    - execute_db_task: Database operations
+
+Security:
+    - Authentication required for all operations
+    - RBAC permissions via DAB integration
+    - Input validation for all task parameters
+    - Safe task function execution with proper isolation
+    - Audit logging for all task operations
 """
 
 from datetime import timedelta
