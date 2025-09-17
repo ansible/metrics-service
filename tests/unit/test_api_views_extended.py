@@ -9,7 +9,7 @@ from rest_framework.test import APIRequestFactory
 from apps.api.v1.base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
 from apps.api.v1.base_views import BaseViewSet, UserManagementMixin
 from apps.api.v1.serializers import OrganizationSerializer, TeamSerializer, UserSerializer
-from apps.api.v1.views import OrganizationViewSet, TeamViewSet, UserViewSet
+from apps.api.v1.views import OrganizationViewSet, UserViewSet
 from apps.core.models import Organization, Team, User
 
 
@@ -303,39 +303,6 @@ class TestOrganizationViewSet(TestCase):
         assert serializer_class == OrganizationSerializer
 
 
-@pytest.mark.django_db
-class TestTeamViewSet(TestCase):
-    """Test TeamViewSet functionality."""
-
-    def setUp(self):
-        self.factory = APIRequestFactory()
-        self.user = User.objects.create_user(username="test", email="test@example.com")
-        self.org = Organization.objects.create(name="Test Org")
-        self.team = Team.objects.create(name="Test Team", organization=self.org)
-
-    def test_viewset_initialization(self):
-        """Test TeamViewSet can be initialized."""
-        viewset = TeamViewSet()
-        assert viewset is not None
-
-    def test_get_queryset(self):
-        """Test get_queryset method."""
-        viewset = TeamViewSet()
-        # Mock request and user for access_qs method
-        factory = APIRequestFactory()
-        request = factory.get("/")
-        request.user = self.user
-        viewset.request = request
-        queryset = viewset.get_queryset()
-        assert queryset.model == Team
-
-    def test_get_serializer_class(self):
-        """Test get_serializer_class method."""
-        viewset = TeamViewSet()
-        serializer_class = viewset.get_serializer_class()
-        assert serializer_class == TeamSerializer
-
-
 class TestAPIImports(TestCase):
     """Test API module imports."""
 
@@ -364,11 +331,10 @@ class TestAPIImports(TestCase):
 
     def test_view_imports(self):
         """Test view imports work."""
-        from apps.api.v1.views import OrganizationViewSet, TeamViewSet, UserViewSet
+        from apps.api.v1.views import OrganizationViewSet, UserViewSet
 
         assert UserViewSet is not None
         assert OrganizationViewSet is not None
-        assert TeamViewSet is not None
 
 
 @pytest.mark.django_db
@@ -418,15 +384,6 @@ class TestViewSetMethods(TestCase):
         """Test OrganizationViewSet methods can be called."""
         viewset = OrganizationViewSet()
         viewset.queryset = Organization.objects.all()
-
-        # Test methods exist
-        assert hasattr(viewset, "get_object")
-        assert hasattr(viewset, "get_serializer")
-
-    def test_team_viewset_methods(self):
-        """Test TeamViewSet methods can be called."""
-        viewset = TeamViewSet()
-        viewset.queryset = Team.objects.all()
 
         # Test methods exist
         assert hasattr(viewset, "get_object")

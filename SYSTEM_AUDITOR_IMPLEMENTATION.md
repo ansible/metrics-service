@@ -40,7 +40,6 @@ Updated all ViewSets to use `SystemAuditorAwarePermissions`:
 
 - `UserViewSet`
 - `OrganizationViewSet`
-- `TeamViewSet`
 
 ## 📊 **Test Coverage**
 
