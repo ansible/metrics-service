@@ -4,7 +4,6 @@ For full AAP/DAB features, install with: pip install -e ".[dev]"
 """
 
 # Import DAB components - DAB is always available in this environment
-from datetime import datetime
 
 from ansible_base.activitystream.models import AuditableModel
 from ansible_base.lib.abstract_models import (
@@ -12,7 +11,6 @@ from ansible_base.lib.abstract_models import (
     AbstractOrganization,
     AbstractTeam,
     CommonModel,
-    NamedCommonModel,
 )
 from ansible_base.lib.utils.models import user_summary_fields
 from ansible_base.resource_registry.fields import AnsibleResourceField
@@ -367,4 +365,3 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
             str: Organization name and team name
         """
         return f"{self.organization.name} - {self.name}"
-

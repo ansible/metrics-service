@@ -129,7 +129,6 @@ class APIViewsCoverageTestCase(APITestCase):
         response = self.client.post(url, {"username": ""})  # Invalid username
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-
     def test_api_schema_endpoints(self):
         """Test API schema endpoints."""
         # Test schema endpoint (if available)

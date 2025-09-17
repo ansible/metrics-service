@@ -8,7 +8,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.core.models import Organization, Team
+from apps.core.models import Organization
 
 User = get_user_model()
 
@@ -228,7 +228,6 @@ class APISerializerTestCase(APITestCase):
 
         # Password should not be in serialized data
         self.assertNotIn("password", response.data)
-
 
 
 @pytest.mark.unit
