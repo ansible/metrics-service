@@ -2,9 +2,12 @@
 Utility functions to reduce code duplication across the application.
 """
 
+import json
 import logging
+import uuid
 from typing import Any
 
+from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -79,3 +82,52 @@ def build_error_response(message: str, details: dict[str, Any] | None = None, st
         error_response["details"] = details
 
     return error_response
+
+
+def get_system_uuid() -> str:
+    """
+    Get system UUID from settings or generate a default one.
+    
+    Returns:
+        str: System UUID
+    """
+    try:
+        return getattr(settings, 'SYSTEM_UUID', str(uuid.uuid4()))
+    except Exception:
+        return str(uuid.uuid4())
+
+
+def is_system_auditor_user(user: Any) -> bool:
+    """
+    Check if user is a system auditor.
+    
+    Args:
+        user: User instance to check
+        
+    Returns:
+        bool: True if user is system auditor
+    """
+    try:
+        if hasattr(user, 'is_system_auditor_user') and callable(user.is_system_auditor_user):
+            return user.is_system_auditor_user()
+        return False
+    except Exception:
+        return False
+
+
+def format_task_data(data: Any) -> str:
+    """
+    Format task data for display.
+    
+    Args:
+        data: Task data to format
+        
+    Returns:
+        str: Formatted task data
+    """
+    try:
+        if isinstance(data, str):
+            return data
+        return json.dumps(data, indent=2)
+    except Exception:
+        return str(data)

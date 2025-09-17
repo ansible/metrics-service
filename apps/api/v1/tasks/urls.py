@@ -30,7 +30,7 @@ router.register(r"", TaskViewSet, basename="task")
 
 # Task execution monitoring endpoints
 # /api/v1/tasks/executions/ - View task execution history
-router.register(r"executions", TaskExecutionViewSet, basename="execution")
+router.register(r"executions", TaskExecutionViewSet, basename="taskexecution")
 
 urlpatterns = [
     # Include all router URLs

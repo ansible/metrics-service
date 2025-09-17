@@ -12,6 +12,7 @@ from ansible_base.resource_registry.shared_types import (
     TeamType,
     UserType,
 )
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from .models import Organization, Team
@@ -70,3 +71,24 @@ try:
     RESOURCE_LIST.append(ResourceConfig(RoleDefinition))
 except ImportError:
     pass
+
+
+def service_metadata() -> dict:
+    """
+    Get service metadata for resource registry.
+    
+    Returns:
+        dict: Service metadata
+    """
+    try:
+        return {
+            'service_type': 'metrics_service',
+            'system_uuid': getattr(settings, 'SYSTEM_UUID', 'unknown'),
+            'version': '1.0.0'
+        }
+    except Exception:
+        return {
+            'service_type': 'metrics_service',
+            'system_uuid': 'unknown',
+            'version': '1.0.0'
+        }
