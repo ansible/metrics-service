@@ -81,8 +81,8 @@ class BasicURLConfigurationTestCase(TestCase):
 
     def test_url_pattern_structure(self):
         """Test basic URL pattern structure."""
-        from django.urls import path
         from django.contrib.auth import views as auth_views
+        from django.urls import path
 
         # Create a test URL pattern similar to what's in the actual URLs
         test_pattern = path(
@@ -112,8 +112,8 @@ class BasicURLConfigurationTestCase(TestCase):
 
     def test_url_resolver_types(self):
         """Test that URL resolver types are correct."""
-        from django.urls import path, include
-        from django.urls.resolvers import URLPattern, URLResolver
+        from django.urls import include, path
+        from django.urls.resolvers import URLPattern
 
         # Test URLPattern type
         pattern = path("test/", lambda request: None)
@@ -142,16 +142,15 @@ class BasicURLConfigurationTestCase(TestCase):
             import metrics_service.urls
 
             self.assertIsNotNone(metrics_service.urls)
-        except (ImportError, AttributeError) as e:
+        except (ImportError, AttributeError):
             # URL module might have dependency issues, skip for now
-            print(f"Could not import metrics_service.urls: {e}")
+            pass
 
     def test_url_configuration_structure(self):
         """Test that URL configuration has expected structure."""
         # Test the individual components that should be in the URL config
-        from django.urls import path, include
         from django.contrib import admin
-        from django.contrib.auth import views as auth_views
+        from django.urls import include, path
 
         # Test that we can create the same patterns as in the actual config
         patterns = [

@@ -2,10 +2,10 @@
 Tests for apps.core.management.commands.init_service_id module.
 """
 
-import pytest
 from io import StringIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from django.core.management import call_command
 from django.test import TestCase
 
@@ -169,4 +169,3 @@ class TestInitServiceIdCommand(TestCase):
         assert issubclass(Command, BaseCommand)
         assert hasattr(self.command, "handle")
         assert hasattr(self.command, "help")
-

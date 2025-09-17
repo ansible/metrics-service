@@ -2,13 +2,12 @@
 Tests for apps.dashboard.views module.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest, HttpResponse
-from django.test import TestCase, RequestFactory
-from django.template.response import TemplateResponse
+from django.test import RequestFactory, TestCase
 
 from apps.core.models import User
 from apps.dashboard.views import dashboard_view
@@ -22,7 +21,6 @@ class TestDashboardViews(TestCase):
         """Set up test fixtures."""
         self.factory = RequestFactory()
         self.user = User.objects.create_user(username="testuser", email="test@example.com")
-
 
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_with_anonymous_user(self, mock_task_functions):

@@ -62,7 +62,7 @@
 #     def test_has_permission_superuser_post(self):
 #         """Test that superusers have permission for POST requests."""
 #         request = self._make_request("POST", self.superuser)
-#         view = 
+#         view =
 
 #         result = self.permissions.has_permission(request, view)
 #         assert result is True

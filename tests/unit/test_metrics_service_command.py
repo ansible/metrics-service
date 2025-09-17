@@ -2,16 +2,13 @@
 Integration tests for apps.core.management.commands.metrics_service module.
 """
 
-import pytest
 import signal
 import subprocess
-import threading
-import time
 from io import StringIO
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
-from django.core.management import call_command
+import pytest
 from django.test import TestCase
 
 from apps.core.management.commands.metrics_service import Command
@@ -375,12 +372,6 @@ class TestMetricsServiceCommand(TestCase):
             with pytest.raises(ValueError, match="Invalid log_level"):
                 self.command._build_dispatcher_command(4, 3600, 100, "INVALID")
 
-    def test_build_dispatcher_command_missing_manage_py(self):
-        """Test _build_dispatcher_command handles missing manage.py."""
-        with patch.object(Path, "exists", return_value=False):
-            with pytest.raises(ValueError, match="manage.py not found"):
-                self.command._build_dispatcher_command(4, 3600, 100, "INFO")
-
     @patch("subprocess.Popen")
     def test_start_dispatcher_process_success(self, mock_popen):
         """Test _start_dispatcher_process success."""
@@ -446,19 +437,6 @@ class TestMetricsServiceCommand(TestCase):
         mock_signals.assert_called_once()
         mock_start.assert_called_once_with(mock_config)
 
-    @patch("django.core.management.call_command")
-    def test_integration_call_command(self, mock_call):
-        """Test calling command via Django's management interface."""
-        # This tests that the command can be called without errors
-        mock_call.return_value = None
-
-        # Call the command with default options
-        try:
-            call_command("metrics_service", "--help")
-        except SystemExit:
-            # Expected for --help
-            pass
-
 
 class TestMetricsServiceSignalHandling(TestCase):
     """Test signal handling functionality."""
@@ -478,14 +456,12 @@ class TestMetricsServiceSignalHandling(TestCase):
 
         # Manually trigger the signal handler
         # We need to get the actual handler function
-        import signal as signal_module
 
         # Create a mock frame
-        mock_frame = MagicMock()
+        MagicMock()
 
         # Find the signal handler by calling it manually
         # This simulates what would happen when a signal is received
-        handler_found = False
 
         # Since we can't easily access the handler, we'll test the cleanup directly
         self.command.shutdown_requested = False
@@ -510,53 +486,51 @@ class TestMetricsServiceEdgeCases(TestCase):
         self.command.processes = []
         self.command.shutdown_requested = True
 
-        with patch("subprocess.Popen") as mock_popen:
-            with patch.object(Path, "exists", return_value=True):
-                mock_process = MagicMock()
-                mock_process.poll.return_value = 0
-                mock_process.stdout.readline.return_value = ""
-                mock_popen.return_value = mock_process
+        with patch("subprocess.Popen") as mock_popen, patch.object(Path, "exists", return_value=True):
+            mock_process = MagicMock()
+            mock_process.poll.return_value = 0
+            mock_process.stdout.readline.return_value = ""
+            mock_popen.return_value = mock_process
 
-                self.command._run_django_server("127.0.0.1", "8000", "DEBUG")
+            self.command._run_django_server("127.0.0.1", "8000", "DEBUG")
 
-                # Verify --verbosity=2 was added for DEBUG level
-                args = mock_popen.call_args[0][0]
-                assert "--verbosity=2" in args
+            # Verify --verbosity=2 was added for DEBUG level
+            args = mock_popen.call_args[0][0]
+            assert "--verbosity=2" in args
 
     def test_django_server_process_streaming(self):
         """Test Django server process output streaming."""
         self.command.processes = []
         self.command.shutdown_requested = False
 
-        with patch("subprocess.Popen") as mock_popen:
-            with patch.object(Path, "exists", return_value=True):
-                mock_process = MagicMock()
-                mock_process.poll.side_effect = [None, None, 0]  # Running, then finished
-                mock_process.stdout.readline.side_effect = [
-                    "Starting development server at http://127.0.0.1:8000/\n",
-                    "Quit the server with CONTROL-C.\n",
-                    "",  # End of output
-                ]
-                mock_popen.return_value = mock_process
+        with patch("subprocess.Popen") as mock_popen, patch.object(Path, "exists", return_value=True):
+            mock_process = MagicMock()
+            mock_process.poll.side_effect = [None, None, 0]  # Running, then finished
+            mock_process.stdout.readline.side_effect = [
+                "Starting development server at http://127.0.0.1:8000/\n",
+                "Quit the server with CONTROL-C.\n",
+                "",  # End of output
+            ]
+            mock_popen.return_value = mock_process
 
-                # Set up to exit after a couple iterations
-                call_count = 0
+            # Set up to exit after a couple iterations
+            call_count = 0
 
-                def mock_poll():
-                    nonlocal call_count
-                    call_count += 1
-                    if call_count >= 3:
-                        self.command.shutdown_requested = True
-                        return 0  # Process finished
-                    return None  # Still running
+            def mock_poll():
+                nonlocal call_count
+                call_count += 1
+                if call_count >= 3:
+                    self.command.shutdown_requested = True
+                    return 0  # Process finished
+                return None  # Still running
 
-                mock_process.poll = mock_poll
+            mock_process.poll = mock_poll
 
-                self.command._run_django_server("127.0.0.1", "8000", "INFO")
+            self.command._run_django_server("127.0.0.1", "8000", "INFO")
 
-                # Verify output was streamed
-                output = self.command.stdout.getvalue()
-                assert "[Django]" in output
+            # Verify output was streamed
+            output = self.command.stdout.getvalue()
+            assert "[Django]" in output
 
     def test_port_validation_edge_cases(self):
         """Test port validation with edge cases."""

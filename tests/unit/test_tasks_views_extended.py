@@ -2,19 +2,17 @@
 Extended tests for task views and serializers to improve coverage.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
+import pytest
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
-from rest_framework.request import Request
-from rest_framework import status
 
-from apps.core.models import User
-from apps.tasks.models import Task, TaskExecution, TaskChain
+from apps.api.v1.tasks.serializers import TaskExecutionSerializer, TaskSerializer
 from apps.api.v1.tasks.views import TaskViewSet
-from apps.api.v1.tasks.serializers import TaskSerializer, TaskExecutionSerializer
+from apps.core.models import User
+from apps.tasks.models import Task, TaskChain, TaskExecution
 
 
 @pytest.mark.django_db
@@ -43,7 +41,7 @@ class TestTaskViewSet(TestCase):
         """Test get_serializer_class method."""
         viewset = TaskViewSet()
         # Need to set action for get_serializer_class to work properly
-        viewset.action = 'list'
+        viewset.action = "list"
         serializer_class = viewset.get_serializer_class()
         assert serializer_class == TaskSerializer
 
@@ -87,8 +85,8 @@ class TestTaskSerializer(TestCase):
         """Test task serialization."""
         # Create a request context for HyperlinkedIdentityField
         factory = APIRequestFactory()
-        request = factory.get('/')
-        serializer = TaskSerializer(instance=self.task, context={'request': request})
+        request = factory.get("/")
+        serializer = TaskSerializer(instance=self.task, context={"request": request})
         data = serializer.data
 
         assert data["name"] == "Test Task"
@@ -106,7 +104,7 @@ class TestTaskSerializer(TestCase):
         serializer = TaskSerializer(data=data)
         is_valid = serializer.is_valid()
         if not is_valid:
-            print(f"Serializer errors: {serializer.errors}")
+            pass
         # The exact validation depends on the serializer implementation
 
     def test_task_validation(self):
@@ -163,8 +161,8 @@ class TestTaskExecutionSerializer(TestCase):
         """Test task execution serialization."""
         # Create a request context for HyperlinkedIdentityField
         factory = APIRequestFactory()
-        request = factory.get('/')
-        serializer = TaskExecutionSerializer(instance=self.execution, context={'request': request})
+        request = factory.get("/")
+        serializer = TaskExecutionSerializer(instance=self.execution, context={"request": request})
         data = serializer.data
 
         assert data["status"] == "running"
@@ -190,8 +188,8 @@ class TestTaskExecutionSerializer(TestCase):
 
         # Create a request context for HyperlinkedIdentityField
         factory = APIRequestFactory()
-        request = factory.get('/')
-        serializer = TaskExecutionSerializer(instance=self.execution, context={'request': request})
+        request = factory.get("/")
+        serializer = TaskExecutionSerializer(instance=self.execution, context={"request": request})
         data = serializer.data
 
         assert data["result_data"] == {"output": "success"}
@@ -203,8 +201,8 @@ class TestTaskExecutionSerializer(TestCase):
 
         # Create a request context for HyperlinkedIdentityField
         factory = APIRequestFactory()
-        request = factory.get('/')
-        serializer = TaskExecutionSerializer(instance=self.execution, context={'request': request})
+        request = factory.get("/")
+        serializer = TaskExecutionSerializer(instance=self.execution, context={"request": request})
         data = serializer.data
 
         assert data["error_message"] == "Test error"
@@ -221,14 +219,14 @@ class TestTaskImports(TestCase):
 
     def test_task_serializer_imports(self):
         """Test task serializer imports work."""
-        from apps.api.v1.tasks.serializers import TaskSerializer, TaskExecutionSerializer
+        from apps.api.v1.tasks.serializers import TaskExecutionSerializer, TaskSerializer
 
         assert TaskSerializer is not None
         assert TaskExecutionSerializer is not None
 
     def test_task_model_imports(self):
         """Test task model imports work."""
-        from apps.tasks.models import Task, TaskExecution, TaskChain
+        from apps.tasks.models import Task, TaskExecution
 
         assert Task is not None
         assert TaskExecution is not None
@@ -261,7 +259,7 @@ class TestTaskViewSetActions(TestCase):
 
         assert TASK_FUNCTIONS is not None
         # Test that it's a dictionary-like object
-        assert hasattr(TASK_FUNCTIONS, 'items')
+        assert hasattr(TASK_FUNCTIONS, "items")
 
     def test_task_filtering(self):
         """Test task filtering in viewset."""

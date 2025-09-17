@@ -87,12 +87,12 @@ def build_error_response(message: str, details: dict[str, Any] | None = None, st
 def get_system_uuid() -> str:
     """
     Get system UUID from settings or generate a default one.
-    
+
     Returns:
         str: System UUID
     """
     try:
-        return getattr(settings, 'SYSTEM_UUID', str(uuid.uuid4()))
+        return getattr(settings, "SYSTEM_UUID", str(uuid.uuid4()))
     except Exception:
         return str(uuid.uuid4())
 
@@ -100,15 +100,15 @@ def get_system_uuid() -> str:
 def is_system_auditor_user(user: Any) -> bool:
     """
     Check if user is a system auditor.
-    
+
     Args:
         user: User instance to check
-        
+
     Returns:
         bool: True if user is system auditor
     """
     try:
-        if hasattr(user, 'is_system_auditor_user') and callable(user.is_system_auditor_user):
+        if hasattr(user, "is_system_auditor_user") and callable(user.is_system_auditor_user):
             return user.is_system_auditor_user()
         return False
     except Exception:
@@ -118,10 +118,10 @@ def is_system_auditor_user(user: Any) -> bool:
 def format_task_data(data: Any) -> str:
     """
     Format task data for display.
-    
+
     Args:
         data: Task data to format
-        
+
     Returns:
         str: Formatted task data
     """

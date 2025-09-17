@@ -76,19 +76,15 @@ except ImportError:
 def service_metadata() -> dict:
     """
     Get service metadata for resource registry.
-    
+
     Returns:
         dict: Service metadata
     """
     try:
         return {
-            'service_type': 'metrics_service',
-            'system_uuid': getattr(settings, 'SYSTEM_UUID', 'unknown'),
-            'version': '1.0.0'
+            "service_type": "metrics_service",
+            "system_uuid": getattr(settings, "SYSTEM_UUID", "unknown"),
+            "version": "1.0.0",
         }
     except Exception:
-        return {
-            'service_type': 'metrics_service',
-            'system_uuid': 'unknown',
-            'version': '1.0.0'
-        }
+        return {"service_type": "metrics_service", "system_uuid": "unknown", "version": "1.0.0"}

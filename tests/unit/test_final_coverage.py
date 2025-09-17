@@ -2,18 +2,13 @@
 Final comprehensive tests to achieve 100% coverage.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from io import StringIO
+from django.test import TestCase
 
-from django.test import TestCase, RequestFactory
-from django.contrib.auth.models import AnonymousUser
-from django.core.management import call_command
-from rest_framework.test import APIRequestFactory
-from rest_framework.request import Request
-
-from apps.core.models import User, Organization
-from apps.api.v1.base_serializers import CountFieldMixin, PasswordHandlingMixin, TimestampFieldMixin, StatusFieldMixin
+from apps.api.v1.base_serializers import CountFieldMixin, PasswordHandlingMixin, StatusFieldMixin, TimestampFieldMixin
+from apps.core.models import Organization, User
 
 
 @pytest.mark.django_db
@@ -91,7 +86,7 @@ class TestPasswordHandlingMixin(TestCase):
 
             # Call create without password
             validated_data = {"username": "test"}
-            result = self.mixin.create(validated_data)
+            self.mixin.create(validated_data)
 
             # Verify set_password wasn't called
             mock_instance.set_password.assert_not_called()
@@ -104,7 +99,7 @@ class TestPasswordHandlingMixin(TestCase):
 
         # Call update with password
         validated_data = {"username": "updated", "password": "newpass"}
-        result = self.mixin.update(mock_instance, validated_data)
+        self.mixin.update(mock_instance, validated_data)
 
         # Verify password was handled
         mock_instance.set_password.assert_called_once_with("newpass")
@@ -119,7 +114,7 @@ class TestPasswordHandlingMixin(TestCase):
 
         # Call update without password
         validated_data = {"username": "updated"}
-        result = self.mixin.update(mock_instance, validated_data)
+        self.mixin.update(mock_instance, validated_data)
 
         # Verify set_password wasn't called
         mock_instance.set_password.assert_not_called()

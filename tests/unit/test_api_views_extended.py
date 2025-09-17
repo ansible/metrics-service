@@ -3,18 +3,14 @@ Extended tests for API views and serializers to improve coverage.
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
-from rest_framework.request import Request
-from rest_framework import status
 
-from apps.core.models import User, Organization, Team
-from apps.api.v1.base_views import BaseViewSet, UserManagementMixin
 from apps.api.v1.base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
-from apps.api.v1.serializers import UserSerializer, OrganizationSerializer, TeamSerializer
-from apps.api.v1.views import UserViewSet, OrganizationViewSet, TeamViewSet
+from apps.api.v1.base_views import BaseViewSet, UserManagementMixin
+from apps.api.v1.serializers import OrganizationSerializer, TeamSerializer, UserSerializer
+from apps.api.v1.views import OrganizationViewSet, TeamViewSet, UserViewSet
+from apps.core.models import Organization, Team, User
 
 
 @pytest.mark.django_db
@@ -71,35 +67,38 @@ class TestBaseModelSerializer(TestCase):
 
     def test_base_serializer_initialization(self):
         """Test BaseModelSerializer can be initialized with proper Meta class."""
+
         # Create a concrete test serializer class with Meta
         class TestSerializer(BaseModelSerializer):
             class Meta:
                 model = User
-                fields = ['id', 'username', 'email']
-        
+                fields = ["id", "username", "email"]
+
         serializer = TestSerializer()
         assert serializer is not None
 
     def test_base_serializer_meta_not_implemented(self):
         """Test that Meta class is properly defined."""
+
         # Create a concrete test serializer class with Meta
         class TestSerializer(BaseModelSerializer):
             class Meta:
                 model = User
-                fields = ['id', 'username', 'email']
-        
+                fields = ["id", "username", "email"]
+
         serializer = TestSerializer()
         # The base serializer should have a Meta class
         assert hasattr(serializer, "Meta")
-        
+
     def test_setup_common_fields(self):
         """Test _setup_common_fields method adds read_only_fields."""
+
         # Create a concrete test serializer class with Meta
         class TestSerializer(BaseModelSerializer):
             class Meta:
                 model = User
-                fields = ['id', 'username', 'email']
-        
+                fields = ["id", "username", "email"]
+
         serializer = TestSerializer()
         # Check that common read-only fields were added
         expected_readonly = ["id", "url", "created", "modified"]
@@ -137,9 +136,9 @@ class TestUserSerializer(TestCase):
         """Test user serialization."""
         # Create a request context for HyperlinkedIdentityField
         factory = APIRequestFactory()
-        request = factory.get('/')
+        request = factory.get("/")
         request.user = self.user  # Add user to request for serializer context
-        serializer = UserSerializer(instance=self.user, context={'request': request})
+        serializer = UserSerializer(instance=self.user, context={"request": request})
         data = serializer.data
 
         assert data["username"] == "testuser"
@@ -183,9 +182,9 @@ class TestOrganizationSerializer(TestCase):
         # Create a user and request context
         user = User.objects.create_user(username="testuser", email="test@example.com")
         factory = APIRequestFactory()
-        request = factory.get('/')
+        request = factory.get("/")
         request.user = user  # Add user to request for serializer context
-        serializer = OrganizationSerializer(instance=self.org, context={'request': request})
+        serializer = OrganizationSerializer(instance=self.org, context={"request": request})
         data = serializer.data
 
         assert data["name"] == "Test Org"
@@ -211,9 +210,9 @@ class TestTeamSerializer(TestCase):
         # Create a user and request context
         user = User.objects.create_user(username="testuser", email="test@example.com")
         factory = APIRequestFactory()
-        request = factory.get('/')
+        request = factory.get("/")
         request.user = user  # Add user to request for serializer context
-        serializer = TeamSerializer(instance=self.team, context={'request': request})
+        serializer = TeamSerializer(instance=self.team, context={"request": request})
         data = serializer.data
 
         assert data["name"] == "Test Team"
@@ -225,7 +224,7 @@ class TestTeamSerializer(TestCase):
         serializer = TeamSerializer(data=data)
         is_valid = serializer.is_valid()
         if not is_valid:
-            print(f"TeamSerializer validation errors: {serializer.errors}")
+            pass
         # Allow test to pass without strict validation for now
         # assert is_valid
 
@@ -249,7 +248,7 @@ class TestUserViewSet(TestCase):
         viewset = UserViewSet()
         # Mock request and user for access_qs method
         factory = APIRequestFactory()
-        request = factory.get('/')
+        request = factory.get("/")
         request.user = self.user
         viewset.request = request
         queryset = viewset.get_queryset()
@@ -291,7 +290,7 @@ class TestOrganizationViewSet(TestCase):
         viewset = OrganizationViewSet()
         # Mock request and user for access_qs method
         factory = APIRequestFactory()
-        request = factory.get('/')
+        request = factory.get("/")
         request.user = self.user
         viewset.request = request
         queryset = viewset.get_queryset()
@@ -324,7 +323,7 @@ class TestTeamViewSet(TestCase):
         viewset = TeamViewSet()
         # Mock request and user for access_qs method
         factory = APIRequestFactory()
-        request = factory.get('/')
+        request = factory.get("/")
         request.user = self.user
         viewset.request = request
         queryset = viewset.get_queryset()
@@ -349,7 +348,7 @@ class TestAPIImports(TestCase):
 
     def test_base_serializer_imports(self):
         """Test base serializer imports work."""
-        from apps.api.v1.base_serializers import BaseModelSerializer, CountFieldMixin, PasswordHandlingMixin
+        from apps.api.v1.base_serializers import BaseModelSerializer, CountFieldMixin
 
         assert BaseModelSerializer is not None
         assert CountFieldMixin is not None
@@ -357,7 +356,7 @@ class TestAPIImports(TestCase):
 
     def test_serializer_imports(self):
         """Test serializer imports work."""
-        from apps.api.v1.serializers import UserSerializer, OrganizationSerializer, TeamSerializer
+        from apps.api.v1.serializers import OrganizationSerializer, TeamSerializer, UserSerializer
 
         assert UserSerializer is not None
         assert OrganizationSerializer is not None
@@ -365,7 +364,7 @@ class TestAPIImports(TestCase):
 
     def test_view_imports(self):
         """Test view imports work."""
-        from apps.api.v1.views import UserViewSet, OrganizationViewSet, TeamViewSet
+        from apps.api.v1.views import OrganizationViewSet, TeamViewSet, UserViewSet
 
         assert UserViewSet is not None
         assert OrganizationViewSet is not None
