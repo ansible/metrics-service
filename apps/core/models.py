@@ -1,157 +1,58 @@
 """
-Core data models for the metrics service following AAP standards.
-
-This module defines the core data models that form the foundation of the metrics
-service. The models are designed to integrate seamlessly with Django Ansible Base
-(DAB) when available, while providing graceful fallbacks for basic Django setups.
-
-Models:
-    User: Enhanced user model with system auditor capabilities and DAB integration
-    Organization: Organizational units with hierarchical membership management
-    Team: Teams within organizations with member management and permissions
-
-DAB Integration:
-    When Django Ansible Base is available (install with pip install -e ".[dev]"):
-    - Full RBAC permission system
-    - Activity stream audit logging
-    - Resource registry for cross-service communication
-    - Enhanced authentication backends
-    - Advanced user management features
-
-Fallback Mode:
-    When DAB is not available, provides basic Django functionality:
-    - Standard Django User model extension
-    - Basic organization and team models
-    - Essential timestamp tracking
-    - Core permission checking methods
-
-Features:
-    - System auditor role support with read-only access patterns
-    - Flexible organization membership with admin capabilities
-    - Team management with parent organization relationships
-    - Comprehensive access control methods (can_view, can_manage, etc.)
-    - QuerySet filtering based on user permissions and memberships
-    - Activity tracking and audit logging (when DAB available)
-
-Security:
-    - System auditor isolation with read-only enforcement
-    - Organization-based access control
-    - Team membership validation
-    - Permission checking at model level
-    - Safe queryset filtering to prevent unauthorized access
-
-Performance:
-    - Efficient QuerySet methods with optimized database queries
-    - Related object prefetching in access_qs methods
-    - Minimal database hits for permission checking
-    - Indexed fields for common query patterns
+Core models for metrics_service.
+For full AAP/DAB features, install with: pip install -e ".[dev]"
 """
 
-from django.contrib.auth.models import AbstractUser
+# Import DAB components - DAB is always available in this environment
+from datetime import datetime
+
+from ansible_base.activitystream.models import AuditableModel
+from ansible_base.lib.abstract_models import (
+    AbstractDABUser,
+    AbstractOrganization,
+    AbstractTeam,
+    CommonModel,
+    NamedCommonModel,
+)
+from ansible_base.lib.utils.models import user_summary_fields
+from ansible_base.resource_registry.fields import AnsibleResourceField
+
+# Password handling functions from DAB
+from django.contrib.auth.hashers import (
+    UNUSABLE_PASSWORD_PREFIX,
+    UNUSABLE_PASSWORD_SUFFIX_LENGTH,
+    get_hashers_by_algorithm,
+    identify_hasher,
+    make_password,
+)
 from django.db import models
 
-try:
-    # Try to import DAB components
-    from ansible_base.activitystream.models import AuditableModel
-    from ansible_base.lib.abstract_models import (
-        AbstractDABUser,
-        AbstractOrganization,
-        AbstractTeam,
-        CommonModel,
-        NamedCommonModel,
-    )
-    from ansible_base.lib.utils.models import user_summary_fields
-    from ansible_base.resource_registry.fields import AnsibleResourceField
-
-    DAB_AVAILABLE = True
-except ImportError:
-    # Provide simple alternatives for immediate setup
-    DAB_AVAILABLE = False
-
-    # Simple base classes when DAB is not available
-    class CommonModel(models.Model):
-        created: models.DateTimeField = models.DateTimeField(auto_now_add=True)
-        modified: models.DateTimeField = models.DateTimeField(auto_now=True)
-
-        class Meta:
-            abstract = True
-
-    class NamedCommonModel(CommonModel):
-        name: models.CharField = models.CharField(max_length=512)
-        description: models.TextField = models.TextField(blank=True, default="")
-
-        class Meta:
-            abstract = True
-
-    class AuditableModel(models.Model):
-        class Meta:
-            abstract = True
-
-    class AbstractDABUser(AbstractUser):
-        class Meta:
-            abstract = True
-
-    class AbstractOrganization(NamedCommonModel):
-        class Meta:
-            abstract = True
-
-    class AbstractTeam(NamedCommonModel):
-        organization: models.ForeignKey = models.ForeignKey("Organization", on_delete=models.CASCADE)
-
-        class Meta:
-            abstract = True
-
-
-# Import mixins
 from .mixins import AccessControlMixin, UserRelatedMixin
 
-# Password handling functions - only available when DAB is enabled
-if DAB_AVAILABLE:
-    from django.contrib.auth.hashers import (
-        UNUSABLE_PASSWORD_PREFIX,
-        UNUSABLE_PASSWORD_SUFFIX_LENGTH,
-        get_hashers_by_algorithm,
-        identify_hasher,
-        make_password,
+
+def password_is_hashed(password):
+    """
+    Returns a boolean of whether password is hashed with loaded algorithms.
+    """
+    if password is None:
+        return False
+    try:
+        hasher = identify_hasher(password)
+    except ValueError:
+        # hasher can't be identified or is not loaded
+        return False
+    return hasher.algorithm in get_hashers_by_algorithm()
+
+
+def password_is_usable(password):
+    """
+    Returns True if password is None or wasn't generated by django.contrib.auth.hashers.make_password(None).
+    """
+    unusable_password_len = len(UNUSABLE_PASSWORD_PREFIX) + UNUSABLE_PASSWORD_SUFFIX_LENGTH
+
+    return password is None or not (
+        password.startswith(UNUSABLE_PASSWORD_PREFIX) and len(password) == unusable_password_len
     )
-
-    def password_is_hashed(password):
-        """
-        Returns a boolean of whether password is hashed with loaded algorithms.
-        """
-        if password is None:
-            return False
-        try:
-            hasher = identify_hasher(password)
-        except ValueError:
-            # hasher can't be identified or is not loaded
-            return False
-        return hasher.algorithm in get_hashers_by_algorithm()
-
-    def password_is_usable(password):
-        """
-        Returns True if password is None or wasn't generated by django.contrib.auth.hashers.make_password(None).
-        """
-        unusable_password_len = len(UNUSABLE_PASSWORD_PREFIX) + UNUSABLE_PASSWORD_SUFFIX_LENGTH
-
-        return password is None or not (
-            password.startswith(UNUSABLE_PASSWORD_PREFIX) and len(password) == unusable_password_len
-        )
-
-else:
-    # Fallback password functions when DAB is not available - use Django's built-in functions
-    from django.contrib.auth.hashers import make_password as django_make_password
-
-    def password_is_hashed(password):
-        """Simple fallback - assume any non-empty password is hashed."""
-        return password is not None and password != ""
-
-    def password_is_usable(password):
-        """Simple fallback - any password is usable."""
-        return password is not None
-
-    # Use Django's make_password as fallback
-    make_password = django_make_password
 
 
 class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
@@ -169,19 +70,18 @@ class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
             ("member_organization", "User is member of this organization"),
         ]
 
-    if DAB_AVAILABLE:
-        resource = AnsibleResourceField(primary_key_field="id")
+    resource = AnsibleResourceField(primary_key_field="id")
 
     # UserRelatedMixin provides users and admins fields
     # Override to customize related_name for organizations
-    users: models.ManyToManyField = models.ManyToManyField(
+    users = models.ManyToManyField(
         "User",
         related_name="member_of_organizations",
         blank=True,
         help_text="The list of users on this organization",
     )
 
-    admins: models.ManyToManyField = models.ManyToManyField(
+    admins = models.ManyToManyField(
         "User",
         related_name="admin_of_organizations",
         blank=True,
@@ -189,7 +89,7 @@ class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
     )
 
     # Example custom field - replace or remove as needed
-    extra_field: models.CharField = models.CharField(max_length=100, null=True, blank=True)
+    extra_field = models.CharField(max_length=100, null=True, blank=True)
 
     @classmethod
     def access_qs(cls, user, queryset=None):
@@ -236,7 +136,7 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
         ordering = ["id"]
 
     # Override the groups and user_permissions to avoid conflicts with auth.User
-    groups: models.ManyToManyField = models.ManyToManyField(
+    groups = models.ManyToManyField(
         "auth.Group",
         verbose_name="groups",
         blank=True,
@@ -244,7 +144,7 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
         related_name="core_user_set",
         related_query_name="core_user",
     )
-    user_permissions: models.ManyToManyField = models.ManyToManyField(
+    user_permissions = models.ManyToManyField(
         "auth.Permission",
         verbose_name="user permissions",
         blank=True,
@@ -265,9 +165,8 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
         help_text="The organization this user belongs to.",
     )
 
-    if DAB_AVAILABLE:
-        resource = AnsibleResourceField(primary_key_field="id")
-        activity_stream_excluded_field_names = ["last_login", "password"]
+    resource = AnsibleResourceField(primary_key_field="id")
+    activity_stream_excluded_field_names = ["last_login", "password"]
 
     def save(self, *args, **kwargs):
         """
@@ -313,15 +212,7 @@ class User(AbstractDABUser, CommonModel, AuditableModel, AccessControlMixin):
         Returns:
             dict: Summary fields dictionary
         """
-        if DAB_AVAILABLE:
-            return user_summary_fields(self)
-        else:
-            return {
-                "id": self.id,
-                "username": self.username,
-                "first_name": self.first_name,
-                "last_name": self.last_name,
-            }
+        return user_summary_fields(self)
 
     @classmethod
     def access_qs(cls, user, queryset=None):
@@ -413,10 +304,9 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
         ordering = ("organization__name", "name")
         permissions = [("member_team", "Has all roles assigned to this team")]
 
-    if DAB_AVAILABLE:
-        resource = AnsibleResourceField(primary_key_field="id")
+    resource = AnsibleResourceField(primary_key_field="id")
 
-    team_parents: models.ManyToManyField = models.ManyToManyField(
+    team_parents = models.ManyToManyField(
         "Team",
         related_name="team_children",
         blank=True,
@@ -424,14 +314,14 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
     )
 
     # Override UserRelatedMixin fields to use proper User model and related_name
-    users: models.ManyToManyField = models.ManyToManyField(
+    users = models.ManyToManyField(
         User,
         related_name="teams",
         blank=True,
         help_text="The list of users on this team",
     )
 
-    admins: models.ManyToManyField = models.ManyToManyField(
+    admins = models.ManyToManyField(
         User,
         related_name="teams_administered",
         blank=True,
@@ -439,7 +329,7 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
     )
 
     # Relations to ignore for certain operations
-    ignore_relations: list[str] = []
+    ignore_relations = []
 
     @classmethod
     def access_qs(cls, user, queryset=None):
@@ -477,3 +367,4 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
             str: Organization name and team name
         """
         return f"{self.organization.name} - {self.name}"
+

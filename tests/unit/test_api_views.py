@@ -137,37 +137,6 @@ class OrganizationViewSetTestCase(APITestCase):
 
 
 @pytest.mark.unit
-class TeamViewSetTestCase(APITestCase):
-    """Test cases for TeamViewSet."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        self.user = User.objects.create_superuser(username="teamuser", email="team@example.com", password="testpass123")
-        self.organization = Organization.objects.create(name="Test Organization")
-        self.team = Team.objects.create(name="Test Team", organization=self.organization)
-
-    def test_team_detail_authenticated(self):
-        """Test team detail endpoint."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:team-detail", kwargs={"pk": self.team.pk})
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["name"], "Test Team")
-
-    def test_team_create_authenticated(self):
-        """Test team creation via API."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:team-list")
-        data = {"name": "New Team", "organization": self.organization.pk}
-        response = self.client.post(url, data, format="json")
-
-        # Response code depends on permissions
-        self.assertNotEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-
-@pytest.mark.unit
 class APIErrorHandlingTestCase(APITestCase):
     """Test cases for API error handling."""
 
@@ -260,18 +229,6 @@ class APISerializerTestCase(APITestCase):
         # Password should not be in serialized data
         self.assertNotIn("password", response.data)
 
-    def test_nested_serialization(self):
-        """Test nested object serialization."""
-        team = Team.objects.create(name="Nested Team", organization=self.organization)
-
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:team-detail", kwargs={"pk": team.pk})
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Organization should be included (either as ID or nested object)
-        self.assertIn("organization", response.data)
 
 
 @pytest.mark.unit

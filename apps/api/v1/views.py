@@ -1,64 +1,29 @@
 """
-API v1 views for metrics_service following Ansible Automation Platform (AAP) standards.
-
-This module provides REST API ViewSets that implement comprehensive CRUD operations
-for core resources including Users, Organizations, and Teams. The implementation
-follows AAP conventions and integrates with Django Ansible Base (DAB) for RBAC,
-authentication, and resource management.
-
-ViewSets:
-    UserViewSet: Complete user management with profile operations
-    OrganizationViewSet: Organization management with membership handling
-    TeamViewSet: Team management with hierarchical organization support
-
-Features:
-    - RESTful API design with proper HTTP status codes
-    - Comprehensive filtering, searching, and ordering capabilities
-    - OpenAPI documentation with detailed schemas
-    - System auditor read-only access integration
-    - DAB RBAC permission enforcement
-    - Proper error handling and validation
-    - Pagination support for large datasets
-
-Authentication:
-    Supports multiple authentication methods:
-    - Session authentication for web interface
-    - OAuth2 tokens for third-party integrations
-    - JWT tokens for service-to-service communication
-
-Security:
-    - RBAC-based access control via DAB
-    - System auditor read-only enforcement
-    - Input validation and sanitization
-    - Rate limiting ready (configurable)
-    - Audit logging for all operations
+API v1 views for metrics_service following AAP standards.
 """
 
+from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
+from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
 from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.core.models import Organization, Team, User
+from apps.core.models import Organization, User
+from apps.core.permissions import SystemAuditorAwarePermissions
 
-from .base_views import BaseViewSet, UserManagementMixin
 from .serializers import (
     OrganizationSerializer,
-    TeamSerializer,
     UserSerializer,
 )
 
 
-class UserViewSet(BaseViewSet, UserManagementMixin):
-    """
-    ViewSet for User model following AAP patterns.
-
-    This ViewSet provides comprehensive user management functionality
-    including password setting and profile management.
-    """
+class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
+    """ViewSet for User model following AAP patterns."""
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [OAuth2ScopePermission, SystemAuditorAwarePermissions]
     search_fields = ["username", "first_name", "last_name", "email"]
     filterset_fields = {
         "username": ["exact", "icontains"],
@@ -70,6 +35,11 @@ class UserViewSet(BaseViewSet, UserManagementMixin):
     }
     ordering_fields = ["username", "email", "first_name", "last_name", "created"]
     ordering = ["username"]
+
+    def get_queryset(self):
+        """Filter queryset based on user permissions using DAB patterns."""
+        # Use DAB's access_qs method - when DAB is fully configured, this will handle all RBAC
+        return User.access_qs(self.request.user, queryset=self.queryset)
 
     @extend_schema(
         operation_id="users_me_retrieve",
@@ -102,16 +72,12 @@ class UserViewSet(BaseViewSet, UserManagementMixin):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class OrganizationViewSet(BaseViewSet, UserManagementMixin):
-    """
-    ViewSet for Organization model following AAP patterns.
-
-    This ViewSet provides comprehensive organization management functionality
-    including user and admin management.
-    """
+class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
+    """ViewSet for Organization model following AAP patterns."""
 
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
+    permission_classes = [OAuth2ScopePermission, SystemAuditorAwarePermissions]
     search_fields = ["name", "description"]
     filterset_fields = {
         "name": ["exact", "icontains"],
@@ -123,25 +89,50 @@ class OrganizationViewSet(BaseViewSet, UserManagementMixin):
     ordering_fields = ["name", "created", "modified"]
     ordering = ["name"]
 
+    def get_queryset(self):
+        """Filter queryset based on user permissions using DAB patterns."""
+        user = self.request.user
+        return Organization.access_qs(user, queryset=self.queryset)
 
-class TeamViewSet(BaseViewSet, UserManagementMixin):
-    """
-    ViewSet for Team model following AAP patterns.
+    @extend_schema(
+        operation_id="organizations_users",
+        description="Get users in organization OR add user to organization",
+        request={
+            "GET": None,  # No request body for GET
+            "POST": {"id": "integer", "disassociate": "boolean"},
+        },
+        responses={
+            200: UserSerializer(many=True),  # GET response
+            204: None,  # POST response
+        },
+    )
+    @action(detail=True, methods=["get", "post"])
+    def users(self, request, pk=None):
+        """Get users in organization OR add user to organization."""
+        organization = self.get_object()
 
-    This ViewSet provides comprehensive team management functionality
-    including hierarchical support and user/admin management.
-    """
+        if request.method == "GET":
+            # Return list of users (current behavior)
+            users = organization.users.all()
+            serializer = UserSerializer(users, many=True, context={"request": request})
+            return Response(serializer.data)
 
-    queryset = Team.objects.select_related("organization").all()
-    serializer_class = TeamSerializer
-    search_fields = ["name", "description", "organization__name"]
-    filterset_fields = {
-        "name": ["exact", "icontains"],
-        "description": ["icontains"],
-        "organization": ["exact"],
-        "organization__name": ["exact", "icontains"],
-        "created": ["gte", "lte"],
-        "modified": ["gte", "lte"],
-    }
-    ordering_fields = ["name", "organization__name", "created", "modified"]
-    ordering = ["organization__name", "name"]
+        elif request.method == "POST":
+            # Add/remove user to/from organization
+            user_id = request.data.get("id")
+            disassociate = request.data.get("disassociate", False)
+
+            if not user_id:
+                return Response({"error": "User id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                user = User.objects.get(id=user_id)
+
+                if disassociate:
+                    organization.users.remove(user)
+                else:
+                    organization.users.add(user)
+
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)

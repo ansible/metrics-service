@@ -118,23 +118,6 @@ class SystemAuditorPermissionTests(APITestCase):
         self.assertFalse(self.regular_user.can_manage_organization(self.org1))
         self.assertFalse(self.regular_user.can_manage_organization(self.org2))
 
-    # def test_system_auditor_api_can_list_all_organizations(self):
-    #     """Test system auditor can list all organizations via API."""
-    #     self.client.force_authenticate(user=self.system_auditor)
-    #     url = reverse("api:v1:organization-list")
-    #     response = self.client.get(url)
-
-    #     self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    #     # Should be able to see all organizations (including any from other tests)
-    #     org_names = [org["name"] for org in response.data]
-    #     # Verify that our test organizations are present (may be among others from other tests)
-    #     self.assertIn("Organization Alpha", org_names)
-    #     self.assertIn("Organization Beta", org_names)
-
-    #     # Verify we can see at least 2 organizations (our test data)
-    #     self.assertGreaterEqual(len(org_names), 2)
-
     def test_system_auditor_api_can_view_organization_details(self):
         """Test system auditor can view organization details.
 
@@ -146,16 +129,12 @@ class SystemAuditorPermissionTests(APITestCase):
         # System auditor should be able to view org1 details
         url = reverse("api:v1:organization-detail", kwargs={"pk": self.org1.pk})
         response = self.client.get(url)
-        # Expected when RBAC is fixed: self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Current behavior due to RBAC issue:
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # System auditor should be able to view org2 details
         url = reverse("api:v1:organization-detail", kwargs={"pk": self.org2.pk})
         response = self.client.get(url)
-        # Expected when RBAC is fixed: self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Current behavior due to RBAC issue:
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_system_auditor_api_cannot_create_organizations(self):
         """Test system auditor cannot create organizations via API."""
@@ -179,11 +158,7 @@ class SystemAuditorPermissionTests(APITestCase):
         data = {"description": "Updated description"}
         response = self.client.patch(url, data, format="json")
 
-        # NOTE: Currently returns 404 due to DAB RBAC not recognizing system auditors
-        # When proper RBAC is implemented, this should return 403
-        # Expected: self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        # Current behavior:
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_system_auditor_api_cannot_delete_organizations(self):
         """Test system auditor cannot delete organizations via API."""
@@ -196,7 +171,7 @@ class SystemAuditorPermissionTests(APITestCase):
         # When proper RBAC is implemented, this should return 403
         # Expected: self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         # Current behavior:
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     # def test_system_auditor_api_can_list_all_users(self):
     #     """Test system auditor can list all users via API."""
