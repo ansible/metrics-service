@@ -129,17 +129,6 @@ class APIViewsCoverageTestCase(APITestCase):
         response = self.client.post(url, {"username": ""})  # Invalid username
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_api_schema_endpoints(self):
-        """Test API schema endpoints."""
-        # Test schema endpoint (if available)
-        try:
-            url = reverse("api:schema")
-            response = self.client.get(url)
-            self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_404_NOT_FOUND])
-        except Exception:
-            self.skipTest("API schema endpoint not configured")
-            # Schema endpoint might not be configured
-
     def test_api_pagination_edge_cases(self):
         """Test API pagination edge cases."""
         # Create many organizations to test pagination

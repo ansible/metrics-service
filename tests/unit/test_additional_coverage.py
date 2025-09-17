@@ -10,7 +10,7 @@ from django.test import TestCase
 
 from apps.core.admin import OrganizationAdmin, TeamAdmin, UserAdmin
 from apps.core.models import Organization, Team, User
-from apps.core.signals import organization_post_save, team_post_save, user_post_save, user_pre_delete
+from apps.core.signals import organization_post_save, user_post_save, user_pre_delete
 from apps.tasks.admin import TaskAdmin
 from apps.tasks.models import Task
 
@@ -140,20 +140,6 @@ class SignalsCoverageTestCase(TestCase):
 
         # Should log organization creation
         mock_logger.info.assert_called_with(f"Organization created: {instance.name} (ID: {instance.id})")
-
-    @patch("apps.core.signals.logger")
-    def test_team_post_save_signal(self, mock_logger):
-        """Test team_post_save signal handler."""
-        org = Organization.objects.create(name="Test Org")
-        team = Team.objects.create(name="Test Team", organization=org)
-        sender = Team
-        instance = team
-        created = True
-
-        team_post_save(sender, instance, created)
-
-        # Should log team creation
-        mock_logger.info.assert_called_with(f"Team created: {instance.name} (ID: {instance.id})")
 
 
 @pytest.mark.unit

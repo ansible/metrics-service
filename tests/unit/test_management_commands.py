@@ -333,35 +333,6 @@ class RunTaskSchedulerCommandTestCase(TestCase):
 
 
 @pytest.mark.unit
-class RunDispatcherCommandTestCase(TestCase):
-    """Test cases for run_dispatcherd management command."""
-
-    @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcherd_enabled(self):
-        """Test run_dispatcherd when enabled but dispatcherd not available."""
-        # These tests are skipped because:
-        # 1. dispatcherd is not installed in the test environment
-        # 2. The command tries to start actual background processes
-        # 3. This causes tests to hang indefinitely
-        pass
-
-    @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcherd_import_error(self):
-        """Test run_dispatcherd with import error."""
-        pass
-
-    @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcherd_with_task_scheduler(self):
-        """Test run_dispatcherd attempts to start task scheduler."""
-        pass
-
-    @pytest.mark.skip(reason="Dispatcher tests cause hanging - dispatcherd not available in test environment")
-    def test_run_dispatcherd_exception_handling(self):
-        """Test run_dispatcherd exception handling."""
-        pass
-
-
-@pytest.mark.unit
 class CommandArgumentsTestCase(TestCase):
     """Test cases for command argument parsing."""
 
