@@ -78,8 +78,7 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
             None
         """
         # Set created_by field if it exists and user is authenticated
-        if (hasattr(serializer.Meta.model, "created_by") and
-            self.request.user and self.request.user.is_authenticated):
+        if hasattr(serializer.Meta.model, "created_by") and self.request.user and self.request.user.is_authenticated:
             serializer.save(created_by=self.request.user)
         else:
             serializer.save()
