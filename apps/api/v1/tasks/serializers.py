@@ -195,7 +195,8 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         # Use provided user or request user
         if user:
             validated_data["created_by"] = user
-        elif hasattr(self.context.get("request"), "user") and self.context["request"].user.is_authenticated:
+        elif (hasattr(self.context.get("request"), "user") and
+              self.context["request"].user and self.context["request"].user.is_authenticated):
             validated_data["created_by"] = self.context["request"].user
 
         return super().create(validated_data)
