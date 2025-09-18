@@ -51,9 +51,6 @@ service:
   type: metrics-service
   id: metrics-service-instance-id
 
-# Feature Flags
-feature_flags:
-  dispatcherd_enabled: true
 
 # Dispatcherd Configuration
 dispatcherd:

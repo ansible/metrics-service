@@ -51,7 +51,6 @@ DAB_APPS = [
     "ansible_base.activitystream",
     "ansible_base.jwt_consumer",
     "ansible_base.resource_registry",
-    "ansible_base.feature_flags",
 ]
 
 
