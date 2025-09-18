@@ -243,9 +243,6 @@ OAUTH2_PROVIDER = {
     "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
     "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
 }
-# OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
-# OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
-# OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
 
 # Resource Server Configuration
 RESOURCE_SERVER: dict[str, str | bool | None] = {

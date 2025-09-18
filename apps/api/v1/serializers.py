@@ -8,6 +8,8 @@ from apps.core.models import Organization, Team, User
 
 from .base_serializers import BaseModelSerializer, CountFieldMixin
 
+view_name_org_detail = "api:v1:organization-detail"
+
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for User model following AAP patterns."""
@@ -140,7 +142,7 @@ class OrganizationSerializer(serializers.HyperlinkedModelSerializer):
             "object_role",
         ]
         extra_kwargs = {
-            "url": {"view_name": "api:v1:organization-detail"},
+            "url": {"view_name": view_name_org_detail},
         }
 
     def get_users_count(self, obj):
@@ -203,7 +205,7 @@ class TeamSerializer(BaseModelSerializer, CountFieldMixin):
     # Organization details
     organization_name = serializers.CharField(source="organization.name", read_only=True)
     organization_url = serializers.HyperlinkedRelatedField(
-        source="organization", view_name="api:v1:organization-detail", read_only=True
+        source="organization", view_name=view_name_org_detail, read_only=True
     )
 
     # Related URLs and permissions
@@ -241,7 +243,7 @@ class TeamSerializer(BaseModelSerializer, CountFieldMixin):
         ]
         extra_kwargs = {
             "url": {"view_name": "api:v1:team-detail"},
-            "organization": {"view_name": "api:v1:organization-detail", "queryset": Organization.objects.all()},
+            "organization": {"view_name": view_name_org_detail, "queryset": Organization.objects.all()},
         }
 
     def get_users_count(self, obj):

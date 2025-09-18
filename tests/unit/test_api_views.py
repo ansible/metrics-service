@@ -12,6 +12,8 @@ from apps.core.models import Organization
 
 User = get_user_model()
 
+view_name_org_detail = "api:v1:organization-detail"
+
 
 @pytest.mark.unit
 class APIAuthenticationTestCase(APITestCase):
@@ -99,7 +101,7 @@ class OrganizationViewSetTestCase(APITestCase):
     def test_organization_detail_authenticated(self):
         """Test organization detail endpoint."""
         self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.organization.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.organization.pk})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -148,7 +150,7 @@ class APIErrorHandlingTestCase(APITestCase):
     def test_not_found_error(self):
         """Test 404 error handling."""
         self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": 99999})
+        url = reverse(view_name_org_detail, kwargs={"pk": 99999})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -208,7 +210,7 @@ class APISerializerTestCase(APITestCase):
     def test_organization_serialization(self):
         """Test organization serialization."""
         self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.organization.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.organization.pk})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

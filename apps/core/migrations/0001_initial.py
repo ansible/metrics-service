@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("auth", "0012_alter_user_first_name_max_length"),
     ]
-
+    date_time_text = "The date/time this resource was created."
     operations = [
         migrations.CreateModel(
             name="User",
@@ -63,10 +63,10 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("date_joined", models.DateTimeField(default=django.utils.timezone.now, verbose_name="date joined")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 (
                     "created_by",
@@ -131,10 +131,10 @@ class Migration(migrations.Migration):
             name="Organization",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 ("name", models.CharField(help_text="The name of this resource.", max_length=512, unique=True)),
                 ("description", models.TextField(blank=True, default="", help_text="The organization description.")),
@@ -192,10 +192,10 @@ class Migration(migrations.Migration):
             name="Team",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 ("name", models.CharField(help_text="The name of this resource.", max_length=512)),
                 ("description", models.TextField(blank=True, default="", help_text="The team description.")),

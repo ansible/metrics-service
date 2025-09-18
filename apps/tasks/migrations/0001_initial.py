@@ -14,15 +14,17 @@ class Migration(migrations.Migration):
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
+    date_time_text = "The date/time this resource was created."
+
     operations = [
         migrations.CreateModel(
             name="Task",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 ("name", models.CharField(help_text="The name of this resource.", max_length=512)),
                 ("started_at", models.DateTimeField(blank=True, help_text="When the process started", null=True)),
@@ -122,10 +124,10 @@ class Migration(migrations.Migration):
             name="TaskChain",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 ("name", models.CharField(help_text="The name of this resource.", max_length=512)),
                 ("is_active", models.BooleanField(default=True, help_text="Whether this chain is active")),
@@ -161,10 +163,10 @@ class Migration(migrations.Migration):
             name="TaskExecution",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 (
                     "status",
@@ -239,10 +241,10 @@ class Migration(migrations.Migration):
             name="TaskChainMembership",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 (
                     "order",
@@ -294,10 +296,10 @@ class Migration(migrations.Migration):
             name="TaskDependency",
             fields=[
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("modified", models.DateTimeField(auto_now=True, help_text="The date/time this resource was created.")),
+                ("modified", models.DateTimeField(auto_now=True, help_text=date_time_text)),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created."),
+                    models.DateTimeField(auto_now_add=True, help_text=date_time_text),
                 ),
                 (
                     "required_status",

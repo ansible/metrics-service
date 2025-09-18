@@ -22,6 +22,7 @@ from rest_framework.test import APIClient, APITestCase
 from apps.core.models import Organization
 
 User = get_user_model()
+view_name_org_detail = "api:v1:organization-detail"
 
 
 @pytest.mark.unit
@@ -127,12 +128,12 @@ class SystemAuditorPermissionTests(APITestCase):
         self.client.force_authenticate(user=self.system_auditor)
 
         # System auditor should be able to view org1 details
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.org1.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.org1.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # System auditor should be able to view org2 details
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.org2.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.org2.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -153,7 +154,7 @@ class SystemAuditorPermissionTests(APITestCase):
     def test_system_auditor_api_cannot_update_organizations(self):
         """Test system auditor cannot update organizations via API."""
         self.client.force_authenticate(user=self.system_auditor)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.org1.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.org1.pk})
 
         data = {"description": "Updated description"}
         response = self.client.patch(url, data, format="json")
@@ -163,7 +164,7 @@ class SystemAuditorPermissionTests(APITestCase):
     def test_system_auditor_api_cannot_delete_organizations(self):
         """Test system auditor cannot delete organizations via API."""
         self.client.force_authenticate(user=self.system_auditor)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.org1.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.org1.pk})
 
         response = self.client.delete(url)
 
