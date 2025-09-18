@@ -43,29 +43,17 @@ THIRD_PARTY_APPS = [
 # Full AAP features available when installing with: pip install -e ".[dev]"
 DAB_APPS = [
     "ansible_base",
-    # These are the core apps that work without additional dependencies
-    "ansible_base.rest_filters",  # Add when needed
-    "ansible_base.rest_pagination",  # Add when needed
-    "ansible_base.rbac",  # Add when needed
-    "ansible_base.authentication",  # Add when needed
-    "ansible_base.oauth2_provider",  # Add when needed
-    "ansible_base.activitystream",  # Add when needed
-    "ansible_base.jwt_consumer",  # Add when needed
-    "ansible_base.resource_registry",  # Add when needed
+    "ansible_base.rest_filters",
+    "ansible_base.rest_pagination",
+    "ansible_base.rbac",
+    "ansible_base.authentication",
+    "ansible_base.oauth2_provider",
+    "ansible_base.activitystream",
+    "ansible_base.jwt_consumer",
+    "ansible_base.resource_registry",
+    "ansible_base.feature_flags",
 ]
 
-# Uncomment the line below to enable all DAB features with development setup
-# DAB_APPS = [app.strip("# ") for app in [
-#     "ansible_base.rest_filters",
-#     "ansible_base.rest_pagination",
-#     "ansible_base.rbac",
-#     "ansible_base.authentication",
-#     "ansible_base.oauth2_provider",
-#     "ansible_base.activitystream",
-#     "ansible_base.jwt_consumer",
-#     "ansible_base.resource_registry",
-#     "ansible_base.feature_flags",
-# ]]
 
 LOCAL_APPS = [
     "apps.core",
