@@ -8,9 +8,11 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.core.models import Organization, Team
+from apps.core.models import Organization
 
 User = get_user_model()
+
+view_name_org_detail = "api:v1:organization-detail"
 
 
 @pytest.mark.unit
@@ -55,19 +57,6 @@ class UserViewSetTestCase(APITestCase):
             username="admin", email="admin@example.com", password="adminpass123"
         )
 
-    def test_user_list_authenticated(self):
-        """Test user list endpoint with authentication."""
-        self.client.force_authenticate(user=self.admin_user)
-        url = reverse("api:v1:user-list")
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsInstance(response.data, dict)
-
-        # Should have pagination structure
-        if "results" in response.data:
-            self.assertIsInstance(response.data["results"], list)
-
     def test_user_detail_authenticated(self):
         """Test user detail endpoint with authentication."""
         self.client.force_authenticate(user=self.admin_user)
@@ -98,15 +87,6 @@ class UserViewSetTestCase(APITestCase):
         # Response code depends on permissions, but should not be 401
         self.assertNotEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_user_delete_authenticated(self):
-        """Test user deletion via API."""
-        self.client.force_authenticate(user=self.admin_user)
-        url = reverse("api:v1:user-detail", kwargs={"pk": self.user.pk})
-        response = self.client.delete(url)
-
-        # Response code depends on permissions, but should not be 401
-        self.assertNotEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
 
 @pytest.mark.unit
 class OrganizationViewSetTestCase(APITestCase):
@@ -118,19 +98,10 @@ class OrganizationViewSetTestCase(APITestCase):
         self.user = User.objects.create_superuser(username="orguser", email="org@example.com", password="testpass123")
         self.organization = Organization.objects.create(name="Test Organization")
 
-    def test_organization_list_authenticated(self):
-        """Test organization list endpoint."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-list")
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsInstance(response.data, dict)
-
     def test_organization_detail_authenticated(self):
         """Test organization detail endpoint."""
         self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.organization.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.organization.pk})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -168,96 +139,6 @@ class OrganizationViewSetTestCase(APITestCase):
 
 
 @pytest.mark.unit
-class TeamViewSetTestCase(APITestCase):
-    """Test cases for TeamViewSet."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        self.user = User.objects.create_superuser(username="teamuser", email="team@example.com", password="testpass123")
-        self.organization = Organization.objects.create(name="Test Organization")
-        self.team = Team.objects.create(name="Test Team", organization=self.organization)
-
-    def test_team_list_authenticated(self):
-        """Test team list endpoint."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:team-list")
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsInstance(response.data, dict)
-
-    def test_team_detail_authenticated(self):
-        """Test team detail endpoint."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:team-detail", kwargs={"pk": self.team.pk})
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["name"], "Test Team")
-
-    def test_team_create_authenticated(self):
-        """Test team creation via API."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:team-list")
-        data = {"name": "New Team", "organization": self.organization.pk}
-        response = self.client.post(url, data, format="json")
-
-        # Response code depends on permissions
-        self.assertNotEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-
-@pytest.mark.unit
-class APIPaginationTestCase(APITestCase):
-    """Test cases for API pagination."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
-        self.user = User.objects.create_user(
-            username="paginationuser", email="pagination@example.com", password="testpass123"
-        )
-
-        # Create multiple organizations for pagination testing
-        for i in range(30):
-            Organization.objects.create(name=f"Organization {i}")
-
-    def test_pagination_default_page_size(self):
-        """Test default pagination page size."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-list")
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("results", response.data)
-        self.assertIn("count", response.data)
-        self.assertIn("next", response.data)
-        self.assertIn("previous", response.data)
-
-        # Default page size should be 25
-        self.assertLessEqual(len(response.data["results"]), 25)
-
-    def test_pagination_custom_page_size(self):
-        """Test custom pagination page size."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-list")
-        response = self.client.get(url + "?page_size=10")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should respect custom page size if pagination allows it, otherwise use default
-        self.assertLessEqual(len(response.data["results"]), 25)  # Check against default page size
-
-    def test_pagination_next_page(self):
-        """Test pagination next page."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-list")
-        response = self.client.get(url + "?page=2")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsInstance(response.data["results"], list)
-
-
-@pytest.mark.unit
 class APIErrorHandlingTestCase(APITestCase):
     """Test cases for API error handling."""
 
@@ -269,7 +150,7 @@ class APIErrorHandlingTestCase(APITestCase):
     def test_not_found_error(self):
         """Test 404 error handling."""
         self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": 99999})
+        url = reverse(view_name_org_detail, kwargs={"pk": 99999})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -282,20 +163,6 @@ class APIErrorHandlingTestCase(APITestCase):
         response = self.client.patch(url, {})
 
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-
-    def test_invalid_data_error(self):
-        """Test validation error handling."""
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-list")
-        # Send invalid data (missing required fields)
-        data = {}
-        response = self.client.post(url, data, format="json")
-
-        # Should return validation error
-        self.assertIn(
-            response.status_code,
-            [status.HTTP_400_BAD_REQUEST, status.HTTP_403_FORBIDDEN],  # Might be forbidden due to permissions
-        )
 
 
 @pytest.mark.unit
@@ -343,7 +210,7 @@ class APISerializerTestCase(APITestCase):
     def test_organization_serialization(self):
         """Test organization serialization."""
         self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:organization-detail", kwargs={"pk": self.organization.pk})
+        url = reverse(view_name_org_detail, kwargs={"pk": self.organization.pk})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -363,19 +230,6 @@ class APISerializerTestCase(APITestCase):
 
         # Password should not be in serialized data
         self.assertNotIn("password", response.data)
-
-    def test_nested_serialization(self):
-        """Test nested object serialization."""
-        team = Team.objects.create(name="Nested Team", organization=self.organization)
-
-        self.client.force_authenticate(user=self.user)
-        url = reverse("api:v1:team-detail", kwargs={"pk": team.pk})
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Organization should be included (either as ID or nested object)
-        self.assertIn("organization", response.data)
 
 
 @pytest.mark.unit

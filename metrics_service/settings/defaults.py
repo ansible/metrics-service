@@ -43,36 +43,22 @@ THIRD_PARTY_APPS = [
 # Full AAP features available when installing with: pip install -e ".[dev]"
 DAB_APPS = [
     "ansible_base",
-    # These are the core apps that work without additional dependencies
-    "ansible_base.rest_filters",  # Add when needed
-    "ansible_base.rest_pagination",  # Add when needed
-    "ansible_base.rbac",  # Add when needed
-    "ansible_base.authentication",  # Add when needed
-    # "ansible_base.oauth2_provider",  # Disabled due to model conflicts
-    "ansible_base.activitystream",  # Add when needed
-    "ansible_base.jwt_consumer",  # Add when needed
-    "ansible_base.resource_registry",  # Add when needed
-    # "ansible_base.feature_flags",  # Disabled due to missing 'flags' module
+    "ansible_base.rest_filters",
+    "ansible_base.rest_pagination",
+    "ansible_base.rbac",
+    "ansible_base.authentication",
+    "ansible_base.oauth2_provider",
+    "ansible_base.activitystream",
+    "ansible_base.jwt_consumer",
+    "ansible_base.resource_registry",
 ]
 
-DAB_APPS = [
-    app.strip("# ")
-    for app in [
-        "ansible_base.rest_filters",
-        "ansible_base.rest_pagination",
-        "ansible_base.rbac",
-        "ansible_base.authentication",
-        "ansible_base.oauth2_provider",
-        "ansible_base.activitystream",
-        "ansible_base.jwt_consumer",
-        "ansible_base.resource_registry",
-        "ansible_base.feature_flags",
-    ]
-]
 
 LOCAL_APPS = [
     "apps.core",
+    "apps.tasks",
     "apps.api",
+    "apps.dashboard",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
@@ -113,7 +99,7 @@ WSGI_APPLICATION = "metrics_service.wsgi.application"
 ASGI_APPLICATION = "metrics_service.asgi.application"
 
 # Database
-# PostgreSQL as default database for development
+# PostgreSQL as default database
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -128,20 +114,19 @@ DATABASES = {
     }
 }
 
-
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": ("django.contrib.auth.password_validation.UserAttributeSimilarityValidator"),
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator"),
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        "NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator"),
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -167,13 +152,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Custom User Model
 AUTH_USER_MODEL = "core.User"
-
 # Redirect unauthenticated users to our custom login page
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/api/v1/"
 LOGOUT_REDIRECT_URL = "/login/"
-
-
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -190,9 +172,9 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
-    "DEFAULT_PAGINATION_CLASS": ("rest_framework.pagination.PageNumberPagination"),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
-    "DEFAULT_VERSIONING_CLASS": ("rest_framework.versioning.NamespaceVersioning"),
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -214,7 +196,7 @@ SPECTACULAR_SETTINGS = {
 
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = True  # Only for development
-CORS_ALLOWED_ORIGINS = []  # Set in production
+CORS_ALLOWED_ORIGINS: list[str] = []  # Set in production
 
 # Django-Ansible-Base Configuration
 ANSIBLE_BASE_TEAM_MODEL = "core.Team"
@@ -227,6 +209,7 @@ ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = True
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
+ANSIBLE_BASE_RBAC_MODEL_REGISTRY: dict[str, str] = {}
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
@@ -238,8 +221,18 @@ AUTHENTICATION_BACKENDS = [
 JWT_CONSUMER_ENABLED = True
 JWT_CONSUMER_ALGORITHM = "HS256"
 
+# OAuth2 Provider Configuration
+OAUTH2_PROVIDER = {
+    "SCOPES": {
+        "read": "Read scope",
+        "write": "Write scope",
+    },
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
+}
+
 # Resource Server Configuration
-RESOURCE_SERVER = {
+RESOURCE_SERVER: dict[str, str | bool | None] = {
     # 'URL': 'https://aap-gw-proxy-1:9080',
     # 'SECRET_KEY': '<service key>',
     # 'VALIDATE_HTTPS': False,
@@ -247,39 +240,19 @@ RESOURCE_SERVER = {
 RESOURCE_SERVER_SYNC_ENABLED = False
 
 # Background Task Configuration (Dispatcherd)
-DISPATCHERD_ENABLED = os.environ.get("METRICS_SERVICE_DISPATCHERD_ENABLED", "false").lower() == "true"
+# Dispatcherd is always enabled in this service
+DISPATCHERD_ENABLED = True
 
-# Feature Flags
-FEATURE_FLAGS = {
-    "DISPATCHERD_ENABLED": DISPATCHERD_ENABLED,
-}
-
-# OAuth2 Provider Configuration
-OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
-OAUTH2_PROVIDER_ID_TOKEN_MODEL = "oauth2_provider.IDToken"
-OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
-OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
-OAUTH2_PROVIDER = {
-    "SCOPES": {
-        "read": "Read access",
-        "write": "Write access",
-    },
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
-    "REFRESH_TOKEN_EXPIRE_SECONDS": 86400,
-}
-
-# Ansible Base RBAC Model Registry
-ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {}
-ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {}
+# # Feature Flags
+# FEATURE_FLAGS = {
+#     "DISPATCHERD_ENABLED": True,
+# }
 
 # Cache Configuration
 # Default to local memory cache for development, override for production
 CACHES = {
     "default": {
-        "BACKEND": os.environ.get(
-            "METRICS_SERVICE_CACHE_BACKEND",
-            "django.core.cache.backends.locmem.LocMemCache",
-        ),
+        "BACKEND": os.environ.get("METRICS_SERVICE_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
         "LOCATION": os.environ.get("METRICS_SERVICE_CACHE_LOCATION", "default"),
     }
 }
@@ -288,10 +261,10 @@ CACHES = {
 if os.environ.get("METRICS_SERVICE_REDIS_URL"):
     CACHES["default"] = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL"),
+        "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL") or "",
     }
 
-# Session Configuration - Use database for persistent sessions in development
+# Session Configuration
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # Logging Configuration (will be enhanced in post_load.py)
@@ -309,7 +282,7 @@ LOGGING = {
             "style": "{",
         },
         "verbose": {
-            "format": ("{asctime} {levelname:<8} [{request_id}] {name} {message}"),
+            "format": "{asctime} {levelname:<8} [{request_id}] {name} {message}",
             "style": "{",
         },
     },

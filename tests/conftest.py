@@ -113,3 +113,11 @@ def admin_client(api_client, admin_user):
     """API client authenticated with an admin user."""
     api_client.force_authenticate(user=admin_user)
     return api_client
+
+
+@pytest.fixture
+def task(user):
+    """Create a test task."""
+    from apps.tasks.models import Task
+
+    return Task.objects.create(name="Test Task", function_name="hello_world", task_data={}, created_by=user)

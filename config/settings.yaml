@@ -2,7 +2,7 @@
 # Copy this file to settings.yaml and customize for your environment
 
 # Environment Configuration
-environment: development
+environment: default
 
 # Security Settings
 secret_key: 'your-secret-key-here-change-in-production'
@@ -51,9 +51,6 @@ service:
   type: metrics-service
   id: metrics-service-instance-id
 
-# Feature Flags
-feature_flags:
-  dispatcherd_enabled: false
 
 # Dispatcherd Configuration
 dispatcherd:

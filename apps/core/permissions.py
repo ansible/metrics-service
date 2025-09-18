@@ -1,6 +1,34 @@
 """
 Custom permission classes for handling system auditor RBAC.
-Integrates system auditor logic with DAB RBAC permission system.
+
+This module provides Django REST Framework permission classes that integrate
+system auditor functionality with Django Ansible Base (DAB) RBAC permission
+system. The implementation ensures that system auditors receive appropriate
+read-only access to all resources while maintaining full DAB RBAC functionality
+for regular users.
+
+Classes:
+    SystemAuditorAwarePermissions: Hybrid permission class that maintains DAB RBAC
+        for regular users while providing system auditors with read-only access
+        to all resources.
+
+Permission Flow:
+    1. Anonymous users: Denied access
+    2. Superusers: Full access (admin privileges)
+    3. System auditors: Read-only access to all resources
+    4. Regular users: Standard DAB RBAC permission evaluation
+
+Security Considerations:
+    - System auditors can only perform safe HTTP methods (GET, HEAD, OPTIONS)
+    - Write operations (POST, PUT, PATCH, DELETE) are explicitly denied for system auditors
+    - All permission checks are performed at both view and object levels
+    - Integrates seamlessly with existing DAB RBAC infrastructure
+
+Usage:
+    Apply to ViewSets that need system auditor support:
+
+    class MyViewSet(BaseViewSet):
+        permission_classes = [SystemAuditorAwarePermissions]
 """
 
 from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions

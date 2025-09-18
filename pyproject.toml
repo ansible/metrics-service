@@ -88,7 +88,7 @@ Repository = "https://github.com/ansible/platform-service-template"
 "Bug Tracker" = "https://github.com/ansible/platform-service-template/issues"
 
 [tool.setuptools]
-packages = ["metrics_service", "apps", "apps.api", "apps.core"]
+packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.tasks", "apps.dashboard"]
 
 
 [tool.uv]
@@ -241,6 +241,9 @@ markers = [
 filterwarnings = [
     "ignore::django.utils.deprecation.RemovedInDjango50Warning",
     "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore:Overriding setting DATABASES:UserWarning",
+    "ignore::pytest.PytestCollectionWarning",
 ]
 
 [tool.coverage.run]
@@ -262,4 +265,4 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
-]
+] 

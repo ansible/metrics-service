@@ -9,15 +9,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.core.models import (
-    Organization,
-    Task,
-    TaskChain,
-    TaskChainMembership,
-    TaskDependency,
-    TaskExecution,
-    Team,
-)
+from apps.core.models import Organization, Team
+from apps.tasks.models import Task, TaskChain, TaskChainMembership, TaskDependency, TaskExecution
 
 User = get_user_model()
 

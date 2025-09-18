@@ -11,7 +11,7 @@ import sys
 
 from django.core.management.base import BaseCommand
 
-from apps.core.tasks import TaskScheduler
+from apps.tasks.tasks import TaskScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class Command(BaseCommand):
         log_level = options["log_level"]
 
         # Configure logging level
-        scheduler_logger = logging.getLogger("apps.core.tasks")
+        scheduler_logger = logging.getLogger("apps.tasks.tasks")
         scheduler_logger.setLevel(getattr(logging, log_level))
 
         self.stdout.write(self.style.SUCCESS(f"Starting task scheduler with {poll_interval}s poll interval..."))

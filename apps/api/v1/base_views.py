@@ -14,7 +14,8 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.core.utils import build_error_response, log_task_execution
+from apps.core.utils import build_error_response
+from apps.tasks.utils import log_task_execution
 
 
 class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
@@ -77,7 +78,7 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
             None
         """
         # Set created_by field if it exists and user is authenticated
-        if hasattr(serializer.Meta.model, "created_by") and self.request.user.is_authenticated:
+        if hasattr(serializer.Meta.model, "created_by") and self.request.user and self.request.user.is_authenticated:
             serializer.save(created_by=self.request.user)
         else:
             serializer.save()

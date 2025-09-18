@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from apps.core.models import Task, TaskChain, TaskChainMembership, TaskDependency
+from apps.tasks.models import Task, TaskChain, TaskChainMembership, TaskDependency
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -287,7 +287,7 @@ class Command(BaseCommand):
         except Task.DoesNotExist as e:
             raise CommandError(f"Task not found: {e}") from e
 
-        dependency, created = TaskDependency.objects.get_or_create(
+        _dependency, created = TaskDependency.objects.get_or_create(
             dependent_task=dependent_task,
             prerequisite_task=prerequisite_task,
             defaults={"required_status": options["status"]},
