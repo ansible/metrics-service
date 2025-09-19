@@ -249,20 +249,13 @@ DISPATCHERD_ENABLED = True
 # }
 
 # Cache Configuration
-# Default to local memory cache for development, override for production
+# Use local memory cache
 CACHES = {
     "default": {
-        "BACKEND": os.environ.get("METRICS_SERVICE_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
-        "LOCATION": os.environ.get("METRICS_SERVICE_CACHE_LOCATION", "default"),
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "default",
     }
 }
-
-# Override for Redis when environment variable is set
-if os.environ.get("METRICS_SERVICE_REDIS_URL"):
-    CACHES["default"] = {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL") or "",
-    }
 
 # Session Configuration
 SESSION_ENGINE = "django.contrib.sessions.backends.db"

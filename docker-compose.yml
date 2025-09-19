@@ -20,13 +20,6 @@ services:
     volumes:
       - 'metrics_service_db:/var/lib/postgresql/data'
 
-  redis:
-    image: 'redis:7'
-    container_name: metrics-service-redis
-    ports:
-      - '6379:6379'
-    networks:
-      - metrics-service
 
   metrics-service:
     build:
@@ -41,8 +34,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
     environment:
       METRICS_SERVICE_ENV: development
       METRICS_SERVICE_SECRET_KEY: dev-secret-key-change-in-production
@@ -52,7 +43,6 @@ services:
       METRICS_SERVICE_DB_USER: metrics_service
       METRICS_SERVICE_DB_PASSWORD: metrics_service
       METRICS_SERVICE_DB_NAME: metrics_service
-      METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
       METRICS_SERVICE_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service,0.0.0.0
       METRICS_SERVICE_DEBUG: 'true'
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
@@ -71,8 +61,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
     environment:
       METRICS_SERVICE_ENV: development
       METRICS_SERVICE_SECRET_KEY: dev-secret-key-change-in-production
@@ -82,7 +70,6 @@ services:
       METRICS_SERVICE_DB_USER: metrics_service
       METRICS_SERVICE_DB_PASSWORD: metrics_service
       METRICS_SERVICE_DB_NAME: metrics_service
-      METRICS_SERVICE_REDIS_URL: redis://redis:6379/0
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
       DISPATCHERD_ENABLED: 'true'
     networks:

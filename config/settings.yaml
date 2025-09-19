@@ -25,8 +25,8 @@ databases:
 # Cache Configuration
 caches:
   default:
-    backend: django.core.cache.backends.redis.RedisCache
-    location: redis://localhost:6379/0
+    backend: django.core.cache.backends.locmem.LocMemCache
+    location: default
 
 # Email Configuration
 email:
