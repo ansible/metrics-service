@@ -21,7 +21,7 @@ LOGGING["loggers"]["ansible_base"]["level"] = "DEBUG"  # noqa: F405
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "http://metrics-service:8000",
+    "https://metrics-service:8000",
 ]
 
 # CORS settings for development
