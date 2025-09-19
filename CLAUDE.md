@@ -72,14 +72,14 @@ python manage.py run_dispatcherd
 # Run task scheduler (polls for ready tasks)
 python manage.py run_task_scheduler
 
-# Create sample tasks
-python examples/create_sample_tasks.py
+# Create sample tasks (using Django shell or admin interface)
+python manage.py shell
 ```
 
 ### Docker
 
 ```bash
-# Start full stack with PostgreSQL, Redis, and task dispatcher
+# Start full stack with PostgreSQL and task dispatcher
 docker-compose up
 
 # Start in background
@@ -93,11 +93,11 @@ docker-compose logs -f metrics-dispatcher
 ### Quick Start with Task Dashboard
 
 ```bash
-# Start all services automatically (web server + task dispatcher)
-./start_services.sh
-
-# Or use Docker Compose
+# Start with Docker Compose (includes web server + task dispatcher)
 docker-compose up
+
+# Or manually start development server
+python manage.py runserver
 
 # Access the dashboard at http://localhost:8000/dashboard/
 ```
@@ -111,7 +111,7 @@ This is a Django-based service following Ansible Automation Platform (AAP) stand
 - **`apps/core/`** - Core business logic, models, and background tasks
 - **`apps/api/v1/`** - Versioned REST API endpoints with reduced code duplication
 - **`apps/health/`** - Health check endpoints for Kubernetes deployment
-- **`dashboard/`** - Web-based task management dashboard with real-time monitoring
+- **`apps/dashboard/`** - Web-based task management dashboard with real-time monitoring
 - **`metrics_service/settings/`** - Split Django settings (development, production, test)
 - **`tests/`** - Comprehensive test suite (unit, integration, functional)
 
@@ -121,7 +121,7 @@ This is a Django-based service following Ansible Automation Platform (AAP) stand
 - **Organization** - Organizations with user/admin management
 - **Team** - Teams within organizations with hierarchical support
 
-- **Task/TaskExecution/TaskChain** - Comprehensive background task system with dependencies and scheduling
+- **Task/TaskExecution/TaskChain** - Comprehensive background task system with dependencies and scheduling (see `apps/tasks/models.py`)
 
 ### API Architecture (`apps/api/v1/`)
 
@@ -131,7 +131,7 @@ This is a Django-based service following Ansible Automation Platform (AAP) stand
 - **Task Management APIs** - Full CRUD operations for tasks with real-time status monitoring
 - **OpenAPI documentation** - Available at `/api/docs/`
 
-### Task Dashboard (`dashboard/`)
+### Task Dashboard (`apps/dashboard/`)
 
 The web-based dashboard provides a centralized interface for task management:
 
@@ -151,7 +151,7 @@ The web-based dashboard provides a centralized interface for task management:
 - **JSON Parameter Input**: Support for complex task parameters via JSON input
 - **DateTime Scheduling**: Built-in date/time picker for scheduling future tasks
 
-### Background Task System (`apps/core/tasks.py`)
+### Background Task System (`apps/tasks/` and `apps/core/tasks.py`)
 
 The service includes a comprehensive background task system with:
 
@@ -274,7 +274,7 @@ FEATURE_FLAGS = {
 
 - **Development** - PostgreSQL for consistent development/production setup
 - **Production** - PostgreSQL with environment variable configuration
-- **Docker** - Includes PostgreSQL and Redis services
+- **Docker** - Includes PostgreSQL service
 
 ### Code Architecture Patterns
 

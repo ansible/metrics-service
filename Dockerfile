@@ -15,21 +15,23 @@ RUN dnf update -y && \
     dnf install -y gcc postgresql-devel openldap-devel && \
     dnf clean all
 
-# Switch back to default user
-USER 1001
+# Install uv for fast dependency management
+RUN pip install uv
 
-# Upgrade pip
-RUN pip install --upgrade pip
-
-# Copy requirements first for better caching
-COPY requirements.txt /app/
-COPY pyproject.toml /app/
-
-# Install Python dependencies directly without editable install to avoid permission issues
-RUN pip install -r requirements.txt
+# Create app directory and set permissions
+RUN mkdir -p /app && chown -R 1001:1001 /app
 
 # Copy the application code
 COPY --chown=1001:1001 . /app/
+
+# Switch back to default user
+USER 1001
+
+# Set uv to install globally available packages in system Python
+ENV UV_SYSTEM_PYTHON=1
+
+# Install dependencies using uv
+RUN uv sync --frozen --no-dev
 
 # Copy and set up entrypoint script
 USER root
@@ -45,4 +47,4 @@ USER 1001
 EXPOSE 8000
 # Set entrypoint and default command
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]

@@ -47,7 +47,7 @@ DAB_APPS = [
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
     "ansible_base.authentication",
-    "ansible_base.oauth2_provider",
+    # "ansible_base.oauth2_provider",  # Temporarily disabled due to conflicts
     "ansible_base.activitystream",
     "ansible_base.jwt_consumer",
     "ansible_base.resource_registry",
@@ -104,7 +104,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "5432"),
         "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
         "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
         "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
@@ -210,6 +210,7 @@ ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = True
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
 ANSIBLE_BASE_RBAC_MODEL_REGISTRY: dict[str, str] = {}
+ANSIBLE_BASE_MANAGED_ROLE_REGISTRY: dict[str, str] = {}
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
@@ -229,7 +230,11 @@ OAUTH2_PROVIDER = {
     },
     "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
     "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
+    "APPLICATION_MODEL": "oauth2_provider.Application",
 }
+
+# OAuth2 Provider Application Model - required by ansible_base
+OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
 
 # Resource Server Configuration
 RESOURCE_SERVER: dict[str, str | bool | None] = {
@@ -249,20 +254,13 @@ DISPATCHERD_ENABLED = True
 # }
 
 # Cache Configuration
-# Default to local memory cache for development, override for production
+# Use local memory cache
 CACHES = {
     "default": {
-        "BACKEND": os.environ.get("METRICS_SERVICE_CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
-        "LOCATION": os.environ.get("METRICS_SERVICE_CACHE_LOCATION", "default"),
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "default",
     }
 }
-
-# Override for Redis when environment variable is set
-if os.environ.get("METRICS_SERVICE_REDIS_URL"):
-    CACHES["default"] = {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("METRICS_SERVICE_REDIS_URL") or "",
-    }
 
 # Session Configuration
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
