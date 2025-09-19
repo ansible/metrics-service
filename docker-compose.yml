@@ -20,13 +20,12 @@ services:
     volumes:
       - 'metrics_service_db:/var/lib/postgresql/data'
 
-
   metrics-service:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: metrics-service-app
-    command: 'python manage.py runserver 0.0.0.0:8000'
+    command: 'uv run python manage.py runserver 0.0.0.0:8000'
     volumes:
       - './:/app:z'
     ports:
@@ -43,6 +42,7 @@ services:
       METRICS_SERVICE_DB_USER: metrics_service
       METRICS_SERVICE_DB_PASSWORD: metrics_service
       METRICS_SERVICE_DB_NAME: metrics_service
+      METRICS_SERVICE_DB_SSLMODE: prefer
       METRICS_SERVICE_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service,0.0.0.0
       METRICS_SERVICE_DEBUG: 'true'
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
@@ -55,7 +55,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: metrics-service-dispatcher
-    command: 'python manage.py run_dispatcherd --workers=2 --timeout=3600'
+    command: 'uv run python manage.py run_dispatcherd --workers=4 --timeout=3600'
     volumes:
       - './:/app:z'
     depends_on:
@@ -70,6 +70,7 @@ services:
       METRICS_SERVICE_DB_USER: metrics_service
       METRICS_SERVICE_DB_PASSWORD: metrics_service
       METRICS_SERVICE_DB_NAME: metrics_service
+      METRICS_SERVICE_DB_SSLMODE: prefer
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
       DISPATCHERD_ENABLED: 'true'
     networks:
