@@ -31,7 +31,7 @@ USER 1001
 ENV UV_SYSTEM_PYTHON=1
 
 # Install dependencies using uv
-RUN uv sync --frozen --no-dev
+RUN pip install --no-cache-dir -r requirements-build.txt
 
 # Copy and set up entrypoint script
 USER root
@@ -48,3 +48,11 @@ EXPOSE 8000
 # Set entrypoint and default command
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+LABEL com.redhat.component="metrics-utility" \
+      name="metrics-utility" \
+      version="1.0.0" \
+      summary="Metrics Utility" \
+      description="Backend utility for Ansible Automation Platform" \
+      cpe="cpe:/a:redhat:metrics_utility:1.0::rhel9" \
+      org.opencontainers.image.created="${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}"

@@ -1,0 +1,8 @@
+packages: [
+  gcc,
+  postgresql-devel,
+  openldap-devel
+]
+contentOrigin:
+  repofiles: ["./ubi.repo"]
+arches: [x86_64, arm64]
