@@ -213,30 +213,58 @@ python manage.py init_service_id
 
 ## Configuration
 
-### Environment Variables
+Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings management, following the [AAP Phase 1 standards](https://handbook.eng.ansible.com/proposals/0014-Django-Settings).
 
-Key configuration options:
+### Quick Start
 
+**Development Mode** (default):
 ```bash
-# Database
-METRICS_SERVICE_DB_HOST=localhost
-METRICS_SERVICE_DB_PORT=55432
-METRICS_SERVICE_DB_USER=metrics_service
-METRICS_SERVICE_DB_PASSWORD=metrics_service
-METRICS_SERVICE_DB_NAME=metrics_service
-
-# Django
-METRICS_SERVICE_SECRET_KEY=your-secret-key
-METRICS_SERVICE_DEBUG=false
-METRICS_SERVICE_ALLOWED_HOSTS=localhost,yourdomain.com
-
+# Just run - no configuration required
+python manage.py runserver
 ```
 
-### Settings Files
+**Production Mode**:
+```bash
+# Set environment mode and required secrets
+export METRICS_SERVICE_MODE=production
+export METRICS_SERVICE_SECRET_KEY="your-secure-random-key"
+export METRICS_SERVICE_ALLOWED_HOSTS="yourdomain.com,api.yourdomain.com"
 
-Configuration is managed through:
-- **Environment variables** - Runtime configuration
-- **`config/settings.yaml`** - Complex configuration via Dynaconf
+# Override defaults as needed
+export METRICS_SERVICE_DATABASES__default__HOST=prod-db.example.com
+export METRICS_SERVICE_DATABASES__default__PASSWORD=secure-password
+
+python manage.py runserver
+```
+
+### Configuration Methods
+
+Settings are loaded in order of precedence (lowest to highest):
+
+1. **`metrics_service/settings/defaults.py`** - Base Django defaults
+2. **`config/settings.yaml`** - Environment-specific configuration
+3. **`/etc/ansible-automation-platform/settings.yaml`** - System-wide AAP settings
+4. **Environment variables** with `METRICS_SERVICE_` prefix - **Highest priority**
+
+### Common Environment Variables
+
+| Variable | Description | Required in Production |
+|----------|-------------|----------------------|
+| `METRICS_SERVICE_MODE` | Environment mode (development/production) | No (defaults to development) |
+| `METRICS_SERVICE_SECRET_KEY` | Django secret key | **Yes** |
+| `METRICS_SERVICE_DEBUG` | Enable debug mode | No |
+| `METRICS_SERVICE_DATABASES__default__HOST` | Database host | No (has default) |
+| `METRICS_SERVICE_DATABASES__default__PASSWORD` | Database password | No (has default) |
+| `METRICS_SERVICE_ALLOWED_HOSTS` | Allowed hosts (comma-separated) | **Yes** (production) |
+
+**Note:** Use double underscores (`__`) for nested settings:
+```bash
+# Nested database configuration
+export METRICS_SERVICE_DATABASES__default__HOST=localhost
+export METRICS_SERVICE_DATABASES__default__PORT=5432
+```
+
+For comprehensive configuration documentation, validators, troubleshooting, and testing information, see **[metrics_service/settings/README.md](metrics_service/settings/README.md)**.
 
 ## Deployment
 
