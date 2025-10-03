@@ -50,7 +50,8 @@ class Command(BaseCommand):
             import dispatcherd
             import dispatcherd.config
 
-            from apps.tasks.tasks import TASK_FUNCTIONS, TaskScheduler
+            from apps.tasks.tasks import TASK_FUNCTIONS
+            from apps.tasks.cron_scheduler import start_scheduler
 
             dispatcherd_logger = logging.getLogger("dispatcherd")
             dispatcherd_logger.setLevel(getattr(logging, log_level))
@@ -88,6 +89,7 @@ class Command(BaseCommand):
                             "metrics_tasks",  # Main task channel
                             "metrics_cleanup",  # Cleanup tasks channel
                             "metrics_notifications",  # Notification tasks
+                            "metrics_utility",  # Metrics utility tasks
                         ],
                     },
                 },
@@ -101,11 +103,9 @@ class Command(BaseCommand):
             )
             dispatcherd.config.setup(dispatcherd_config)
 
-            # Start task scheduler in a separate thread
-            scheduler = TaskScheduler(poll_interval=5)
-            scheduler_thread = threading.Thread(target=scheduler.start, daemon=True)
-            scheduler_thread.start()
-            self.stdout.write(self.style.SUCCESS("Task scheduler started in background"))
+            # Start cron-based task scheduler
+            cron_scheduler = start_scheduler()
+            self.stdout.write(self.style.SUCCESS("Cron-based task scheduler started"))
 
             # Start dispatcherd service
             self.stdout.write(self.style.SUCCESS("Starting dispatcherd service..."))

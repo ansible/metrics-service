@@ -86,13 +86,10 @@ class TestRunDispatcherdCommand(TestCase):
 
     @patch("dispatcherd.run_service")
     @patch("dispatcherd.config.setup")
-    @patch("threading.Thread")
-    @patch("apps.tasks.tasks.TaskScheduler")
+    @patch("apps.tasks.cron_scheduler.start_scheduler")
     @patch("apps.tasks.tasks.TASK_FUNCTIONS", {"test_task": Mock()})
     @patch("apps.tasks.management.commands.run_dispatcherd.logger")
-    def test_handle_success_path(
-        self, mock_logger, mock_task_scheduler, mock_thread, mock_dispatcherd_setup, mock_run_service
-    ):
+    def test_handle_success_path(self, mock_logger, mock_start_scheduler, mock_dispatcherd_setup, mock_run_service):
         """Test successful execution path of handle method."""
         options = {"workers": 2, "timeout": 1800, "max_tasks": 50, "log_level": "DEBUG"}
 
@@ -108,13 +105,9 @@ class TestRunDispatcherdCommand(TestCase):
                 }
             }
         ):
-            # Mock scheduler instance
+            # Mock cron scheduler
             mock_scheduler_instance = Mock()
-            mock_task_scheduler.return_value = mock_scheduler_instance
-
-            # Mock thread instance
-            mock_thread_instance = Mock()
-            mock_thread.return_value = mock_thread_instance
+            mock_start_scheduler.return_value = mock_scheduler_instance
 
             self.command.handle(**options)
 
@@ -136,10 +129,8 @@ class TestRunDispatcherdCommand(TestCase):
         for expected_call in expected_log_calls:
             mock_logger.info.assert_any_call(expected_call)
 
-        # Verify TaskScheduler was created and started
-        mock_task_scheduler.assert_called_once_with(poll_interval=5)
-        mock_thread.assert_called_once_with(target=mock_scheduler_instance.start, daemon=True)
-        mock_thread_instance.start.assert_called_once()
+        # Verify cron scheduler was started
+        mock_start_scheduler.assert_called_once()
 
         # Verify dispatcherd configuration
         expected_config = {
@@ -157,6 +148,7 @@ class TestRunDispatcherdCommand(TestCase):
                         "metrics_tasks",
                         "metrics_cleanup",
                         "metrics_notifications",
+                        "metrics_utility",
                     ],
                 },
             },
@@ -167,7 +159,7 @@ class TestRunDispatcherdCommand(TestCase):
         mock_dispatcherd_setup.assert_called_once_with(expected_config)
 
         # Verify success messages
-        self.assertIn("Task scheduler started in background", output)
+        self.assertIn("Cron-based task scheduler started", output)
         self.assertIn("Starting dispatcherd service...", output)
 
         # Verify run_service was called
@@ -467,7 +459,7 @@ class TestRunDispatcherdIntegration(TestCase):
 
         # Verify channels
         channels = pg_notify["channels"]
-        expected_channels = ["metrics_tasks", "metrics_cleanup", "metrics_notifications"]
+        expected_channels = ["metrics_tasks", "metrics_cleanup", "metrics_notifications", "metrics_utility"]
         self.assertEqual(channels, expected_channels)
 
         # Verify service config
@@ -511,7 +503,7 @@ class TestRunDispatcherdIntegration(TestCase):
         scheduler_error = Exception("Scheduler creation failed")
 
         with (
-            patch("apps.tasks.tasks.TaskScheduler", side_effect=scheduler_error),
+            patch("apps.tasks.cron_scheduler.start_scheduler", side_effect=scheduler_error),
             patch("dispatcherd.config.setup"),
             patch("apps.tasks.tasks.TASK_FUNCTIONS", {}),
         ):
