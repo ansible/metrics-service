@@ -277,34 +277,18 @@ Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings manageme
 ### Quick Start
 
 **Development Mode** (default):
-
 ```bash
-# Database
-METRICS_SERVICE_DB_HOST=localhost
-METRICS_SERVICE_DB_PORT=55432
-METRICS_SERVICE_DB_USER=metrics_service
-METRICS_SERVICE_DB_PASSWORD=metrics_service
-METRICS_SERVICE_DB_NAME=metrics_service
-
-# Django
-METRICS_SERVICE_SECRET_KEY=your-secret-key
-METRICS_SERVICE_DEBUG=false
-METRICS_SERVICE_ALLOWED_HOSTS=localhost,yourdomain.com
-
-# Task Feature Flags
-METRICS_SERVICE_ANONYMIZED_DATA=true
-METRICS_SERVICE_METRICS_COLLECTION=false
 # Just run - no configuration required
 python manage.py runserver
 ```
 
 **Production Mode**:
-
 ```bash
 # Set environment mode and required secrets
 export METRICS_SERVICE_MODE=production
 export METRICS_SERVICE_SECRET_KEY="your-secure-random-key"
 export METRICS_SERVICE_ALLOWED_HOSTS="yourdomain.com,api.yourdomain.com"
+
 
 # Override defaults as needed
 export METRICS_SERVICE_DATABASES__default__HOST=prod-db.example.com
@@ -334,7 +318,6 @@ Settings are loaded in order of precedence (lowest to highest):
 | `METRICS_SERVICE_ALLOWED_HOSTS`                | Allowed hosts (comma-separated)           | **Yes** (production)         |
 
 **Note:** Use double underscores (`__`) for nested settings:
-
 ```bash
 # Nested database configuration
 export METRICS_SERVICE_DATABASES__default__HOST=localhost
