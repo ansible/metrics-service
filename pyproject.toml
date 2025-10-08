@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "metrics-service"
 description = "AAP Service Template following modern standards"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 authors = [
     {name = "AAP Emerging Services", email = "aap-emerging-services@redhat.com"},
@@ -38,6 +38,9 @@ dependencies = [
     "django-oauth-toolkit>=2.2.0",
     "dispatcherd>=2025.5.21",
     "croniter>=1.3.0",
+    "uv",
+    "apscheduler>=3.10.0",
+    "metrics-utility @ file:///Users/cshiels/Documents/Repos/Forked/metrics-utility",
 ]
 
 [project.optional-dependencies]
@@ -195,7 +198,7 @@ known_first_party = ["metrics_service", "apps"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "DJANGO", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.mypy]
-python_version = "3.10"
+python = "3.11"
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 warn_return_any = true
 warn_unused_configs = true

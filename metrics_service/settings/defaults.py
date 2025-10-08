@@ -104,7 +104,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "5432"),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
         "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
         "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
         "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),

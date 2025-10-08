@@ -8,3 +8,9 @@
 # All dependencies are defined in pyproject.toml
 
 # Install the project in editable mode -e .
+
+# Additional dependencies installed for full functionality:
+django-flags>=5.0.0
+python-ldap>=3.4.0
+django-auth-ldap>=5.2.0
+ldap-filter>=1.0.1

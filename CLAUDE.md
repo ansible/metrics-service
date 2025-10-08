@@ -16,11 +16,17 @@ python manage.py migrate
 # Initialize ServiceID for ansible-base (required)
 python manage.py init_service_id
 
+# Initialize system tasks (cleanup, metrics collection)
+python manage.py metrics_service init_system_tasks
+
 # Create superuser
 python manage.py createsuperuser
 
 # Run development server
 python manage.py runserver
+
+# OR run complete metrics service (Django + dispatcher)
+python manage.py metrics_service
 ```
 
 ### Testing
@@ -96,10 +102,38 @@ docker-compose logs -f metrics-dispatcher
 # Start with Docker Compose (includes web server + task dispatcher)
 docker-compose up
 
-# Or manually start development server
+# Or manually start complete metrics service (Django + dispatcher)
+python manage.py metrics_service
+
+# Or start only Django development server
 python manage.py runserver
 
 # Access the dashboard at http://localhost:8000/dashboard/
+```
+
+### Metrics Service Management
+
+The `metrics_service` command provides centralized management:
+
+```bash
+# Run complete service (Django server + task dispatcher)
+python manage.py metrics_service
+python manage.py metrics_service run
+
+# Initialize/update system tasks
+python manage.py metrics_service init_system_tasks
+
+# List current system tasks
+python manage.py metrics_service init_system_tasks --list
+
+# Dry run (see what would be done)
+python manage.py metrics_service init_system_tasks --dry-run
+
+# Force update all system tasks
+python manage.py metrics_service init_system_tasks --force
+
+# Custom service configuration
+python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 8
 ```
 
 ## Architecture Overview

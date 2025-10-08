@@ -53,7 +53,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from apps.core.utils import build_error_response
+from apps.tasks.cron_scheduler import get_scheduler
 from apps.tasks.models import Task, TaskExecution
+from apps.tasks.signals import schedule_task_via_api
 
 from ..base_views import BaseViewSet
 from .serializers import (
@@ -314,29 +316,240 @@ class TaskViewSet(BaseViewSet):
 
     @extend_schema(
         operation_id="tasks_available_functions",
-        description="Get list of available task functions",
+        description="Get list of available task functions with detailed metadata",
         responses={200: {"functions": "array"}},
     )
     @action(detail=False, methods=["get"])
     def available_functions(self, request: HttpRequest) -> Response:
         """
-        Get list of available task functions for the create form.
+        Get list of available task functions with enhanced metadata for the dashboard.
 
         Returns:
-            Response: List of available task function names and descriptions
+            Response: List of available task functions with descriptions, parameters, and examples
         """
-        from apps.tasks.tasks import TASK_FUNCTIONS
+        from apps.tasks.tasks import TASK_FUNCTIONS, TASK_METADATA
 
         functions = []
         for func_name, func in TASK_FUNCTIONS.items():
-            functions.append(
-                {
-                    "name": func_name,
-                    "description": func.__doc__.split("\n")[1].strip() if func.__doc__ else "No description available",
-                }
-            )
+            # Get enhanced metadata if available, fallback to basic info
+            metadata = TASK_METADATA.get(func_name, {})
+
+            function_info = {
+                "name": func_name,
+                "description": metadata.get("description")
+                or (func.__doc__.split("\n")[1].strip() if func.__doc__ else "No description available"),
+                "category": metadata.get("category", "General"),
+                "parameters": metadata.get("parameters", {}),
+                "examples": metadata.get("examples", []),
+            }
+
+            functions.append(function_info)
+
+        # Sort by category, then by name
+        functions.sort(key=lambda x: (x["category"], x["name"]))
 
         return Response({"functions": functions})
+
+    @extend_schema(
+        operation_id="tasks_system_tasks_info",
+        description="Get information about system-defined tasks",
+        responses={200: {"system_tasks": "array"}},
+    )
+    @action(detail=False, methods=["get"])
+    def system_tasks_info(self, request: HttpRequest) -> Response:
+        """
+        Get information about system-defined tasks.
+
+        Returns:
+            Response: List of system tasks with their status and configuration
+        """
+        from apps.tasks.tasks import get_system_task_info
+
+        try:
+            info = get_system_task_info()
+            return Response(info)
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to get system task info: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def perform_destroy(self, instance):
+        """
+        Override destroy to protect system tasks.
+
+        System tasks cannot be easily deleted to maintain critical functionality.
+        """
+        if instance.is_system_task:
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied(
+                "System tasks cannot be deleted. These tasks are essential for proper system operation. "
+                "To disable a system task, contact your system administrator."
+            )
+        super().perform_destroy(instance)
+
+    def perform_update(self, serializer):
+        """
+        Override update to protect critical system task fields.
+
+        System tasks have restricted modification to prevent breaking functionality.
+        """
+        instance = serializer.instance
+        if instance and instance.is_system_task:
+            # Allow limited modifications for system tasks
+            protected_fields = {"function_name", "is_system_task", "cron_expression", "is_recurring"}
+
+            # Check if any protected fields are being modified
+            if any(field in serializer.validated_data for field in protected_fields):
+                from rest_framework.exceptions import PermissionDenied
+
+                raise PermissionDenied(
+                    f"System tasks cannot modify protected fields: {', '.join(protected_fields)}. "
+                    "These fields are managed by the system configuration."
+                )
+
+        super().perform_update(serializer)
+
+    @action(detail=True, methods=["delete"])
+    def force_delete(self, request, pk=None):
+        """
+        Force delete a system task (admin only).
+
+        This endpoint allows administrators to delete system tasks if absolutely necessary.
+        Use with extreme caution as it may break system functionality.
+        """
+        task = self.get_object()
+
+        # This would normally check for admin permissions
+        # For now, we'll require explicit confirmation
+        force_confirm = request.data.get("force_confirm", False)
+
+        if not force_confirm:
+            return Response(
+                {
+                    "error": "Force deletion requires explicit confirmation",
+                    "message": "System tasks are protected. Set 'force_confirm': true to override.",
+                    "warning": "Deleting system tasks may break critical functionality!",
+                    "task": {
+                        "name": task.name,
+                        "function_name": task.function_name,
+                        "is_system_task": task.is_system_task,
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if task.is_system_task:
+            task_name = task.name
+            task.delete()
+            return Response(
+                {
+                    "message": f"System task '{task_name}' has been force deleted",
+                    "warning": "System functionality may be affected. Consider recreating system tasks.",
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            # Regular deletion for non-system tasks
+            task.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        operation_id="tasks_scheduler_status",
+        description="Get cron scheduler status and scheduled tasks",
+        responses={200: {"scheduler": "object", "tasks": "array"}},
+    )
+    @action(detail=False, methods=["get"])
+    def scheduler_status(self, request: HttpRequest) -> Response:
+        """
+        Get the status of the cron scheduler and all scheduled tasks.
+        Returns:
+            Response: Scheduler status and list of scheduled tasks
+        """
+        try:
+            scheduler = get_scheduler()
+            tasks = scheduler.list_tasks()
+
+            return Response(
+                {
+                    "scheduler": {
+                        "running": scheduler.running,
+                        "registered_tasks": len(tasks["registry"]),
+                        "scheduled_jobs": len(tasks["scheduled_jobs"]),
+                    },
+                    "tasks": tasks["scheduled_jobs"],
+                }
+            )
+        except Exception as e:
+            error_response = build_error_response(f"Failed to get scheduler status: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @extend_schema(
+        operation_id="tasks_schedule_immediate",
+        description="Schedule a task to run immediately",
+        request=TaskCreateSerializer,
+        responses={200: {"message": "string", "task_id": "string"}},
+    )
+    @action(detail=False, methods=["post"])
+    def schedule_immediate(self, request: HttpRequest) -> Response:
+        """
+        Schedule a task to run immediately using the cron scheduler.
+        Args:
+            request: HTTP request with task parameters
+        Returns:
+            Response: Success message with task ID
+        """
+        serializer = TaskCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            task_id = schedule_task_via_api(
+                function_name=serializer.validated_data["function_name"],
+                task_data=serializer.validated_data.get("task_data", {}),
+                task_name=serializer.validated_data.get("name", ""),
+            )
+
+            return Response({"message": "Task scheduled for immediate execution", "task_id": task_id})
+        except Exception as e:
+            error_response = build_error_response(f"Failed to schedule task: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @extend_schema(
+        operation_id="tasks_schedule_recurring",
+        description="Schedule a recurring task",
+        request=TaskCreateSerializer,
+        responses={200: {"message": "string", "task_id": "string"}},
+    )
+    @action(detail=False, methods=["post"])
+    def schedule_recurring(self, request: HttpRequest) -> Response:
+        """
+        Schedule a recurring task using cron expression.
+        Args:
+            request: HTTP request with task parameters including cron_expression
+        Returns:
+            Response: Success message with task ID
+        """
+        serializer = TaskCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        cron_expression = serializer.validated_data.get("cron_expression")
+        if not cron_expression:
+            error_response = build_error_response("cron_expression is required for recurring tasks", status_code=400)
+            return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            task_id = schedule_task_via_api(
+                function_name=serializer.validated_data["function_name"],
+                task_data=serializer.validated_data.get("task_data", {}),
+                cron_expression=cron_expression,
+                is_recurring=True,
+                task_name=serializer.validated_data.get("name", ""),
+            )
+
+            return Response({"message": "Recurring task scheduled successfully", "task_id": task_id})
+        except Exception as e:
+            error_response = build_error_response(f"Failed to schedule recurring task: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class TaskExecutionViewSet(BaseViewSet):

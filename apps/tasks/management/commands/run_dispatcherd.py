@@ -50,7 +50,8 @@ class Command(BaseCommand):
             import dispatcherd
             import dispatcherd.config
 
-            from apps.tasks.tasks import TASK_FUNCTIONS, TaskScheduler
+            from apps.tasks.cron_scheduler import start_scheduler
+            from apps.tasks.tasks import TASK_FUNCTIONS
 
             dispatcherd_logger = logging.getLogger("dispatcherd")
             dispatcherd_logger.setLevel(getattr(logging, log_level))
@@ -63,49 +64,15 @@ class Command(BaseCommand):
             task_list = list(TASK_FUNCTIONS.keys())
             logger.info(f"  Available tasks: {task_list}")
 
-            # Configure dispatcherd before running
-            from django.conf import settings as django_settings
+            # Configure dispatcherd using shared configuration
+            from apps.tasks.dispatcherd_config import setup_dispatcherd_config
 
-            # Build dispatcherd configuration from Django database settings
-            db_config = django_settings.DATABASES["default"]
+            logger.info("Setting up dispatcherd configuration...")
+            setup_dispatcherd_config()
 
-            # Create PostgreSQL connection config for dispatcherd
-            pg_config = {
-                "dbname": db_config["NAME"],
-                "user": db_config["USER"],
-                "password": db_config["PASSWORD"],
-                "host": db_config["HOST"],
-                "port": db_config["PORT"],
-            }
-
-            # Configure dispatcherd with pg_notify
-            dispatcherd_config = {
-                "version": 2,
-                "brokers": {
-                    "pg_notify": {
-                        "config": pg_config,
-                        "channels": [
-                            "metrics_tasks",  # Main task channel
-                            "metrics_cleanup",  # Cleanup tasks channel
-                            "metrics_notifications",  # Notification tasks
-                        ],
-                    },
-                },
-                "service": {
-                    "pool_kwargs": {"max_workers": workers},
-                },
-            }
-
-            logger.info(
-                f"Configuring dispatcherd with database: {db_config['HOST']}:{db_config['PORT']}/{db_config['NAME']}"
-            )
-            dispatcherd.config.setup(dispatcherd_config)
-
-            # Start task scheduler in a separate thread
-            scheduler = TaskScheduler(poll_interval=5)
-            scheduler_thread = threading.Thread(target=scheduler.start, daemon=True)
-            scheduler_thread.start()
-            self.stdout.write(self.style.SUCCESS("Task scheduler started in background"))
+            # Start cron-based task scheduler
+            cron_scheduler = start_scheduler()
+            self.stdout.write(self.style.SUCCESS("Cron-based task scheduler started"))
 
             # Start dispatcherd service
             self.stdout.write(self.style.SUCCESS("Starting dispatcherd service..."))

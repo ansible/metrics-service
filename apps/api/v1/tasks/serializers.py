@@ -33,6 +33,8 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
     executions_count = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
     can_retry = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
+    can_modify = serializers.SerializerMethodField()
     is_ready_to_run = serializers.SerializerMethodField()
     next_run_time = serializers.SerializerMethodField()
 
@@ -46,6 +48,7 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
                 "scheduled_time",
                 "cron_expression",
                 "is_recurring",
+                "is_system_task",
                 "status",
                 "priority",
                 "attempts",
@@ -62,6 +65,8 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
                 "executions_count",
                 "duration",
                 "can_retry",
+                "can_delete",
+                "can_modify",
                 "is_ready_to_run",
                 "next_run_time",
             ],
@@ -71,8 +76,11 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
             "executions_count",
             "duration",
             "can_retry",
+            "can_delete",
+            "can_modify",
             "is_ready_to_run",
             "next_run_time",
+            "is_system_task",
             "status",
             "attempts",
             "result_data",
@@ -102,6 +110,14 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
     def get_can_retry(self, obj) -> bool:
         """Check if task can be retried."""
         return obj.can_retry()
+
+    def get_can_delete(self, obj) -> bool:
+        """Check if task can be deleted."""
+        return obj.can_delete()
+
+    def get_can_modify(self, obj) -> bool:
+        """Check if task can be modified."""
+        return obj.can_modify()
 
     def get_is_ready_to_run(self, obj) -> bool:
         """Check if task is ready to run."""
