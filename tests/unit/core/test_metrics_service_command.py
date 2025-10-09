@@ -27,6 +27,14 @@ class TestMetricsServiceCommand(TestCase):
         self.command.processes = []
         self.command.shutdown_requested = False
 
+    def tearDown(self):
+        """Clean up test fixtures."""
+        # Ensure shutdown is requested to stop any running processes
+        self.command.shutdown_requested = True
+        # Clean up any processes or threads that might be running
+        if hasattr(self.command, "_cleanup_processes_and_threads"):
+            self.command._cleanup_processes_and_threads()
+
     def test_command_help_text(self):
         """Test command has proper help text."""
         assert self.command.help == "Metrics service management - unified entry point for all service operations"
@@ -469,6 +477,18 @@ class TestMetricsServiceEdgeCases(TestCase):
         self.command = Command()
         self.out = StringIO()
         self.command.stdout = self.out
+        # Initialize attributes
+        self.command.threads = []
+        self.command.processes = []
+        self.command.shutdown_requested = False
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        # Ensure shutdown is requested to stop any running processes
+        self.command.shutdown_requested = True
+        # Clean up any processes or threads that might be running
+        if hasattr(self.command, "_cleanup_processes_and_threads"):
+            self.command._cleanup_processes_and_threads()
 
     def test_django_server_with_debug_verbosity(self):
         """Test Django server with DEBUG log level."""
@@ -481,7 +501,9 @@ class TestMetricsServiceEdgeCases(TestCase):
             mock_process.stdout.readline.return_value = ""
             mock_popen.return_value = mock_process
 
-            self.command._run_django_server("127.0.0.1", "8000", "DEBUG")
+            # Mock the output formatter to prevent any hanging
+            with patch.object(self.command, "output"):
+                self.command._run_django_server("127.0.0.1", "8000", "DEBUG")
 
             # Verify --verbosity=2 was added for DEBUG level
             args = mock_popen.call_args[0][0]
