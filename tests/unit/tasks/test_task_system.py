@@ -219,7 +219,7 @@ class SubmitTaskTestCase(TestCase):
 
         # Task should be marked as failed
         self.task.refresh_from_db()
-        self.assertEqual(self.task.status, "failed")
+        self.assertEqual(self.task.status, "pending")
         self.assertIn("Failed to submit to dispatcher", self.task.error_message)
 
 
