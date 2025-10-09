@@ -40,7 +40,8 @@ dependencies = [
     "croniter>=1.3.0",
     "uv",
     "apscheduler>=3.10.0",
-    "metrics-utility @ file:///Users/cshiels/Documents/Repos/Forked/metrics-utility",
+    "metrics-utility @ git+https://github.com/ansible/metrics-utility.git",
+    "pip>=25.2",
 ]
 
 [project.optional-dependencies]
