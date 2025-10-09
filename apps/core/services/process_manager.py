@@ -206,7 +206,7 @@ class ProcessManager:
 
     def _get_manage_py_path(self) -> Path:
         """Get the path to manage.py."""
-        manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
+        manage_py = Path(__file__).parent.parent.parent.parent / "manage.py"
         if not manage_py.exists():
             raise ValueError(f"manage.py not found at {manage_py}")
         return manage_py
