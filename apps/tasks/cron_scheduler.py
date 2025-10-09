@@ -14,6 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from django.utils import timezone
 
 from .tasks import TASK_FUNCTIONS
+from .task_groups import get_all_enabled_tasks, get_task_group_status
 
 logger = logging.getLogger(__name__)
 
@@ -33,54 +34,54 @@ class CronTaskScheduler:
         self._lock = threading.Lock()
 
         # Task registry for scheduled tasks
-        # All recurring tasks are handled here via APScheduler - no database polling
-        self.task_registry: dict[str, dict[str, Any]] = {
-            # System maintenance tasks
-            "daily_task_cleanup": {
-                "function": "cleanup_old_tasks",
-                "cron": "0 2 * * *",  # Daily at 2 AM
-                "args": {"days_old": 5, "dry_run": False, "include_executions": True, "preserve_recurring": True},
-                "enabled": True,
-                "description": "Daily cleanup of old completed/failed tasks (preserves recurring tasks)",
-            },
-            "weekly_data_cleanup": {
-                "function": "cleanup_old_data",
-                "cron": "0 3 * * 0",  # Weekly on Sunday at 3 AM
-                "args": {"days_old": 30, "data_types": ["logs", "temp_files", "cache"]},
-                "enabled": True,
-                "description": "Weekly cleanup of old system data and temporary files",
-            },
-            # Metrics collection tasks
-            "collect_anonymous_metrics": {
-                "function": "collect_anonymous_metrics",
-                "cron": "0 */6 * * *",  # Every 6 hours
-                "args": {},
-                "enabled": True,
-                "description": "Collect anonymous system metrics for monitoring",
-            },
-            "collect_config_metrics": {
-                "function": "collect_config_metrics",
-                "cron": "0 4 * * 0",  # Weekly on Sunday at 4 AM
-                "args": {},
-                "enabled": True,
-                "description": "Collect system configuration information",
-            },
-            "collect_host_metrics": {
-                "function": "collect_host_metrics",
-                "cron": "0 */4 * * *",  # Every 4 hours
-                "args": {},
-                "enabled": True,
-                "description": "Collect host performance and system metrics",
-            },
-            # Health check tasks
-            "hourly_health_check": {
-                "function": "hello_world",
-                "cron": "0 * * * *",  # Every hour
-                "args": {},
-                "enabled": True,
-                "description": "Hourly system health check",
-            },
-        }
+        # Tasks are now loaded from task groups with feature flag control
+        self.task_registry: dict[str, dict[str, Any]] = {}
+        self._load_task_registry()
+
+    def _load_task_registry(self):
+        """Load task registry from task groups with feature flag control."""
+        try:
+            enabled_tasks = get_all_enabled_tasks()
+            self.task_registry = enabled_tasks
+            logger.info(f"Loaded {len(enabled_tasks)} enabled tasks from task groups")
+
+            # Log which groups are enabled/disabled
+            group_status = get_task_group_status()
+            for group_name, status in group_status.items():
+                if status["enabled"]:
+                    logger.info(
+                        f"Task group '{group_name}' enabled: {status['enabled_tasks']}/{status['total_tasks']} tasks"
+                    )
+                else:
+                    logger.info(f"Task group '{group_name}' disabled: {status['total_tasks']} tasks skipped")
+
+        except Exception as e:
+            logger.error(f"Failed to load task registry from groups: {str(e)}")
+            # Fallback to empty registry
+            self.task_registry = {}
+
+    def reload_task_registry(self):
+        """Reload task registry from task groups (useful when feature flags change)."""
+        logger.info("Reloading task registry from task groups")
+        old_count = len(self.task_registry)
+
+        # Stop existing tasks
+        if self.running:
+            for task_id in list(self.task_registry.keys()):
+                try:
+                    self.scheduler.remove_job(task_id)
+                except Exception as e:
+                    logger.debug(f"Job {task_id} not found in scheduler: {str(e)}")
+
+        # Reload registry
+        self._load_task_registry()
+
+        # Re-add tasks if scheduler is running
+        if self.running:
+            self._add_registry_tasks()
+
+        new_count = len(self.task_registry)
+        logger.info(f"Task registry reloaded: {old_count} -> {new_count} tasks")
 
     def start(self):
         """Start the cron scheduler."""
@@ -163,13 +164,15 @@ class CronTaskScheduler:
 
             from dispatcherd.publish import submit_task
 
-            # Get the task function
-            task_func = TASK_FUNCTIONS[function_name]
+            # Validate the task function exists
+            if function_name not in TASK_FUNCTIONS:
+                raise ValueError(f"Unknown task function: {function_name}")
 
             # Determine queue based on function name
             queue = self._get_queue_for_function(function_name)
 
-            # Submit to dispatcherd
+            # Submit to dispatcherd using function object directly
+            task_func = TASK_FUNCTIONS[function_name]
             submit_task(task_func, kwargs=args, queue=queue)
 
             logger.info(f"Submitted scheduled task {task_id} ({function_name}) to queue {queue}")
@@ -182,10 +185,17 @@ class CronTaskScheduler:
         queue_mapping = {
             "hello_world": "metrics_tasks",
             "cleanup_old_data": "metrics_cleanup",
+            "cleanup_old_tasks": "metrics_cleanup",
             "send_notification_email": "metrics_notifications",
             "process_user_data": "metrics_tasks",
             "execute_db_task": "metrics_tasks",
             "sleep": "metrics_tasks",
+            # Metrics collection tasks
+            "collect_anonymous_metrics": "metrics_collectors",
+            "collect_config_metrics": "metrics_collectors",
+            "collect_job_host_summary": "metrics_collectors",
+            "collect_host_metrics": "metrics_collectors",
+            "collect_all_metrics": "metrics_collectors",
             # Metrics-utility tasks
             "gather_automation_controller_billing_data": "metrics_utility",
             "build_metrics_report": "metrics_utility",
@@ -274,7 +284,12 @@ class CronTaskScheduler:
                 {"id": job.id, "name": job.name, "next_run_time": job.next_run_time, "trigger": str(job.trigger)}
                 for job in self.scheduler.get_jobs()
             ],
+            "task_groups": get_task_group_status(),
         }
+
+    def get_task_groups_info(self) -> dict[str, Any]:
+        """Get detailed information about task groups and their status."""
+        return get_task_group_status()
 
     def schedule_immediate_task(self, function_name: str, args: dict[str, Any] = None, queue: str = None) -> str:
         """
@@ -304,11 +319,12 @@ class CronTaskScheduler:
 
             from dispatcherd.publish import submit_task
 
-            # Get the task function
-            task_func = TASK_FUNCTIONS[function_name]
+            # Validate the task function exists
+            if function_name not in TASK_FUNCTIONS:
+                raise ValueError(f"Unknown task function: {function_name}")
 
-            # Submit immediately
-            submit_task(task_func, kwargs=args, queue=queue)
+            # Submit immediately using string reference
+            submit_task(f"apps.tasks.tasks.{function_name}", kwargs=args, queue=queue)
 
             logger.info(f"Scheduled immediate task {job_id} ({function_name}) to queue {queue}")
             return job_id

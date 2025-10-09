@@ -65,6 +65,10 @@ class Command(BaseCommand):
         cron_parser = subparsers.add_parser("cron", help="Manage cron-based task scheduler")
         self._add_cron_management_arguments(cron_parser)
 
+        # Task groups management
+        groups_parser = subparsers.add_parser("groups", help="Manage task groups and feature flags")
+        self._add_task_groups_arguments(groups_parser)
+
     def _add_run_arguments(self, parser):
         """Add arguments for the run command."""
         # Django runserver arguments
@@ -183,6 +187,27 @@ class Command(BaseCommand):
         remove_parser = cron_subparsers.add_parser("remove", help="Remove a cron task")
         remove_parser.add_argument("--task-id", help="Task ID for remove operation")
 
+    def _add_task_groups_arguments(self, parser):
+        """Add arguments for task groups management."""
+        groups_subparsers = parser.add_subparsers(dest="groups_action", help="Task groups management actions", required=True)
+
+        # List groups
+        list_parser = groups_subparsers.add_parser("list", help="List all task groups and their status")
+
+        # Show group details
+        show_parser = groups_subparsers.add_parser("show", help="Show details of a specific task group")
+        show_parser.add_argument("group_name", help="Name of the task group to show")
+
+        # Reload groups
+        reload_parser = groups_subparsers.add_parser("reload", help="Reload task groups from configuration")
+
+        # Enable/disable groups (conceptual - shows feature flag requirements)
+        enable_parser = groups_subparsers.add_parser("enable", help="Show how to enable a task group")
+        enable_parser.add_argument("group_name", help="Name of the task group")
+
+        disable_parser = groups_subparsers.add_parser("disable", help="Show how to disable a task group")
+        disable_parser.add_argument("group_name", help="Name of the task group")
+
     def handle(self, *args, **options):
         """
         Handle the command execution.
@@ -205,6 +230,8 @@ class Command(BaseCommand):
             self._handle_task_management_command(options)
         elif command == "cron":
             self._handle_cron_management_command(options)
+        elif command == "groups":
+            self._handle_task_groups_command(options)
         else:
             self.stdout.write(self.style.ERROR(f"Unknown command: {command}"))
             sys.exit(1)
@@ -579,6 +606,188 @@ class Command(BaseCommand):
         """Remove a cron task."""
         self.stdout.write(self.style.WARNING("Remove cron task functionality not yet implemented"))
         # TODO: Implement remove cron task
+
+    def _handle_task_groups_command(self, options):
+        """Handle task groups management commands."""
+        groups_action = options.get("groups_action")
+
+        if groups_action == "list":
+            self._list_task_groups()
+        elif groups_action == "show":
+            self._show_task_group(options)
+        elif groups_action == "reload":
+            self._reload_task_groups()
+        elif groups_action == "enable":
+            self._show_enable_task_group(options)
+        elif groups_action == "disable":
+            self._show_disable_task_group(options)
+        else:
+            self.stdout.write(self.style.ERROR(f"Unknown groups action: {groups_action}"))
+            sys.exit(1)
+
+    def _list_task_groups(self):
+        """List all task groups and their status."""
+        try:
+            from apps.tasks.task_groups import get_task_group_status
+
+            group_status = get_task_group_status()
+
+            self.stdout.write("📊 Task Groups Status")
+            self.stdout.write("=" * 50)
+
+            for group_name, status in group_status.items():
+                enabled_icon = "✅" if status["enabled"] else "❌"
+                flag_info = f" (flag: {status['enabled_flag']})" if status['enabled_flag'] else " (always enabled)"
+                
+                self.stdout.write(f"\n{enabled_icon} {group_name.upper()}{flag_info}")
+                self.stdout.write(f"   Description: {status['description']}")
+                self.stdout.write(f"   Status: {'ENABLED' if status['enabled'] else 'DISABLED'}")
+                self.stdout.write(f"   Tasks: {status['enabled_tasks']}/{status['total_tasks']} active")
+                
+                if status["enabled"] and status["tasks"]:
+                    self.stdout.write("   Active Tasks:")
+                    for task in status["tasks"]:
+                        self.stdout.write(f"     • {task['task_id']} - {task['description']}")
+                        self.stdout.write(f"       Schedule: {task['cron']}")
+                elif not status["enabled"]:
+                    self.stdout.write(f"   Disabled Tasks: {status['total_tasks']} tasks would run if enabled")
+
+            self.stdout.write("\n" + "=" * 50)
+            total_enabled = sum(status['enabled_tasks'] for status in group_status.values())
+            total_available = sum(status['total_tasks'] for status in group_status.values())
+            self.stdout.write(f"Total Active Tasks: {total_enabled}/{total_available}")
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Failed to list task groups: {e}"))
+            sys.exit(1)
+
+    def _show_task_group(self, options):
+        """Show details of a specific task group."""
+        try:
+            from apps.tasks.task_groups import get_task_group_status, TASK_GROUPS
+
+            group_name = options["group_name"]
+            group_status = get_task_group_status()
+
+            if group_name not in group_status:
+                self.stdout.write(self.style.ERROR(f"Task group '{group_name}' not found"))
+                available_groups = list(group_status.keys())
+                self.stdout.write(f"Available groups: {', '.join(available_groups)}")
+                sys.exit(1)
+
+            status = group_status[group_name]
+            group = next((g for g in TASK_GROUPS if g.name == group_name), None)
+
+            self.stdout.write(f"📋 Task Group: {group_name.upper()}")
+            self.stdout.write("=" * 50)
+            self.stdout.write(f"Description: {status['description']}")
+            self.stdout.write(f"Status: {'ENABLED' if status['enabled'] else 'DISABLED'}")
+            
+            if status['enabled_flag']:
+                self.stdout.write(f"Feature Flag: {status['enabled_flag']}")
+            else:
+                self.stdout.write("Feature Flag: None (always enabled)")
+
+            self.stdout.write(f"Total Tasks: {status['total_tasks']}")
+            self.stdout.write(f"Active Tasks: {status['enabled_tasks']}")
+
+            if group and group.tasks:
+                self.stdout.write(f"\nAll Tasks in Group:")
+                for task in group.tasks:
+                    active_icon = "🟢" if status['enabled'] and task.get('enabled', True) else "🔴"
+                    self.stdout.write(f"\n{active_icon} {task['task_id']}")
+                    self.stdout.write(f"   Function: {task['function']}")
+                    self.stdout.write(f"   Schedule: {task['cron']}")
+                    self.stdout.write(f"   Description: {task['description']}")
+                    self.stdout.write(f"   Category: {task.get('category', 'unknown')}")
+                    if task.get('args'):
+                        self.stdout.write(f"   Arguments: {task['args']}")
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Failed to show task group: {e}"))
+            sys.exit(1)
+
+    def _reload_task_groups(self):
+        """Reload task groups from configuration."""
+        try:
+            from apps.tasks.signals import reload_task_groups
+
+            self.stdout.write("🔄 Reloading Task Groups...")
+            
+            if reload_task_groups():
+                self.stdout.write(self.style.SUCCESS("✅ Task groups reloaded successfully"))
+                
+                # Show updated status
+                self._list_task_groups()
+            else:
+                self.stdout.write(self.style.ERROR("❌ Failed to reload task groups"))
+                sys.exit(1)
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Failed to reload task groups: {e}"))
+            sys.exit(1)
+
+    def _show_enable_task_group(self, options):
+        """Show how to enable a task group."""
+        group_name = options["group_name"]
+        
+        try:
+            from apps.tasks.task_groups import TASK_GROUPS
+
+            group = next((g for g in TASK_GROUPS if g.name == group_name), None)
+            if not group:
+                self.stdout.write(self.style.ERROR(f"Task group '{group_name}' not found"))
+                available_groups = [g.name for g in TASK_GROUPS]
+                self.stdout.write(f"Available groups: {', '.join(available_groups)}")
+                return
+
+            if not group.enabled_flag:
+                self.stdout.write(f"Task group '{group_name}' is always enabled (system tasks)")
+                return
+
+            self.stdout.write(f"🔧 How to Enable Task Group: {group_name}")
+            self.stdout.write("=" * 50)
+            self.stdout.write(f"Set environment variable:")
+            env_var = f"METRICS_SERVICE_{group.enabled_flag.replace('_ENABLED', '').replace('_COLLECTION', '')}"
+            self.stdout.write(f"  export {env_var}=true")
+            self.stdout.write(f"\nOr in Django settings:")
+            self.stdout.write(f"  FEATURE_FLAGS['{group.enabled_flag}'] = True")
+            self.stdout.write(f"\nThen restart the service or run:")
+            self.stdout.write(f"  python manage.py metrics_service groups reload")
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error: {e}"))
+
+    def _show_disable_task_group(self, options):
+        """Show how to disable a task group."""
+        group_name = options["group_name"]
+        
+        try:
+            from apps.tasks.task_groups import TASK_GROUPS
+
+            group = next((g for g in TASK_GROUPS if g.name == group_name), None)
+            if not group:
+                self.stdout.write(self.style.ERROR(f"Task group '{group_name}' not found"))
+                available_groups = [g.name for g in TASK_GROUPS]
+                self.stdout.write(f"Available groups: {', '.join(available_groups)}")
+                return
+
+            if not group.enabled_flag:
+                self.stdout.write(self.style.WARNING(f"Task group '{group_name}' cannot be disabled (system tasks)"))
+                return
+
+            self.stdout.write(f"🛑 How to Disable Task Group: {group_name}")
+            self.stdout.write("=" * 50)
+            self.stdout.write(f"Set environment variable:")
+            env_var = f"METRICS_SERVICE_{group.enabled_flag.replace('_ENABLED', '').replace('_COLLECTION', '')}"
+            self.stdout.write(f"  export {env_var}=false")
+            self.stdout.write(f"\nOr in Django settings:")
+            self.stdout.write(f"  FEATURE_FLAGS['{group.enabled_flag}'] = False")
+            self.stdout.write(f"\nThen restart the service or run:")
+            self.stdout.write(f"  python manage.py metrics_service groups reload")
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error: {e}"))
 
     def _list_system_tasks(self):
         """List current system tasks."""

@@ -2,7 +2,7 @@
 Development settings for metrics_service.
 These settings are optimized for local development with Docker.
 """
-
+import os
 from .defaults import *  # noqa: F403, F401
 
 # Override DEBUG setting
@@ -52,6 +52,14 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Development-specific feature flags
 DISPATCHERD_ENABLED = True
+
+# Feature Flags
+FEATURE_FLAGS = {
+    "DISPATCHERD_ENABLED": True,
+    "ANONYMIZED_DATA_COLLECTION": os.environ.get("METRICS_SERVICE_ANONYMIZED_DATA", "true").lower() == "true",
+    "METRICS_COLLECTION_ENABLED": os.environ.get("METRICS_SERVICE_METRICS_COLLECTION", "false").lower() == "true",
+}
+
 
 # Static files serving in development
 STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"

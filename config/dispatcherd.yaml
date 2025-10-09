@@ -12,7 +12,7 @@ brokers:
       user: "metrics_service"
       password: "metrics_service"
       host: "127.0.0.1"
-      port: 55432
+      port: "55432"
     
     channels:
       - "metrics_tasks"          # Main task execution channel

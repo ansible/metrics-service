@@ -248,10 +248,12 @@ RESOURCE_SERVER_SYNC_ENABLED = False
 # Dispatcherd is always enabled in this service
 DISPATCHERD_ENABLED = True
 
-# # Feature Flags
-# FEATURE_FLAGS = {
-#     "DISPATCHERD_ENABLED": True,
-# }
+# Feature Flags
+FEATURE_FLAGS = {
+    "DISPATCHERD_ENABLED": True,
+    "ANONYMIZED_DATA_COLLECTION": os.environ.get("METRICS_SERVICE_ANONYMIZED_DATA", "true").lower() == "true",
+    "METRICS_COLLECTION_ENABLED": os.environ.get("METRICS_SERVICE_METRICS_COLLECTION", "false").lower() == "true",
+}
 
 # Cache Configuration
 # Use local memory cache

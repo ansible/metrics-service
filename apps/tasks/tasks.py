@@ -702,14 +702,27 @@ def submit_task_to_dispatcher(task: Any) -> None:
         # Create execution record
         TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
 
-        # Submit to dispatcher using the existing dispatcherd system
-        # This assumes dispatcherd is running and can handle the execute_db_task function
+        # Ensure dispatcherd is configured before attempting to submit tasks
+        from .dispatcherd_config import ensure_dispatcherd_configured
+
+        ensure_dispatcherd_configured()
+
+        # Import dispatcherd submit function
+        from dispatcherd.publish import submit_task
+
+        # Determine the appropriate queue based on task type
+        from .dispatcherd_config import get_queue_for_function
+
+        queue = get_queue_for_function(task.function_name)
+
+        # Submit to dispatcherd using execute_db_task as the entry point
+        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
         # Update task status to indicate it's been submitted
         task.status = "pending"
         task.save()
 
-        logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher")
+        logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 
     except Exception as e:
         logger.error(f"Error submitting task to dispatcher: {str(e)}")
@@ -835,10 +848,8 @@ class TaskScheduler:
                 raise ValueError(f"Unknown task function: {task.function_name}")
 
             # Use execute_db_task as the entry point for all tasks
-            task_func = TASK_FUNCTIONS["execute_db_task"]
-
-            # Submit the task with task_id as the main parameter
-            submit_task(task_func, kwargs={"task_id": task.id}, queue=queue)
+            # Submit using the function object directly
+            submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
             logger.info(f"Submitted task {task.id} ({task.function_name}) to queue {queue}")
 
