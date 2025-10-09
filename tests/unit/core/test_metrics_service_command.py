@@ -519,15 +519,8 @@ class TestMetricsServiceEdgeCases(TestCase):
 
         with patch("subprocess.Popen") as mock_popen, patch.object(Path, "exists", return_value=True):
             mock_process = MagicMock()
-            mock_process.poll.side_effect = [None, None, 0]  # Running, then finished
-            mock_process.stdout.readline.side_effect = [
-                "Starting development server at http://127.0.0.1:8000/\n",
-                "Quit the server with CONTROL-C.\n",
-                "",  # End of output
-            ]
-            mock_popen.return_value = mock_process
 
-            # Set up to exit after a couple iterations
+            # Set up a simpler, more reliable mock that exits quickly
             call_count = 0
 
             def mock_poll():
@@ -538,7 +531,17 @@ class TestMetricsServiceEdgeCases(TestCase):
                     return 0  # Process finished
                 return None  # Still running
 
+            def mock_readline():
+                if call_count == 1:
+                    return "Starting development server at http://127.0.0.1:8000/\n"
+                elif call_count == 2:
+                    return "Quit the server with CONTROL-C.\n"
+                else:
+                    return ""  # End of output
+
             mock_process.poll = mock_poll
+            mock_process.stdout.readline = mock_readline
+            mock_popen.return_value = mock_process
 
             self.command._run_django_server("127.0.0.1", "8000", "INFO")
 
@@ -551,8 +554,15 @@ class TestMetricsServiceEdgeCases(TestCase):
         self.command.stdout = self.out
         # Update the output formatter to use the test stdout
         self.command.output.stdout = self.out
+        # Ensure shutdown is requested to prevent hanging
+        self.command.shutdown_requested = True
 
-        with patch.object(Path, "exists", return_value=True):
+        with patch.object(Path, "exists", return_value=True), patch("subprocess.Popen") as mock_popen:
+            mock_process = MagicMock()
+            mock_process.poll.return_value = 0
+            mock_process.stdout.readline.return_value = ""
+            mock_popen.return_value = mock_process
+
             # Test string port that's valid
             self.command._run_django_server("127.0.0.1", "9000", "INFO")
 

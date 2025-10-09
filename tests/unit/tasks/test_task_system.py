@@ -185,7 +185,10 @@ class SubmitTaskTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="submituser")
-        self.task = Task.objects.create(name="Submit Task", function_name="cleanup_old_data", created_by=self.user)
+        # Create task without triggering signals to prevent recursion during test setup
+        self.task = Task(name="Submit Task", function_name="cleanup_old_data", created_by=self.user)
+        self.task._skip_signals = True
+        self.task.save()
 
     def test_submit_task_to_dispatcher_success(self):
         """Test submit_task_to_dispatcher success."""
@@ -195,7 +198,7 @@ class SubmitTaskTestCase(TestCase):
         new_executions_count = TaskExecution.objects.count()
 
         # Should create a TaskExecution record
-        self.assertGreater(new_executions_count, initial_executions + 1)
+        self.assertGreaterEqual(new_executions_count, initial_executions + 1)
 
         # Check task status was updated
         self.task.refresh_from_db()
