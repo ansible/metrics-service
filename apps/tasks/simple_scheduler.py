@@ -65,10 +65,7 @@ class SimpleTaskScheduler:
 
             # Get scheduled tasks that are ready to run
             scheduled_tasks = Task.objects.filter(
-                status='pending',
-                scheduled_time__lte=now,
-                scheduled_time__isnull=False,
-                is_recurring=False
+                status="pending", scheduled_time__lte=now, scheduled_time__isnull=False, is_recurring=False
             )
 
             for task in scheduled_tasks:
@@ -76,10 +73,8 @@ class SimpleTaskScheduler:
 
             # Handle recurring tasks
             recurring_tasks = Task.objects.filter(
-                status='pending',
-                is_recurring=True,
-                cron_expression__isnull=False
-            ).exclude(cron_expression='')
+                status="pending", is_recurring=True, cron_expression__isnull=False
+            ).exclude(cron_expression="")
 
             for task in recurring_tasks:
                 if self._should_run_recurring_task(task, now):
@@ -93,7 +88,7 @@ class SimpleTaskScheduler:
         try:
             # Use modified time as the last run time, or created time if never modified
             last_run = task.modified or task.created
-            if hasattr(last_run, 'replace'):
+            if hasattr(last_run, "replace"):
                 last_run = last_run.replace(tzinfo=None)
 
             # Calculate next run time from last run
@@ -101,7 +96,7 @@ class SimpleTaskScheduler:
             next_run = cron.get_next(datetime)
 
             # Check if it's time to run (within check interval)
-            current_time = now.replace(tzinfo=None) if hasattr(now, 'replace') else now
+            current_time = now.replace(tzinfo=None) if hasattr(now, "replace") else now
             time_diff = (next_run - current_time).total_seconds()
 
             # Run if we're past the scheduled time (negative time_diff means overdue)
@@ -125,7 +120,7 @@ class SimpleTaskScheduler:
 
         except Exception as e:
             logger.error(f"Error submitting task {task.id}: {e}")
-            task.status = 'failed'
+            task.status = "failed"
             task.error_message = f"Failed to submit to dispatcher: {str(e)}"
             task.save()
 
@@ -135,7 +130,7 @@ class SimpleTaskScheduler:
             # Just update the modified timestamp by saving the task
             # This will be used as the "last run" time for calculating next run
             task._skip_signals = True  # Prevent signals from firing
-            task.save(update_fields=['modified'])
+            task.save(update_fields=["modified"])
 
             logger.info(f"Updated last run time for recurring task: {task.name}")
 
@@ -153,64 +148,61 @@ def initialize_system_tasks():
         user_model = get_user_model()
 
         # Get or create a system user
-        system_user, _ = user_model.objects.get_or_create(
-            username='system',
-            defaults={'email': 'system@localhost'}
-        )
+        system_user, _ = user_model.objects.get_or_create(username="system", defaults={"email": "system@localhost"})
 
         system_tasks = []
 
         # Check feature flags and add appropriate system tasks
-        feature_flags = getattr(settings, 'FEATURE_FLAGS', {})
+        feature_flags = getattr(settings, "FEATURE_FLAGS", {})
 
         # Metrics collection system task
-        if feature_flags.get('METRICS_COLLECTION_ENABLED', True):
-            system_tasks.append({
-                'name': 'Metrics Collection',
-                'function_name': 'process_user_data',
-                'cron_expression': '0 2 * * *',  # Daily at 2 AM
-                'task_data': {'operation': 'metrics_collection'},
-                'is_recurring': True,
-                'is_system_task': True,
-                'priority': 1
-            })
+        if feature_flags.get("METRICS_COLLECTION_ENABLED", True):
+            system_tasks.append(
+                {
+                    "name": "Metrics Collection",
+                    "function_name": "process_user_data",
+                    "cron_expression": "0 2 * * *",  # Daily at 2 AM
+                    "task_data": {"operation": "metrics_collection"},
+                    "is_recurring": True,
+                    "is_system_task": True,
+                    "priority": 1,
+                }
+            )
 
         # Anonymized data cleanup task
-        if feature_flags.get('ANONYMIZED_DATA_ENABLED', True):
-            system_tasks.append({
-                'name': 'Anonymized Data Cleanup',
-                'function_name': 'cleanup_old_data',
-                'cron_expression': '0 3 * * 0',  # Weekly on Sunday at 3 AM
-                'task_data': {'days_old': 90, 'anonymize': True},
-                'is_recurring': True,
-                'is_system_task': True,
-                'priority': 2
-            })
+        if feature_flags.get("ANONYMIZED_DATA_ENABLED", True):
+            system_tasks.append(
+                {
+                    "name": "Anonymized Data Cleanup",
+                    "function_name": "cleanup_old_data",
+                    "cron_expression": "0 3 * * 0",  # Weekly on Sunday at 3 AM
+                    "task_data": {"days_old": 90, "anonymize": True},
+                    "is_recurring": True,
+                    "is_system_task": True,
+                    "priority": 2,
+                }
+            )
 
         # General cleanup task (always enabled)
-        system_tasks.append({
-            'name': 'System Cleanup',
-            'function_name': 'cleanup_old_data',
-            'cron_expression': '0 1 * * *',  # Daily at 1 AM
-            'task_data': {'days_old': 30},
-            'is_recurring': True,
-            'is_system_task': True,
-            'priority': 3
-        })
+        system_tasks.append(
+            {
+                "name": "System Cleanup",
+                "function_name": "cleanup_old_data",
+                "cron_expression": "0 1 * * *",  # Daily at 1 AM
+                "task_data": {"days_old": 30},
+                "is_recurring": True,
+                "is_system_task": True,
+                "priority": 3,
+            }
+        )
 
         created_count = 0
         for task_config in system_tasks:
             # Check if this system task already exists
-            existing = Task.objects.filter(
-                name=task_config['name'],
-                is_system_task=True
-            ).first()
+            existing = Task.objects.filter(name=task_config["name"], is_system_task=True).first()
 
             if not existing:
-                Task.objects.create(
-                    created_by=system_user,
-                    **task_config
-                )
+                Task.objects.create(created_by=system_user, **task_config)
                 created_count += 1
                 logger.info(f"Created system task: {task_config['name']}")
 

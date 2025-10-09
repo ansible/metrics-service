@@ -31,6 +31,7 @@ class TasksConfig(AppConfig):
         Initialize system tasks and start the simple scheduler.
         """
         import logging
+
         from django.db import connection
         from django.db.utils import OperationalError, ProgrammingError
 
@@ -52,9 +53,9 @@ class TasksConfig(AppConfig):
 
             # Initialize system tasks using the new simple approach
             from .simple_scheduler import initialize_system_tasks, start_scheduler
-            
+
             initialize_system_tasks()
-            
+
             # Start the simple scheduler
             start_scheduler()
             logger.info("Task system initialized with simple scheduler")

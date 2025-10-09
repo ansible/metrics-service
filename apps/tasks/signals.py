@@ -26,7 +26,7 @@ def task_created_or_updated(sender, instance, created, **kwargs):
     task = instance
 
     # Skip signal processing for system tasks to avoid recursive loops
-    if getattr(task, '_skip_signals', False):
+    if getattr(task, "_skip_signals", False):
         return
 
     try:
@@ -47,11 +47,7 @@ def task_created_or_updated(sender, instance, created, **kwargs):
 def _handle_new_task(task):
     """Handle a newly created task - only immediate execution."""
     # Only handle tasks for immediate execution (no scheduled time, no recurring)
-    if (task.is_ready_to_run() and
-        task.status == "pending" and
-        not task.scheduled_time and
-        not task.is_recurring):
-
+    if task.is_ready_to_run() and task.status == "pending" and not task.scheduled_time and not task.is_recurring:
         logger.info(f"Task ready for immediate execution: {task.name}")
         _submit_task_to_dispatcherd_directly(task)
         return
@@ -64,11 +60,7 @@ def _handle_new_task(task):
 def _handle_updated_task(task):
     """Handle an updated task - only immediate execution."""
     # If task is now ready to run and pending (and not scheduled/recurring)
-    if (task.is_ready_to_run() and
-        task.status == "pending" and
-        not task.scheduled_time and
-        not task.is_recurring):
-
+    if task.is_ready_to_run() and task.status == "pending" and not task.scheduled_time and not task.is_recurring:
         logger.info(f"Updated task now ready for immediate execution: {task.name}")
         _submit_task_to_dispatcherd_directly(task)
         return
@@ -96,6 +88,7 @@ def _signal_scheduler_refresh():
     """Signal the scheduler that new tasks may be available."""
     try:
         from .simple_scheduler import refresh_scheduler
+
         refresh_scheduler()
     except Exception as e:
         logger.debug(f"Could not signal scheduler refresh: {e}")

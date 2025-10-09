@@ -470,16 +470,13 @@ class TaskViewSet(BaseViewSet):
             scheduler = get_scheduler()
 
             # Get scheduled and recurring tasks from database
-            scheduled_tasks = Task.objects.filter(
-                status='pending',
-                scheduled_time__isnull=False
-            ).count()
+            scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False).count()
 
-            recurring_tasks = Task.objects.filter(
-                status='pending',
-                is_recurring=True,
-                cron_expression__isnull=False
-            ).exclude(cron_expression='').count()
+            recurring_tasks = (
+                Task.objects.filter(status="pending", is_recurring=True, cron_expression__isnull=False)
+                .exclude(cron_expression="")
+                .count()
+            )
 
             return Response(
                 {
@@ -489,7 +486,7 @@ class TaskViewSet(BaseViewSet):
                         "scheduled_tasks": scheduled_tasks,
                         "recurring_tasks": recurring_tasks,
                     },
-                    "message": "Simple scheduler status retrieved successfully"
+                    "message": "Simple scheduler status retrieved successfully",
                 }
             )
         except Exception as e:
