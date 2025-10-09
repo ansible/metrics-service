@@ -81,8 +81,6 @@ python -m pytest tests/integration/test_api.py -v
 # Real server tests (slower but more comprehensive)
 python -m pytest tests/integration/test_api_live_server.py -v
 
-# Or run the comparison script
-python run_integration_tests.py
 ```
 
 ## Recommendation
@@ -94,6 +92,3 @@ For your project, I recommend:
 3. **Use both approaches** - Different tests for different purposes
 
 The current tests are actually working correctly - they just use a different testing approach than you might expect!
-
-
-

@@ -148,7 +148,7 @@ class TestURLPatterns(TestCase):
                 namespaces.append(pattern.namespace)
 
         # Should have some namespaces for organization
-        assert len(namespaces) >= 0  # At least some namespaces
+        assert len(namespaces) >= 1  # At least some namespaces
 
 
 @pytest.mark.integration

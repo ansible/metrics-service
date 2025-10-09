@@ -183,7 +183,6 @@ ignore = [
 "**/conftest.py" = ["S101"]
 "**/settings/**/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
 "manage.py" = ["T20"]
-"run_integration_tests.py" = ["S603"]  # Allow subprocess calls in integration test script
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
