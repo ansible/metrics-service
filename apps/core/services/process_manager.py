@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from django.core.management.base import CommandError
 
@@ -31,11 +31,11 @@ class ProcessManager:
         """
         self.output = output_formatter
         self.shutdown_requested = False
-        self.threads: List[threading.Thread] = []
-        self.processes: List[subprocess.Popen] = []
+        self.threads: list[threading.Thread] = []
+        self.processes: list[subprocess.Popen] = []
         self._setup_signal_handlers()
 
-    def start_services(self, config: Dict[str, Any]) -> None:
+    def start_services(self, config: dict[str, Any]) -> None:
         """
         Start all services (Django, dispatcher, task scheduler).
 
@@ -64,7 +64,7 @@ class ProcessManager:
             self.output.error(f"Start failed: {str(e)}")
             raise CommandError(f"Failed to start services: {e}") from e
 
-    def _start_django_thread(self, config: Dict[str, Any]) -> None:
+    def _start_django_thread(self, config: dict[str, Any]) -> None:
         """Start Django server in a separate thread."""
         runserver_thread = threading.Thread(
             target=self._run_django_server, args=(config["host"], config["port"], config["log_level"]), daemon=True
@@ -72,7 +72,7 @@ class ProcessManager:
         runserver_thread.start()
         self.threads.append(runserver_thread)
 
-    def _start_dispatcher_thread(self, config: Dict[str, Any]) -> None:
+    def _start_dispatcher_thread(self, config: dict[str, Any]) -> None:
         """Start dispatcher in a separate thread."""
         dispatcher_thread = threading.Thread(
             target=self._run_dispatcherd,
@@ -82,7 +82,7 @@ class ProcessManager:
         dispatcher_thread.start()
         self.threads.append(dispatcher_thread)
 
-    def _start_task_scheduler_thread(self, config: Dict[str, Any]) -> None:
+    def _start_task_scheduler_thread(self, config: dict[str, Any]) -> None:
         """Start task scheduler in a separate thread."""
         task_scheduler_thread = threading.Thread(
             target=self._run_task_scheduler,
@@ -92,7 +92,7 @@ class ProcessManager:
         task_scheduler_thread.start()
         self.threads.append(task_scheduler_thread)
 
-    def _monitor_services(self, config: Dict[str, Any]) -> None:
+    def _monitor_services(self, config: dict[str, Any]) -> None:
         """Monitor running services and handle failures."""
         self.output.success(
             f"✓ Django server started on http://{config['host']}:{config['port']}\n"
@@ -171,7 +171,7 @@ class ProcessManager:
             cmd = self._build_django_command(manage_py, host, port, log_level)
 
             self.output.write(f"Starting Django server: {' '.join(cmd)}")
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # noqa: S603
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
             )
 
@@ -211,7 +211,7 @@ class ProcessManager:
             raise ValueError(f"manage.py not found at {manage_py}")
         return manage_py
 
-    def _build_django_command(self, manage_py: Path, host: str, port: str, log_level: str) -> List[str]:
+    def _build_django_command(self, manage_py: Path, host: str, port: str, log_level: str) -> list[str]:
         """Build Django runserver command."""
         self._validate_host_port(host, port)
 
@@ -228,7 +228,7 @@ class ProcessManager:
 
         return cmd
 
-    def _build_dispatcher_command(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> List[str]:
+    def _build_dispatcher_command(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> list[str]:
         """Build dispatcher command."""
         manage_py = self._get_manage_py_path()
         self._validate_dispatcher_params(workers, timeout, max_tasks, log_level)
@@ -243,7 +243,7 @@ class ProcessManager:
             f"--log-level={log_level}",
         ]
 
-    def _build_task_scheduler_command(self, log_level: str) -> List[str]:
+    def _build_task_scheduler_command(self, log_level: str) -> list[str]:
         """Build task scheduler command."""
         manage_py = self._get_manage_py_path()
         self._validate_log_level(log_level)
@@ -255,11 +255,11 @@ class ProcessManager:
             f"--log-level={log_level}",
         ]
 
-    def _start_process(self, cmd: List[str], name: str) -> Optional[subprocess.Popen]:
+    def _start_process(self, cmd: list[str], name: str) -> subprocess.Popen | None:
         """Start a subprocess."""
         self.output.write(f"Starting {name}: {' '.join(cmd)}")
         try:
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # noqa: S603
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
             )
             self.processes.append(process)
@@ -283,7 +283,7 @@ class ProcessManager:
         """Validate host and port parameters."""
         if not isinstance(host, str) or not host:
             raise ValueError(f"Invalid host: {host}")
-        if not isinstance(port, (int, str)) or not str(port).isdigit():
+        if not isinstance(port, int | str) or not str(port).isdigit():
             raise ValueError(f"Invalid port: {port}")
 
     def _validate_dispatcher_params(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> None:

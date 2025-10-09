@@ -58,7 +58,6 @@ class TestDispatcherdDecorator(TestCase):
         assert result == "test"
 
 
-
 @pytest.mark.unit
 class TestSystemTasksCreation(TestCase):
     """Test system tasks creation and management."""
@@ -66,7 +65,6 @@ class TestSystemTasksCreation(TestCase):
     def setUp(self):
         """Set up test environment."""
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
-
 
     def test_create_system_tasks_disabled_task(self):
         """Test handling of disabled system tasks."""
@@ -260,6 +258,7 @@ class TestSystemTaskHelpers(TestCase):
         assert task.is_system_task is True
         assert task.status == "pending"
         assert task.function_name == "new_function"
+
 
 @pytest.mark.unit
 class TestTaskFunctionsRegistry(TestCase):

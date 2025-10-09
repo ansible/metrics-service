@@ -6,7 +6,7 @@ a centralized way to manage different categories of tasks.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from django.conf import settings
 
@@ -24,7 +24,7 @@ class TaskGroup:
         description: str,
         enabled_flag: str = None,
         default_enabled: bool = True,
-        tasks: List[Dict[str, Any]] = None,
+        tasks: list[dict[str, Any]] = None,
     ):
         """
         Initialize a task group.
@@ -55,7 +55,7 @@ class TaskGroup:
         feature_flags = getattr(settings, "FEATURE_FLAGS", {})
         return feature_flags.get(self.enabled_flag, self.default_enabled)
 
-    def get_enabled_tasks(self) -> List[Dict[str, Any]]:
+    def get_enabled_tasks(self) -> list[dict[str, Any]]:
         """
         Get all tasks in this group that should be active.
 
@@ -183,7 +183,7 @@ TASK_GROUPS = [
 ]
 
 
-def get_all_enabled_tasks() -> Dict[str, Dict[str, Any]]:
+def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
     """
     Get all enabled tasks from all groups.
 
@@ -204,7 +204,7 @@ def get_all_enabled_tasks() -> Dict[str, Dict[str, Any]]:
     return all_tasks
 
 
-def get_task_group_status() -> Dict[str, Any]:
+def get_task_group_status() -> dict[str, Any]:
     """
     Get status of all task groups.
 
@@ -274,7 +274,7 @@ def disable_task_group(group_name: str) -> bool:
     return True
 
 
-def get_tasks_by_category(category: str) -> List[Dict[str, Any]]:
+def get_tasks_by_category(category: str) -> list[dict[str, Any]]:
     """
     Get all enabled tasks in a specific category.
 
@@ -288,7 +288,7 @@ def get_tasks_by_category(category: str) -> List[Dict[str, Any]]:
     return [task for task in all_tasks.values() if task.get("category") == category]
 
 
-def validate_task_groups() -> List[str]:
+def validate_task_groups() -> list[str]:
     """
     Validate all task groups and return any errors found.
 

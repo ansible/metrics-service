@@ -5,15 +5,15 @@ This module tests the task group system including feature flag controls,
 task categorization, and integration with the cron scheduler.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from django.test import TestCase, override_settings
 
 from apps.tasks.task_groups import (
-    TaskGroup,
-    SYSTEM_TASKS_GROUP,
     ANONYMIZED_DATA_GROUP,
     METRICS_COLLECTION_GROUP,
+    SYSTEM_TASKS_GROUP,
+    TaskGroup,
     get_all_enabled_tasks,
     get_task_group_status,
     validate_task_groups,
@@ -91,7 +91,7 @@ class TestTaskGroup(TestCase):
                 "enabled": True,
             },
             {
-                "task_id": "task2", 
+                "task_id": "task2",
                 "function": "function2",
                 "enabled": False,
             },
@@ -121,7 +121,7 @@ class TestTaskGroup(TestCase):
 
         group = TaskGroup(
             name="test_group",
-            description="Test group", 
+            description="Test group",
             enabled_flag=None,
             default_enabled=False,
             tasks=tasks,
@@ -186,17 +186,19 @@ class TestPredefinedTaskGroups(TestCase):
 class TestTaskGroupFunctions(TestCase):
     """Test utility functions for task groups."""
 
-    @override_settings(FEATURE_FLAGS={
-        "ANONYMIZED_DATA_COLLECTION": True,
-        "METRICS_COLLECTION_ENABLED": False,
-    })
+    @override_settings(
+        FEATURE_FLAGS={
+            "ANONYMIZED_DATA_COLLECTION": True,
+            "METRICS_COLLECTION_ENABLED": False,
+        }
+    )
     def test_get_all_enabled_tasks(self):
         """Test getting all enabled tasks from all groups."""
         all_tasks = get_all_enabled_tasks()
 
         # Should have system tasks and anonymized data tasks, but not metrics collection
         task_ids = list(all_tasks.keys())
-        
+
         # System tasks (always enabled)
         assert "daily_task_cleanup" in task_ids
         assert "weekly_data_cleanup" in task_ids
@@ -211,7 +213,7 @@ class TestTaskGroupFunctions(TestCase):
         assert "collect_job_host_summary" not in task_ids
 
         # Check that group information is added to tasks
-        for task_id, task_config in all_tasks.items():
+        for _task_id, task_config in all_tasks.items():
             assert "group" in task_config
             assert "group_description" in task_config
 
@@ -248,7 +250,7 @@ class TestTaskGroupFunctions(TestCase):
 class TestTaskGroupIntegration(TestCase):
     """Test integration between task groups and other components."""
 
-    @patch('apps.tasks.signals.get_scheduler')
+    @patch("apps.tasks.signals.get_scheduler")
     def test_scheduler_integration(self, mock_get_scheduler):
         """Test integration with the cron scheduler."""
         mock_scheduler = MagicMock()
@@ -258,41 +260,45 @@ class TestTaskGroupIntegration(TestCase):
         from apps.tasks.signals import reload_task_groups
 
         result = reload_task_groups()
-        
+
         # Should call reload_task_registry on the scheduler
         mock_scheduler.reload_task_registry.assert_called_once()
         assert result is True
 
-    @override_settings(FEATURE_FLAGS={
-        "ANONYMIZED_DATA_COLLECTION": True,
-        "METRICS_COLLECTION_ENABLED": True,
-    })
+    @override_settings(
+        FEATURE_FLAGS={
+            "ANONYMIZED_DATA_COLLECTION": True,
+            "METRICS_COLLECTION_ENABLED": True,
+        }
+    )
     def test_all_groups_enabled(self):
         """Test when all groups are enabled."""
         all_tasks = get_all_enabled_tasks()
         status = get_task_group_status()
 
         # All groups should be enabled
-        for group_name, group_status in status.items():
+        for _group_name, group_status in status.items():
             assert group_status["enabled"] is True
             assert group_status["enabled_tasks"] > 0
 
         # Should have tasks from all groups
         task_ids = list(all_tasks.keys())
-        
+
         # System tasks
         assert any("cleanup" in task_id for task_id in task_ids)
-        
+
         # Anonymized data tasks
         assert any("anonymous" in task_id for task_id in task_ids)
-        
+
         # Metrics collection tasks
         assert any("host_metrics" in task_id for task_id in task_ids)
 
-    @override_settings(FEATURE_FLAGS={
-        "ANONYMIZED_DATA_COLLECTION": False,
-        "METRICS_COLLECTION_ENABLED": False,
-    })
+    @override_settings(
+        FEATURE_FLAGS={
+            "ANONYMIZED_DATA_COLLECTION": False,
+            "METRICS_COLLECTION_ENABLED": False,
+        }
+    )
     def test_minimal_system_only(self):
         """Test when only system tasks are enabled."""
         all_tasks = get_all_enabled_tasks()
@@ -306,6 +312,6 @@ class TestTaskGroupIntegration(TestCase):
         # Should only have system tasks
         task_ids = list(all_tasks.keys())
         system_task_ids = [task["task_id"] for task in SYSTEM_TASKS_GROUP.tasks]
-        
+
         for task_id in task_ids:
             assert task_id in system_task_ids

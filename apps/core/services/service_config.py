@@ -4,7 +4,7 @@ Service configuration management.
 Handles configuration validation and defaults for the metrics service.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 
 class ServiceConfig:
@@ -23,7 +23,7 @@ class ServiceConfig:
     # Valid log levels
     VALID_LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR"]
 
-    def __init__(self, options: Dict[str, Any]):
+    def __init__(self, options: dict[str, Any]):
         """
         Initialize service configuration.
 
@@ -39,7 +39,7 @@ class ServiceConfig:
 
         self._validate_config()
 
-    def _get_option(self, options: Dict[str, Any], key: str, default: Any) -> Any:
+    def _get_option(self, options: dict[str, Any], key: str, default: Any) -> Any:
         """Get option value with fallback to default."""
         return options.get(key, default)
 
@@ -50,7 +50,7 @@ class ServiceConfig:
             raise ValueError(f"Invalid host: {self.host}")
 
         # Validate port
-        if not isinstance(self.port, (int, str)) or not str(self.port).isdigit():
+        if not isinstance(self.port, int | str) or not str(self.port).isdigit():
             raise ValueError(f"Invalid port: {self.port}")
 
         # Validate workers
@@ -69,7 +69,7 @@ class ServiceConfig:
         if self.log_level not in self.VALID_LOG_LEVELS:
             raise ValueError(f"Invalid log_level: {self.log_level}. Must be one of {self.VALID_LOG_LEVELS}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary."""
         return {
             "host": self.host,

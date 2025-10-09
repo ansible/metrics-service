@@ -2,7 +2,9 @@
 Development settings for metrics_service.
 These settings are optimized for local development with Docker.
 """
+
 import os
+
 from .defaults import *  # noqa: F403, F401
 
 # Override DEBUG setting
@@ -24,7 +26,7 @@ LOGGING["loggers"]["ansible_base.authentication.authenticator_plugins.utils"] = 
 }
 LOGGING["loggers"]["apps.core.apps"] = {  # noqa: F405
     "handlers": [],
-    "level": "CRITICAL", 
+    "level": "CRITICAL",
     "propagate": False,
 }
 

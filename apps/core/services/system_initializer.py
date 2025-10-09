@@ -6,7 +6,7 @@ system task initialization.
 """
 
 import time
-from typing import Any, Dict
+from typing import Any
 
 from ansible_base.resource_registry.models.service_identifier import ServiceID
 from django.core.management.base import CommandError
@@ -42,7 +42,7 @@ class SystemInitializer:
         except Exception as e:
             raise CommandError(f"Failed to initialize ServiceID: {e}") from e
 
-    def init_system_tasks(self, options: Dict[str, Any]) -> None:
+    def init_system_tasks(self, options: dict[str, Any]) -> None:
         """
         Initialize system tasks.
 
@@ -89,7 +89,7 @@ class SystemInitializer:
         except Exception as e:
             raise CommandError(f"❌ Failed to initialize system tasks: {e}") from e
 
-    def _display_results(self, results: Dict[str, Any], elapsed_time: float) -> None:
+    def _display_results(self, results: dict[str, Any], elapsed_time: float) -> None:
         """Display the results of system tasks initialization."""
         # Display results summary
         self.output.write("")
@@ -112,7 +112,7 @@ class SystemInitializer:
         self.output.success(f"✅ Processed {total_processed} system tasks in {elapsed_time:.2f} seconds")
         self.output.write("💡 Run 'metric-service init-system-tasks --list' to see current status")
 
-    def _display_task_details(self, results: Dict[str, Any]) -> None:
+    def _display_task_details(self, results: dict[str, Any]) -> None:
         """Display detailed task information."""
         if not results.get("tasks", []):
             return
@@ -167,7 +167,7 @@ class SystemInitializer:
         except Exception as e:
             self.output.error(f"❌ Failed to list system tasks: {e}")
 
-    def _categorize_tasks(self, tasks) -> Dict[str, list]:
+    def _categorize_tasks(self, tasks) -> dict[str, list]:
         """Categorize tasks by function name."""
         categories = {}
         for task in tasks:

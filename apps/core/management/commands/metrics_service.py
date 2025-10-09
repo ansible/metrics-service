@@ -6,7 +6,7 @@ run_dispatcherd command, fixing the configuration inconsistency issue.
 """
 
 import sys
-from typing import Any, Dict
+from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -200,7 +200,7 @@ class Command(BaseCommand):
             self.output.error(f"Unexpected error: {e}")
             sys.exit(1)
 
-    def _handle_run_command(self, options: Dict[str, Any]) -> None:
+    def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service."""
         try:
             config = ServiceConfig(options)
@@ -227,7 +227,7 @@ class Command(BaseCommand):
         except Exception as e:
             raise CommandError(f"Failed to initialize ServiceID: {e}") from e
 
-    def _handle_init_system_tasks_command(self, options: Dict[str, Any]) -> None:
+    def _handle_init_system_tasks_command(self, options: dict[str, Any]) -> None:
         """Handle the init_system_tasks command."""
         try:
             from apps.tasks.tasks import create_system_tasks
@@ -369,14 +369,14 @@ class Command(BaseCommand):
         except Exception as e:
             self.output.error(f"❌ Failed to list system tasks: {e}")
 
-    def _handle_task_management_command(self, options: Dict[str, Any]) -> None:
+    def _handle_task_management_command(self, options: dict[str, Any]) -> None:
         """Handle task management commands."""
         # For now, delegate to the original implementation
         # TODO: Implement using TaskManager service
         self.output.warning("Task management commands not yet implemented in refactored version")
         self.output.write("Please use the original metrics_service command for task management")
 
-    def _handle_cron_management_command(self, options: Dict[str, Any]) -> None:
+    def _handle_cron_management_command(self, options: dict[str, Any]) -> None:
         """Handle cron management commands."""
         # For now, delegate to the original implementation
         # TODO: Implement using CronManager service

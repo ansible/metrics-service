@@ -7,7 +7,7 @@ and retry functionality.
 
 import json
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import CommandError
@@ -30,7 +30,7 @@ class TaskManager:
         """
         self.output = output_formatter
 
-    def create_task(self, options: Dict[str, Any]) -> Task:
+    def create_task(self, options: dict[str, Any]) -> Task:
         """
         Create a new task.
 
@@ -72,7 +72,7 @@ class TaskManager:
         except Exception as e:
             raise CommandError(f"Failed to create task: {e}") from e
 
-    def _parse_task_data(self, data_str: Optional[str]) -> Dict[str, Any]:
+    def _parse_task_data(self, data_str: str | None) -> dict[str, Any]:
         """Parse JSON task data from string."""
         if not data_str:
             return {}
@@ -82,7 +82,7 @@ class TaskManager:
         except json.JSONDecodeError as err:
             raise CommandError("Invalid JSON in --data argument") from err
 
-    def _parse_scheduled_time(self, time_str: Optional[str]) -> Optional[datetime]:
+    def _parse_scheduled_time(self, time_str: str | None) -> datetime | None:
         """Parse scheduled time from string."""
         if not time_str:
             return None
@@ -93,7 +93,7 @@ class TaskManager:
         except ValueError as err:
             raise CommandError("Invalid scheduled_time format. Use YYYY-MM-DD HH:MM:SS") from err
 
-    def _get_user(self, username: Optional[str]) -> Optional[User]:
+    def _get_user(self, username: str | None) -> User | None:
         """Get user by username."""
         if not username:
             return None

@@ -6,7 +6,9 @@ This command starts dispatcherd workers to process background tasks from the dat
 
 import logging
 import sys
+
 from django.core.management.base import BaseCommand
+
 from apps.tasks.dispatcherd_config import setup_dispatcherd_config
 
 logger = logging.getLogger(__name__)
@@ -50,23 +52,23 @@ class Command(BaseCommand):
             # Configure logging
             log_level = getattr(logging, options["log_level"])
             logging.basicConfig(level=log_level)
-            
+
             # Setup dispatcherd configuration
             setup_dispatcherd_config()
-            
+
             # Import dispatcherd after configuration
             import dispatcherd
-            
+
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Starting dispatcherd with {options['workers']} workers "
                     f"(timeout: {options['timeout']}s, max_tasks: {options['max_tasks']})"
                 )
             )
-            
+
             # Start dispatcherd service
             dispatcherd.run_service()
-            
+
         except ImportError as e:
             self.stdout.write(self.style.ERROR(f"Failed to import dispatcherd: {e}"))
             sys.exit(1)

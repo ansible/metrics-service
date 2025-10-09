@@ -20,10 +20,12 @@ logger = logging.getLogger(__name__)
 # Signal control to prevent recursion
 _signals_enabled = True
 
+
 def _disable_signals():
     """Temporarily disable signals to prevent recursion."""
     global _signals_enabled
     _signals_enabled = False
+
 
 def _enable_signals():
     """Re-enable signals."""
@@ -37,7 +39,7 @@ def task_created_or_updated(sender, instance, created, **kwargs):
     Handle task creation and updates.
 
     When a task is created or updated, this signal will:
-    - Schedule immediate tasks if they're ready to run  
+    - Schedule immediate tasks if they're ready to run
     - Add recurring tasks to the cron scheduler
     - Update existing scheduled tasks
     - Integrate with task groups system for proper categorization
@@ -45,7 +47,7 @@ def task_created_or_updated(sender, instance, created, **kwargs):
     # Skip if signals are disabled to prevent recursion
     if not _signals_enabled:
         return
-        
+
     try:
         scheduler = get_scheduler()
 
@@ -92,7 +94,7 @@ def _handle_new_task(task, scheduler):
 
     # Route task based on its scheduling requirements
     logger.info(f"New task created: {task.name} - routing to appropriate processor")
-    
+
     # Check if task is ready to run immediately
     if task.is_ready_to_run() and not task.scheduled_time and not task.is_recurring:
         logger.info(f"Submitting immediate task to dispatcherd: {task.name}")
@@ -125,13 +127,12 @@ def _handle_updated_task(task, scheduler):
 
     # Route updated tasks if they become ready
     logger.info(f"Task updated: {task.name} - status: {task.status}")
-    
+
     # If task is now ready to run and pending
-    if task.is_ready_to_run() and task.status == "pending":
-        if not task.scheduled_time and not task.is_recurring:
-            logger.info(f"Updated task now ready for immediate execution: {task.name}")
-            _submit_task_to_dispatcherd_directly(task)
-            return
+    if task.is_ready_to_run() and task.status == "pending" and not task.scheduled_time and not task.is_recurring:
+        logger.info(f"Updated task now ready for immediate execution: {task.name}")
+        _submit_task_to_dispatcherd_directly(task)
+        return
 
     # Update recurring task if it exists
     if task.is_recurring and task.cron_expression:
@@ -152,12 +153,12 @@ def _schedule_future_task(task, scheduler):
     """
     try:
         from apscheduler.triggers.date import DateTrigger
-        
+
         task_id = f"scheduled_task_{task.id}"
-        
+
         # Create a date trigger for the scheduled time
         trigger = DateTrigger(run_date=task.scheduled_time)
-        
+
         # Add job to scheduler
         scheduler.scheduler.add_job(
             func=_execute_scheduled_database_task,
@@ -168,9 +169,9 @@ def _schedule_future_task(task, scheduler):
             replace_existing=True,
             max_instances=1,
         )
-        
+
         logger.info(f"Added scheduled task {task.name} to run at {task.scheduled_time}")
-        
+
     except Exception as e:
         logger.error(f"Failed to schedule future task {task.name}: {str(e)}")
         # Mark task as failed
@@ -324,19 +325,19 @@ def get_task_status(task_id: str):
 def handle_feature_flag_change(flag_name: str, new_value: bool):
     """
     Handle feature flag changes that affect task groups.
-    
+
     This function should be called when feature flags are updated
     to reload the task registry and update active tasks.
-    
+
     Args:
         flag_name: Name of the feature flag that changed
         new_value: New value of the feature flag
     """
     logger.info(f"Feature flag changed: {flag_name} = {new_value}")
-    
+
     # Check if this flag affects any task groups
     task_group_flags = ["ANONYMIZED_DATA_COLLECTION", "METRICS_COLLECTION_ENABLED"]
-    
+
     if flag_name in task_group_flags:
         try:
             scheduler = get_scheduler()
@@ -349,23 +350,25 @@ def handle_feature_flag_change(flag_name: str, new_value: bool):
 def reload_task_groups():
     """
     Manually reload task groups and update the scheduler.
-    
+
     This can be called from management commands or API endpoints
     to refresh the task registry when configuration changes.
     """
     try:
         scheduler = get_scheduler()
         scheduler.reload_task_registry()
-        
+
         # Log current status
         group_status = get_task_group_status()
         for group_name, status in group_status.items():
             enabled_status = "enabled" if status["enabled"] else "disabled"
-            logger.info(f"Task group '{group_name}': {enabled_status} ({status['enabled_tasks']}/{status['total_tasks']} tasks)")
-            
+            logger.info(
+                f"Task group '{group_name}': {enabled_status} ({status['enabled_tasks']}/{status['total_tasks']} tasks)"
+            )
+
         logger.info("Task groups reloaded successfully")
         return True
-        
+
     except Exception as e:
         logger.error(f"Failed to reload task groups: {str(e)}")
         return False
@@ -374,19 +377,19 @@ def reload_task_groups():
 def _execute_scheduled_database_task(task_id):
     """
     Execute a scheduled database task when its time arrives.
-    
+
     This function is called by APScheduler when a scheduled task is ready to run.
     """
     try:
         task = Task.objects.get(id=task_id)
-        
+
         # Check if task is still pending and ready to run
         if task.status == "pending" and task.is_ready_to_run():
             logger.info(f"Executing scheduled task: {task.name}")
             _submit_task_to_dispatcherd_directly(task)
         else:
             logger.warning(f"Scheduled task {task.name} is no longer pending or ready (status: {task.status})")
-            
+
     except Task.DoesNotExist:
         logger.error(f"Scheduled task with ID {task_id} no longer exists")
     except Exception as e:
@@ -396,21 +399,21 @@ def _execute_scheduled_database_task(task_id):
 def _submit_task_to_dispatcherd_directly(task):
     """
     Submit a task directly to dispatcherd bypassing the cron scheduler.
-    
+
     This is used for immediate execution tasks that don't need scheduling.
     """
     try:
         from .tasks import submit_task_to_dispatcher
-        
+
         logger.info(f"Submitting task {task.id} directly to dispatcherd")
-        
+
         # Temporarily disable signals to prevent recursion
         _disable_signals()
         try:
             submit_task_to_dispatcher(task)
         finally:
             _enable_signals()
-        
+
     except Exception as e:
         logger.error(f"Failed to submit task {task.id} to dispatcherd: {str(e)}")
         # Update task status to failed - also disable signals to prevent loops

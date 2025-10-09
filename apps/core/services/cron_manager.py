@@ -5,7 +5,7 @@ Handles all cron-related operations including starting/stopping the scheduler,
 listing tasks, and managing scheduled jobs.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from django.core.management.base import CommandError
 
@@ -72,7 +72,7 @@ class CronManager:
         except Exception as e:
             raise CommandError(f"Failed to list cron tasks: {e}") from e
 
-    def _display_task_registry(self, registry: Dict[str, Any]) -> None:
+    def _display_task_registry(self, registry: dict[str, Any]) -> None:
         """Display the task registry."""
         self.output.write(f"Task Registry ({len(registry)} tasks):")
         self.output.write_separator("-", 50)

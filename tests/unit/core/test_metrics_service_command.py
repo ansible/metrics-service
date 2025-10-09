@@ -287,7 +287,6 @@ class TestMetricsServiceCommand(TestCase):
         # Verify process was added to processes list
         assert mock_process in self.command.processes
 
-
     def test_run_django_server_missing_manage_py(self):
         """Test _run_django_server handles missing manage.py."""
         self.command.stdout = self.out

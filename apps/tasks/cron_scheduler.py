@@ -13,8 +13,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from django.utils import timezone
 
-from .tasks import TASK_FUNCTIONS
 from .task_groups import get_all_enabled_tasks, get_task_group_status
+from .tasks import TASK_FUNCTIONS
 
 logger = logging.getLogger(__name__)
 

@@ -6,12 +6,12 @@ metrics service, including task management, cron scheduling, and system
 initialization.
 """
 
-from .task_manager import TaskManager
 from .cron_manager import CronManager
-from .system_initializer import SystemInitializer
-from .process_manager import ProcessManager
 from .output_formatter import OutputFormatter
+from .process_manager import ProcessManager
 from .service_config import ServiceConfig
+from .system_initializer import SystemInitializer
+from .task_manager import TaskManager
 
 __all__ = [
     "TaskManager",

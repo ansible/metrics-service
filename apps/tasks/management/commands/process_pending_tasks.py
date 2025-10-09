@@ -5,7 +5,9 @@ This command finds all pending tasks in the database and submits them to dispatc
 """
 
 import logging
+
 from django.core.management.base import BaseCommand
+
 from apps.tasks.models import Task
 from apps.tasks.tasks import submit_task_to_dispatcher
 
@@ -36,13 +38,13 @@ class Command(BaseCommand):
         try:
             # Get pending tasks
             pending_tasks = Task.objects.filter(status="pending").order_by("created")[: options["limit"]]
-            
+
             if not pending_tasks:
                 self.stdout.write(self.style.SUCCESS("No pending tasks found"))
                 return
-            
+
             self.stdout.write(f"Found {len(pending_tasks)} pending tasks")
-            
+
             if options["dry_run"]:
                 self.stdout.write(self.style.WARNING("DRY RUN - No tasks will be submitted"))
                 for task in pending_tasks:
@@ -50,18 +52,18 @@ class Command(BaseCommand):
                     status = "✓ Ready" if ready else "⏳ Not ready"
                     self.stdout.write(f"  {status} - {task.id}: {task.name} ({task.function_name})")
                 return
-            
+
             # Process ready tasks
             processed = 0
             skipped = 0
             errors = 0
-            
+
             for task in pending_tasks:
                 if not task.is_ready_to_run():
                     self.stdout.write(f"⏭️  Skipped {task.id}: {task.name} (not ready)")
                     skipped += 1
                     continue
-                
+
                 try:
                     submit_task_to_dispatcher(task)
                     self.stdout.write(f"✅ Submitted {task.id}: {task.name}")
@@ -69,14 +71,14 @@ class Command(BaseCommand):
                 except Exception as e:
                     self.stdout.write(self.style.ERROR(f"❌ Failed {task.id}: {task.name} - {e}"))
                     errors += 1
-            
+
             # Summary
             self.stdout.write("")
-            self.stdout.write(self.style.SUCCESS(f"Summary:"))
+            self.stdout.write(self.style.SUCCESS("Summary:"))
             self.stdout.write(f"  ✅ Processed: {processed}")
             self.stdout.write(f"  ⏭️  Skipped: {skipped}")
             self.stdout.write(f"  ❌ Errors: {errors}")
-            
+
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Failed to process pending tasks: {e}"))
             raise

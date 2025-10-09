@@ -1,17 +1,19 @@
 # Metrics Service
 
-A modern Django-based service built for the Ansible Automation Platform (AAP) ecosystem, featuring comprehensive task management, REST APIs, and background job processing.
+A modern Django-based service built for the Ansible Automation Platform (AAP) ecosystem, featuring comprehensive task management, REST APIs, and automated background job processing.
 
 ## Features
 
 - **🚀 Modern Django Architecture** - Django 4.2+ with clean app-based structure
-- **📊 Task Management System** - Background task processing with scheduling and monitoring
+- **📊 Automated Task Management** - Feature-flag controlled task groups with automatic routing
+- **⚡ Smart Task Routing** - Automatic submission to dispatcherd with no manual intervention
 - **🔌 REST API** - Versioned RESTful APIs with OpenAPI documentation
 - **🔐 Authentication & Authorization** - Django-Ansible-Base integration with RBAC
 - **📈 Real-time Dashboard** - Web-based task monitoring and management interface
-- **🐳 Docker Ready** - Complete containerization with PostgreSQL
+- **🐳 Docker Ready** - Simplified single-container deployment with PostgreSQL
 - **🧪 Comprehensive Testing** - Unit and integration tests with coverage reporting
 - **📝 API Documentation** - Interactive Swagger/OpenAPI documentation
+- **🔧 Metrics Collection** - Integrated metrics-utility for data collection
 
 ## Quick Start
 
@@ -38,7 +40,7 @@ Your service will be available at:
 ### Option 2: Local Development
 
 ```bash
-# Prerequisites: Python 3.10+, PostgreSQL 13+
+# Prerequisites: Python 3.11+, PostgreSQL 13+
 
 # Create virtual environment
 python -m venv venv
@@ -52,11 +54,12 @@ cp .env.example .env
 
 # Set up database
 python manage.py migrate
-python manage.py init_service_id
+python manage.py metrics_service init-service-id
+python manage.py metrics_service init-system-tasks
 python manage.py createsuperuser
 
-# Start development server
-python manage.py runserver
+# Start complete service (Django + dispatcher + scheduler)
+python manage.py metrics_service run
 ```
 
 ## Architecture
@@ -86,10 +89,12 @@ metrics-service/
 - RBAC permissions and roles
 
 **Task System** (`apps/tasks/`)
-- Database-driven background tasks
-- Task scheduling and dependencies
-- Execution tracking and monitoring
-- Built-in task functions for common operations
+- Feature-flag controlled task groups (System, Anonymized Data, Metrics Collection)
+- Automatic task routing with Django signals
+- APScheduler integration for cron-based scheduling  
+- Dispatcherd background task execution
+- Task execution tracking and monitoring
+- Built-in task functions and metrics collection
 
 **API Layer** (`apps/api/v1/`)
 - RESTful endpoints with filtering and pagination
@@ -136,35 +141,56 @@ GET /api/v1/tasks/available_functions/
 
 ### Built-in Task Functions
 
+**System Tasks** (always enabled):
 - `cleanup_old_data` - Clean up old system data
+- `cleanup_old_tasks` - Clean up completed/failed tasks
 - `send_notification_email` - Send notification emails
 - `process_user_data` - Process user data in background
-- `execute_db_task` - Execute database-defined tasks
+
+**Metrics Collection Tasks** (feature flag controlled):
+- `collect_anonymous_metrics` - Collect anonymous system metrics
+- `collect_config_metrics` - Collect configuration information
+- `collect_job_host_summary` - Collect job execution statistics
+- `collect_host_metrics` - Collect host performance data
+- `collect_all_metrics` - Run multiple collectors in sequence
 
 ## Background Tasks
 
-The service includes a powerful background task system using Dispatcherd:
+The service includes an automated background task system with intelligent routing:
 
-### Running Task Workers
+### Unified Service Management
 
 ```bash
-# Start task dispatcher
-python manage.py run_dispatcherd
+# Start complete service (Django + dispatcher + scheduler)
+python manage.py metrics_service run
 
 # Start with custom configuration
-python manage.py run_dispatcherd --workers 4 --timeout 3600
+python manage.py metrics_service run --workers 4 --log-level DEBUG
 
-# Using Docker (automatic with docker-compose)
-docker-compose up metrics-dispatcher
+# Individual components (for development)
+python manage.py run_dispatcherd --workers 2
+python manage.py metrics_service cron start
 ```
 
-### Task Management
+### Automatic Task Routing
 
-Create and manage tasks through:
-- **REST API** - Programmatic task creation
-- **Web Dashboard** - Visual task management
-- **Django Admin** - Administrative interface
-- **Management Commands** - CLI task operations
+Tasks are automatically routed based on their properties:
+- **Immediate tasks** → Direct to dispatcherd
+- **Scheduled tasks** → APScheduler with DateTrigger
+- **Recurring tasks** → APScheduler with CronTrigger
+
+No manual intervention required - create a task and it's automatically processed!
+
+### Task Groups & Feature Flags
+
+Control task execution with environment variables:
+```bash
+# Enable/disable anonymized data collection
+METRICS_SERVICE_ANONYMIZED_DATA=true
+
+# Enable/disable metrics collection
+METRICS_SERVICE_METRICS_COLLECTION=false
+```
 
 ## Development
 
@@ -208,7 +234,10 @@ python manage.py makemigrations
 python manage.py migrate
 
 # Initialize DAB ServiceID (required after first migration)
-python manage.py init_service_id
+python manage.py metrics_service init-service-id
+
+# Initialize system tasks
+python manage.py metrics_service init-system-tasks
 ```
 
 ## Configuration
@@ -230,6 +259,9 @@ METRICS_SERVICE_SECRET_KEY=your-secret-key
 METRICS_SERVICE_DEBUG=false
 METRICS_SERVICE_ALLOWED_HOSTS=localhost,yourdomain.com
 
+# Task Feature Flags
+METRICS_SERVICE_ANONYMIZED_DATA=true
+METRICS_SERVICE_METRICS_COLLECTION=false
 ```
 
 ### Settings Files

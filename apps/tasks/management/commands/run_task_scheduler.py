@@ -7,6 +7,7 @@ This command starts the task scheduler to handle cron-based recurring tasks.
 import logging
 import sys
 import time
+
 from django.core.management.base import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -38,22 +39,20 @@ class Command(BaseCommand):
             # Configure logging
             log_level = getattr(logging, options["log_level"])
             logging.basicConfig(level=log_level)
-            
+
             self.stdout.write(
-                self.style.SUCCESS(
-                    f"Starting task scheduler (check interval: {options['check_interval']}s)"
-                )
+                self.style.SUCCESS(f"Starting task scheduler (check interval: {options['check_interval']}s)")
             )
-            
+
             # Import scheduler after Django setup
             from apps.tasks.cron_scheduler import get_scheduler, start_scheduler
-            
+
             # Start the scheduler
             start_scheduler()
             scheduler = get_scheduler()
-            
+
             self.stdout.write(self.style.SUCCESS("Task scheduler started successfully"))
-            
+
             # Keep the scheduler running
             try:
                 while True:
@@ -64,9 +63,10 @@ class Command(BaseCommand):
             except KeyboardInterrupt:
                 self.stdout.write(self.style.WARNING("Received interrupt signal, stopping scheduler..."))
                 from apps.tasks.cron_scheduler import stop_scheduler
+
                 stop_scheduler()
                 self.stdout.write(self.style.SUCCESS("Task scheduler stopped"))
-            
+
         except ImportError as e:
             self.stdout.write(self.style.ERROR(f"Failed to import scheduler: {e}"))
             sys.exit(1)
