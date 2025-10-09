@@ -3,7 +3,6 @@ Tests for apps.core.management.commands.metrics_service module - init-service-id
 """
 
 from io import StringIO
-from unittest.mock import patch
 
 import pytest
 from django.test import TestCase

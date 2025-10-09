@@ -301,33 +301,3 @@ class TestMainURLsIntegration(TestCase):
             compile(content, urls_file_path, "exec")
         except SyntaxError as e:
             pytest.fail(f"URLs file has syntax error: {e}")
-
-    def test_urls_file_imports_valid(self):
-        """Test that all imports in the URLs file are valid."""
-        urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
-
-        with open(urls_file_path) as f:
-            content = f.read()
-
-        # Extract import statements
-        import_lines = []
-        for line in content.split("\n"):
-            line = line.strip()
-            if line.startswith("from ") or line.startswith("import "):
-                import_lines.append(line)
-
-        # Test that we have import statements
-        assert len(import_lines) > 0
-
-        # Test that each import line is properly formatted
-        for line in import_lines:
-            # Multi-line imports are valid
-            if line.endswith("("):
-                # This is the start of a multi-line import
-                assert True
-            elif line.endswith(")"):
-                # This is the end of a multi-line import
-                assert True
-            else:
-                # Single line import should be properly formatted
-                assert True  # All import lines are valid

@@ -20,7 +20,6 @@ from django.utils import timezone
 from apps.core.services import (
     OutputFormatter,
     ProcessManager,
-    ServiceConfig,
 )
 from apps.tasks.models import Task
 
@@ -701,7 +700,7 @@ class Command(BaseCommand):
     def _start_dispatcher_process(self, cmd: list[str]) -> subprocess.Popen:
         """Start dispatcher process."""
         try:
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # noqa: S603  # Command is internally constructed and validated
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
             )
             self.processes.append(process)
@@ -761,7 +760,7 @@ class Command(BaseCommand):
             # Validate inputs for security
             if not isinstance(host, str) or not all(c.isalnum() or c in ".:_-" for c in host):
                 raise ValueError(f"Invalid host: {host}")
-            if not isinstance(port, (int, str)) or not str(port).isdigit():
+            if not isinstance(port, int | str) or not str(port).isdigit():
                 raise ValueError(f"Invalid port: {port}")
 
             manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
@@ -786,7 +785,7 @@ class Command(BaseCommand):
             self.output.write(f"Starting Django server: {' '.join(cmd)}")
 
             # Start the Django server process
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # noqa: S603  # Command is internally constructed and validated
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
             )
             self.processes.append(process)

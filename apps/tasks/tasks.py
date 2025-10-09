@@ -10,7 +10,6 @@ import os
 import time
 from typing import Any
 
-from django.db import transaction
 from django.utils import timezone
 
 from .utils import (
@@ -398,8 +397,6 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     from datetime import timedelta
 
-    from django.utils import timezone
-
     from .models import Task, TaskExecution
 
     # Calculate cutoff date
@@ -585,7 +582,6 @@ def process_user_data(**kwargs) -> dict[str, Any]:
     operation = kwargs.get("operation", "sync")
 
     from django.contrib.auth import get_user_model
-    from django.utils import timezone
 
     # Handle hello_world operation without requiring user_id
     if operation == "hello_world":

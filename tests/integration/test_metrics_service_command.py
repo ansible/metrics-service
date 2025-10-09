@@ -78,7 +78,9 @@ class TestMetricsServiceCommand(TransactionTestCase):
     def test_task_list_command(self):
         """Test the tasks list subcommand."""
         # Create test tasks
-        task1 = Task.objects.create(name="Task 1", function_name="cleanup_old_data", status="pending", created_by=self.user)
+        task1 = Task.objects.create(
+            name="Task 1", function_name="cleanup_old_data", status="pending", created_by=self.user
+        )
         task1._skip_signals = True
         task1.save()
         Task.objects.create(

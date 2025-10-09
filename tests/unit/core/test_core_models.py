@@ -80,7 +80,11 @@ class TaskModelTestCase(TestCase):
 
         # Create task without triggering signals by setting _skip_signals first
         self.task = self._create_task_safely(
-            name="Test Task", function_name="test_function", task_data={"param": "value"}, created_by=self.user, status="pending"
+            name="Test Task",
+            function_name="test_function",
+            task_data={"param": "value"},
+            created_by=self.user,
+            status="pending",
         )
 
     def test_task_creation(self):
@@ -138,7 +142,9 @@ class TaskModelTestCase(TestCase):
 
     def test_task_dependency_creation(self):
         """Test TaskDependency model creation."""
-        task2 = self._create_task_safely(name="Dependent Task", function_name="dependent_function", created_by=self.user)
+        task2 = self._create_task_safely(
+            name="Dependent Task", function_name="dependent_function", created_by=self.user
+        )
 
         dependency = TaskDependency.objects.create(
             dependent_task=task2, prerequisite_task=self.task, required_status="completed"
@@ -275,7 +281,6 @@ class ModelMethodsTestCase(TestCase):
         self.user.password = ""
         self.user.save()
         # Password should be set to None for empty string
-
 
     def test_task_priority_choices(self):
         """Test Task priority choices."""

@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from apps.core.models import User
 from apps.tasks.models import Task, TaskExecution
+from apps.tasks.simple_scheduler import SimpleTaskScheduler
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
     cleanup_old_data,
@@ -19,7 +20,6 @@ from apps.tasks.tasks import (
     send_notification_email,
     submit_task_to_dispatcher,
 )
-from apps.tasks.simple_scheduler import SimpleTaskScheduler
 
 # Note: Some utilities may not be implemented yet
 # from apps.tasks.utils import (
