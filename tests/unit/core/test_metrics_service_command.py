@@ -29,7 +29,7 @@ class TestMetricsServiceCommand(TestCase):
 
     def test_command_help_text(self):
         """Test command has proper help text."""
-        assert self.command.help == "Metric service management - unified entry point for all service operations"
+        assert self.command.help == "Metrics service management - unified entry point for all service operations"
 
     def test_add_arguments(self):
         """Test add_arguments method configures parser correctly."""
@@ -137,6 +137,8 @@ class TestMetricsServiceCommand(TestCase):
     def test_start_services_success(self, mock_django, mock_dispatcher, mock_monitor):
         """Test _start_services method success path."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
         config = {"host": "127.0.0.1", "port": "8000", "workers": 4, "log_level": "INFO"}
 
@@ -153,12 +155,14 @@ class TestMetricsServiceCommand(TestCase):
         assert "Django server: http://127.0.0.1:8000" in output
         assert "Dispatcher workers: 4" in output
 
-    @patch.object(Command, "_start_django_thread")
+    @patch.object(Command, "_initialize_service_state")
     @patch("sys.exit")
-    def test_start_services_exception(self, mock_exit, mock_django):
+    def test_start_services_exception(self, mock_exit, mock_init):
         """Test _start_services handles exceptions."""
         self.command.stdout = self.out
-        mock_django.side_effect = Exception("Test error")
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
+        mock_init.side_effect = Exception("Test error")
 
         config = {"host": "127.0.0.1", "port": "8000", "workers": 4, "log_level": "INFO"}
 
@@ -206,13 +210,14 @@ class TestMetricsServiceCommand(TestCase):
     def test_monitor_services_startup_message(self):
         """Test _monitor_services displays startup message."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
         self.command.shutdown_requested = True  # Exit immediately
 
-        # Mock threads - need 3 threads for the new implementation
+        # Mock threads - need 2 threads for the current implementation
         mock_thread1 = MagicMock()
         mock_thread2 = MagicMock()
-        mock_thread3 = MagicMock()
-        self.command.threads = [mock_thread1, mock_thread2, mock_thread3]
+        self.command.threads = [mock_thread1, mock_thread2]
 
         config = {"host": "test.example.com", "port": "3000", "workers": 2}
 
@@ -227,18 +232,17 @@ class TestMetricsServiceCommand(TestCase):
     def test_monitor_services_thread_failure(self, mock_sleep):
         """Test _monitor_services handles thread failures."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
-        # Mock dead threads - need 3 threads for the new implementation
+        # Mock dead threads - need 2 threads for the current implementation
         mock_django_thread = MagicMock()
         mock_django_thread.is_alive.return_value = False
 
         mock_dispatcher_thread = MagicMock()
         mock_dispatcher_thread.is_alive.return_value = True
 
-        mock_scheduler_thread = MagicMock()
-        mock_scheduler_thread.is_alive.return_value = True
-
-        self.command.threads = [mock_django_thread, mock_dispatcher_thread, mock_scheduler_thread]
+        self.command.threads = [mock_django_thread, mock_dispatcher_thread]
         self.command.shutdown_requested = False
 
         # Mock sleep to control the loop
@@ -290,6 +294,8 @@ class TestMetricsServiceCommand(TestCase):
     def test_run_django_server_missing_manage_py(self):
         """Test _run_django_server handles missing manage.py."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
         with patch.object(Path, "exists", return_value=False):
             self.command._run_django_server("127.0.0.1", "8000", "INFO")
@@ -321,6 +327,8 @@ class TestMetricsServiceCommand(TestCase):
     def test_run_dispatcherd_exception(self, mock_build):
         """Test _run_dispatcherd handles exceptions."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
         mock_build.side_effect = Exception("Test dispatcher error")
 
         self.command._run_dispatcherd(4, 3600, 100, "INFO")
@@ -382,6 +390,8 @@ class TestMetricsServiceCommand(TestCase):
     def test_start_dispatcher_process_exception(self, mock_popen):
         """Test _start_dispatcher_process handles exceptions."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
         mock_popen.side_effect = Exception("Process creation failed")
 
         cmd = ["python", "manage.py", "run_dispatcherd"]
@@ -405,24 +415,15 @@ class TestMetricsServiceCommand(TestCase):
         # Verify process was monitored
         mock_process.poll.assert_called()
 
-    @patch.object(Command, "_start_services")
-    @patch.object(Command, "_setup_signal_handlers")
-    @patch.object(Command, "_initialize_service_state")
-    @patch.object(Command, "_extract_config")
-    def test_handle_method(self, mock_extract, mock_init, mock_signals, mock_start):
+    @patch.object(Command, "_handle_run_command")
+    def test_handle_method(self, mock_run_command):
         """Test handle method orchestration."""
-        mock_config = {"host": "127.0.0.1", "port": "8000"}
-        mock_extract.return_value = mock_config
-
         options = {"command": "run", "host": "127.0.0.1", "port": "8000", "workers": 4}
 
         self.command.handle(**options)
 
-        # Verify all setup methods were called in order
-        mock_extract.assert_called_once_with(options)
-        mock_init.assert_called_once()
-        mock_signals.assert_called_once()
-        mock_start.assert_called_once_with(mock_config)
+        # Verify the run command handler was called
+        mock_run_command.assert_called_once_with(options)
 
 
 class TestMetricsServiceSignalHandling(TestCase):
@@ -466,7 +467,8 @@ class TestMetricsServiceEdgeCases(TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.command = Command()
-        self.command.stdout = StringIO()
+        self.out = StringIO()
+        self.command.stdout = self.out
 
     def test_django_server_with_debug_verbosity(self):
         """Test Django server with DEBUG log level."""
@@ -489,6 +491,9 @@ class TestMetricsServiceEdgeCases(TestCase):
         """Test Django server process output streaming."""
         self.command.processes = []
         self.command.shutdown_requested = False
+        self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
         with patch("subprocess.Popen") as mock_popen, patch.object(Path, "exists", return_value=True):
             mock_process = MagicMock()
@@ -516,12 +521,14 @@ class TestMetricsServiceEdgeCases(TestCase):
             self.command._run_django_server("127.0.0.1", "8000", "INFO")
 
             # Verify output was streamed
-            output = self.command.stdout.getvalue()
+            output = self.out.getvalue()
             assert "[Django]" in output
 
     def test_port_validation_edge_cases(self):
         """Test port validation with edge cases."""
-        self.command.stdout = StringIO()
+        self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
         with patch.object(Path, "exists", return_value=True):
             # Test string port that's valid
@@ -530,5 +537,5 @@ class TestMetricsServiceEdgeCases(TestCase):
             # Test invalid port
             self.command._run_django_server("127.0.0.1", "invalid_port", "INFO")
 
-            output = self.command.stdout.getvalue()
+            output = self.out.getvalue()
             assert "Invalid port:" in output

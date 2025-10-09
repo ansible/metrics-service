@@ -5,16 +5,26 @@ This version ensures dispatcherd uses the same configuration as the standalone
 run_dispatcherd command, fixing the configuration inconsistency issue.
 """
 
+import json
+import signal
+import subprocess
 import sys
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from apps.core.services import (
     OutputFormatter,
     ProcessManager,
     ServiceConfig,
 )
+from apps.tasks.models import Task
+
+User = get_user_model()
 
 
 class Command(BaseCommand):
@@ -32,6 +42,9 @@ class Command(BaseCommand):
         super().__init__(*args, **kwargs)
         self.output = OutputFormatter(self.stdout, self.style)
         self.process_manager = ProcessManager(self.output)
+        self.shutdown_requested = False
+        self.threads = []
+        self.processes = []
 
     def add_arguments(self, parser):
         """Add command line arguments."""
@@ -203,9 +216,8 @@ class Command(BaseCommand):
     def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service."""
         try:
-            config = ServiceConfig(options)
-            self.output.success("🚀 Starting metrics service with unified dispatcherd configuration...")
-            self.process_manager.start_services(config.to_dict())
+            config = self._extract_config(options)
+            self._start_services(config)
         except ValueError as e:
             raise CommandError(f"Configuration error: {e}") from e
 
@@ -369,16 +381,468 @@ class Command(BaseCommand):
         except Exception as e:
             self.output.error(f"❌ Failed to list system tasks: {e}")
 
+    def _handle_task_create(self, options: dict[str, Any]) -> None:
+        """Handle task creation."""
+        try:
+            # Parse task data if provided
+            task_data = {}
+            if options.get("data"):
+                try:
+                    task_data = json.loads(options["data"])
+                except json.JSONDecodeError as e:
+                    raise CommandError(f"Invalid JSON data: {e}") from e
+
+            # Parse scheduled time if provided
+            scheduled_time = None
+            if options.get("scheduled_time"):
+                try:
+                    scheduled_time = datetime.strptime(options["scheduled_time"], "%Y-%m-%d %H:%M:%S")
+                    scheduled_time = timezone.make_aware(scheduled_time)
+                except ValueError as e:
+                    raise CommandError(f"Invalid scheduled time format. Use YYYY-MM-DD HH:MM:SS: {e}") from e
+
+            # Get user if specified
+            created_by = None
+            if options.get("user"):
+                try:
+                    created_by = User.objects.get(username=options["user"])
+                except User.DoesNotExist as e:
+                    raise CommandError(f"User '{options['user']}' not found") from e
+
+            # Create the task
+            task = Task.objects.create(
+                name=options["name"],
+                function_name=options["function"],
+                task_data=task_data,
+                description=options.get("description", ""),
+                scheduled_time=scheduled_time,
+                cron_expression=options.get("cron"),
+                is_recurring=options.get("recurring", False),
+                priority=options.get("priority", 2),
+                created_by=created_by,
+            )
+
+            self.output.success(f"✅ Created task: {task.name} (ID: {task.id})")
+
+        except Exception as e:
+            raise CommandError(f"Failed to create task: {e}") from e
+
+    def _handle_task_list(self, options: dict[str, Any]) -> None:
+        """Handle task listing."""
+        queryset = Task.objects.all()
+
+        # Apply status filter if provided
+        if options.get("status"):
+            queryset = queryset.filter(status=options["status"])
+
+        # Apply limit
+        limit = options.get("limit", 20)
+        tasks = queryset.order_by("-created")[:limit]
+
+        if not tasks:
+            self.output.write("📭 No tasks found")
+            return
+
+        self.output.write(f"📋 Tasks (showing up to {limit} results)")
+        self.output.write_separator()
+
+        for task in tasks:
+            status_icon = {"pending": "⏳", "running": "🔄", "completed": "✅", "failed": "❌", "cancelled": "⏹️"}.get(
+                task.status, "❓"
+            )
+            self.output.write(f"{status_icon} {task.name} (ID: {task.id})")
+            self.output.write(f"    Status: {task.status} | Function: {task.function_name}")
+            if task.created_by:
+                self.output.write(f"    Created by: {task.created_by.username}")
+            self.output.write("")
+
+    def _handle_task_show(self, options: dict[str, Any]) -> None:
+        """Handle showing task details."""
+        task_id = options["task_id"]
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist as e:
+            raise CommandError(f"Task with ID {task_id} not found") from e
+
+        self.output.write(f"📋 Task Details: {task.name}")
+        self.output.write_separator()
+        self.output.write(f"ID: {task.id}")
+        self.output.write(f"Name: {task.name}")
+        self.output.write(f"Function: {task.function_name}")
+        self.output.write(f"Status: {task.status}")
+        self.output.write(f"Priority: {task.priority}")
+        if task.description:
+            self.output.write(f"Description: {task.description}")
+        if task.task_data:
+            self.output.write(f"Data: {json.dumps(task.task_data, indent=2)}")
+        if task.created_by:
+            self.output.write(f"Created by: {task.created_by.username}")
+        self.output.write(f"Created: {task.created}")
+        if task.scheduled_time:
+            self.output.write(f"Scheduled: {task.scheduled_time}")
+        if task.cron_expression:
+            self.output.write(f"Cron: {task.cron_expression}")
+
+    def _handle_task_cancel(self, options: dict[str, Any]) -> None:
+        """Handle task cancellation."""
+        task_id = options["task_id"]
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist as e:
+            raise CommandError(f"Task with ID {task_id} not found") from e
+
+        if task.status in ["pending", "running"]:
+            task.status = "cancelled"
+            task._skip_signals = True  # Prevent signal handler from changing status
+            task.save()
+            self.output.success(f"✅ Cancelled task: {task.name}")
+        else:
+            self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be cancelled")
+
+    def _handle_task_retry(self, options: dict[str, Any]) -> None:
+        """Handle task retry."""
+        task_id = options["task_id"]
+        try:
+            task = Task.objects.get(id=task_id)
+        except Task.DoesNotExist as e:
+            raise CommandError(f"Task with ID {task_id} not found") from e
+
+        if task.status == "failed":
+            task.status = "pending"
+            task._skip_signals = True  # Prevent signal handler from interfering
+            task.save()
+            self.output.success(f"✅ Retrying task: {task.name}")
+        else:
+            self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be retried")
+
+    def _handle_cron_start(self) -> None:
+        """Handle cron scheduler start."""
+        try:
+            from apps.tasks.cron_scheduler import start_scheduler
+
+            start_scheduler()
+            self.output.success("✅ Cron scheduler started")
+        except ImportError:
+            self.output.warning("⚠️ Cron scheduler module not available")
+        except Exception as e:
+            self.output.error(f"❌ Failed to start cron scheduler: {e}")
+
+    def _handle_cron_stop(self) -> None:
+        """Handle cron scheduler stop."""
+        try:
+            from apps.tasks.cron_scheduler import stop_scheduler
+
+            stop_scheduler()
+            self.output.success("✅ Cron scheduler stopped")
+        except ImportError:
+            self.output.warning("⚠️ Cron scheduler module not available")
+        except Exception as e:
+            self.output.error(f"❌ Failed to stop cron scheduler: {e}")
+
+    def _handle_cron_status(self) -> None:
+        """Handle cron scheduler status."""
+        try:
+            from apps.tasks.cron_scheduler import get_scheduler
+
+            scheduler = get_scheduler()
+            if hasattr(scheduler, "running") and scheduler.running:
+                self.output.success("✅ Cron scheduler is running")
+            else:
+                self.output.warning("⚠️ Cron scheduler is not running")
+        except ImportError:
+            self.output.warning("⚠️ Cron scheduler module not available")
+        except Exception as e:
+            self.output.error(f"❌ Failed to check cron scheduler status: {e}")
+
+    def _handle_cron_list(self) -> None:
+        """Handle cron jobs listing."""
+        try:
+            from apps.tasks.cron_scheduler import get_scheduler
+
+            scheduler = get_scheduler()
+            jobs = scheduler.get_jobs() if hasattr(scheduler, "get_jobs") else []
+
+            if not jobs:
+                self.output.write("📭 No cron jobs found")
+                return
+
+            self.output.write("📋 Cron Jobs")
+            self.output.write_separator()
+            for job in jobs:
+                self.output.write(f"🕒 {getattr(job, 'id', 'Unknown ID')}")
+                if hasattr(job, "func"):
+                    self.output.write(f"    Function: {job.func}")
+                if hasattr(job, "next_run_time"):
+                    self.output.write(f"    Next run: {job.next_run_time}")
+                self.output.write("")
+        except ImportError:
+            self.output.warning("⚠️ Cron scheduler module not available")
+        except Exception as e:
+            self.output.error(f"❌ Failed to list cron jobs: {e}")
+
+    def _handle_cron_add(self, options: dict[str, Any]) -> None:
+        """Handle adding cron job."""
+        self.output.warning("⚠️ Cron add functionality not yet implemented")
+
+    def _handle_cron_remove(self, options: dict[str, Any]) -> None:
+        """Handle removing cron job."""
+        self.output.warning("⚠️ Cron remove functionality not yet implemented")
+
+    def _setup_signal_handlers(self) -> None:
+        """Setup signal handlers for graceful shutdown."""
+
+        def signal_handler(sig, frame):
+            self.output.warning(f"Received signal {sig}, shutting down...")
+            self.shutdown_requested = True
+
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
+    def _initialize_service_state(self) -> None:
+        """Initialize service state variables."""
+        self.shutdown_requested = False
+        self.threads = []
+        self.processes = []
+
+    def _cleanup_processes_and_threads(self) -> None:
+        """Clean up processes and threads."""
+        # Clean up processes
+        for process in self.processes:
+            if process.poll() is None:  # Process is still running
+                try:
+                    process.terminate()
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+
+        # Clean up threads
+        for thread in self.threads:
+            if thread.is_alive():
+                thread.join(timeout=5)
+
+    def _start_services(self, config: dict[str, Any]) -> None:
+        """Start services with the given configuration."""
+        try:
+            self._initialize_service_state()
+            self._setup_signal_handlers()
+
+            self.output.success("Starting metrics service:")
+            self.output.write(f"Django server: http://{config['host']}:{config['port']}")
+            self.output.write(f"Dispatcher workers: {config['workers']}")
+
+            # Start Django server
+            self._start_django_thread(config)
+
+            # Start dispatcher
+            self._start_dispatcher_thread(config)
+
+            # Monitor services
+            self._monitor_services(config)
+
+        except Exception as e:
+            self.output.error(f"Start failed: {e}")
+            sys.exit(1)
+
+    def _start_django_thread(self, config: dict[str, Any]) -> None:
+        """Start Django server in a thread."""
+        import threading
+
+        def django_runner():
+            self._run_django_server(config["host"], config["port"], config["log_level"])
+
+        thread = threading.Thread(target=django_runner, daemon=True)
+        thread.start()
+        self.threads.append(thread)
+
+    def _start_dispatcher_thread(self, config: dict[str, Any]) -> None:
+        """Start dispatcher in a thread."""
+        import threading
+
+        def dispatcher_runner():
+            self._run_dispatcherd(config["workers"], config["timeout"], config["max_tasks"], config["log_level"])
+
+        thread = threading.Thread(target=dispatcher_runner, daemon=True)
+        thread.start()
+        self.threads.append(thread)
+
+    def _monitor_services(self, config: dict[str, Any]) -> None:
+        """Monitor running services."""
+        import time
+
+        self.output.write(f"Django server started on http://{config['host']}:{config['port']}")
+        self.output.write(f"Dispatcher started with {config['workers']} workers")
+        self.output.write("Metrics service is running")
+
+        while not self.shutdown_requested:
+            # Check if any threads have died
+            for i, thread in enumerate(self.threads):
+                if not thread.is_alive():
+                    if i == 0:  # Django thread
+                        self.output.error("Django server thread stopped unexpectedly")
+                    elif i == 1:  # Dispatcher thread
+                        self.output.error("Dispatcher thread stopped unexpectedly")
+                    self.shutdown_requested = True
+                    break
+
+            time.sleep(1)
+
+        self._cleanup_processes_and_threads()
+
+    def _run_dispatcherd(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> None:
+        """Run dispatcherd process."""
+        try:
+            cmd = self._build_dispatcher_command(workers, timeout, max_tasks, log_level)
+            process = self._start_dispatcher_process(cmd)
+            if process:
+                self._monitor_dispatcher_process(process)
+        except Exception as e:
+            self.output.error(f"Dispatcher error: {e}")
+
+    def _start_dispatcher_process(self, cmd: list[str]) -> subprocess.Popen:
+        """Start dispatcher process."""
+        try:
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
+            )
+            self.processes.append(process)
+            return process
+        except Exception as e:
+            self.output.error(f"Dispatcher error: {e}")
+            return None
+
+    def _monitor_dispatcher_process(self, process: subprocess.Popen) -> None:
+        """Monitor dispatcher process."""
+        while not self.shutdown_requested and process.poll() is None:
+            line = process.stdout.readline()
+            if line:
+                self.output.write(f"[Dispatcher] {line.strip()}")
+
+        if process.poll() is not None:
+            self.output.write(f"Dispatcher process exited with code {process.poll()}")
+
+    def _extract_config(self, options: dict[str, Any]) -> dict[str, Any]:
+        """Extract configuration from command options."""
+        return {
+            "host": options.get("host", "127.0.0.1"),
+            "port": options.get("port", "8000"),
+            "workers": options.get("workers", 4),
+            "timeout": options.get("timeout", 3600),
+            "max_tasks": options.get("max_tasks", 100),
+            "log_level": options.get("log_level", "INFO"),
+        }
+
+    def _build_dispatcher_command(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> list[str]:
+        """Build dispatcher command with validation."""
+        # Validation
+        if not isinstance(workers, int) or workers <= 0:
+            raise ValueError(f"Invalid workers count: {workers}")
+        if not isinstance(timeout, int) or timeout <= 0:
+            raise ValueError(f"Invalid timeout: {timeout}")
+        if not isinstance(max_tasks, int) or max_tasks <= 0:
+            raise ValueError(f"Invalid max_tasks: {max_tasks}")
+        if log_level not in ["DEBUG", "INFO", "WARNING", "ERROR"]:
+            raise ValueError(f"Invalid log_level: {log_level}")
+
+        manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
+        cmd = [
+            sys.executable,
+            str(manage_py),
+            "run_dispatcherd",
+            f"--workers={workers}",
+            f"--timeout={timeout}",
+            f"--max-tasks={max_tasks}",
+            f"--log-level={log_level}",
+        ]
+        return cmd
+
+    def _run_django_server(self, host: str, port: str, log_level: str) -> None:
+        """Run Django server with security validation."""
+        try:
+            # Validate inputs for security
+            if not isinstance(host, str) or not all(c.isalnum() or c in ".:_-" for c in host):
+                raise ValueError(f"Invalid host: {host}")
+            if not isinstance(port, (int, str)) or not str(port).isdigit():
+                raise ValueError(f"Invalid port: {port}")
+
+            manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
+
+            # Check if manage.py exists
+            if not manage_py.exists():
+                self.output.error("manage.py not found")
+                return
+
+            cmd = [
+                sys.executable,
+                str(manage_py),
+                "runserver",
+                f"{host}:{port}",
+                "--noreload",
+            ]
+
+            # Add verbosity for DEBUG level
+            if log_level == "DEBUG":
+                cmd.append("--verbosity=2")
+
+            self.output.write(f"Starting Django server: {' '.join(cmd)}")
+
+            # Start the Django server process
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
+            )
+            self.processes.append(process)
+
+            # Monitor the process
+            while not self.shutdown_requested and process.poll() is None:
+                line = process.stdout.readline()
+                if line:
+                    self.output.write(f"[Django] {line.strip()}")
+
+            if process.poll() is not None:
+                self.output.write(f"Django server process exited with code {process.poll()}")
+
+        except Exception as e:
+            self.output.error(f"Failed to start Django server: {e}")
+
     def _handle_task_management_command(self, options: dict[str, Any]) -> None:
         """Handle task management commands."""
-        # For now, delegate to the original implementation
-        # TODO: Implement using TaskManager service
-        self.output.warning("Task management commands not yet implemented in refactored version")
-        self.output.write("Please use the original metrics_service command for task management")
+        action = options.get("task_action")
+
+        try:
+            if action == "create":
+                self._handle_task_create(options)
+            elif action == "list":
+                self._handle_task_list(options)
+            elif action == "show":
+                self._handle_task_show(options)
+            elif action == "cancel":
+                self._handle_task_cancel(options)
+            elif action == "retry":
+                self._handle_task_retry(options)
+            else:
+                raise CommandError(f"Unknown task action: {action}")
+        except Exception as e:
+            self.output.error(f"Task management error: {e}")
+            sys.exit(1)
 
     def _handle_cron_management_command(self, options: dict[str, Any]) -> None:
         """Handle cron management commands."""
-        # For now, delegate to the original implementation
-        # TODO: Implement using CronManager service
-        self.output.warning("Cron management commands not yet implemented in refactored version")
-        self.output.write("Please use the original metrics_service command for cron management")
+        action = options.get("cron_action")
+
+        try:
+            if action == "start":
+                self._handle_cron_start()
+            elif action == "stop":
+                self._handle_cron_stop()
+            elif action == "status":
+                self._handle_cron_status()
+            elif action == "list":
+                self._handle_cron_list()
+            elif action == "add":
+                self._handle_cron_add(options)
+            elif action == "remove":
+                self._handle_cron_remove(options)
+            else:
+                raise CommandError(f"Unknown cron action: {action}")
+        except Exception as e:
+            self.output.error(f"Cron management error: {e}")
+            sys.exit(1)

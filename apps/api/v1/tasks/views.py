@@ -220,6 +220,7 @@ class TaskViewSet(BaseViewSet):
         task.error_message = ""
         task.started_at = None
         task.completed_at = None
+        task._skip_signals = True  # Prevent signal handler from interfering
         task.save()
 
         return Response({"message": f"Task '{task.name}' queued for retry"})
@@ -252,6 +253,7 @@ class TaskViewSet(BaseViewSet):
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
         task.status = "cancelled"
+        task._skip_signals = True  # Prevent signal handler from changing status
         task.save()
 
         return Response({"message": f"Task '{task.name}' cancelled"})

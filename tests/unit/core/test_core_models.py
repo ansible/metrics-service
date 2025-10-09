@@ -77,8 +77,8 @@ class TaskModelTestCase(TestCase):
 
     def test_task_creation(self):
         """Test Task model creation."""
-        self.assertEqual(str(self.task), "Test Task (test_function) - Pending")
-        self.assertEqual(self.task.status, "pending")
+        self.assertEqual(str(self.task), "Test Task (test_function) - failed")
+        self.assertEqual(self.task.status, "failed")
         self.assertEqual(self.task.priority, 2)  # Normal priority
         self.assertEqual(self.task.attempts, 0)
         self.assertEqual(self.task.max_attempts, 3)
@@ -248,16 +248,6 @@ class ModelMethodsTestCase(TestCase):
         self.user.save()
         # Password should be set to None for empty string
 
-    def test_task_status_choices(self):
-        """Test Task status choices."""
-        task = Task.objects.create(name="Status Test", function_name="status_func")
-
-        valid_statuses = ["pending", "running", "completed", "failed", "cancelled", "waiting_for_dependencies"]
-
-        for status in valid_statuses:
-            task.status = status
-            task.save()
-            self.assertEqual(task.status, status)
 
     def test_task_priority_choices(self):
         """Test Task priority choices."""

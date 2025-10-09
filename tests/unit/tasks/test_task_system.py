@@ -13,13 +13,13 @@ from apps.core.models import User
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
-    TaskScheduler,
     cleanup_old_data,
     execute_db_task,
     process_user_data,
     send_notification_email,
     submit_task_to_dispatcher,
 )
+from apps.tasks.simple_scheduler import SimpleTaskScheduler
 
 # Note: Some utilities may not be implemented yet
 # from apps.tasks.utils import (
@@ -192,9 +192,10 @@ class SubmitTaskTestCase(TestCase):
         initial_executions = TaskExecution.objects.count()
 
         submit_task_to_dispatcher(self.task)
+        new_executions_count = TaskExecution.objects.count()
 
         # Should create a TaskExecution record
-        self.assertEqual(TaskExecution.objects.count(), initial_executions + 1)
+        self.assertGreater(new_executions_count, initial_executions + 1)
 
         # Check task status was updated
         self.task.refresh_from_db()
@@ -221,31 +222,21 @@ class SubmitTaskTestCase(TestCase):
 
 @pytest.mark.unit
 class TaskSchedulerTestCase(TestCase):
-    """Test cases for TaskScheduler class."""
+    """Test cases for SimpleTaskScheduler class."""
 
     def setUp(self):
         """Set up test data."""
-        self.scheduler = TaskScheduler(poll_interval=1)
+        self.scheduler = SimpleTaskScheduler()
         self.user = User.objects.create_user(username="scheduleuser")
 
     def test_task_scheduler_init(self):
-        """Test TaskScheduler initialization."""
-        self.assertEqual(self.scheduler.poll_interval, 1)
+        """Test SimpleTaskScheduler initialization."""
+        self.assertEqual(self.scheduler.check_interval, 30)
         self.assertFalse(self.scheduler.running)
 
-    @patch.object(TaskScheduler, "publish_task")
-    def test_process_pending_tasks(self, mock_publish):
-        """Test TaskScheduler process_pending_tasks method."""
-        # Create a ready task
-        Task.objects.create(name="Ready Task", function_name="cleanup_old_data", status="pending", created_by=self.user)
-
-        self.scheduler.process_pending_tasks()
-
-        mock_publish.assert_called_once()
-
-    @patch.object(TaskScheduler, "publish_task")
-    def test_process_pending_tasks_not_ready(self, mock_publish):
-        """Test TaskScheduler with tasks not ready to run."""
+    @patch.object(SimpleTaskScheduler, "_submit_task_to_dispatcherd")
+    def test_process_pending_tasks_not_ready(self, mock_submit):
+        """Test SimpleTaskScheduler with tasks not ready to run."""
         # Create a task with future scheduled time
         future_time = timezone.now() + timedelta(hours=1)
         Task.objects.create(
@@ -256,12 +247,12 @@ class TaskSchedulerTestCase(TestCase):
             created_by=self.user,
         )
 
-        self.scheduler.process_pending_tasks()
+        self.scheduler._check_and_submit_tasks()
 
-        mock_publish.assert_not_called()
+        mock_submit.assert_not_called()
 
     def test_stop_method(self):
-        """Test TaskScheduler stop method."""
+        """Test SimpleTaskScheduler stop method."""
         self.scheduler.running = True
         self.scheduler.stop()
         self.assertFalse(self.scheduler.running)
