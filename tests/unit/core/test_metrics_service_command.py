@@ -22,10 +22,14 @@ class TestMetricsServiceCommand(TestCase):
         self.command = Command()
         self.out = StringIO()
         self.err = StringIO()
+        # Initialize the threads and processes attributes that the command expects
+        self.command.threads = []
+        self.command.processes = []
+        self.command.shutdown_requested = False
 
     def test_command_help_text(self):
         """Test command has proper help text."""
-        assert self.command.help == "Run the complete metrics service (Django server + dispatcher)"
+        assert self.command.help == "Metric service management - unified entry point for all service operations"
 
     def test_add_arguments(self):
         """Test add_arguments method configures parser correctly."""
@@ -34,26 +38,16 @@ class TestMetricsServiceCommand(TestCase):
         parser = ArgumentParser()
         self.command.add_arguments(parser)
 
-        # Test that all expected arguments are added
+        # Test that subcommands are added
         actions = {action.dest: action for action in parser._actions}
 
-        assert "host" in actions
-        assert actions["host"].default == "127.0.0.1"
-
-        assert "port" in actions
-        assert actions["port"].default == "8000"
-
-        assert "workers" in actions
-        assert actions["workers"].default == 4
-
-        assert "timeout" in actions
-        assert actions["timeout"].default == 3600
-
-        assert "max_tasks" in actions
-        assert actions["max_tasks"].default == 100
-
-        assert "log_level" in actions
-        assert actions["log_level"].default == "INFO"
+        assert "command" in actions
+        assert hasattr(actions["command"], "choices")
+        assert "run" in actions["command"].choices
+        assert "init-service-id" in actions["command"].choices
+        assert "init-system-tasks" in actions["command"].choices
+        assert "tasks" in actions["command"].choices
+        assert "cron" in actions["command"].choices
 
     def test_extract_config(self):
         """Test _extract_config method."""
@@ -214,10 +208,11 @@ class TestMetricsServiceCommand(TestCase):
         self.command.stdout = self.out
         self.command.shutdown_requested = True  # Exit immediately
 
-        # Mock threads
+        # Mock threads - need 3 threads for the new implementation
         mock_thread1 = MagicMock()
         mock_thread2 = MagicMock()
-        self.command.threads = [mock_thread1, mock_thread2]
+        mock_thread3 = MagicMock()
+        self.command.threads = [mock_thread1, mock_thread2, mock_thread3]
 
         config = {"host": "test.example.com", "port": "3000", "workers": 2}
 
@@ -233,14 +228,17 @@ class TestMetricsServiceCommand(TestCase):
         """Test _monitor_services handles thread failures."""
         self.command.stdout = self.out
 
-        # Mock dead threads
+        # Mock dead threads - need 3 threads for the new implementation
         mock_django_thread = MagicMock()
         mock_django_thread.is_alive.return_value = False
 
         mock_dispatcher_thread = MagicMock()
         mock_dispatcher_thread.is_alive.return_value = True
 
-        self.command.threads = [mock_django_thread, mock_dispatcher_thread]
+        mock_scheduler_thread = MagicMock()
+        mock_scheduler_thread.is_alive.return_value = True
+
+        self.command.threads = [mock_django_thread, mock_dispatcher_thread, mock_scheduler_thread]
         self.command.shutdown_requested = False
 
         # Mock sleep to control the loop
@@ -427,7 +425,7 @@ class TestMetricsServiceCommand(TestCase):
         mock_config = {"host": "127.0.0.1", "port": "8000"}
         mock_extract.return_value = mock_config
 
-        options = {"host": "127.0.0.1", "port": "8000", "workers": 4}
+        options = {"command": "run", "host": "127.0.0.1", "port": "8000", "workers": 4}
 
         self.command.handle(**options)
 
