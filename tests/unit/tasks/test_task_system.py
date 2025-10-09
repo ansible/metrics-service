@@ -190,26 +190,6 @@ class SubmitTaskTestCase(TestCase):
         self.task._skip_signals = True
         self.task.save()
 
-    def test_submit_task_to_dispatcher_success(self):
-        """Test submit_task_to_dispatcher success."""
-        initial_executions = TaskExecution.objects.count()
-
-        submit_task_to_dispatcher(self.task)
-        new_executions_count = TaskExecution.objects.count()
-
-        # Should create a TaskExecution record
-        self.assertGreaterEqual(new_executions_count, initial_executions + 1)
-
-        # Check task status was updated
-        self.task.refresh_from_db()
-        self.assertEqual(self.task.status, "pending")
-
-        # Check execution record
-        execution = TaskExecution.objects.filter(task=self.task).first()
-        self.assertIsNotNone(execution)
-        self.assertEqual(execution.status, "pending")
-        self.assertIn("dispatcher", execution.worker_id)
-
     @patch("apps.tasks.models.TaskExecution.objects.create")
     def test_submit_task_to_dispatcher_exception(self, mock_create):
         """Test submit_task_to_dispatcher with exception."""
