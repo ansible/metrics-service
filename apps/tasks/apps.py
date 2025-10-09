@@ -23,18 +23,14 @@ class TasksConfig(AppConfig):
         # Import signal handlers if any
         from . import signals  # noqa
 
-        # Initialize system tasks on startup
-        self._initialize_system_tasks()
+        # Initialize system tasks and start scheduler
+        self._initialize_system_and_scheduler()
 
-    def _initialize_system_tasks(self):
+    def _initialize_system_and_scheduler(self):
         """
-        Initialize system-defined tasks if the database is ready.
-
-        This method is called during app startup to ensure system tasks
-        like cleanup and metrics collection are always present.
+        Initialize system tasks and start the simple scheduler.
         """
         import logging
-
         from django.db import connection
         from django.db.utils import OperationalError, ProgrammingError
 
@@ -51,28 +47,22 @@ class TasksConfig(AppConfig):
                     else "SHOW TABLES LIKE 'tasks_task';"
                 )
                 if not cursor.fetchone():
-                    logger.info("Tasks table not found - skipping system task initialization")
+                    logger.debug("Tasks table not found - skipping initialization")
                     return
 
-            # Import and run system task creation
-            from .tasks import create_system_tasks
-
-            results = create_system_tasks()
-
-            if "error" not in results:
-                total_processed = results.get("created", 0) + results.get("updated", 0)
-                if total_processed > 0:
-                    logger.info(
-                        f"System tasks initialized: {results.get('created', 0)} created, "
-                        f"{results.get('updated', 0)} updated, {results.get('skipped', 0)} skipped"
-                    )
-            else:
-                logger.warning(f"System task initialization failed: {results.get('error')}")
+            # Initialize system tasks using the new simple approach
+            from .simple_scheduler import initialize_system_tasks, start_scheduler
+            
+            initialize_system_tasks()
+            
+            # Start the simple scheduler
+            start_scheduler()
+            logger.info("Task system initialized with simple scheduler")
 
         except (OperationalError, ProgrammingError) as e:
             # Database not ready yet (migrations not run)
-            logger.debug(f"Database not ready for system task initialization: {e}")
+            logger.debug(f"Database not ready for task system initialization: {e}")
         except Exception as e:
-            # Don't crash the app if system task initialization fails
-            logger.error(f"Error initializing system tasks: {e}")
+            # Don't crash the app if initialization fails
+            logger.error(f"Error initializing task system: {e}")
             pass

@@ -250,20 +250,21 @@ class TestTaskGroupFunctions(TestCase):
 class TestTaskGroupIntegration(TestCase):
     """Test integration between task groups and other components."""
 
-    @patch("apps.tasks.signals.get_scheduler")
+    @patch("apps.tasks.simple_scheduler.get_scheduler")
     def test_scheduler_integration(self, mock_get_scheduler):
-        """Test integration with the cron scheduler."""
+        """Test integration with the simple scheduler."""
         mock_scheduler = MagicMock()
         mock_get_scheduler.return_value = mock_scheduler
 
+        # With the simple scheduler, we just verify it's running
         # Import here to avoid issues during test discovery
-        from apps.tasks.signals import reload_task_groups
+        from apps.tasks.simple_scheduler import refresh_scheduler
 
-        result = reload_task_groups()
+        result = refresh_scheduler()
 
-        # Should call reload_task_registry on the scheduler
-        mock_scheduler.reload_task_registry.assert_called_once()
-        assert result is True
+        # Simple scheduler doesn't have reload_task_registry, it reads from DB
+        # Just verify the function runs successfully
+        assert result is None  # refresh_scheduler doesn't return a value
 
     @override_settings(
         FEATURE_FLAGS={

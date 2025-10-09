@@ -53,9 +53,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from apps.core.utils import build_error_response
-from apps.tasks.cron_scheduler import get_scheduler
 from apps.tasks.models import Task, TaskExecution
-from apps.tasks.signals import schedule_task_via_api
 
 from ..base_views import BaseViewSet
 from .serializers import (
@@ -456,28 +454,42 @@ class TaskViewSet(BaseViewSet):
 
     @extend_schema(
         operation_id="tasks_scheduler_status",
-        description="Get cron scheduler status and scheduled tasks",
+        description="Get simple scheduler status and scheduled tasks",
         responses={200: {"scheduler": "object", "tasks": "array"}},
     )
     @action(detail=False, methods=["get"])
     def scheduler_status(self, request: HttpRequest) -> Response:
         """
-        Get the status of the cron scheduler and all scheduled tasks.
+        Get the status of the simple scheduler and all scheduled tasks.
         Returns:
             Response: Scheduler status and list of scheduled tasks
         """
         try:
+            from apps.tasks.simple_scheduler import get_scheduler
+
             scheduler = get_scheduler()
-            tasks = scheduler.list_tasks()
+
+            # Get scheduled and recurring tasks from database
+            scheduled_tasks = Task.objects.filter(
+                status='pending',
+                scheduled_time__isnull=False
+            ).count()
+
+            recurring_tasks = Task.objects.filter(
+                status='pending',
+                is_recurring=True,
+                cron_expression__isnull=False
+            ).exclude(cron_expression='').count()
 
             return Response(
                 {
                     "scheduler": {
-                        "running": scheduler.running,
-                        "registered_tasks": len(tasks["registry"]),
-                        "scheduled_jobs": len(tasks["scheduled_jobs"]),
+                        "running": scheduler.running if scheduler else False,
+                        "check_interval": scheduler.check_interval if scheduler else 30,
+                        "scheduled_tasks": scheduled_tasks,
+                        "recurring_tasks": recurring_tasks,
                     },
-                    "tasks": tasks["scheduled_jobs"],
+                    "message": "Simple scheduler status retrieved successfully"
                 }
             )
         except Exception as e:
@@ -493,7 +505,7 @@ class TaskViewSet(BaseViewSet):
     @action(detail=False, methods=["post"])
     def schedule_immediate(self, request: HttpRequest) -> Response:
         """
-        Schedule a task to run immediately using the cron scheduler.
+        Schedule a task to run immediately using the simple scheduler.
         Args:
             request: HTTP request with task parameters
         Returns:
@@ -503,13 +515,17 @@ class TaskViewSet(BaseViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
-            task_id = schedule_task_via_api(
+            # Create task directly in database - signals will handle immediate execution
+            task = Task.objects.create(
+                name=serializer.validated_data.get("name", "Immediate Task"),
                 function_name=serializer.validated_data["function_name"],
                 task_data=serializer.validated_data.get("task_data", {}),
-                task_name=serializer.validated_data.get("name", ""),
+                priority=serializer.validated_data.get("priority", 2),
+                created_by=request.user if request.user.is_authenticated else None,
+                # No scheduled_time means immediate execution
             )
 
-            return Response({"message": "Task scheduled for immediate execution", "task_id": task_id})
+            return Response({"message": "Task scheduled for immediate execution", "task_id": str(task.id)})
         except Exception as e:
             error_response = build_error_response(f"Failed to schedule task: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -538,15 +554,18 @@ class TaskViewSet(BaseViewSet):
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            task_id = schedule_task_via_api(
+            # Create recurring task directly in database - simple scheduler will handle it
+            task = Task.objects.create(
+                name=serializer.validated_data.get("name", "Recurring Task"),
                 function_name=serializer.validated_data["function_name"],
                 task_data=serializer.validated_data.get("task_data", {}),
+                priority=serializer.validated_data.get("priority", 2),
                 cron_expression=cron_expression,
                 is_recurring=True,
-                task_name=serializer.validated_data.get("name", ""),
+                created_by=request.user if request.user.is_authenticated else None,
             )
 
-            return Response({"message": "Recurring task scheduled successfully", "task_id": task_id})
+            return Response({"message": "Recurring task scheduled successfully", "task_id": str(task.id)})
         except Exception as e:
             error_response = build_error_response(f"Failed to schedule recurring task: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

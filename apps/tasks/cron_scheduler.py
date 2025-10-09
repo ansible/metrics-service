@@ -171,9 +171,8 @@ class CronTaskScheduler:
             # Determine queue based on function name
             queue = self._get_queue_for_function(function_name)
 
-            # Submit to dispatcherd using function object directly
-            task_func = TASK_FUNCTIONS[function_name]
-            submit_task(task_func, kwargs=args, queue=queue)
+            # Submit to dispatcherd using string reference for consistency
+            submit_task(f"apps.tasks.tasks.{function_name}", kwargs=args, queue=queue)
 
             logger.info(f"Submitted scheduled task {task_id} ({function_name}) to queue {queue}")
 

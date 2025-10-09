@@ -148,7 +148,10 @@ def handle_post_execution(task: Any) -> None:
     if task.status == "completed":
         trigger_dependent_tasks(task)
 
-    if task.is_recurring and task.status == "completed":
+    # For recurring tasks managed via cron scheduler, we don't need to create new instances
+    # The cron scheduler will handle the recurring executions automatically
+    # Only create next occurrences for one-time scheduled recurring tasks
+    if task.is_recurring and task.status == "completed" and not task.cron_expression:
         schedule_next_occurrence(task)
 
 
