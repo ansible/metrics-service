@@ -178,10 +178,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**/*.py" = ["S101", "S106"]  # Allow assert and hardcoded passwords in tests
+"**/tests/**/*.py" = ["S101", "S106", "S603"]  # Allow assert, hardcoded passwords, and subprocess in tests
 "**/conftest.py" = ["S101"]
 "**/settings/**/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
 "manage.py" = ["T20"]
+"run_integration_tests.py" = ["S603"]  # Allow subprocess calls in integration test script
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

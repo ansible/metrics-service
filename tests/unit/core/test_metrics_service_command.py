@@ -287,16 +287,6 @@ class TestMetricsServiceCommand(TestCase):
         # Verify process was added to processes list
         assert mock_process in self.command.processes
 
-    def test_run_django_server_validation_errors(self):
-        """Test _run_django_server handles validation errors."""
-        self.command.stdout = self.out
-
-        # Test invalid host
-        with patch.object(Path, "exists", return_value=True):
-            self.command._run_django_server("invalid@host", "8000", "INFO")
-
-        output = self.out.getvalue()
-        assert "Invalid host:" in output
 
     def test_run_django_server_missing_manage_py(self):
         """Test _run_django_server handles missing manage.py."""

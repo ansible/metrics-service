@@ -3,12 +3,14 @@ Unit tests for metrics_service/urls.py - Main URL configuration.
 Tests all URL patterns and imports to achieve 100% code coverage.
 """
 
-import pytest
+import contextlib
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
 from django.test import TestCase, override_settings
-from django.urls import URLResolver, URLPattern, reverse, resolve
+from django.urls import resolve, reverse
 from django.urls.exceptions import NoReverseMatch
-from unittest.mock import patch, MagicMock
 
 
 @pytest.mark.unit
@@ -24,7 +26,7 @@ class TestMainURLsFileContent(TestCase):
         """Test that the main urls.py file has expected content."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             content = f.read()
 
         # Test that the file contains expected imports
@@ -48,7 +50,7 @@ class TestMainURLsFileContent(TestCase):
         """Test that the main urls.py file has proper docstring."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             content = f.read()
 
         # Test that the file has a docstring
@@ -59,7 +61,7 @@ class TestMainURLsFileContent(TestCase):
         """Test that the main urls.py file has proper structure."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             lines = f.readlines()
 
         # Test that the file has expected number of lines
@@ -96,7 +98,7 @@ class TestMainURLsImports(TestCase):
         """Test that import statements in urls.py are syntactically correct."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             content = f.read()
 
         # Test that import statements are properly formatted
@@ -139,30 +141,21 @@ class TestMainURLResolution(TestCase):
     def test_dashboard_url_resolution(self):
         """Test that dashboard URLs can be resolved."""
         # Test that dashboard URLs are accessible
-        try:
+        with contextlib.suppress(Exception):
             # This should work if dashboard URLs are properly included
             resolve("/dashboard/")
-        except Exception:
-            # Dashboard might not have URLs defined
-            pass
 
     def test_api_url_resolution(self):
         """Test that API URLs can be resolved."""
         # Test that API URLs are accessible
-        try:
+        with contextlib.suppress(Exception):
             resolve("/api/")
-        except Exception:
-            # API might not have URLs defined
-            pass
 
     def test_core_url_resolution(self):
         """Test that core URLs can be resolved."""
         # Test that core URLs are accessible
-        try:
+        with contextlib.suppress(Exception):
             resolve("/login/")
-        except Exception:
-            # Core URLs might not be available
-            pass
 
 
 @pytest.mark.unit
@@ -210,7 +203,7 @@ class TestMainURLsEdgeCases(TestCase):
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
         # Test that the file can be read with UTF-8 encoding
-        with open(urls_file_path, "r", encoding="utf-8") as f:
+        with open(urls_file_path, encoding="utf-8") as f:
             content = f.read()
 
         assert len(content) > 0
@@ -229,7 +222,7 @@ class TestMainURLsEdgeCases(TestCase):
         """Test that the main urls.py file has proper comments."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             content = f.read()
 
         # Test that the file has comments
@@ -239,7 +232,7 @@ class TestMainURLsEdgeCases(TestCase):
         """Test that the main urls.py file has proper whitespace."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             lines = f.readlines()
 
         # Test that the file doesn't have trailing whitespace
@@ -269,7 +262,6 @@ class TestMainURLsIntegration(TestCase):
 
     def test_urls_with_django_setup(self):
         """Test URLs work with full Django setup."""
-        from django.conf import settings
         from django.urls import get_resolver
 
         # Get the main URL resolver
@@ -292,7 +284,7 @@ class TestMainURLsIntegration(TestCase):
         # Test that the file exists and has content
         assert os.path.exists(urls_file_path)
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             content = f.read()
 
         # Test that the file has expected content
@@ -304,7 +296,7 @@ class TestMainURLsIntegration(TestCase):
         """Test that the main urls.py file has valid Python syntax."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             content = f.read()
 
         # Test that the file can be compiled (basic syntax check)
@@ -317,7 +309,7 @@ class TestMainURLsIntegration(TestCase):
         """Test that all imports in the URLs file are valid."""
         urls_file_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "metrics_service", "urls.py")
 
-        with open(urls_file_path, "r") as f:
+        with open(urls_file_path) as f:
             content = f.read()
 
         # Extract import statements

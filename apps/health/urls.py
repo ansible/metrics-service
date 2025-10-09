@@ -9,6 +9,3 @@ urlpatterns = [
     # Admin interface
     path("admin/", admin.site.urls),
 ]
-
-
-

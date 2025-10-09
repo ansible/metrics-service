@@ -8,7 +8,7 @@ processes and components of the metrics service.
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def setup_dispatcherd_config() -> None:
         raise
 
 
-def build_config_from_django_settings() -> Dict[str, Any]:
+def build_config_from_django_settings() -> dict[str, Any]:
     """
     Build dispatcherd configuration from Django database settings.
 
@@ -156,7 +156,7 @@ def update_config_with_database_settings() -> None:
 
         # Read existing config
         if config_file.exists():
-            with open(config_file, "r") as f:
+            with open(config_file) as f:
                 config = yaml.safe_load(f)
         else:
             config = {}

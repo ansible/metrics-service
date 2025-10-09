@@ -16,6 +16,18 @@ LOGGING["loggers"]["django"]["level"] = "DEBUG"  # noqa: F405
 LOGGING["loggers"]["metrics_service"]["level"] = "DEBUG"  # noqa: F405
 LOGGING["loggers"]["ansible_base"]["level"] = "DEBUG"  # noqa: F405
 
+# Suppress DAB authentication plugin errors
+LOGGING["loggers"]["ansible_base.authentication.authenticator_plugins.utils"] = {  # noqa: F405
+    "handlers": [],
+    "level": "CRITICAL",
+    "propagate": False,
+}
+LOGGING["loggers"]["apps.core.apps"] = {  # noqa: F405
+    "handlers": [],
+    "level": "CRITICAL", 
+    "propagate": False,
+}
+
 # Disable CSRF for easier API testing in development
 # Note: Only use in development!
 CSRF_TRUSTED_ORIGINS = [

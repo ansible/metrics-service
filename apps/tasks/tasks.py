@@ -13,6 +13,17 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
+from .utils import (
+    create_task_result,
+    ensure_django_setup,
+    get_task_and_execution,
+    handle_post_execution,
+    handle_task_error,
+    log_task_execution,
+    task_execution_wrapper,
+    update_task_status,
+)
+
 logger = logging.getLogger(__name__)
 # Import metrics-utility collectors
 try:
@@ -21,9 +32,6 @@ try:
         config,
         host_metric,
         job_host_summary,
-        main_host,
-        main_indirectmanagednodeaudit,
-        main_jobevent,
     )
 
     METRICS_UTILITY_AVAILABLE = True
@@ -40,20 +48,6 @@ except ImportError:
             return func
 
         return decorator
-
-
-from .utils import (
-    create_task_result,
-    ensure_django_setup,
-    get_task_and_execution,
-    handle_post_execution,
-    handle_task_error,
-    log_task_execution,
-    task_execution_wrapper,
-    update_task_status,
-)
-
-logger = logging.getLogger(__name__)
 
 
 @task(queue="metrics_collectors", decorate=False)
@@ -1149,58 +1143,64 @@ def create_system_tasks() -> dict[str, Any]:
             continue
 
         try:
-            # Check if task already exists (by name and function)
-            existing_task = Task.objects.filter(
-                name=system_task_config["name"], function_name=system_task_config["function_name"], is_system_task=True
-            ).first()
-
-            if existing_task:
-                # Update existing task if configuration has changed
-                updated = False
-
-                if existing_task.task_data != system_task_config["task_data"]:
-                    existing_task.task_data = system_task_config["task_data"]
-                    updated = True
-
-                if existing_task.cron_expression != system_task_config["cron_expression"]:
-                    existing_task.cron_expression = system_task_config["cron_expression"]
-                    updated = True
-
-                if existing_task.priority != system_task_config["priority"]:
-                    existing_task.priority = system_task_config["priority"]
-                    updated = True
-
-                if existing_task.description != system_task_config["description"]:
-                    existing_task.description = system_task_config["description"]
-                    updated = True
-
-                if updated:
-                    existing_task.save()
-                    results["updated"] += 1
-                    results["tasks"].append(f"Updated: {existing_task.name}")
-                else:
-                    results["skipped"] += 1
-                    results["tasks"].append(f"Skipped: {existing_task.name} (no changes)")
-            else:
-                # Create new system task
-                new_task = Task.objects.create(
-                    name=system_task_config["name"],
-                    description=system_task_config["description"],
-                    function_name=system_task_config["function_name"],
-                    task_data=system_task_config["task_data"],
-                    cron_expression=system_task_config["cron_expression"],
-                    is_recurring=system_task_config["is_recurring"],
-                    priority=system_task_config["priority"],
-                    is_system_task=True,
-                    status="pending",
-                )
-                results["created"] += 1
-                results["tasks"].append(f"Created: {new_task.name}")
-
+            _process_system_task(system_task_config, results, Task)
         except Exception as e:
             results["tasks"].append(f"Error with {system_task_config['name']}: {str(e)}")
 
     return results
+
+
+def _process_system_task(system_task_config: dict[str, Any], results: dict[str, Any], task_model) -> None:
+    """Process a single system task configuration."""
+    existing_task = task_model.objects.filter(
+        name=system_task_config["name"], function_name=system_task_config["function_name"], is_system_task=True
+    ).first()
+
+    if existing_task:
+        _update_existing_system_task(existing_task, system_task_config, results)
+    else:
+        _create_new_system_task(system_task_config, results, task_model)
+
+
+def _update_existing_system_task(existing_task, system_task_config: dict[str, Any], results: dict[str, Any]) -> None:
+    """Update an existing system task if configuration has changed."""
+    updated = False
+
+    # Check each field for changes
+    for field, config_key in [
+        ("task_data", "task_data"),
+        ("cron_expression", "cron_expression"),
+        ("priority", "priority"),
+        ("description", "description"),
+    ]:
+        if getattr(existing_task, field) != system_task_config[config_key]:
+            setattr(existing_task, field, system_task_config[config_key])
+            updated = True
+
+    if updated:
+        existing_task.save()
+        results["updated"] += 1
+        results["tasks"].append(f"Updated: {existing_task.name}")
+    else:
+        results["skipped"] += 1
+        results["tasks"].append(f"Skipped: {existing_task.name} (no changes)")
+
+
+def _create_new_system_task(system_task_config: dict[str, Any], results: dict[str, Any], task_model) -> None:
+    """Create a new system task."""
+    new_task = task_model.objects.create(
+        name=system_task_config["name"],
+        description=system_task_config["description"],
+        function_name=system_task_config["function_name"],
+        task_data=system_task_config["task_data"],
+        cron_expression=system_task_config["cron_expression"],
+        is_recurring=system_task_config["is_recurring"],
+        priority=system_task_config["priority"],
+        is_system_task=True,
+        status="pending",
+    )
+    results["created"] += 1
+    results["tasks"].append(f"Created: {new_task.name}")
 
 
 def get_system_task_info() -> dict[str, Any]:
