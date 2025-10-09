@@ -14,10 +14,10 @@ pip install -e ".[dev]"
 python manage.py migrate
 
 # Initialize ServiceID for ansible-base (required)
-python manage.py init_service_id
+python manage.py metric_service init-service-id
 
 # Initialize system tasks (cleanup, metrics collection)
-python manage.py metrics_service init_system_tasks
+python manage.py metric_service init-system-tasks
 
 # Create superuser
 python manage.py createsuperuser
@@ -25,8 +25,8 @@ python manage.py createsuperuser
 # Run development server
 python manage.py runserver
 
-# OR run complete metrics service (Django + dispatcher)
-python manage.py metrics_service
+# OR run complete metrics service (Django + dispatcher + scheduler)
+python manage.py metric_service run
 ```
 
 ### Testing
@@ -72,11 +72,11 @@ isort .
 ```bash
 # Dispatcherd is always enabled in this service
 
-# Run task dispatcher
-python manage.py run_dispatcherd
+# Run complete service (includes dispatcher and scheduler)
+python manage.py metric_service run
 
-# Run task scheduler (polls for ready tasks)
-python manage.py run_task_scheduler
+# OR run individual components (for development/debugging)
+python manage.py metric_service run --workers 2 --log-level DEBUG
 
 # Create sample tasks (using Django shell or admin interface)
 python manage.py shell
@@ -102,8 +102,8 @@ docker-compose logs -f metrics-dispatcher
 # Start with Docker Compose (includes web server + task dispatcher)
 docker-compose up
 
-# Or manually start complete metrics service (Django + dispatcher)
-python manage.py metrics_service
+# Or manually start complete metrics service (Django + dispatcher + scheduler)
+python manage.py metric_service run
 
 # Or start only Django development server
 python manage.py runserver
@@ -113,27 +113,78 @@ python manage.py runserver
 
 ### Metrics Service Management
 
-The `metrics_service` command provides centralized management:
+The `metric_service` command provides centralized management with a unified entry point:
 
 ```bash
-# Run complete service (Django server + task dispatcher)
-python manage.py metrics_service
-python manage.py metrics_service run
+# Run complete service (Django server + task dispatcher + scheduler)
+python manage.py metric_service run
+
+# Initialize ServiceID for ansible-base
+python manage.py metric_service init-service-id
 
 # Initialize/update system tasks
-python manage.py metrics_service init_system_tasks
+python manage.py metric_service init-system-tasks
 
 # List current system tasks
-python manage.py metrics_service init_system_tasks --list
+python manage.py metric_service init-system-tasks --list
 
 # Dry run (see what would be done)
-python manage.py metrics_service init_system_tasks --dry-run
+python manage.py metric_service init-system-tasks --dry-run
 
 # Force update all system tasks
-python manage.py metrics_service init_system_tasks --force
+python manage.py metric_service init-system-tasks --force
+
+# Task management
+python manage.py metric_service tasks create --name "My Task" --function "cleanup_old_data"
+python manage.py metric_service tasks list
+python manage.py metric_service tasks show 1
+python manage.py metric_service tasks cancel 1
+python manage.py metric_service tasks retry 1
+
+# Cron scheduler management
+python manage.py metric_service cron start
+python manage.py metric_service cron stop
+python manage.py metric_service cron status
+python manage.py metric_service cron list
 
 # Custom service configuration
-python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 8
+python manage.py metric_service run --host 0.0.0.0 --port 8080 --workers 8
+```
+
+### Unified Command Structure
+
+The `metric_service` command consolidates all service management operations into a single entry point:
+
+#### Main Commands:
+
+- **`run`** - Start the complete metrics service (Django + dispatcher + scheduler)
+- **`init-service-id`** - Initialize ServiceID for ansible-base resource registry
+- **`init-system-tasks`** - Initialize system-defined tasks (cleanup, metrics collection)
+- **`tasks`** - Manage database tasks (create, list, show, cancel, retry)
+- **`cron`** - Manage cron-based task scheduler (start, stop, status, list, add, remove)
+
+#### Command Examples:
+
+```bash
+# Get help for any command
+python manage.py metric_service --help
+python manage.py metric_service tasks --help
+python manage.py metric_service cron --help
+
+# Run service with custom configuration
+python manage.py metric_service run --host 0.0.0.0 --port 8080 --workers 4 --log-level DEBUG
+
+# Task management
+python manage.py metric_service tasks create --name "Cleanup" --function "cleanup_old_data" --cron "0 2 * * *"
+python manage.py metric_service tasks list --status pending --limit 10
+python manage.py metric_service tasks show 1
+python manage.py metric_service tasks cancel 1
+python manage.py metric_service tasks retry 1
+
+# System initialization
+python manage.py metric_service init-service-id
+python manage.py metric_service init-system-tasks --list
+python manage.py metric_service init-system-tasks --dry-run
 ```
 
 ## Architecture Overview
