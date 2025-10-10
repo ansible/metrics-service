@@ -210,6 +210,25 @@ mypy .
 isort .
 ```
 
+### Pre-commit Hooks
+
+This project uses pre-commit hooks to ensure code quality and automatically sync requirements files:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run hooks on all files
+pre-commit run --all-files
+
+# Run hooks manually
+pre-commit run
+```
+
+The pre-commit configuration automatically:
+- Syncs requirements files when `pyproject.toml` or `uv.lock` changes
+- Ensures requirements files are always up-to-date before commits
+
 ### Testing
 
 ```bash
