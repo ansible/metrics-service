@@ -1,0 +1,9 @@
+repos:
+  # Sync requirements files when pyproject.toml or uv.lock changes
+  - repo: local
+    hooks:
+      - id: sync-requirements
+        name: Sync requirements files
+        entry: bash -c './sync-requirements.sh && git add requirements*.txt dev-requirements.txt'
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
