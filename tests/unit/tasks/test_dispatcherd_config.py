@@ -322,11 +322,10 @@ class TestUpdateConfigWithDatabaseSettings:
         mock_path.parent = MagicMock()
         mock_get_path.return_value = mock_path
 
-        updated_config = None
+        captured_configs = []
 
         def yaml_dump_side_effect(data, f, **kwargs):
-            nonlocal updated_config
-            updated_config = data
+            captured_configs.append(data)
 
         with (
             patch("builtins.open", mock_open(read_data=yaml.dump(existing_config))),
@@ -334,7 +333,10 @@ class TestUpdateConfigWithDatabaseSettings:
         ):
             update_config_with_database_settings()
 
-        assert updated_config is not None
+        assert len(captured_configs) > 0, "yaml.dump was not called"
+        updated_config = captured_configs[0]
+        assert isinstance(updated_config, dict), f"Expected dict but got {type(updated_config)}"
+        assert "brokers" in updated_config, f"'brokers' key not found in {updated_config.keys()}"
         db_config = updated_config["brokers"]["pg_notify"]["config"]
         assert db_config["dbname"] == "metrics_db"
         assert db_config["user"] == "metrics_user"
@@ -442,6 +444,6 @@ class TestGetQueueForFunction:
 
         for function_name, expected_queue in function_queue_map.items():
             actual_queue = get_queue_for_function(function_name)
-            assert actual_queue == expected_queue, (
-                f"Function {function_name} should map to {expected_queue}, got {actual_queue}"
-            )
+            assert (
+                actual_queue == expected_queue
+            ), f"Function {function_name} should map to {expected_queue}, got {actual_queue}"
