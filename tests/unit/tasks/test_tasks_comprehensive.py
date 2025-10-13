@@ -331,7 +331,7 @@ class TestEdgeCasesAndErrorHandling(TestCase):
     def test_metrics_collection_edge_cases(self):
         """Test metrics collection edge cases."""
         # Test with empty parameters
-        result = tasks.collect_anonymous_metrics(**{})
+        result = tasks.collect_anonymous_metrics()
         assert isinstance(result, dict)
         assert "success" in result["status"]
 

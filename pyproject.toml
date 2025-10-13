@@ -170,22 +170,40 @@ select = [
     "S",   # flake8-bandit
     "T20", # flake8-print
     "SIM", # flake8-simplify
+    "PLR", # pylint refactoring (complexity, code smells)
+    "PIE", # flake8-pie (misc linting)
 ]
 ignore = [
     "E501",  # line too long (handled by black)
     "B008",  # do not perform function calls in argument defaults
     "S101",  # use of assert detected
     "S311",  # pseudo-random generators not suitable for security/cryptographic purposes
+    "PLR0913",  # too many arguments (we have some complex functions)
+    "PLR2004",  # magic value comparison (common in tests)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**/*.py" = ["S101", "S106", "S603"]  # Allow assert, hardcoded passwords, and subprocess in tests
+"**/tests/**/*.py" = [
+    "S101",     # Allow assert in tests
+    "S106",     # Allow hardcoded passwords in tests
+    "S603",     # Allow subprocess in tests
+    "PLR0915",  # Allow too many statements in tests
+    "PLR0912",  # Allow too many branches in tests
+    "PLR2004",  # Allow magic values in tests
+    "F632",     # Allow is comparison in tests (common pattern)
+]
 "**/conftest.py" = ["S101"]
 "**/settings/**/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
 "manage.py" = ["T20"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 10
+max-complexity = 15  # Increased to match Sonar's threshold
+
+[tool.ruff.lint.pylint]
+max-branches = 15      # Maximum number of branches (matches Sonar S3776)
+max-statements = 50    # Maximum number of statements in function
+max-returns = 6        # Maximum number of return statements
+max-args = 8           # Maximum function arguments (relaxed for complex functions)
 
 [tool.isort]
 profile = "black"

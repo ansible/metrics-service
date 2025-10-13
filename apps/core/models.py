@@ -299,7 +299,6 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
         ordering = ["id"]
         abstract = False
         unique_together = [("organization", "name")]
-        ordering = ("organization__name", "name")
         permissions = [("member_team", "Has all roles assigned to this team")]
 
     resource = AnsibleResourceField(primary_key_field="id")
