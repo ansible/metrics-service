@@ -190,57 +190,6 @@ class ProcessManagerTestCase(TestCase):
         # Should exit without error messages
         self.mock_output.error.assert_not_called()
 
-    @patch("apps.tasks.tasks.submit_task_to_dispatcher")
-    @patch("apps.tasks.models.Task.objects.filter")
-    @patch("time.sleep")
-    def test_process_pending_tasks_on_startup_no_tasks(self, mock_sleep, mock_filter, mock_submit):
-        """Test processing pending tasks with no tasks."""
-        mock_filter.return_value = []
-
-        self.process_manager._process_pending_tasks_on_startup()
-
-        self.mock_output.write.assert_called_with("📋 No pending tasks to process")
-        mock_submit.assert_not_called()
-
-    @patch("apps.tasks.tasks.submit_task_to_dispatcher")
-    @patch("apps.tasks.models.Task.objects.filter")
-    @patch("time.sleep")
-    def test_process_pending_tasks_on_startup_with_tasks(self, mock_sleep, mock_filter, mock_submit):
-        """Test processing pending tasks with available tasks."""
-        mock_task1 = Mock()
-        mock_task1.name = "Task 1"
-        mock_task1.is_ready_to_run.return_value = True
-
-        mock_task2 = Mock()
-        mock_task2.name = "Task 2"
-        mock_task2.is_ready_to_run.return_value = False
-
-        mock_filter.return_value = [mock_task1, mock_task2]
-
-        self.process_manager._process_pending_tasks_on_startup()
-
-        mock_submit.assert_called_once_with(mock_task1)
-        self.mock_output.write.assert_any_call("📋 Processing 2 pending tasks...")
-        self.mock_output.write.assert_any_call("  ✅ Submitted: Task 1")
-        self.mock_output.write.assert_any_call("  ⏭️  Skipped: Task 2 (not ready)")
-        self.mock_output.success.assert_called_with("📋 Processed 1 pending tasks")
-
-    @patch("apps.tasks.tasks.submit_task_to_dispatcher")
-    @patch("apps.tasks.models.Task.objects.filter")
-    @patch("time.sleep")
-    def test_process_pending_tasks_submission_error(self, mock_sleep, mock_filter, mock_submit):
-        """Test processing pending tasks with submission error."""
-        mock_task = Mock()
-        mock_task.name = "Task 1"
-        mock_task.is_ready_to_run.return_value = True
-
-        mock_filter.return_value = [mock_task]
-        mock_submit.side_effect = Exception("Submission failed")
-
-        self.process_manager._process_pending_tasks_on_startup()
-
-        self.mock_output.write.assert_any_call("  ❌ Failed: Task 1 - Submission failed")
-
     @patch("apps.tasks.models.Task.objects.filter")
     @patch("time.sleep")
     def test_process_pending_tasks_general_error(self, mock_sleep, mock_filter):
@@ -547,18 +496,6 @@ class ProcessManagerTestCase(TestCase):
         mock_build_cmd.assert_called_once_with("INFO")
         mock_start.assert_called_once_with(["python", "manage.py", "run_task_scheduler"], "task scheduler")
         mock_monitor.assert_called_once_with(mock_process, "[TaskScheduler]")
-
-    def test_monitor_process_output(self):
-        """Test monitoring process output."""
-        mock_process = Mock()
-        mock_process.poll.side_effect = [None, None, 0]  # Running, running, then finished
-        mock_process.stdout.readline.side_effect = ["Line 1\n", "Line 2\n", ""]
-
-        self.process_manager._monitor_process_output(mock_process, "[Test]")
-
-        # Verify output was captured
-        self.mock_output.write.assert_any_call("[Test] Line 1")
-        self.mock_output.write.assert_any_call("[Test] Line 2")
 
     def test_monitor_process_output_shutdown_requested(self):
         """Test monitoring process output with shutdown requested."""

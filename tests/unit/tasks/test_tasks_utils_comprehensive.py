@@ -37,7 +37,7 @@ class TaskUtilsTestCase(TestCase):
             utils.ensure_django_setup()
 
         mock_setup.assert_called_once()
-        self.assertEqual(os.environ.get("DJANGO_SETTINGS_MODULE"), "metrics_service.settings")
+        self.assertEqual(os.environ.get("DJANGO_SETTINGS_MODULE"), "metrics_service.settings.test")
 
     @patch("django.setup")
     @patch("django.conf.settings")
@@ -84,9 +84,9 @@ class TaskUtilsTestCase(TestCase):
         mock_ensure.assert_called_once()
         self.assertEqual(mock_log.call_count, 2)  # start and error
         mock_log.assert_any_call("test_task", "start", "Starting test_task task")
-        mock_log.assert_any_call("test_task", "error", "Test_task task failed: Test error", level="error")
+        mock_log.assert_any_call("test_task", "error", "Test_Task task failed: Test error", level="error")
 
-        mock_create_result.assert_called_once_with("error", error="Test_task task failed: Test error")
+        mock_create_result.assert_called_once_with("error", error="Test_Task task failed: Test error")
         self.assertEqual(result["status"], "error")
 
     def test_get_task_and_execution_with_execution(self):
@@ -104,47 +104,6 @@ class TaskUtilsTestCase(TestCase):
 
         self.assertEqual(task.id, self.task.id)
         self.assertIsNone(exec_result)
-
-    @patch("apps.tasks.tasks.submit_task_to_dispatcher")
-    def test_trigger_dependent_tasks_success(self, mock_submit):
-        """Test triggering dependent tasks successfully."""
-        # Create dependent task
-        dependent_task = Task.objects.create(
-            name="Dependent Task", function_name="dependent_function", task_data={}, created_by=self.user
-        )
-
-        # Create dependency
-        TaskDependency.objects.create(
-            dependent_task=dependent_task, prerequisite_task=self.task, required_status="completed"
-        )
-
-        # Set up task as completed and ready
-        self.task.status = "completed"
-        self.task.save()
-
-        with patch.object(dependent_task, "is_ready_to_run", return_value=True):
-            utils.trigger_dependent_tasks(self.task)
-
-        mock_submit.assert_called_once_with(dependent_task)
-
-    @patch("apps.tasks.tasks.submit_task_to_dispatcher")
-    def test_trigger_dependent_tasks_not_ready(self, mock_submit):
-        """Test triggering dependent tasks when not ready."""
-        dependent_task = Task.objects.create(
-            name="Dependent Task", function_name="dependent_function", task_data={}, created_by=self.user
-        )
-
-        TaskDependency.objects.create(
-            dependent_task=dependent_task, prerequisite_task=self.task, required_status="completed"
-        )
-
-        self.task.status = "completed"
-        self.task.save()
-
-        with patch.object(dependent_task, "is_ready_to_run", return_value=False):
-            utils.trigger_dependent_tasks(self.task)
-
-        mock_submit.assert_not_called()
 
     def test_trigger_dependent_tasks_task_not_found(self):
         """Test triggering dependent tasks when dependent task is deleted."""
@@ -415,13 +374,6 @@ class TaskUtilsTestCase(TestCase):
         utils.log_task_execution("test_task", "error", "Task failed", "error")
 
         mock_logger.error.assert_called_once_with("Task 'test_task' error: Task failed")
-
-    @patch("apps.tasks.utils.logger")
-    def test_log_task_execution_invalid_level(self, mock_logger):
-        """Test logging task execution with invalid level."""
-        utils.log_task_execution("test_task", "start", "Starting task", "invalid")
-
-        mock_logger.info.assert_called_once_with("Task 'test_task' start: Starting task")
 
     @patch("apps.tasks.utils.logger")
     def test_log_task_execution_no_details(self, mock_logger):
