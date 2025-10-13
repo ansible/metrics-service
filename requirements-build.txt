@@ -2,6 +2,10 @@
 #    uv pip compile --output-file=requirements-build.txt requirements-pinned.txt
 -e .
     # via -r requirements-pinned.txt
+apscheduler==3.11.0
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-service
 asgiref==3.9.1
     # via
     #   -r requirements-pinned.txt
@@ -13,9 +17,24 @@ attrs==25.3.0
     #   -r requirements-pinned.txt
     #   jsonschema
     #   referencing
+boto3==1.35.96
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-utility
+botocore==1.35.96
+    # via
+    #   -r requirements-pinned.txt
+    #   boto3
+    #   metrics-utility
+    #   s3transfer
+cachetools==6.2.0
+    # via
+    #   -r requirements-pinned.txt
+    #   google-auth
 certifi==2025.8.3
     # via
     #   -r requirements-pinned.txt
+    #   kubernetes
     #   requests
 cffi==1.17.1
     # via
@@ -48,7 +67,11 @@ dispatcherd==2025.5.21
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
-django==4.2.23
+distro==1.9.0
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-utility
+django==4.2.21
     # via
     #   -r requirements-pinned.txt
     #   channels
@@ -59,6 +82,7 @@ django==4.2.23
     #   djangorestframework
     #   drf-spectacular
     #   metrics-service
+    #   metrics-utility
     #   social-auth-app-django
 django-ansible-base==2025.8.18
     # via
@@ -91,11 +115,23 @@ drf-spectacular==0.28.0
     #   -r requirements-pinned.txt
     #   django-ansible-base
     #   metrics-service
+durationpy==0.10
+    # via
+    #   -r requirements-pinned.txt
+    #   kubernetes
 dynaconf==3.2.11
     # via
     #   -r requirements-pinned.txt
     #   django-ansible-base
     #   metrics-service
+et-xmlfile==2.0.0
+    # via
+    #   -r requirements-pinned.txt
+    #   openpyxl
+google-auth==2.41.1
+    # via
+    #   -r requirements-pinned.txt
+    #   kubernetes
 idna==3.10
     # via
     #   -r requirements-pinned.txt
@@ -105,6 +141,11 @@ inflection==0.5.1
     #   -r requirements-pinned.txt
     #   django-ansible-base
     #   drf-spectacular
+jmespath==1.0.1
+    # via
+    #   -r requirements-pinned.txt
+    #   boto3
+    #   botocore
 jsonschema==4.25.1
     # via
     #   -r requirements-pinned.txt
@@ -117,20 +158,58 @@ jwcrypto==1.5.6
     # via
     #   -r requirements-pinned.txt
     #   django-oauth-toolkit
+kubernetes==34.1.0
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-utility
+metrics-utility @ git+https://github.com/ansible/metrics-utility.git@3b28731ee3527ea05e119e587d4ecaf6b9f34169
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-service
+numpy==2.3.3
+    # via
+    #   -r requirements-pinned.txt
+    #   pandas
 oauthlib==3.3.1
     # via
     #   -r requirements-pinned.txt
     #   django-oauth-toolkit
     #   requests-oauthlib
     #   social-auth-core
-psycopg==3.2.9
+openpyxl==3.1.2
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-utility
+pandas==2.3.3
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-utility
+pip==25.2
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
-psycopg-binary==3.2.9
+psycopg==3.2.10
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-service
+    #   metrics-utility
+psycopg-binary==3.2.10
     # via
     #   -r requirements-pinned.txt
     #   psycopg
+psycopg2-binary==2.9.10
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-service
+pyasn1==0.6.1
+    # via
+    #   -r requirements-pinned.txt
+    #   pyasn1-modules
+    #   rsa
+pyasn1-modules==0.4.2
+    # via
+    #   -r requirements-pinned.txt
+    #   google-auth
 pycparser==2.22
     # via
     #   -r requirements-pinned.txt
@@ -143,7 +222,10 @@ pyjwt==2.10.1
 python-dateutil==2.9.0.post0
     # via
     #   -r requirements-pinned.txt
+    #   botocore
     #   croniter
+    #   kubernetes
+    #   pandas
 python3-openid==3.2.0
     # via
     #   -r requirements-pinned.txt
@@ -152,11 +234,13 @@ pytz==2025.2
     # via
     #   -r requirements-pinned.txt
     #   croniter
+    #   pandas
 pyyaml==6.0.2
     # via
     #   -r requirements-pinned.txt
     #   dispatcherd
     #   drf-spectacular
+    #   kubernetes
 referencing==0.36.2
     # via
     #   -r requirements-pinned.txt
@@ -167,20 +251,36 @@ requests==2.32.5
     #   -r requirements-pinned.txt
     #   django-ansible-base
     #   django-oauth-toolkit
+    #   kubernetes
+    #   metrics-utility
     #   requests-oauthlib
     #   social-auth-core
 requests-oauthlib==2.0.0
     # via
     #   -r requirements-pinned.txt
+    #   kubernetes
     #   social-auth-core
 rpds-py==0.27.1
     # via
     #   -r requirements-pinned.txt
     #   jsonschema
     #   referencing
+rsa==4.9.1
+    # via
+    #   -r requirements-pinned.txt
+    #   google-auth
+s3transfer==0.10.4
+    # via
+    #   -r requirements-pinned.txt
+    #   boto3
+setuptools==80.9.0
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-utility
 six==1.17.0
     # via
     #   -r requirements-pinned.txt
+    #   kubernetes
     #   python-dateutil
 social-auth-app-django==5.4.3
     # via
@@ -199,15 +299,29 @@ typing-extensions==4.15.0
     # via
     #   -r requirements-pinned.txt
     #   jwcrypto
+tzdata==2025.2
+    # via
+    #   -r requirements-pinned.txt
+    #   pandas
+tzlocal==5.3.1
+    # via
+    #   -r requirements-pinned.txt
+    #   apscheduler
 uritemplate==4.2.0
     # via
     #   -r requirements-pinned.txt
     #   drf-spectacular
-urllib3==2.5.0
+urllib3==2.3.0
     # via
     #   -r requirements-pinned.txt
+    #   botocore
+    #   kubernetes
     #   requests
-uv==0.8.22
+uv==0.9.0
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
+websocket-client==1.9.0
+    # via
+    #   -r requirements-pinned.txt
+    #   kubernetes

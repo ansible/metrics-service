@@ -1021,7 +1021,7 @@ requires-dist = [
     { name = "factory-boy", marker = "extra == 'test'", specifier = ">=3.3" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.12" },
     { name = "ldap-filter", marker = "extra == 'ldap'", specifier = ">=1.0.1" },
-    { name = "metrics-utility", git = "https://github.com/ansible/metrics-utility.git" },
+    { name = "metrics-utility", git = "https://github.com/ansible/metrics-utility.git?rev=devel" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.5" },
     { name = "pip", specifier = ">=25.2" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
@@ -1066,7 +1066,7 @@ dev = [
 [[package]]
 name = "metrics-utility"
 version = "0.6.1.dev0"
-source = { git = "https://github.com/ansible/metrics-utility.git#6f8c0a81677ffc142472987730128208930fe0b8" }
+source = { git = "https://github.com/ansible/metrics-utility.git?rev=devel#3b28731ee3527ea05e119e587d4ecaf6b9f34169" }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },
