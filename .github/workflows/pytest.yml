@@ -1,9 +1,14 @@
-name: 'Pytest tests'
+name: "Pytest tests"
 
 on:
   push:
-    branches: ['devel']
-  pull_request_target:
+    branches: ["devel"]
+  pull_request:
+    branches: ["devel"]
+
+# Explicitly set read-only permissions for security
+permissions:
+  contents: read
 
 jobs:
   pytest:
@@ -22,29 +27,21 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 55432:55432
+          - 5432:5432
 
     steps:
-      - name: 'Checkout metrics-service (${{ github.ref }})'
+      - name: "Checkout repository"
         uses: actions/checkout@v5
-        if: ${{ ! github.base_ref }}
 
-      - name: 'Checkout metrics-service (${{ github.event.pull_request.head.ref }})'
-        uses: actions/checkout@v5
-        if: ${{ github.base_ref }}
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-
-      - name: 'Install uv'
+      - name: "Install uv"
         uses: astral-sh/setup-uv@v6
 
-      - name: 'Set up Python'
+      - name: "Set up Python"
         uses: actions/setup-python@v6
         with:
-          python-version-file: 'pyproject.toml'
+          python-version-file: "pyproject.toml"
 
-      - name: 'Run pytest'
+      - name: "Run pytest"
         env:
           METRICS_SERVICE_DB_HOST: localhost
           METRICS_SERVICE_DB_PORT: 5432
