@@ -186,7 +186,13 @@ class SystemInitializer:
 
     def _display_task_info(self, task: Task) -> None:
         """Display information for a single task."""
-        status_icon = "⏳" if task.status == "pending" else "✅" if task.status == "completed" else "❌"
+        if task.status == "pending":
+            status_icon = "⏳"
+        elif task.status == "completed":
+            status_icon = "✅"
+        else:
+            status_icon = "❌"
+
         recurring_icon = "🔄" if task.is_recurring else "➡️"
 
         self.output.write(f"  {status_icon} {recurring_icon} {task.name}")

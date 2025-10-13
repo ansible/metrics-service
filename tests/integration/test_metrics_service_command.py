@@ -364,7 +364,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
         # Verify service startup was called with correct config
         mock_start_services.assert_called_once()
-        args, kwargs = mock_start_services.call_args
+        args, _ = mock_start_services.call_args
         config = args[0]
 
         assert config["host"] == "127.0.0.1"

@@ -146,7 +146,7 @@ class TestSimpleTaskScheduler:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise Exception("Test error")
+                raise RuntimeError("Test error")
             else:
                 scheduler.running = False
 
@@ -438,30 +438,30 @@ class TestInitializeSystemTasks:
     @pytest.mark.django_db
     def test_initialize_system_tasks_creates_system_user(self):
         """Test that a system user is created if it doesn't exist."""
-        User = get_user_model()  # noqa: N806
+        user_model = get_user_model()
 
         # Make sure system user doesn't exist
-        User.objects.filter(username="system").delete()
+        user_model.objects.filter(username="system").delete()
 
         initialize_system_tasks()
 
         # System user should now exist
-        system_user = User.objects.filter(username="system").first()
+        system_user = user_model.objects.filter(username="system").first()
         assert system_user is not None
         assert system_user.email == "system@localhost"
 
     @pytest.mark.django_db
     def test_initialize_system_tasks_uses_existing_system_user(self):
         """Test that existing system user is used."""
-        User = get_user_model()  # noqa: N806
+        user_model = get_user_model()
 
         # Create a system user
-        existing_user = User.objects.create(username="system", email="existing@localhost")
+        existing_user = user_model.objects.create(username="system", email="existing@localhost")
 
         initialize_system_tasks()
 
         # Should use existing user
-        system_users = User.objects.filter(username="system")
+        system_users = user_model.objects.filter(username="system")
         assert system_users.count() == 1
         assert system_users.first().id == existing_user.id
 

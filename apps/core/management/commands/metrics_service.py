@@ -25,6 +25,10 @@ from apps.tasks.models import Task
 
 User = get_user_model()
 
+# Constants for repeated messages
+MSG_CRON_NOT_AVAILABLE = "⚠️ Cron scheduler module not available"
+LABEL_TASK_ID = "Task ID"
+
 
 class Command(BaseCommand):
     """
@@ -145,15 +149,15 @@ class Command(BaseCommand):
 
         # Show task details
         show_parser = task_subparsers.add_parser("show", help="Show task details")
-        show_parser.add_argument("task_id", type=int, help="Task ID")
+        show_parser.add_argument("task_id", type=int, help=LABEL_TASK_ID)
 
         # Cancel task
         cancel_parser = task_subparsers.add_parser("cancel", help="Cancel a task")
-        cancel_parser.add_argument("task_id", type=int, help="Task ID")
+        cancel_parser.add_argument("task_id", type=int, help=LABEL_TASK_ID)
 
         # Retry task
         retry_parser = task_subparsers.add_parser("retry", help="Retry a failed task")
-        retry_parser.add_argument("task_id", type=int, help="Task ID")
+        retry_parser.add_argument("task_id", type=int, help=LABEL_TASK_ID)
 
     def _add_cron_management_arguments(self, parser):
         """Add arguments for cron management."""
@@ -337,48 +341,74 @@ class Command(BaseCommand):
             self.output.write("📋 Current System Tasks")
             self.output.write_separator()
 
-            # Group tasks by category based on function names
-            categories = {}
-            for task in system_tasks:
-                if "cleanup" in task.function_name:
-                    category = "MAINTENANCE"
-                elif "collect" in task.function_name:
-                    category = "METRICS"
-                else:
-                    category = "OTHER"
-
-                if category not in categories:
-                    categories[category] = []
-                categories[category].append(task)
-
-            # Display tasks by category
-            total_tasks = 0
-            category_names = []
-
-            for category, tasks in categories.items():
-                self.output.write(f"\n🏷️  {category} ({len(tasks)} tasks)")
-                self.output.write_separator("-", 40)
-
-                for task in tasks:
-                    status_icon = "⏳" if task.status == "pending" else "✅" if task.status == "completed" else "❌"
-                    recurring_icon = "🔄" if task.is_recurring else "➡️"
-
-                    self.output.write(f"  {status_icon} {recurring_icon} {task.name}")
-                    self.output.write(f"    Function: {task.function_name}")
-                    if task.cron_expression:
-                        self.output.write(f"    Schedule: {task.cron_expression}")
-                    self.output.write(f"    Priority: {task.priority} | Status: {task.status}")
-                    self.output.write("")
-
-                total_tasks += len(tasks)
-                category_names.append(category.lower())
-
-            self.output.write_separator()
-            self.output.write(f"📊 Total: {total_tasks} system tasks")
-            self.output.write(f"📂 Categories: {', '.join(category_names)}")
+            # Group and display tasks
+            categories = self._categorize_tasks(system_tasks)
+            self._display_categorized_tasks(categories)
 
         except Exception as e:
             self.output.error(f"❌ Failed to list system tasks: {e}")
+
+    def _categorize_tasks(self, tasks):
+        """Categorize tasks based on their function names."""
+        categories = {}
+        for task in tasks:
+            category = self._get_task_category(task)
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(task)
+        return categories
+
+    def _get_task_category(self, task):
+        """Determine the category for a task based on its function name."""
+        if "cleanup" in task.function_name:
+            return "MAINTENANCE"
+        if "collect" in task.function_name:
+            return "METRICS"
+        return "OTHER"
+
+    def _display_categorized_tasks(self, categories):
+        """Display tasks organized by category."""
+        total_tasks = 0
+        category_names = []
+
+        for category, tasks in categories.items():
+            self._display_category_section(category, tasks)
+            total_tasks += len(tasks)
+            category_names.append(category.lower())
+
+        self._display_summary(total_tasks, category_names)
+
+    def _display_category_section(self, category, tasks):
+        """Display a category section with its tasks."""
+        self.output.write(f"\n🏷️  {category} ({len(tasks)} tasks)")
+        self.output.write_separator("-", 40)
+
+        for task in tasks:
+            self._display_single_task(task)
+
+    def _display_single_task(self, task):
+        """Display information for a single task."""
+        if task.status == "pending":
+            status_icon = "⏳"
+        elif task.status == "completed":
+            status_icon = "✅"
+        else:
+            status_icon = "❌"
+
+        recurring_icon = "🔄" if task.is_recurring else "➡️"
+
+        self.output.write(f"  {status_icon} {recurring_icon} {task.name}")
+        self.output.write(f"    Function: {task.function_name}")
+        if task.cron_expression:
+            self.output.write(f"    Schedule: {task.cron_expression}")
+        self.output.write(f"    Priority: {task.priority} | Status: {task.status}")
+        self.output.write("")
+
+    def _display_summary(self, total_tasks, category_names):
+        """Display summary statistics."""
+        self.output.write_separator()
+        self.output.write(f"📊 Total: {total_tasks} system tasks")
+        self.output.write(f"📂 Categories: {', '.join(category_names)}")
 
     def _handle_task_create(self, options: dict[str, Any]) -> None:
         """Handle task creation."""
@@ -522,7 +552,7 @@ class Command(BaseCommand):
             start_scheduler()
             self.output.success("✅ Cron scheduler started")
         except ImportError:
-            self.output.warning("⚠️ Cron scheduler module not available")
+            self.output.warning(MSG_CRON_NOT_AVAILABLE)
         except Exception as e:
             self.output.error(f"❌ Failed to start cron scheduler: {e}")
 
@@ -534,7 +564,7 @@ class Command(BaseCommand):
             stop_scheduler()
             self.output.success("✅ Cron scheduler stopped")
         except ImportError:
-            self.output.warning("⚠️ Cron scheduler module not available")
+            self.output.warning(MSG_CRON_NOT_AVAILABLE)
         except Exception as e:
             self.output.error(f"❌ Failed to stop cron scheduler: {e}")
 
@@ -549,7 +579,7 @@ class Command(BaseCommand):
             else:
                 self.output.warning("⚠️ Cron scheduler is not running")
         except ImportError:
-            self.output.warning("⚠️ Cron scheduler module not available")
+            self.output.warning(MSG_CRON_NOT_AVAILABLE)
         except Exception as e:
             self.output.error(f"❌ Failed to check cron scheduler status: {e}")
 
@@ -575,7 +605,7 @@ class Command(BaseCommand):
                     self.output.write(f"    Next run: {job.next_run_time}")
                 self.output.write("")
         except ImportError:
-            self.output.warning("⚠️ Cron scheduler module not available")
+            self.output.warning(MSG_CRON_NOT_AVAILABLE)
         except Exception as e:
             self.output.error(f"❌ Failed to list cron jobs: {e}")
 

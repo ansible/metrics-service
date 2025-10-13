@@ -459,7 +459,7 @@ class ProcessManagerTestCase(TestCase):
         self.process_manager._run_django_server("127.0.0.1", "8000", "INFO")
 
         mock_get_logger.assert_called_with("django")
-        mock_logger.setLevel.assert_called_with(20)  # logging.INFO = 20
+        mock_logger.setLevel.assert_called_with(20)  # INFO level
         mock_build_cmd.assert_called_once_with(mock_path, "127.0.0.1", "8000", "INFO")
         mock_popen.assert_called_once()
         self.assertIn(mock_process, self.process_manager.processes)

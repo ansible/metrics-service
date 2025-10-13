@@ -67,7 +67,7 @@ class CronTaskScheduler:
 
         # Stop existing tasks
         if self.running:
-            for task_id in list(self.task_registry.keys()):
+            for task_id in self.task_registry:
                 try:
                     self.scheduler.remove_job(task_id)
                 except Exception as e:

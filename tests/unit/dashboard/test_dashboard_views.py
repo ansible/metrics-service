@@ -64,7 +64,7 @@ class TestDashboardViews(TestCase):
 
         # Verify render was called with correct arguments
         mock_render.assert_called_once()
-        args, kwargs = mock_render.call_args
+        args, _ = mock_render.call_args
 
         # Check request and template
         assert args[0] == request

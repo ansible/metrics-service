@@ -63,7 +63,6 @@ def _handle_updated_task(task):
     if task.is_ready_to_run() and task.status == "pending" and not task.scheduled_time and not task.is_recurring:
         logger.info(f"Updated task now ready for immediate execution: {task.name}")
         _submit_task_to_dispatcherd_directly(task)
-        return
 
 
 def _submit_task_to_dispatcherd_directly(task):

@@ -24,6 +24,15 @@ from .utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Constants for repeated strings
+MSG_METRICS_UTILITY_NOT_AVAILABLE = "metrics-utility is not available"
+LABEL_METRICS_COLLECTION = "Metrics Collection"
+LABEL_DB_CONNECTION = "Database connection string (optional)"
+LABEL_START_DATE = "Start date for collection (ISO format)"
+LABEL_END_DATE = "End date for collection (ISO format)"
+EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
+
 # Import metrics-utility collectors
 try:
     from metrics_utility.library.collectors import (
@@ -69,7 +78,7 @@ def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
         dict: Task result with collected metrics data
     """
     if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error="metrics-utility is not available")
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_anonymous_metrics", "processing", "Collecting anonymous metrics")
 
@@ -118,7 +127,7 @@ def collect_config_metrics(**kwargs) -> dict[str, Any]:
         dict: Task result with collected configuration data
     """
     if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error="metrics-utility is not available")
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_config_metrics", "processing", "Collecting configuration metrics")
 
@@ -166,7 +175,7 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
         dict: Task result with collected job host summary data
     """
     if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error="metrics-utility is not available")
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_job_host_summary", "processing", "Collecting job host summary metrics")
 
@@ -215,7 +224,7 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
         dict: Task result with collected host metrics data
     """
     if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error="metrics-utility is not available")
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_host_metrics", "processing", "Collecting host metrics")
 
@@ -265,7 +274,7 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
         dict: Task result with all collected metrics data
     """
     if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error="metrics-utility is not available")
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_all_metrics", "processing", "Collecting all metrics")
 
@@ -886,60 +895,60 @@ TASK_METADATA = {
         "examples": [{"name": "Execute task by ID", "data": {"task_id": 123}}],
     },
     "collect_anonymous_metrics": {
-        "category": "Metrics Collection",
+        "category": LABEL_METRICS_COLLECTION,
         "description": "Collect anonymous system metrics without exposing sensitive information",
         "parameters": {
-            "db": {"type": "string", "description": "Database connection string (optional)"},
-            "since": {"type": "string", "description": "Start date for collection (ISO format)", "pattern": "datetime"},
-            "until": {"type": "string", "description": "End date for collection (ISO format)", "pattern": "datetime"},
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
             "custom_params": {"type": "object", "description": "Additional custom parameters for collection"},
         },
         "examples": [
             {"name": "Basic anonymous collection", "data": {}},
             {
                 "name": "Date range collection",
-                "data": {"since": "2024-01-01T00:00:00Z", "until": "2024-01-02T00:00:00Z"},
+                "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"},
             },
         ],
     },
     "collect_config_metrics": {
-        "category": "Metrics Collection",
+        "category": LABEL_METRICS_COLLECTION,
         "description": "Collect system configuration information and metadata",
         "parameters": {"db": {"type": "string", "description": "Database connection string (optional)"}},
         "examples": [{"name": "Collect configuration", "data": {}}],
     },
     "collect_job_host_summary": {
-        "category": "Metrics Collection",
+        "category": LABEL_METRICS_COLLECTION,
         "description": "Collect job execution statistics and host performance data",
         "parameters": {
-            "db": {"type": "string", "description": "Database connection string (optional)"},
-            "since": {"type": "string", "description": "Start date for collection (ISO format)", "pattern": "datetime"},
-            "until": {"type": "string", "description": "End date for collection (ISO format)", "pattern": "datetime"},
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
         },
         "examples": [
             {"name": "Current job summary", "data": {}},
-            {"name": "Weekly job summary", "data": {"since": "2024-01-01T00:00:00Z", "until": "2024-01-08T00:00:00Z"}},
+            {"name": "Weekly job summary", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-08T00:00:00Z"}},
         ],
     },
     "collect_host_metrics": {
-        "category": "Metrics Collection",
+        "category": LABEL_METRICS_COLLECTION,
         "description": "Collect host performance and system metrics",
         "parameters": {
-            "db": {"type": "string", "description": "Database connection string (optional)"},
-            "since": {"type": "string", "description": "Start date for collection (ISO format)", "pattern": "datetime"},
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
         },
         "examples": [
             {"name": "Current host metrics", "data": {}},
-            {"name": "Historical host metrics", "data": {"since": "2024-01-01T00:00:00Z"}},
+            {"name": "Historical host metrics", "data": {"since": EXAMPLE_START_DATE}},
         ],
     },
     "collect_all_metrics": {
-        "category": "Metrics Collection",
+        "category": LABEL_METRICS_COLLECTION,
         "description": "Run multiple collectors in sequence to gather comprehensive metrics",
         "parameters": {
-            "db": {"type": "string", "description": "Database connection string (optional)"},
-            "since": {"type": "string", "description": "Start date for collection (ISO format)", "pattern": "datetime"},
-            "until": {"type": "string", "description": "End date for collection (ISO format)", "pattern": "datetime"},
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
             "collectors": {
                 "type": "array",
                 "default": ["anonymous", "config", "host_metric"],
@@ -953,7 +962,7 @@ TASK_METADATA = {
             {
                 "name": "Full metrics with date range",
                 "data": {
-                    "since": "2024-01-01T00:00:00Z",
+                    "since": EXAMPLE_START_DATE,
                     "until": "2024-01-02T00:00:00Z",
                     "collectors": ["anonymous", "config", "host_metric"],
                 },
@@ -1090,5 +1099,5 @@ def get_system_task_info() -> dict[str, Any]:
     return {
         "system_tasks": task_info,
         "total_count": len(task_info),
-        "categories": list(set(task["category"] for task in task_info)),
+        "categories": list({task["category"] for task in task_info}),
     }
