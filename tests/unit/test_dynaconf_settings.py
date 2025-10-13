@@ -9,9 +9,6 @@ import os
 from pathlib import Path
 from unittest import mock
 
-import pytest
-from dynaconf.validator import ValidationError
-
 # Set a valid SECRET_KEY for test module import
 # This allows Django settings to load without validation errors
 os.environ.setdefault("METRICS_SERVICE_SECRET_KEY", "test-secret-key-for-dynaconf-tests")
@@ -30,7 +27,7 @@ class TestDynaconfPrecedence:
         from django.conf import settings
 
         # The test SECRET_KEY should be loaded from environment
-        assert settings.SECRET_KEY == "test-secret-key-for-dynaconf-tests"
+        assert settings.SECRET_KEY == "test-secret-key-for-dynaconf-tests"  # noqa: S105
 
     def test_dynaconf_can_read_env_vars(self):
         """Test that Dynaconf can read environment variables via load_envvars."""

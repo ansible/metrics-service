@@ -168,4 +168,3 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
             return Response({"message": "Configuration reloaded successfully"}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
