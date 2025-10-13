@@ -279,7 +279,7 @@ kubernetes==34.1.0 \
     --hash=sha256:8fe8edb0b5d290a2f3ac06596b23f87c658977d46b5f8df9d0f4ea83d0003912 \
     --hash=sha256:bffba2272534e224e6a7a74d582deb0b545b7c9879d2cd9e4aae9481d1f2cc2a
     # via metrics-utility
-metrics-utility @ git+https://github.com/ansible/metrics-utility.git@3b28731ee3527ea05e119e587d4ecaf6b9f34169
+metrics-utility @ git+https://github.com/ansible/metrics-utility.git@c79c3374e5ae93e03fcf2d30ccc1048ceca06619
     # via metrics-service
 numpy==2.3.3 \
     --hash=sha256:067e3d7159a5d8f8a0b46ee11148fc35ca9b21f61e3c49fbd0a027450e65a33b \

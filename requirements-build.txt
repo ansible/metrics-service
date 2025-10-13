@@ -162,7 +162,7 @@ kubernetes==34.1.0
     # via
     #   -r requirements-pinned.txt
     #   metrics-utility
-metrics-utility @ git+https://github.com/ansible/metrics-utility.git@devel
+metrics-utility @ git+https://github.com/ansible/metrics-utility.git@c79c3374e5ae93e03fcf2d30ccc1048ceca06619
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
