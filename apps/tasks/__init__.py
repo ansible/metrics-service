@@ -2,6 +2,6 @@
 Tasks module for background task processing.
 """
 
-from .tasks import TaskScheduler, process_user_data
+from .tasks import process_user_data
 
-__all__ = ["TaskScheduler", "process_user_data"]
+__all__ = ["process_user_data"]

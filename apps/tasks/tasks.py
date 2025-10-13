@@ -10,19 +10,7 @@ import os
 import time
 from typing import Any
 
-from django.db import transaction
 from django.utils import timezone
-
-try:
-    from dispatcherd.publish import task
-except ImportError:
-
-    def task():
-        def decorator(func):
-            return func
-
-        return decorator
-
 
 from .utils import (
     create_task_result,
@@ -36,6 +24,305 @@ from .utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Constants for repeated strings
+MSG_METRICS_UTILITY_NOT_AVAILABLE = "metrics-utility is not available"
+LABEL_METRICS_COLLECTION = "Metrics Collection"
+LABEL_DB_CONNECTION = "Database connection string (optional)"
+LABEL_START_DATE = "Start date for collection (ISO format)"
+LABEL_END_DATE = "End date for collection (ISO format)"
+EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
+
+# Import metrics-utility collectors
+try:
+    from metrics_utility.library.collectors import (
+        anonymous,
+        config,
+        host_metric,
+        job_host_summary,
+    )
+
+    METRICS_UTILITY_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"metrics-utility not available: {e}")
+    METRICS_UTILITY_AVAILABLE = False
+
+try:
+    from dispatcherd.publish import task
+except ImportError:
+
+    def task():
+        def decorator(func):
+            return func
+
+        return decorator
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_anonymous_metrics")
+def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
+    """
+    Collect anonymous metrics using metrics-utility library.
+
+    This task uses the anonymous collector from metrics-utility to gather
+    anonymous system metrics without exposing sensitive information.
+
+    Args:
+        **kwargs: Task data containing collection parameters:
+            - db (str): Database connection string (optional)
+            - since (str): Start date for collection (optional)
+            - until (str): End date for collection (optional)
+            - custom_params (dict): Additional custom parameters (optional)
+
+    Returns:
+        dict: Task result with collected metrics data
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    log_task_execution("collect_anonymous_metrics", "processing", "Collecting anonymous metrics")
+
+    try:
+        # Get parameters from kwargs
+        db = kwargs.get("db")
+        since = kwargs.get("since")
+        until = kwargs.get("until")
+        custom_params = kwargs.get("custom_params")
+
+        # Create collector instance
+        collector = anonymous(db=db, since=since, until=until, custom_params=custom_params)
+
+        # Gather data
+        metrics_data = collector.gather()
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_anonymous_metrics",
+                "metrics_data": metrics_data,
+                "collector_type": "anonymous",
+                "parameters_used": {"db": db, "since": since, "until": until, "custom_params": custom_params},
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_anonymous_metrics: {str(e)}")
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_config_metrics")
+def collect_config_metrics(**kwargs) -> dict[str, Any]:
+    """
+    Collect configuration metrics using metrics-utility library.
+
+    This task uses the config collector from metrics-utility to gather
+    system configuration information.
+
+    Args:
+        **kwargs: Task data containing collection parameters:
+            - db (str): Database connection string (optional)
+
+    Returns:
+        dict: Task result with collected configuration data
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    log_task_execution("collect_config_metrics", "processing", "Collecting configuration metrics")
+
+    try:
+        # Get parameters from kwargs
+        db = kwargs.get("db")
+
+        # Create collector instance
+        collector = config(db=db)
+
+        # Gather data
+        config_data = collector.gather()
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_config_metrics",
+                "config_data": config_data,
+                "collector_type": "config",
+                "parameters_used": {"db": db},
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_config_metrics: {str(e)}")
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_job_host_summary")
+def collect_job_host_summary(**kwargs) -> dict[str, Any]:
+    """
+    Collect job host summary metrics using metrics-utility library.
+
+    This task uses the job_host_summary collector from metrics-utility to gather
+    job execution statistics and host performance data.
+
+    Args:
+        **kwargs: Task data containing collection parameters:
+            - db (str): Database connection string (optional)
+            - since (str): Start date for collection (optional)
+            - until (str): End date for collection (optional)
+
+    Returns:
+        dict: Task result with collected job host summary data
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    log_task_execution("collect_job_host_summary", "processing", "Collecting job host summary metrics")
+
+    try:
+        # Get parameters from kwargs
+        db = kwargs.get("db")
+        since = kwargs.get("since")
+        until = kwargs.get("until")
+
+        # Create collector instance
+        collector = job_host_summary(db=db, since=since, until=until)
+
+        # Gather data
+        summary_data = collector.gather()
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_job_host_summary",
+                "summary_data": summary_data,
+                "collector_type": "job_host_summary",
+                "parameters_used": {"db": db, "since": since, "until": until},
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_job_host_summary: {str(e)}")
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_host_metrics")
+def collect_host_metrics(**kwargs) -> dict[str, Any]:
+    """
+    Collect host metrics using metrics-utility library.
+
+    This task uses the host_metric collector from metrics-utility to gather
+    host performance and system metrics.
+
+    Args:
+        **kwargs: Task data containing collection parameters:
+            - db (str): Database connection string (optional)
+            - since (str): Start date for collection (optional)
+
+    Returns:
+        dict: Task result with collected host metrics data
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    log_task_execution("collect_host_metrics", "processing", "Collecting host metrics")
+
+    try:
+        # Get parameters from kwargs
+        db = kwargs.get("db")
+        since = kwargs.get("since")
+
+        # Create collector instance
+        collector = host_metric(db=db, since=since)
+
+        # Gather data
+        host_data = collector.gather()
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_host_metrics",
+                "host_data": host_data,
+                "collector_type": "host_metric",
+                "parameters_used": {"db": db, "since": since},
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_host_metrics: {str(e)}")
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_all_metrics")
+def collect_all_metrics(**kwargs) -> dict[str, Any]:
+    """
+    Collect all available metrics using multiple collectors.
+
+    This task runs multiple collectors in sequence to gather comprehensive
+    metrics data from the system.
+
+    Args:
+        **kwargs: Task data containing collection parameters:
+            - db (str): Database connection string (optional)
+            - since (str): Start date for collection (optional)
+            - until (str): End date for collection (optional)
+            - collectors (list): List of specific collectors to run (optional)
+
+    Returns:
+        dict: Task result with all collected metrics data
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    log_task_execution("collect_all_metrics", "processing", "Collecting all metrics")
+
+    try:
+        # Get parameters from kwargs
+        db = kwargs.get("db")
+        since = kwargs.get("since")
+        until = kwargs.get("until")
+        collectors_list = kwargs.get("collectors", ["anonymous", "config", "host_metric"])
+
+        all_results = {}
+
+        # Run each requested collector
+        for collector_name in collectors_list:
+            try:
+                if collector_name == "anonymous":
+                    collector_instance = anonymous(db=db, since=since, until=until)
+                elif collector_name == "config":
+                    collector_instance = config(db=db)
+                elif collector_name == "job_host_summary":
+                    collector_instance = job_host_summary(db=db, since=since, until=until)
+                elif collector_name == "host_metric":
+                    collector_instance = host_metric(db=db, since=since)
+                else:
+                    logger.warning(f"Unknown collector: {collector_name}")
+                    continue
+
+                # Gather data from this collector
+                collector_data = collector_instance.gather()
+                all_results[collector_name] = collector_data
+
+            except Exception as e:
+                logger.error(f"Error running collector {collector_name}: {str(e)}")
+                all_results[collector_name] = {"error": str(e)}
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_all_metrics",
+                "all_results": all_results,
+                "collectors_run": collectors_list,
+                "parameters_used": {"db": db, "since": since, "until": until},
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_all_metrics: {str(e)}")
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
 
 
 @task(queue="metrics_tasks", decorate=False)
@@ -83,6 +370,121 @@ def sleep(duration: int = 10) -> dict[str, Any]:
             "task_type": "sleep",
             "duration": duration,
             "completed": True,
+        },
+    )
+
+
+@task(queue="metrics_cleanup", decorate=False)
+@task_execution_wrapper("cleanup_old_tasks")
+def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
+    """
+    Clean up old completed and failed tasks from the database.
+
+    This task removes tasks that have been completed or failed for more than
+    the specified number of days. This helps maintain database performance
+    and prevents unlimited growth of task history.
+
+    IMPORTANT: Recurring tasks are automatically preserved and will NOT be deleted,
+    regardless of their age, to ensure scheduled tasks continue to function.
+
+    Args:
+        **kwargs: Task data containing cleanup parameters:
+            - days_old (int): Number of days old tasks should be to qualify for cleanup (default: 5)
+            - dry_run (bool): If True, only count tasks that would be deleted (default: False)
+            - include_executions (bool): Also cleanup related TaskExecution records (default: True)
+            - preserve_recurring (bool): If True, exclude recurring tasks from cleanup (default: True)
+
+    Returns:
+        dict: Task result dictionary with cleanup statistics
+    """
+    days_old = kwargs.get("days_old", 5)
+    dry_run = kwargs.get("dry_run", False)
+    include_executions = kwargs.get("include_executions", True)
+    preserve_recurring = kwargs.get("preserve_recurring", True)
+
+    log_task_execution("cleanup_old_tasks", "processing", f"Cleaning up tasks older than {days_old} days")
+
+    from datetime import timedelta
+
+    from .models import Task, TaskExecution
+
+    # Calculate cutoff date
+    cutoff_date = timezone.now() - timedelta(days=days_old)
+
+    # Find tasks that are completed or failed and older than cutoff date
+    # Use completed_at if available, otherwise fall back to modified date
+    old_tasks_filter = {
+        "status__in": ["completed", "failed"],
+        "completed_at__lt": cutoff_date,
+        "completed_at__isnull": False,
+    }
+
+    # Exclude recurring tasks if preserve_recurring is True (default)
+    if preserve_recurring:
+        old_tasks_filter["is_recurring"] = False
+
+    old_tasks = Task.objects.filter(**old_tasks_filter)
+
+    # Also include tasks that don't have completed_at but are old based on modified date
+    old_tasks_fallback_filter = {
+        "status__in": ["completed", "failed"],
+        "completed_at__isnull": True,
+        "modified__lt": cutoff_date,
+    }
+
+    # Exclude recurring tasks if preserve_recurring is True (default)
+    if preserve_recurring:
+        old_tasks_fallback_filter["is_recurring"] = False
+
+    old_tasks_fallback = Task.objects.filter(**old_tasks_fallback_filter)
+
+    # Combine querysets
+    old_tasks = old_tasks | old_tasks_fallback
+
+    task_count = old_tasks.count()
+    execution_count = 0
+
+    if include_executions:
+        # Count related executions
+        execution_count = TaskExecution.objects.filter(task__in=old_tasks).count()
+
+    deleted_tasks = 0
+    deleted_executions = 0
+
+    if not dry_run and task_count > 0:
+        log_task_execution("cleanup_old_tasks", "processing", f"Deleting {task_count} old tasks")
+
+        if include_executions:
+            # Delete executions first (foreign key constraint)
+            deleted_executions, _ = TaskExecution.objects.filter(task__in=old_tasks).delete()
+            deleted_executions = deleted_executions - task_count  # Subtract the task count to get just executions
+
+        # Delete the tasks
+        deleted_tasks, _ = old_tasks.delete()
+        deleted_tasks = deleted_tasks - deleted_executions  # Get just the task count
+
+        message = f"Deleted {deleted_tasks} tasks and {deleted_executions} executions"
+        if preserve_recurring:
+            message += " (recurring tasks preserved)"
+        log_task_execution("cleanup_old_tasks", "completed", message)
+    else:
+        message = f"Found {task_count} tasks and {execution_count} executions that would be deleted"
+        if preserve_recurring:
+            message += " (recurring tasks preserved)"
+        log_task_execution("cleanup_old_tasks", "completed", message)
+
+    return create_task_result(
+        "success",
+        {
+            "days_old": days_old,
+            "cutoff_date": cutoff_date.isoformat(),
+            "dry_run": dry_run,
+            "include_executions": include_executions,
+            "preserve_recurring": preserve_recurring,
+            "tasks_found": task_count,
+            "executions_found": execution_count,
+            "tasks_deleted": deleted_tasks,
+            "executions_deleted": deleted_executions,
         },
     )
 
@@ -189,7 +591,6 @@ def process_user_data(**kwargs) -> dict[str, Any]:
     operation = kwargs.get("operation", "sync")
 
     from django.contrib.auth import get_user_model
-    from django.utils import timezone
 
     # Handle hello_world operation without requiring user_id
     if operation == "hello_world":
@@ -306,14 +707,27 @@ def submit_task_to_dispatcher(task: Any) -> None:
         # Create execution record
         TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
 
-        # Submit to dispatcher using the existing dispatcherd system
-        # This assumes dispatcherd is running and can handle the execute_db_task function
+        # Ensure dispatcherd is configured before attempting to submit tasks
+        from .dispatcherd_config import ensure_dispatcherd_configured
+
+        ensure_dispatcherd_configured()
+
+        # Import dispatcherd submit function
+        from dispatcherd.publish import submit_task
+
+        # Determine the appropriate queue based on task type
+        from .dispatcherd_config import get_queue_for_function
+
+        queue = get_queue_for_function(task.function_name)
+
+        # Submit to dispatcherd using execute_db_task as the entry point
+        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
         # Update task status to indicate it's been submitted
         task.status = "pending"
         task.save()
 
-        logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher")
+        logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 
     except Exception as e:
         logger.error(f"Error submitting task to dispatcher: {str(e)}")
@@ -322,160 +736,368 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.save()
 
 
-class TaskScheduler:
-    """
-    Task scheduler that moves pending tasks from the database to the dispatcher queue.
-
-    This scheduler polls the database for pending tasks and publishes them to
-    the appropriate dispatcherd queue for execution.
-    """
-
-    def __init__(self, poll_interval: int = 30):
-        """
-        Initialize the task scheduler.
-
-        Args:
-            poll_interval: How often to check for pending tasks (in seconds)
-        """
-        self.poll_interval = poll_interval
-        self.running = False
-
-    def start(self):
-        """Start the task scheduler main loop."""
-        self.running = True
-        logger.info(f"Task scheduler started with {self.poll_interval}s poll interval")
-
-        while self.running:
-            try:
-                self.process_pending_tasks()
-                time.sleep(self.poll_interval)
-            except Exception as e:
-                logger.error(f"Error in task scheduler: {str(e)}")
-                time.sleep(self.poll_interval)
-
-    def stop(self):
-        """Stop the task scheduler."""
-        self.running = False
-        logger.info("Task scheduler stopped")
-
-    def process_pending_tasks(self):
-        """Process all pending tasks and publish them to dispatcher queues."""
-        try:
-            from django.db.models import Q
-
-            from .models import Task
-
-            # Get all pending tasks that are ready to run
-            # Include tasks with no scheduled_time (immediate execution) and tasks whose time has come
-            with transaction.atomic():
-                pending_tasks = Task.objects.filter(status="pending").filter(
-                    Q(scheduled_time__isnull=True) | Q(scheduled_time__lte=timezone.now())
-                )
-
-                if not pending_tasks.exists():
-                    return
-
-                logger.info(f"Found {pending_tasks.count()} pending tasks ready for execution")
-
-                for task in pending_tasks:
-                    try:
-                        # Lock this specific task for update
-                        locked_task = Task.objects.select_for_update().get(id=task.id, status="pending")
-                        self.publish_task(locked_task)
-                    except Task.DoesNotExist:
-                        # Task was already processed by another worker
-                        logger.debug(f"Task {task.id} already processed")
-                        continue
-                    except Exception as e:
-                        logger.error(f"Failed to publish task {task.id}: {str(e)}")
-                        # Mark task as failed if we can't publish it
-                        try:
-                            failed_task = Task.objects.get(id=task.id)
-                            failed_task.status = "failed"
-                            failed_task.error_message = f"Failed to publish to dispatcher: {str(e)}"
-                            failed_task.completed_at = timezone.now()
-                            failed_task.save()
-                        except Exception as save_error:
-                            logger.error(f"Failed to mark task {task.id} as failed: {str(save_error)}")
-
-        except Exception as e:
-            logger.error(f"Error processing pending tasks: {str(e)}")
-            import traceback
-
-            logger.error(f"Traceback: {traceback.format_exc()}")
-
-    def publish_task(self, task):
-        """
-        Publish a single task to the appropriate dispatcher queue.
-
-        Args:
-            task: Task instance to publish
-        """
-        try:
-            # Import dispatcherd submit function
-            from dispatcherd.publish import submit_task
-
-            # Determine the appropriate queue based on task type
-            queue = self.get_queue_for_task(task)
-
-            # Prepare task data for the function
-            function_data = task.task_data.copy() if task.task_data else {}
-            function_data["task_id"] = task.id
-
-            # Update task status to running
-            task.status = "running"
-            task.started_at = timezone.now()
-            task.save()
-
-            # Submit to dispatcher
-            # Always use execute_db_task as the entry point to ensure proper execution pipeline
-            if task.function_name not in TASK_FUNCTIONS:
-                raise ValueError(f"Unknown task function: {task.function_name}")
-
-            # Use execute_db_task as the entry point for all tasks
-            task_func = TASK_FUNCTIONS["execute_db_task"]
-
-            # Submit the task with task_id as the main parameter
-            submit_task(task_func, kwargs={"task_id": task.id}, queue=queue)
-
-            logger.info(f"Submitted task {task.id} ({task.function_name}) to queue {queue}")
-
-        except Exception as e:
-            logger.error(f"Failed to submit task {task.id}: {str(e)}")
-            # Roll back the status change
-            task.status = "pending"
-            task.started_at = None
-            task.save()
-            raise
-
-    def get_queue_for_task(self, task):
-        """
-        Determine the appropriate queue for a task based on its function.
-
-        Args:
-            task: Task instance
-
-        Returns:
-            str: Queue name
-        """
-        # Map function names to queues
-        queue_mapping = {
-            "hello_world": "metrics_tasks",
-            "cleanup_old_data": "metrics_cleanup",
-            "send_notification_email": "metrics_notifications",
-            "process_user_data": "metrics_tasks",
-            "execute_db_task": "metrics_tasks",
-        }
-
-        return queue_mapping.get(task.function_name, "metrics_tasks")
+# DEPRECATED: TaskScheduler class removed
+# Functionality moved to SimpleTaskScheduler in simple_scheduler.py
 
 
 # Task configuration for dispatcherd
 TASK_FUNCTIONS = {
     "hello_world": hello_world,
     "cleanup_old_data": cleanup_old_data,
+    "cleanup_old_tasks": cleanup_old_tasks,
     "send_notification_email": send_notification_email,
     "process_user_data": process_user_data,
     "execute_db_task": execute_db_task,
     "sleep": sleep,
+    "collect_anonymous_metrics": collect_anonymous_metrics,
+    "collect_config_metrics": collect_config_metrics,
+    "collect_job_host_summary": collect_job_host_summary,
+    "collect_host_metrics": collect_host_metrics,
+    "collect_all_metrics": collect_all_metrics,
 }
+
+# Enhanced task metadata for dashboard display
+TASK_METADATA = {
+    "hello_world": {
+        "category": "Testing",
+        "description": "Simple hello world task for testing the dispatcherd integration",
+        "parameters": {},
+        "examples": [{"name": "Basic Hello World", "data": {}}],
+    },
+    "sleep": {
+        "category": "Testing",
+        "description": "Sleep for a specified number of seconds (useful for testing)",
+        "parameters": {
+            "duration": {
+                "type": "integer",
+                "default": 10,
+                "description": "Number of seconds to sleep",
+                "min": 1,
+                "max": 300,
+            }
+        },
+        "examples": [
+            {"name": "Sleep 10 seconds", "data": {"duration": 10}},
+            {"name": "Sleep 30 seconds", "data": {"duration": 30}},
+        ],
+    },
+    "cleanup_old_data": {
+        "category": "Maintenance",
+        "description": "Clean up old data from the system based on age criteria",
+        "parameters": {
+            "days_old": {
+                "type": "integer",
+                "default": 30,
+                "description": "Number of days old data should be to qualify for cleanup",
+                "min": 1,
+                "max": 365,
+            },
+            "data_types": {
+                "type": "array",
+                "default": ["default"],
+                "description": "List of data types to clean up",
+                "items": ["logs", "temp_files", "cache", "default"],
+            },
+        },
+        "examples": [
+            {"name": "Cleanup 30 day old data", "data": {"days_old": 30}},
+            {"name": "Cleanup logs older than 7 days", "data": {"days_old": 7, "data_types": ["logs"]}},
+        ],
+    },
+    "cleanup_old_tasks": {
+        "category": "Maintenance",
+        "description": "Clean up old completed and failed tasks (preserves recurring tasks by default)",
+        "parameters": {
+            "days_old": {
+                "type": "integer",
+                "default": 5,
+                "description": "Number of days old tasks should be to qualify for cleanup",
+                "min": 1,
+                "max": 365,
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "If true, only count tasks that would be deleted without actually deleting",
+            },
+            "include_executions": {
+                "type": "boolean",
+                "default": True,
+                "description": "Also cleanup related TaskExecution records",
+            },
+            "preserve_recurring": {
+                "type": "boolean",
+                "default": True,
+                "description": "If true, exclude recurring tasks from cleanup (recommended)",
+            },
+        },
+        "examples": [
+            {"name": "Standard cleanup (5 days)", "data": {"days_old": 5}},
+            {"name": "Test cleanup (dry run)", "data": {"days_old": 7, "dry_run": True}},
+            {"name": "Conservative cleanup", "data": {"days_old": 10, "include_executions": False}},
+        ],
+    },
+    "send_notification_email": {
+        "category": "Communication",
+        "description": "Send notification email to specified recipients",
+        "parameters": {
+            "recipient": {
+                "type": "string",
+                "required": True,
+                "description": "Email address of the recipient",
+                "pattern": "email",
+            },
+            "subject": {"type": "string", "default": "Notification", "description": "Email subject line"},
+            "message": {"type": "string", "default": "", "description": "Email message body"},
+            "html_message": {"type": "string", "description": "Optional HTML version of the message"},
+        },
+        "examples": [
+            {
+                "name": "Basic notification",
+                "data": {
+                    "recipient": "admin@example.com",
+                    "subject": "System Alert",
+                    "message": "System maintenance completed",
+                },
+            },
+            {
+                "name": "Custom message",
+                "data": {"recipient": "user@example.com", "subject": "Welcome", "message": "Welcome to our service!"},
+            },
+        ],
+    },
+    "process_user_data": {
+        "category": "Data Processing",
+        "description": "Process user data in the background with various operations",
+        "parameters": {
+            "user_id": {"type": "integer", "description": "ID of the user to process (required for most operations)"},
+            "operation": {
+                "type": "string",
+                "default": "sync",
+                "description": "Type of operation to perform",
+                "choices": ["sync", "validate", "hello_world"],
+            },
+            "message": {"type": "string", "description": "Custom message for hello_world operation"},
+        },
+        "examples": [
+            {"name": "Hello World", "data": {"operation": "hello_world", "message": "Hello from the system!"}},
+            {"name": "Sync user data", "data": {"user_id": 1, "operation": "sync"}},
+            {"name": "Validate user", "data": {"user_id": 1, "operation": "validate"}},
+        ],
+    },
+    "execute_db_task": {
+        "category": "System",
+        "description": "Execute a database-defined task with comprehensive lifecycle management",
+        "parameters": {
+            "task_id": {"type": "integer", "required": True, "description": "ID of the task to execute"},
+            "execution_id": {"type": "integer", "description": "ID of the execution record (optional)"},
+        },
+        "examples": [{"name": "Execute task by ID", "data": {"task_id": 123}}],
+    },
+    "collect_anonymous_metrics": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Collect anonymous system metrics without exposing sensitive information",
+        "parameters": {
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "custom_params": {"type": "object", "description": "Additional custom parameters for collection"},
+        },
+        "examples": [
+            {"name": "Basic anonymous collection", "data": {}},
+            {
+                "name": "Date range collection",
+                "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"},
+            },
+        ],
+    },
+    "collect_config_metrics": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Collect system configuration information and metadata",
+        "parameters": {"db": {"type": "string", "description": "Database connection string (optional)"}},
+        "examples": [{"name": "Collect configuration", "data": {}}],
+    },
+    "collect_job_host_summary": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Collect job execution statistics and host performance data",
+        "parameters": {
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+        },
+        "examples": [
+            {"name": "Current job summary", "data": {}},
+            {"name": "Weekly job summary", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-08T00:00:00Z"}},
+        ],
+    },
+    "collect_host_metrics": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Collect host performance and system metrics",
+        "parameters": {
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+        },
+        "examples": [
+            {"name": "Current host metrics", "data": {}},
+            {"name": "Historical host metrics", "data": {"since": EXAMPLE_START_DATE}},
+        ],
+    },
+    "collect_all_metrics": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Run multiple collectors in sequence to gather comprehensive metrics",
+        "parameters": {
+            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "collectors": {
+                "type": "array",
+                "default": ["anonymous", "config", "host_metric"],
+                "description": "List of specific collectors to run",
+                "items": ["anonymous", "config", "job_host_summary", "host_metric"],
+            },
+        },
+        "examples": [
+            {"name": "All default collectors", "data": {}},
+            {"name": "Specific collectors", "data": {"collectors": ["anonymous", "config"]}},
+            {
+                "name": "Full metrics with date range",
+                "data": {
+                    "since": EXAMPLE_START_DATE,
+                    "until": "2024-01-02T00:00:00Z",
+                    "collectors": ["anonymous", "config", "host_metric"],
+                },
+            },
+        ],
+    },
+}
+
+# System-defined tasks are now handled by APScheduler cron scheduler only
+# Database-backed recurring tasks are disabled to avoid double scheduling
+# All recurring tasks are managed in apps/tasks/cron_scheduler.py
+SYSTEM_TASKS = [
+    # Database-backed system tasks disabled - use APScheduler instead
+    # See apps/tasks/cron_scheduler.py for all recurring task definitions
+]
+
+
+def create_system_tasks() -> dict[str, Any]:
+    """
+    Create or update system-defined tasks on startup.
+
+    This function ensures that essential system tasks like cleanup and metrics
+    collection are always present and properly configured. It creates new tasks
+    or updates existing ones based on the SYSTEM_TASKS configuration.
+
+    Returns:
+        dict: Summary of tasks created, updated, and skipped
+    """
+    try:
+        from .models import Task
+    except ImportError:
+        # Handle case where Django isn't fully set up yet
+        return {"error": "Django not ready", "created": 0, "updated": 0, "skipped": 0}
+
+    results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
+
+    for system_task_config in SYSTEM_TASKS:
+        if not system_task_config.get("is_enabled", True):
+            results["skipped"] += 1
+            continue
+
+        try:
+            _process_system_task(system_task_config, results, Task)
+        except Exception as e:
+            results["tasks"].append(f"Error with {system_task_config['name']}: {str(e)}")
+
+    return results
+
+
+def _process_system_task(system_task_config: dict[str, Any], results: dict[str, Any], task_model) -> None:
+    """Process a single system task configuration."""
+    existing_task = task_model.objects.filter(
+        name=system_task_config["name"], function_name=system_task_config["function_name"], is_system_task=True
+    ).first()
+
+    if existing_task:
+        _update_existing_system_task(existing_task, system_task_config, results)
+    else:
+        _create_new_system_task(system_task_config, results, task_model)
+
+
+def _update_existing_system_task(existing_task, system_task_config: dict[str, Any], results: dict[str, Any]) -> None:
+    """Update an existing system task if configuration has changed."""
+    updated = False
+
+    # Check each field for changes
+    for field, config_key in [
+        ("task_data", "task_data"),
+        ("cron_expression", "cron_expression"),
+        ("priority", "priority"),
+        ("description", "description"),
+    ]:
+        if getattr(existing_task, field) != system_task_config[config_key]:
+            setattr(existing_task, field, system_task_config[config_key])
+            updated = True
+
+    if updated:
+        existing_task.save()
+        results["updated"] += 1
+        results["tasks"].append(f"Updated: {existing_task.name}")
+    else:
+        results["skipped"] += 1
+        results["tasks"].append(f"Skipped: {existing_task.name} (no changes)")
+
+
+def _create_new_system_task(system_task_config: dict[str, Any], results: dict[str, Any], task_model) -> None:
+    """Create a new system task."""
+    new_task = task_model.objects.create(
+        name=system_task_config["name"],
+        description=system_task_config["description"],
+        function_name=system_task_config["function_name"],
+        task_data=system_task_config["task_data"],
+        cron_expression=system_task_config["cron_expression"],
+        is_recurring=system_task_config["is_recurring"],
+        priority=system_task_config["priority"],
+        is_system_task=True,
+        status="pending",
+    )
+    results["created"] += 1
+    results["tasks"].append(f"Created: {new_task.name}")
+
+
+def get_system_task_info() -> dict[str, Any]:
+    """
+    Get information about system tasks for display purposes.
+
+    Returns:
+        dict: Information about system tasks including their status and schedules
+    """
+    try:
+        from .models import Task
+    except ImportError:
+        return {"error": "Django not ready", "system_tasks": []}
+
+    system_tasks = Task.objects.filter(is_system_task=True).order_by("name")
+
+    task_info = []
+    for task in system_tasks:
+        info = {
+            "id": task.id,
+            "name": task.name,
+            "function_name": task.function_name,
+            "description": task.description,
+            "status": task.status,
+            "is_recurring": task.is_recurring,
+            "cron_expression": task.cron_expression,
+            "priority": task.priority,
+            "created": task.created.isoformat() if task.created else None,
+            "last_run": task.completed_at.isoformat() if task.completed_at else None,
+            "category": next((config["category"] for config in SYSTEM_TASKS if config["name"] == task.name), "unknown"),
+        }
+        task_info.append(info)
+
+    return {
+        "system_tasks": task_info,
+        "total_count": len(task_info),
+        "categories": list({task["category"] for task in task_info}),
+    }

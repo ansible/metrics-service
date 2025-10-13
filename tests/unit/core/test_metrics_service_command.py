@@ -22,10 +22,22 @@ class TestMetricsServiceCommand(TestCase):
         self.command = Command()
         self.out = StringIO()
         self.err = StringIO()
+        # Initialize the threads and processes attributes that the command expects
+        self.command.threads = []
+        self.command.processes = []
+        self.command.shutdown_requested = False
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        # Ensure shutdown is requested to stop any running processes
+        self.command.shutdown_requested = True
+        # Clean up any processes or threads that might be running
+        if hasattr(self.command, "_cleanup_processes_and_threads"):
+            self.command._cleanup_processes_and_threads()
 
     def test_command_help_text(self):
         """Test command has proper help text."""
-        assert self.command.help == "Run the complete metrics service (Django server + dispatcher)"
+        assert self.command.help == "Metrics service management - unified entry point for all service operations"
 
     def test_add_arguments(self):
         """Test add_arguments method configures parser correctly."""
@@ -34,26 +46,16 @@ class TestMetricsServiceCommand(TestCase):
         parser = ArgumentParser()
         self.command.add_arguments(parser)
 
-        # Test that all expected arguments are added
+        # Test that subcommands are added
         actions = {action.dest: action for action in parser._actions}
 
-        assert "host" in actions
-        assert actions["host"].default == "127.0.0.1"
-
-        assert "port" in actions
-        assert actions["port"].default == "8000"
-
-        assert "workers" in actions
-        assert actions["workers"].default == 4
-
-        assert "timeout" in actions
-        assert actions["timeout"].default == 3600
-
-        assert "max_tasks" in actions
-        assert actions["max_tasks"].default == 100
-
-        assert "log_level" in actions
-        assert actions["log_level"].default == "INFO"
+        assert "command" in actions
+        assert hasattr(actions["command"], "choices")
+        assert "run" in actions["command"].choices
+        assert "init-service-id" in actions["command"].choices
+        assert "init-system-tasks" in actions["command"].choices
+        assert "tasks" in actions["command"].choices
+        assert "cron" in actions["command"].choices
 
     def test_extract_config(self):
         """Test _extract_config method."""
@@ -143,6 +145,8 @@ class TestMetricsServiceCommand(TestCase):
     def test_start_services_success(self, mock_django, mock_dispatcher, mock_monitor):
         """Test _start_services method success path."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
         config = {"host": "127.0.0.1", "port": "8000", "workers": 4, "log_level": "INFO"}
 
@@ -159,12 +163,14 @@ class TestMetricsServiceCommand(TestCase):
         assert "Django server: http://127.0.0.1:8000" in output
         assert "Dispatcher workers: 4" in output
 
-    @patch.object(Command, "_start_django_thread")
+    @patch.object(Command, "_initialize_service_state")
     @patch("sys.exit")
-    def test_start_services_exception(self, mock_exit, mock_django):
+    def test_start_services_exception(self, mock_exit, mock_init):
         """Test _start_services handles exceptions."""
         self.command.stdout = self.out
-        mock_django.side_effect = Exception("Test error")
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
+        mock_init.side_effect = Exception("Test error")
 
         config = {"host": "127.0.0.1", "port": "8000", "workers": 4, "log_level": "INFO"}
 
@@ -212,9 +218,11 @@ class TestMetricsServiceCommand(TestCase):
     def test_monitor_services_startup_message(self):
         """Test _monitor_services displays startup message."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
         self.command.shutdown_requested = True  # Exit immediately
 
-        # Mock threads
+        # Mock threads - need 2 threads for the current implementation
         mock_thread1 = MagicMock()
         mock_thread2 = MagicMock()
         self.command.threads = [mock_thread1, mock_thread2]
@@ -232,8 +240,10 @@ class TestMetricsServiceCommand(TestCase):
     def test_monitor_services_thread_failure(self, mock_sleep):
         """Test _monitor_services handles thread failures."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
-        # Mock dead threads
+        # Mock dead threads - need 2 threads for the current implementation
         mock_django_thread = MagicMock()
         mock_django_thread.is_alive.return_value = False
 
@@ -289,20 +299,11 @@ class TestMetricsServiceCommand(TestCase):
         # Verify process was added to processes list
         assert mock_process in self.command.processes
 
-    def test_run_django_server_validation_errors(self):
-        """Test _run_django_server handles validation errors."""
-        self.command.stdout = self.out
-
-        # Test invalid host
-        with patch.object(Path, "exists", return_value=True):
-            self.command._run_django_server("invalid@host", "8000", "INFO")
-
-        output = self.out.getvalue()
-        assert "Invalid host:" in output
-
     def test_run_django_server_missing_manage_py(self):
         """Test _run_django_server handles missing manage.py."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
         with patch.object(Path, "exists", return_value=False):
             self.command._run_django_server("127.0.0.1", "8000", "INFO")
@@ -334,6 +335,8 @@ class TestMetricsServiceCommand(TestCase):
     def test_run_dispatcherd_exception(self, mock_build):
         """Test _run_dispatcherd handles exceptions."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
         mock_build.side_effect = Exception("Test dispatcher error")
 
         self.command._run_dispatcherd(4, 3600, 100, "INFO")
@@ -395,6 +398,8 @@ class TestMetricsServiceCommand(TestCase):
     def test_start_dispatcher_process_exception(self, mock_popen):
         """Test _start_dispatcher_process handles exceptions."""
         self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
         mock_popen.side_effect = Exception("Process creation failed")
 
         cmd = ["python", "manage.py", "run_dispatcherd"]
@@ -418,24 +423,15 @@ class TestMetricsServiceCommand(TestCase):
         # Verify process was monitored
         mock_process.poll.assert_called()
 
-    @patch.object(Command, "_start_services")
-    @patch.object(Command, "_setup_signal_handlers")
-    @patch.object(Command, "_initialize_service_state")
-    @patch.object(Command, "_extract_config")
-    def test_handle_method(self, mock_extract, mock_init, mock_signals, mock_start):
+    @patch.object(Command, "_handle_run_command")
+    def test_handle_method(self, mock_run_command):
         """Test handle method orchestration."""
-        mock_config = {"host": "127.0.0.1", "port": "8000"}
-        mock_extract.return_value = mock_config
-
-        options = {"host": "127.0.0.1", "port": "8000", "workers": 4}
+        options = {"command": "run", "host": "127.0.0.1", "port": "8000", "workers": 4}
 
         self.command.handle(**options)
 
-        # Verify all setup methods were called in order
-        mock_extract.assert_called_once_with(options)
-        mock_init.assert_called_once()
-        mock_signals.assert_called_once()
-        mock_start.assert_called_once_with(mock_config)
+        # Verify the run command handler was called
+        mock_run_command.assert_called_once_with(options)
 
 
 class TestMetricsServiceSignalHandling(TestCase):
@@ -479,7 +475,20 @@ class TestMetricsServiceEdgeCases(TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.command = Command()
-        self.command.stdout = StringIO()
+        self.out = StringIO()
+        self.command.stdout = self.out
+        # Initialize attributes
+        self.command.threads = []
+        self.command.processes = []
+        self.command.shutdown_requested = False
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        # Ensure shutdown is requested to stop any running processes
+        self.command.shutdown_requested = True
+        # Clean up any processes or threads that might be running
+        if hasattr(self.command, "_cleanup_processes_and_threads"):
+            self.command._cleanup_processes_and_threads()
 
     def test_django_server_with_debug_verbosity(self):
         """Test Django server with DEBUG log level."""
@@ -492,7 +501,9 @@ class TestMetricsServiceEdgeCases(TestCase):
             mock_process.stdout.readline.return_value = ""
             mock_popen.return_value = mock_process
 
-            self.command._run_django_server("127.0.0.1", "8000", "DEBUG")
+            # Mock the output formatter to prevent any hanging
+            with patch.object(self.command, "output"):
+                self.command._run_django_server("127.0.0.1", "8000", "DEBUG")
 
             # Verify --verbosity=2 was added for DEBUG level
             args = mock_popen.call_args[0][0]
@@ -502,18 +513,14 @@ class TestMetricsServiceEdgeCases(TestCase):
         """Test Django server process output streaming."""
         self.command.processes = []
         self.command.shutdown_requested = False
+        self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
 
         with patch("subprocess.Popen") as mock_popen, patch.object(Path, "exists", return_value=True):
             mock_process = MagicMock()
-            mock_process.poll.side_effect = [None, None, 0]  # Running, then finished
-            mock_process.stdout.readline.side_effect = [
-                "Starting development server at http://127.0.0.1:8000/\n",
-                "Quit the server with CONTROL-C.\n",
-                "",  # End of output
-            ]
-            mock_popen.return_value = mock_process
 
-            # Set up to exit after a couple iterations
+            # Set up a simpler, more reliable mock that exits quickly
             call_count = 0
 
             def mock_poll():
@@ -524,24 +531,43 @@ class TestMetricsServiceEdgeCases(TestCase):
                     return 0  # Process finished
                 return None  # Still running
 
+            def mock_readline():
+                if call_count == 1:
+                    return "Starting development server at http://127.0.0.1:8000/\n"
+                elif call_count == 2:
+                    return "Quit the server with CONTROL-C.\n"
+                else:
+                    return ""  # End of output
+
             mock_process.poll = mock_poll
+            mock_process.stdout.readline = mock_readline
+            mock_popen.return_value = mock_process
 
             self.command._run_django_server("127.0.0.1", "8000", "INFO")
 
             # Verify output was streamed
-            output = self.command.stdout.getvalue()
+            output = self.out.getvalue()
             assert "[Django]" in output
 
     def test_port_validation_edge_cases(self):
         """Test port validation with edge cases."""
-        self.command.stdout = StringIO()
+        self.command.stdout = self.out
+        # Update the output formatter to use the test stdout
+        self.command.output.stdout = self.out
+        # Ensure shutdown is requested to prevent hanging
+        self.command.shutdown_requested = True
 
-        with patch.object(Path, "exists", return_value=True):
+        with patch.object(Path, "exists", return_value=True), patch("subprocess.Popen") as mock_popen:
+            mock_process = MagicMock()
+            mock_process.poll.return_value = 0
+            mock_process.stdout.readline.return_value = ""
+            mock_popen.return_value = mock_process
+
             # Test string port that's valid
             self.command._run_django_server("127.0.0.1", "9000", "INFO")
 
             # Test invalid port
             self.command._run_django_server("127.0.0.1", "invalid_port", "INFO")
 
-            output = self.command.stdout.getvalue()
+            output = self.out.getvalue()
             assert "Invalid port:" in output

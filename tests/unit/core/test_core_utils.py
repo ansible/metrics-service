@@ -34,7 +34,7 @@ class CoreUtilsTestCase(TestCase):
         """Test handling of AttributeError."""
         mock_instance = Mock()
         # Configure mock to raise AttributeError when accessing the field
-        mock_instance.configure_mock(**{"nonexistent_field": Mock(side_effect=AttributeError)})
+        mock_instance.configure_mock(nonexistent_field=Mock(side_effect=AttributeError))
         del mock_instance.nonexistent_field  # Remove the attribute completely
 
         result = get_related_object_safely(mock_instance, "nonexistent_field", default="default_value")

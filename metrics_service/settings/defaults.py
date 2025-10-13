@@ -104,7 +104,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "5432"),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "55432"),
         "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
         "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
         "NAME": os.environ.get("METRICS_SERVICE_DB_NAME", "metrics_service"),
@@ -248,10 +248,12 @@ RESOURCE_SERVER_SYNC_ENABLED = False
 # Dispatcherd is always enabled in this service
 DISPATCHERD_ENABLED = True
 
-# # Feature Flags
-# FEATURE_FLAGS = {
-#     "DISPATCHERD_ENABLED": True,
-# }
+# Feature Flags
+FEATURE_FLAGS = {
+    "DISPATCHERD_ENABLED": True,
+    "ANONYMIZED_DATA_COLLECTION": os.environ.get("METRICS_SERVICE_ANONYMIZED_DATA", "true").lower() == "true",
+    "METRICS_COLLECTION_ENABLED": os.environ.get("METRICS_SERVICE_METRICS_COLLECTION", "false").lower() == "true",
+}
 
 # Cache Configuration
 # Use local memory cache

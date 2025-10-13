@@ -170,17 +170,7 @@ class SystemAuditorPermissionTests(APITestCase):
 
         # NOTE: Currently returns 404 due to DAB RBAC not recognizing system auditors
         # When proper RBAC is implemented, this should return 403
-        # Expected: self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        # Current behavior:
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    # def test_system_auditor_api_can_list_all_users(self):
-    #     """Test system auditor can list all users via API."""
-    #     self.client.force_authenticate(user=self.system_auditor)
-    #     url = reverse("api:v1:user-list")
-    #     response = self.client.get(url)
-
-    #     self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     #     # Should be able to see all users across organizations (including any from other tests)
     #     if "results" in response.data:
@@ -201,10 +191,7 @@ class SystemAuditorPermissionTests(APITestCase):
         """Test system auditor cannot create, update, or delete users."""
         self.client.force_authenticate(user=self.system_auditor)
 
-        # Cannot create users
-        url = reverse("api:v1:user-list")
-        data = {"username": "newuser", "email": "newuser@example.com", "password": "newpass123"}
-
+        # Cannot create users (documented behavior)
         # NOTE: This test currently causes a 500 error due to missing DAB settings
         # When RBAC is properly configured, this should return 403
         # For now, we'll skip the actual request that causes the error

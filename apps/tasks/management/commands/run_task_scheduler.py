@@ -1,106 +1,75 @@
 """
-Django management command to run the database task scheduler.
+Django management command to run the task scheduler.
 
-This module provides a Django management command for running the task
-scheduler daemon that processes scheduled tasks from the database.
+This command starts the task scheduler to handle cron-based recurring tasks.
 """
 
 import logging
-import signal
 import sys
+import time
 
 from django.core.management.base import BaseCommand
-
-from apps.tasks.tasks import TaskScheduler
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    """
-    Management command to run the database task scheduler.
+    """Management command to run the task scheduler."""
 
-    This command starts a long-running task scheduler process that polls
-    the database for ready tasks and submits them for execution. It supports
-    graceful shutdown and configurable polling intervals.
-    """
-
-    help = "Run the database task scheduler to process scheduled tasks"
+    help = "Run the task scheduler for cron-based recurring tasks"
 
     def add_arguments(self, parser):
-        """
-        Add command line arguments for the scheduler.
-
-        Args:
-            parser: ArgumentParser instance to add arguments to
-
-        Returns:
-            None
-        """
-        parser.add_argument(
-            "--poll-interval", type=int, default=30, help="How often to check for ready tasks (in seconds)"
-        )
+        """Add command line arguments."""
         parser.add_argument(
             "--log-level",
             choices=["DEBUG", "INFO", "WARNING", "ERROR"],
             default="INFO",
-            help="Log level for scheduler output",
+            help="Log level (default: INFO)",
+        )
+        parser.add_argument(
+            "--check-interval",
+            type=int,
+            default=60,
+            help="Check interval in seconds (default: 60)",
         )
 
     def handle(self, *args, **options):
-        """
-        Handle the command execution.
-
-        This method sets up the task scheduler with the specified configuration,
-        configures signal handlers for graceful shutdown, and starts the
-        scheduler process.
-
-        Args:
-            *args: Positional arguments (unused)
-            **options: Command options including poll_interval and log_level
-
-        Returns:
-            None
-        """
-        poll_interval = options["poll_interval"]
-        log_level = options["log_level"]
-
-        # Configure logging level
-        scheduler_logger = logging.getLogger("apps.tasks.tasks")
-        scheduler_logger.setLevel(getattr(logging, log_level))
-
-        self.stdout.write(self.style.SUCCESS(f"Starting task scheduler with {poll_interval}s poll interval..."))
-
-        # Create and start the scheduler
-        scheduler = TaskScheduler(poll_interval=poll_interval)
-
-        # Handle shutdown gracefully
-        def signal_handler(signum, frame):
-            """
-            Handle shutdown signals gracefully.
-
-            Args:
-                signum: Signal number
-                frame: Current stack frame
-
-            Returns:
-                None
-            """
-            self.stdout.write(self.style.WARNING("Received shutdown signal..."))
-            scheduler.stop()
-            sys.exit(0)
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-
+        """Handle the command execution."""
         try:
-            logger.info("Task scheduler started with configuration:")
-            logger.info(f"  Poll interval: {poll_interval}s")
-            logger.info(f"  Log level: {log_level}")
+            # Configure logging
+            log_level = getattr(logging, options["log_level"])
+            logging.basicConfig(level=log_level)
 
-            # Start the scheduler (this will block)
-            scheduler.start()
+            self.stdout.write(
+                self.style.SUCCESS(f"Starting task scheduler (check interval: {options['check_interval']}s)")
+            )
 
+            # Import scheduler after Django setup
+            from apps.tasks.cron_scheduler import get_scheduler, start_scheduler
+
+            # Start the scheduler
+            start_scheduler()
+            scheduler = get_scheduler()
+
+            self.stdout.write(self.style.SUCCESS("Task scheduler started successfully"))
+
+            # Keep the scheduler running
+            try:
+                while True:
+                    time.sleep(options["check_interval"])
+                    if not scheduler.running:
+                        self.stdout.write(self.style.ERROR("Scheduler stopped unexpectedly"))
+                        break
+            except KeyboardInterrupt:
+                self.stdout.write(self.style.WARNING("Received interrupt signal, stopping scheduler..."))
+                from apps.tasks.cron_scheduler import stop_scheduler
+
+                stop_scheduler()
+                self.stdout.write(self.style.SUCCESS("Task scheduler stopped"))
+
+        except ImportError as e:
+            self.stdout.write(self.style.ERROR(f"Failed to import scheduler: {e}"))
+            sys.exit(1)
         except Exception as e:
-            logger.error(f"Failed to start task scheduler: {str(e)}")
-            self.stdout.write(self.style.ERROR(f"Start failed: {str(e)}"))
+            self.stdout.write(self.style.ERROR(f"Failed to start task scheduler: {e}"))
+            sys.exit(1)

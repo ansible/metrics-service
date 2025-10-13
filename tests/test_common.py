@@ -91,18 +91,18 @@ class BaseTaskSchedulerTest(unittest.TestCase):
     """Base test case for TaskScheduler with common test methods."""
 
     def test_task_scheduler_init(self):
-        """Test TaskScheduler initialization."""
-        from apps.tasks import TaskScheduler
+        """Test SimpleTaskScheduler initialization."""
+        from apps.tasks.simple_scheduler import SimpleTaskScheduler
 
-        scheduler = TaskScheduler(poll_interval=60)
-        self.assertEqual(scheduler.poll_interval, 60)
+        scheduler = SimpleTaskScheduler()
+        self.assertEqual(scheduler.check_interval, 30)  # Default check interval
         self.assertFalse(scheduler.running)
 
     def test_task_scheduler_stop(self):
-        """Test TaskScheduler stop method."""
-        from apps.tasks import TaskScheduler
+        """Test SimpleTaskScheduler stop method."""
+        from apps.tasks.simple_scheduler import SimpleTaskScheduler
 
-        scheduler = TaskScheduler()
+        scheduler = SimpleTaskScheduler()
         scheduler.running = True
         scheduler.stop()
         self.assertFalse(scheduler.running)
