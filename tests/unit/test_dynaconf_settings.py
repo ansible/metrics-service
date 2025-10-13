@@ -9,9 +9,6 @@ import os
 from pathlib import Path
 from unittest import mock
 
-import pytest
-from dynaconf.validator import ValidationError
-
 # Set a valid SECRET_KEY for test module import
 # This allows Django settings to load without validation errors
 os.environ.setdefault("METRICS_SERVICE_SECRET_KEY", "test-secret-key-for-dynaconf-tests")
@@ -30,7 +27,7 @@ class TestDynaconfPrecedence:
         from django.conf import settings
 
         # The test SECRET_KEY should be loaded from environment
-        assert settings.SECRET_KEY == "test-key"
+        assert settings.SECRET_KEY == "test-key"  # noqa: S105
 
     def test_dynaconf_can_read_env_vars(self):
         """Test that Dynaconf can read environment variables via load_envvars."""
@@ -166,6 +163,7 @@ class TestSettingsFileLoading:
         """Test that defaults.py values are loaded."""
         with mock.patch.dict(os.environ, {"METRICS_SERVICE_SECRET_KEY": "valid-key"}):
             import importlib
+
             from metrics_service import settings as settings_module
 
             importlib.reload(settings_module)
@@ -174,12 +172,13 @@ class TestSettingsFileLoading:
 
             # Values from defaults.py should be present
             assert settings.SERVICE_TYPE == "metrics-service"
-            assert settings.BASE_DIR == Path(settings_module.__file__).resolve().parent.parent.parent
+            assert Path(settings_module.__file__).resolve().parent.parent.parent == settings.BASE_DIR
 
     def test_config_yaml_loaded(self):
         """Test that config/settings.yaml values are loaded."""
         with mock.patch.dict(os.environ, {"METRICS_SERVICE_SECRET_KEY": "valid-key", "METRICS_SERVICE_ENV": "development"}):
             import importlib
+
             from metrics_service import settings as settings_module
 
             importlib.reload(settings_module)
