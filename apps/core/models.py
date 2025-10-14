@@ -87,7 +87,7 @@ class Organization(AbstractOrganization, AccessControlMixin, UserRelatedMixin):
     )
 
     # Example custom field - replace or remove as needed
-    extra_field = models.CharField(max_length=100, null=True, blank=True)
+    extra_field = models.CharField(max_length=100, blank=True, default="")
 
     @classmethod
     def access_qs(cls, user, queryset=None):
