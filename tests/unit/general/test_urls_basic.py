@@ -18,10 +18,10 @@ class BasicURLConfigurationTestCase(TestCase):
         from django.contrib.auth import views as auth_views
         from django.urls import include, path
 
-        self.assertTrue(admin)
-        self.assertTrue(auth_views)
-        self.assertTrue(include)
-        self.assertTrue(path)
+        self.assertIsNotNone(admin)
+        self.assertIsNotNone(auth_views)
+        self.assertIsNotNone(include)
+        self.assertIsNotNone(path)
 
     def test_drf_spectacular_imports(self):
         """Test that DRF Spectacular imports work correctly."""
