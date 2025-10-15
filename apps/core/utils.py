@@ -34,6 +34,8 @@ from typing import Any
 from django.conf import settings
 from django.utils import timezone
 
+from apps.core.models import ConfigurationChange
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,3 +157,83 @@ def format_task_data(data: Any) -> str:
         return json.dumps(data, indent=2)
     except Exception:
         return str(data)
+
+def log_configuration_change(
+      user,
+      setting_key: str,
+      old_value,
+      new_value,
+      source: str,
+      request=None
+  ):
+      """
+      Log a configuration change to the database.
+
+      Args:
+          user: The User who made the change (can be None for system changes)
+          setting_key: Name of the setting (e.g., "DEBUG", "SECRET_KEY")
+          old_value: The previous value
+          new_value: The new value
+          source: Where the change came from ("api", "management_command", "reload", "system")
+          request: Optional HTTP request object (to get IP address)
+
+      Returns:
+          ConfigurationChange object if successful, None if failed
+      """
+
+      # List of sensitive settings that should be redacted (hidden)
+      SENSITIVE_SETTINGS = [
+          "SECRET_KEY",
+          "PASSWORD",
+          "DATABASES",
+          "JWT_SECRET",
+          "API_KEY",
+      ]
+
+      # Check if this setting is sensitive
+      is_sensitive = any(sensitive in setting_key.upper() for sensitive in SENSITIVE_SETTINGS)
+
+      # Redact (hide) sensitive values
+      if is_sensitive:
+          old_value_to_store = "***REDACTED***"
+          new_value_to_store = "***REDACTED***"
+      else:
+          # Convert values to JSON strings for storage
+          try:
+              old_value_to_store = json.dumps(old_value) if old_value is not None else None
+              new_value_to_store = json.dumps(new_value) if new_value is not None else None
+          except (TypeError, ValueError):
+              # If we can't convert to JSON, just convert to string
+              old_value_to_store = str(old_value) if old_value is not None else None
+              new_value_to_store = str(new_value) if new_value is not None else None
+
+      # Get IP address from request if available
+      ip_address = None
+      if request:
+          # Try to get real IP (handles proxies)
+          x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+          if x_forwarded_for:
+              ip_address = x_forwarded_for.split(',')[0].strip()
+          else:
+              ip_address = request.META.get('REMOTE_ADDR')
+
+      try:
+          change_log = ConfigurationChange.objects.create(
+              changed_by=user,
+              setting_key=setting_key,
+              old_value=old_value_to_store,
+              new_value=new_value_to_store,
+              source=source,
+              ip_address=ip_address,
+          )
+
+          logger.info(
+              f"Configuration change logged: {setting_key} changed by "
+              f"{user.username if user else 'System'} via {source}"
+          )
+
+          return change_log
+
+      except Exception as e:
+          logger.error(f"Failed to log configuration change for {setting_key}: {str(e)}")
+          return None

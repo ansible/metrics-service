@@ -13,12 +13,10 @@ from rest_framework.response import Response
 
 from apps.core.models import Organization, User
 from apps.core.permissions import SystemAuditorAwarePermissions
+from apps.core.utils import log_configuration_change
 from metrics_service.settings import DYNACONF
 
-from .serializers import (
-    OrganizationSerializer,
-    UserSerializer,
-)
+from .serializers import OrganizationSerializer, UserSerializer
 
 
 class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
@@ -153,7 +151,27 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
     )
     @action(detail=False, methods=["post"])
     def update_config(self, request):
+        """Update configuration settings and log changes."""
+        #Take a snapshot of current settings the change
+        old_settings = {}
+        for key in request.data.keys():
+            old_settings[key] = DYNACONF.get(key)
+
+        #Make the change
         DYNACONF.merge(request.data)
+
+        #Log each change by calling the helper function
+        for key, new_value in request.data.items():
+            old_value = old_settings.get(key)
+            log_configuration_change(
+                user=request.user,
+                setting_key=key,
+                old_value=old_value,
+                new_value=new_value,
+                source="api",
+                request=request,
+            )
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
@@ -163,9 +181,32 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
     )
     @action(detail=False, methods=["post"])
     def reload(self, request):
+        """Reload configuration from files and log changes."""
         try:
+            #Take a snapshot of current settings before reload
+            old_settings = DYNACONF.as_dict()
+            #Reload the configuration
             DYNACONF.reload()
-            return Response({"message": "Configuration reloaded successfully"}, status=status.HTTP_204_NO_CONTENT)
+            # Get new settings and find what changed
+            new_settings = DYNACONF.as_dict()
+            # each change by calling the diary robot
+            for key in new_settings.keys():
+                old_value = old_settings.get(key)
+                new_value = new_settings.get(key)
+
+                # Only log if the value actually changed
+                if old_value != new_value:
+                    log_configuration_change(
+                        user=request.user,
+                        setting_key=key,
+                        old_value=old_value,
+                        new_value=new_value,
+                        source="reload",
+                        request=request,
+                    )
+
+            return Response({"message": "Configuration reloaded successfully"},
+    status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
