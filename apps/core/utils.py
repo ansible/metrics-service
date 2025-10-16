@@ -237,3 +237,69 @@ def log_configuration_change(
       except Exception as e:
           logger.error(f"Failed to log configuration change for {setting_key}: {str(e)}")
           return None
+
+def rollback_configuration_change(change_id, user, request=None):
+      """
+      Undo a configuration change by its ID. Like pressing the UNDO buttonon an unwanted change.
+
+      """
+      from metrics_service.settings import DYNACONF
+
+      try:
+          change = ConfigurationChange.objects.get(id=change_id)
+
+          #Check if we can actually rollback this setting
+          if change.old_value == "***REDACTED***" or change.new_value == "***REDACTED***":
+              logger.warning(f"Cannot rollback sensitive setting: {change.setting_key}")
+              return {
+                  'success': False,
+                  'error': f'Cannot rollback sensitive setting: {change.setting_key}'
+              }
+
+          #Parse the old value from JSON
+          try:
+              old_value = json.loads(change.old_value) if change.old_value else None
+          except (json.JSONDecodeError, TypeError):
+              old_value = change.old_value
+
+          # Get the current value (before rollback)
+          current_value = DYNACONF.get(change.setting_key)
+
+          #Rollback - set it back to the old value!
+          DYNACONF.set(change.setting_key, old_value)
+
+          #Write new entry about the rollback to the db
+          log_configuration_change(
+              user=user,
+              setting_key=change.setting_key,
+              old_value=current_value,
+              new_value=old_value,
+              source='rollback',
+              request=request
+          )
+
+          logger.info(
+              f"Rolled back {change.setting_key} to previous value by "
+              f"{user.username if user else 'System'}"
+          )
+
+          return {
+              'success': True,
+              'setting_key': change.setting_key,
+              'rolled_back_to': old_value,
+              'message': f'Successfully rolled back {change.setting_key}'
+          }
+
+      except ConfigurationChange.DoesNotExist:
+          logger.error(f"Configuration change with ID {change_id} not found")
+          return {
+              'success': False,
+              'error': f'Configuration change with ID {change_id} not found'
+          }
+
+      except Exception as e:
+          logger.error(f"Failed to rollback configuration change {change_id}: {str(e)}")
+          return {
+              'success': False,
+              'error': f'Failed to rollback: {str(e)}'
+          }
