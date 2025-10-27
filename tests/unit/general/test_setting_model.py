@@ -56,8 +56,8 @@ class TestSettingModel:
         # Make a regular (not admin) user
         from django.contrib.auth import get_user_model
 
-        User = get_user_model()
-        regular_user = User.objects.create_user(
+        user = get_user_model()
+        regular_user = user.objects.create_user(
             username="regular",
             email="regular@example.com",
             password="password",
