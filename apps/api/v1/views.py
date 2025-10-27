@@ -201,7 +201,7 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
             DYNACONF.reload()
             # Get new settings and find what changed
             new_settings = DYNACONF.as_dict()
-            # each change by calling the diary robot
+
             for key in new_settings:
                 old_value = old_settings.get(key)
                 new_value = new_settings.get(key)
