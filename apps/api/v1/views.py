@@ -13,7 +13,7 @@ from rest_framework.response import Response
 
 from apps.core.models import Organization, User
 from apps.core.permissions import SystemAuditorAwarePermissions
-from apps.core.utils import log_configuration_change
+from apps.core.utils import log_setting_change
 from metrics_service.settings import DYNACONF
 
 from .serializers import OrganizationSerializer, UserSerializer
@@ -139,34 +139,46 @@ class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
                 return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
+class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
     permission_classes = [IsAdminUser, AnsibleBaseObjectPermissions]
 
     @extend_schema(operation_id="config_retrieve", description="Get current configuration", responses={200: dict})
     def list(self, request):
-        return Response(DYNACONF.to_dict())
+        setting_dict = DYNACONF.to_dict()
+        # Convert any PosixPath objects to strings
+        def serialize_value(value):
+            from pathlib import Path
+            if isinstance(value, Path):
+                return str(value)
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for
+    k, v in value.items()}
+            elif isinstance(value, list):
+                return [serialize_value(item) for
+    item in value]
+            return value
+
+        serializable_config = serialize_value(setting_dict)
+        return Response(serializable_config)
 
     @extend_schema(
         operation_id="config_update", description="Update current configuration", request=dict, responses={204: None}
     )
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["put", "patch"])
     def update_config(self, request):
-        """Update configuration settings and log changes."""
+        """Update the config settings and log the changes."""
         # Take a snapshot of current settings the change
         old_settings = {}
         for key in request.data:
             old_settings[key] = DYNACONF.get(key)
 
-        # Make the change
-        DYNACONF.merge(request.data)
-
         # Log each change by calling the helper function
         for key, new_value in request.data.items():
-            old_value = old_settings.get(key)
-            log_configuration_change(
+            for key, value in request.data.items():
+                DYNACONF.set(key, value)
+            log_setting_change(
                 user=request.user,
                 setting_key=key,
-                old_value=old_value,
                 new_value=new_value,
                 source="api",
                 request=request,
@@ -196,10 +208,9 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
 
                 # Only log if the value actually changed
                 if old_value != new_value:
-                    log_configuration_change(
+                    log_setting_change(
                         user=request.user,
                         setting_key=key,
-                        old_value=old_value,
                         new_value=new_value,
                         source="reload",
                         request=request,
@@ -238,5 +249,6 @@ class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         if request.method == "GET":
             return Response(DYNACONF.to_dict())
         elif request.method == "POST":
-            DYNACONF.merge(request.data)
+            for key, value in request.data.items():
+                DYNACONF.set(key, value)
             return Response(status=status.HTTP_204_NO_CONTENT)

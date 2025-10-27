@@ -34,7 +34,7 @@ from typing import Any
 from django.conf import settings
 from django.utils import timezone
 
-from apps.core.models import ConfigurationChange
+from apps.core.models import Setting
 
 logger = logging.getLogger(__name__)
 
@@ -159,23 +159,15 @@ def format_task_data(data: Any) -> str:
         return str(data)
 
 
-def log_configuration_change(user, setting_key: str, old_value, new_value, source: str, request=None):
+def log_setting_change(user, setting_key: str, new_value, source: str, request=None):
     """
-    Log a configuration change to the database.
-
-    Args:
-        user: The User who made the change (can be None for system changes)
-        setting_key: Name of the setting (e.g., "DEBUG", "SECRET_KEY")
-        old_value: The previous value
-        new_value: The new value
-        source: Where the change came from ("api", "management_command", "reload", "system")
-        request: Optional HTTP request object (to get IP address)
+    Log a settings change to the database.
 
     Returns:
-        ConfigurationChange object if successful, None if failed
+        Setting object if successful, None if failed
     """
 
-    # List of sensitive settings that should be redacted (hidden)
+    # List of sensitive settings that should be redacted
     sensitive_settings = [
         "SECRET_KEY",
         "PASSWORD",
@@ -187,18 +179,15 @@ def log_configuration_change(user, setting_key: str, old_value, new_value, sourc
     # Check if this setting is sensitive
     is_sensitive = any(sensitive in setting_key.upper() for sensitive in sensitive_settings)
 
-    # Redact (hide) sensitive values
+    # Redact sensitive values
     if is_sensitive:
-        old_value_to_store = "***REDACTED***"
         new_value_to_store = "***REDACTED***"
     else:
         # Convert values to JSON strings for storage
         try:
-            old_value_to_store = json.dumps(old_value) if old_value is not None else None
             new_value_to_store = json.dumps(new_value) if new_value is not None else None
         except (TypeError, ValueError):
             # If we can't convert to JSON, just convert to string
-            old_value_to_store = str(old_value) if old_value is not None else None
             new_value_to_store = str(new_value) if new_value is not None else None
 
     # Get IP address from request if available
@@ -209,73 +198,82 @@ def log_configuration_change(user, setting_key: str, old_value, new_value, sourc
         ip_address = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else request.META.get("REMOTE_ADDR")
 
     try:
-        change_log = ConfigurationChange.objects.create(
-            changed_by=user,
-            setting_key=setting_key,
-            old_value=old_value_to_store,
-            new_value=new_value_to_store,
-            source=source,
-            ip_address=ip_address,
-        )
+        # Try to get existing setting
+        try:
+            setting = Setting.objects.get(setting_key=setting_key)
+            # Move current to previous, update current
+            setting.previous_value = setting.current_value  # Save old current as previous
+            setting.current_value = new_value_to_store
+            setting.last_modified_by = user
+            setting.source = source
+            setting.ip_address = ip_address
+            setting.save()
+        except Setting.DoesNotExist:
+            setting = Setting.objects.create(
+                last_modified_by=user,
+                setting_key=setting_key,
+                previous_value=None,
+                current_value=new_value_to_store,
+                source=source,
+                ip_address=ip_address,
+            )
 
         logger.info(
-            f"Configuration change logged: {setting_key} changed by {user.username if user else 'System'} via {source}"
+            f"Setting change logged: {setting_key} changed to {new_value} by {user.username if user else 'System'} via {source}"
         )
 
-        return change_log
+        return setting
 
     except Exception as e:
-        logger.error(f"Failed to log configuration change for {setting_key}: {str(e)}")
+        logger.error(f"Failed to log setting change for {setting_key}: {str(e)}")
         return None
 
 
 def rollback_configuration_change(change_id, user, request=None):
     """
-    Undo a configuration change by its ID. Like pressing the UNDO buttonon an unwanted change.
-
+    Undo a settings change by its key id.
     """
     from metrics_service.settings import DYNACONF
 
     try:
-        change = ConfigurationChange.objects.get(id=change_id)
+        setting = Setting.objects.get(id=change_id)
 
         # Check if we can actually rollback this setting
-        if change.old_value == "***REDACTED***" or change.new_value == "***REDACTED***":
-            logger.warning(f"Cannot rollback sensitive setting: {change.setting_key}")
-            return {"success": False, "error": f"Cannot rollback sensitive setting: {change.setting_key}"}
+        if setting.previous_value == "***REDACTED***" or setting.current_value == "***REDACTED***":
+            logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
+            return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
 
         # Parse the old value from JSON
         try:
-            old_value = json.loads(change.old_value) if change.old_value else None
+            previous_value = json.loads(setting.previous_value) if setting.previous_value else None
         except (json.JSONDecodeError, TypeError):
-            old_value = change.old_value
+            previous_value = setting.previous_value
 
         # Get the current value (before rollback)
-        current_value = DYNACONF.get(change.setting_key)
+        current_value = DYNACONF.get(setting.setting_key)
 
         # Rollback - set it back to the old value!
-        DYNACONF.set(change.setting_key, old_value)
+        DYNACONF.set(setting.setting_key, previous_value)
 
         # Write new entry about the rollback to the db
-        log_configuration_change(
+        log_setting_change(
             user=user,
-            setting_key=change.setting_key,
-            old_value=current_value,
-            new_value=old_value,
+            setting_key=setting.setting_key,
+            new_value=previous_value,
             source="rollback",
             request=request,
         )
 
-        logger.info(f"Rolled back {change.setting_key} to previous value by {user.username if user else 'System'}")
+        logger.info(f"Rolled back {setting.setting_key} to previous value {setting.previous_value} by {user.username if user else 'System'}")
 
         return {
             "success": True,
-            "setting_key": change.setting_key,
-            "rolled_back_to": old_value,
-            "message": f"Successfully rolled back {change.setting_key}",
+            "setting_key": setting.setting_key,
+            "rolled_back_to": previous_value,
+            "message": f"Successfully rolled back {setting.setting_key}",
         }
 
-    except ConfigurationChange.DoesNotExist:
+    except Setting.DoesNotExist:
         logger.error(f"Configuration change with ID {change_id} not found")
         return {"success": False, "error": f"Configuration change with ID {change_id} not found"}
 

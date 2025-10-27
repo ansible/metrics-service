@@ -361,15 +361,25 @@ class Team(AbstractTeam, AccessControlMixin, UserRelatedMixin):
         return f"{self.organization.name} - {self.name}"
 
 
-class ConfigurationChange(models.Model):
+class Setting(CommonModel, AuditableModel, AccessControlMixin):
     """
-    Model that tracks configuration changes made to Dynaconf settings.
-
-    This model serves as an audit log for all configuration changes, recording who changed what, when, and from where.
+    Stores configuration settings with rollback capability.
     """
 
+    class Meta:
+        app_label = 'core'
+        ordering = ["-modified"]  # Show newest changes first
+        indexes = [
+            models.Index(fields=["setting_key", "-modified"]),  # Fast lookup by setting
+            models.Index(fields=["last_modified_by", "-modified"]),  # Fast lookup by user
+        ]
+        permissions = [
+              ("manage_setting", "Can manage settings"),
+          ]
+
+    resource = AnsibleResourceField(primary_key_field="id")
     # WHO changed it
-    changed_by = models.ForeignKey(
+    last_modified_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
@@ -382,24 +392,19 @@ class ConfigurationChange(models.Model):
     setting_key = models.CharField(
         max_length=255,
         help_text="The name of the setting that was changed (e.g., 'DEBUG', 'SECRET_KEY')",
+        unique=True
     )
 
-    old_value = models.TextField(
+    previous_value = models.TextField(
         blank=True,
         null=True,
         help_text="The previous value of the setting (JSON serialized). May be redacted for sensitive settings.",
     )
 
-    new_value = models.TextField(
+    current_value = models.TextField(
         blank=True,
         null=True,
         help_text="The new value of the setting (JSON serialized). May be redacted for sensitive settings.",
-    )
-
-    # WHEN it changed
-    changed_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Timestamp when the change was made",
     )
 
     # WHERE it came from
@@ -421,14 +426,23 @@ class ConfigurationChange(models.Model):
         help_text="IP address of the requester (if available)",
     )
 
-    class Meta:
-        ordering = ["-changed_at"]  # Show newest changes first
-        indexes = [
-            models.Index(fields=["setting_key", "-changed_at"]),  # Fast lookup by setting
-            models.Index(fields=["changed_by", "-changed_at"]),  # Fast lookup by user
-        ]
+    @classmethod
+    def access_qs(cls, user, queryset=None):
+        """
+        Return queryset filtered by user permissions.
+        Only system admins and auditors should see config changes.
+        """
+        if queryset is None:
+            queryset = cls.objects.all()
+
+        # Only superusers and system auditors can view config changes
+        if user.is_superuser or getattr(user, "is_system_auditor", False):
+            return queryset
+
+        # Regular users cannot see config changes
+        return queryset.none()
 
     def __str__(self):
         """String representation showing who changed what and when."""
-        user_name = self.changed_by.username if self.changed_by else "System"
-        return f"{user_name} changed {self.setting_key} at {self.changed_at}"
+        user_name = self.last_modified_by.username if self.last_modified_by else "System"
+        return f"{user_name} changed {self.setting_key} at {self.modified}"

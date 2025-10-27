@@ -2,10 +2,11 @@
 URL configuration for API v1.
 """
 
-from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import ConfigView, OrganizationViewSet, UserViewSet
+from django.urls import include, path
+
+from .views import OrganizationViewSet, SettingView, UserViewSet
 
 app_name = "v1"
 
@@ -13,7 +14,7 @@ app_name = "v1"
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="user")
 router.register(r"organizations", OrganizationViewSet, basename="organization")
-router.register(r"config", ConfigView, basename="config")
+router.register(r"settings", SettingView, basename="settings")
 
 urlpatterns = [
     # Nested API endpoints
