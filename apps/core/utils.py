@@ -249,9 +249,6 @@ def rollback_configuration_change(change_id, user, request=None):
         except (json.JSONDecodeError, TypeError):
             previous_value = setting.previous_value
 
-        # Get the current value (before rollback)
-        current_value = DYNACONF.get(setting.setting_key)
-
         # Rollback - set it back to the old value!
         DYNACONF.set(setting.setting_key, previous_value)
 
