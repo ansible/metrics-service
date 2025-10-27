@@ -261,7 +261,9 @@ def rollback_configuration_change(change_id, user, request=None):
             request=request,
         )
 
-        logger.info(f"Rolled back {setting.setting_key} to previous value {setting.previous_value} by {user.username if user else 'System'}")
+        logger.info(
+            f"Rolled back {setting.setting_key} to previous value {setting.previous_value} by {user.username if user else 'System'}"
+        )
 
         return {
             "success": True,

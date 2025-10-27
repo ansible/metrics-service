@@ -145,17 +145,17 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
     @extend_schema(operation_id="config_retrieve", description="Get current configuration", responses={200: dict})
     def list(self, request):
         setting_dict = DYNACONF.to_dict()
+
         # Convert any PosixPath objects to strings
         def serialize_value(value):
             from pathlib import Path
+
             if isinstance(value, Path):
                 return str(value)
             elif isinstance(value, dict):
-                return {k: serialize_value(v) for
-    k, v in value.items()}
+                return {k: serialize_value(v) for k, v in value.items()}
             elif isinstance(value, list):
-                return [serialize_value(item) for
-    item in value]
+                return [serialize_value(item) for item in value]
             return value
 
         serializable_config = serialize_value(setting_dict)

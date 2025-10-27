@@ -367,15 +367,15 @@ class Setting(CommonModel, AuditableModel, AccessControlMixin):
     """
 
     class Meta:
-        app_label = 'core'
+        app_label = "core"
         ordering = ["-modified"]  # Show newest changes first
         indexes = [
             models.Index(fields=["setting_key", "-modified"]),  # Fast lookup by setting
             models.Index(fields=["last_modified_by", "-modified"]),  # Fast lookup by user
         ]
         permissions = [
-              ("manage_setting", "Can manage settings"),
-          ]
+            ("manage_setting", "Can manage settings"),
+        ]
 
     resource = AnsibleResourceField(primary_key_field="id")
     # WHO changed it
@@ -390,9 +390,7 @@ class Setting(CommonModel, AuditableModel, AccessControlMixin):
 
     # WHAT was changed
     setting_key = models.CharField(
-        max_length=255,
-        help_text="The name of the setting that was changed (e.g., 'DEBUG', 'SECRET_KEY')",
-        unique=True
+        max_length=255, help_text="The name of the setting that was changed (e.g., 'DEBUG', 'SECRET_KEY')", unique=True
     )
 
     previous_value = models.TextField(
