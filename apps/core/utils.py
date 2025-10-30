@@ -159,7 +159,7 @@ def format_task_data(data: Any) -> str:
         return str(data)
 
 
-def log_setting_change(user, setting_key: str, new_value, source: str, request=None, old_value=None):
+def log_setting_change(user, setting_key: str, new_value, source: str, old_value=None):
     """
     Log a settings change to the database.
 
@@ -168,7 +168,6 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
         setting_key: The setting key being changed
         new_value: The new value
         source: Source of the change (api, reload, rollback, etc.)
-        request: Optional request object for IP tracking
         old_value: Optional old value from DYNACONF (before the change)
 
     Returns:
@@ -205,13 +204,6 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
             # If we can't convert to JSON, just convert to string
             old_value_to_store = str(old_value) if old_value is not None else None
 
-    # Get IP address from request if available
-    ip_address = None
-    if request:
-        # Try to get real IP (handles proxies)
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        ip_address = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else request.META.get("REMOTE_ADDR")
-
     try:
         # Try to get existing setting
         try:
@@ -222,7 +214,6 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
             setting.current_value = new_value_to_store
             setting.last_modified_by = user
             setting.source = source
-            setting.ip_address = ip_address
             setting.save()
         except Setting.DoesNotExist:
             # First time logging this setting - use the provided old_value
@@ -232,7 +223,6 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
                 previous_value=old_value_to_store,  # Use the actual DYNACONF value
                 current_value=new_value_to_store,
                 source=source,
-                ip_address=ip_address,
             )
 
         logger.info(
@@ -246,7 +236,7 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
         return None
 
 
-def rollback_configuration_change(change_id, user, request=None):
+def rollback_configuration_change(change_id, user):
     """
     Undo a settings change by its key id.
     """
@@ -282,7 +272,6 @@ def rollback_configuration_change(change_id, user, request=None):
             new_value=previous_value,
             old_value=current_value,  # The value before rollback
             source="rollback",
-            request=request,
         )
 
         logger.info(

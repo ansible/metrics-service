@@ -192,7 +192,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
                 new_value=new_value,
                 old_value=old_settings.get(key),  # Pass the old DYNACONF value
                 source="api",
-                request=request,
             )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -241,7 +240,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
                         new_value=new_value,
                         old_value=old_value,  # Pass the old DYNACONF value
                         source="reload",
-                        request=request,
                     )
 
             return Response({"message": "Configuration reloaded successfully"}, status=status.HTTP_204_NO_CONTENT)
@@ -264,7 +262,7 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         """
         from apps.core.utils import rollback_configuration_change
 
-        result = rollback_configuration_change(change_id=change_id, user=request.user, request=request)
+        result = rollback_configuration_change(change_id=change_id, user=request.user)
 
         if result["success"]:
             return Response(result, status=status.HTTP_200_OK)

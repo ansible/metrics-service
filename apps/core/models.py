@@ -413,13 +413,6 @@ class Setting(CommonModel, AuditableModel, AccessControlMixin):
         help_text="The source of the configuration change",
     )
 
-    # Extra info
-    ip_address = models.GenericIPAddressField(
-        null=True,
-        blank=True,
-        help_text="IP address of the requester (if available)",
-    )
-
     @classmethod
     def access_qs(cls, user, queryset=None):
         """

@@ -305,7 +305,6 @@ class SettingSerializer(BaseModelSerializer):
             "previous_value",
             "last_modified_by",
             "source",
-            "ip_address",
             "created",
             "modified",
         ]
@@ -315,7 +314,6 @@ class SettingSerializer(BaseModelSerializer):
             "previous_value",
             "last_modified_by",
             "source",
-            "ip_address",
             "created",
             "modified",
         ]
