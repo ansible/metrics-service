@@ -373,11 +373,7 @@ class Setting(CommonModel, AuditableModel, AccessControlMixin):
             models.Index(fields=["setting_key", "-modified"]),  # Fast lookup by setting
             models.Index(fields=["last_modified_by", "-modified"]),  # Fast lookup by user
         ]
-        permissions = [
-            ("manage_setting", "Can manage settings"),
-        ]
 
-    resource = AnsibleResourceField(primary_key_field="id")
     # WHO changed it
     last_modified_by = models.ForeignKey(
         User,

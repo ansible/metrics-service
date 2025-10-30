@@ -159,9 +159,17 @@ def format_task_data(data: Any) -> str:
         return str(data)
 
 
-def log_setting_change(user, setting_key: str, new_value, source: str, request=None):
+def log_setting_change(user, setting_key: str, new_value, source: str, request=None, old_value=None):
     """
     Log a settings change to the database.
+
+    Args:
+        user: User making the change
+        setting_key: The setting key being changed
+        new_value: The new value
+        source: Source of the change (api, reload, rollback, etc.)
+        request: Optional request object for IP tracking
+        old_value: Optional old value from DYNACONF (before the change)
 
     Returns:
         Setting object if successful, None if failed
@@ -182,6 +190,7 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
     # Redact sensitive values
     if is_sensitive:
         new_value_to_store = "***REDACTED***"
+        old_value_to_store = "***REDACTED***" if old_value is not None else None
     else:
         # Convert values to JSON strings for storage
         try:
@@ -189,6 +198,12 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
         except (TypeError, ValueError):
             # If we can't convert to JSON, just convert to string
             new_value_to_store = str(new_value) if new_value is not None else None
+
+        try:
+            old_value_to_store = json.dumps(old_value) if old_value is not None else None
+        except (TypeError, ValueError):
+            # If we can't convert to JSON, just convert to string
+            old_value_to_store = str(old_value) if old_value is not None else None
 
     # Get IP address from request if available
     ip_address = None
@@ -201,18 +216,20 @@ def log_setting_change(user, setting_key: str, new_value, source: str, request=N
         # Try to get existing setting
         try:
             setting = Setting.objects.get(setting_key=setting_key)
-            # Move current to previous, update current
-            setting.previous_value = setting.current_value  # Save old current as previous
+            # Update the setting with the new values
+            # Use old_value if provided (actual DYNACONF value), otherwise use DB's current_value
+            setting.previous_value = old_value_to_store if old_value is not None else setting.current_value
             setting.current_value = new_value_to_store
             setting.last_modified_by = user
             setting.source = source
             setting.ip_address = ip_address
             setting.save()
         except Setting.DoesNotExist:
+            # First time logging this setting - use the provided old_value
             setting = Setting.objects.create(
                 last_modified_by=user,
                 setting_key=setting_key,
-                previous_value=None,
+                previous_value=old_value_to_store,  # Use the actual DYNACONF value
                 current_value=new_value_to_store,
                 source=source,
                 ip_address=ip_address,
@@ -243,11 +260,17 @@ def rollback_configuration_change(change_id, user, request=None):
             logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
             return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
 
-        # Parse the old value from JSON
+        # Parse the previous value from JSON (what we're rolling back TO)
         try:
             previous_value = json.loads(setting.previous_value) if setting.previous_value else None
         except (json.JSONDecodeError, TypeError):
             previous_value = setting.previous_value
+
+        # Parse the current value from JSON (what we're rolling back FROM)
+        try:
+            current_value = json.loads(setting.current_value) if setting.current_value else None
+        except (json.JSONDecodeError, TypeError):
+            current_value = setting.current_value
 
         # Rollback - set it back to the old value!
         DYNACONF.set(setting.setting_key, previous_value)
@@ -257,6 +280,7 @@ def rollback_configuration_change(change_id, user, request=None):
             user=user,
             setting_key=setting.setting_key,
             new_value=previous_value,
+            old_value=current_value,  # The value before rollback
             source="rollback",
             request=request,
         )
