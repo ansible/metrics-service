@@ -205,25 +205,24 @@ def log_setting_change(user, setting_key: str, new_value, source: str, old_value
             old_value_to_store = str(old_value) if old_value is not None else None
 
     try:
-        # Try to get existing setting
-        try:
-            setting = Setting.objects.get(setting_key=setting_key)
-            # Update the setting with the new values
+        setting, created = Setting.objects.get_or_create(
+            setting_key=setting_key,
+            defaults={
+                "last_modified_by": user,
+                "previous_value": old_value_to_store,  # Use the actual DYNACONF value
+                "current_value": new_value_to_store,
+                "source": source,
+            },
+        )
+
+        # If setting already existed, update it with new values
+        if not created:
             # Use old_value if provided (actual DYNACONF value), otherwise use DB's current_value
             setting.previous_value = old_value_to_store if old_value is not None else setting.current_value
             setting.current_value = new_value_to_store
             setting.last_modified_by = user
             setting.source = source
             setting.save()
-        except Setting.DoesNotExist:
-            # First time logging this setting - use the provided old_value
-            setting = Setting.objects.create(
-                last_modified_by=user,
-                setting_key=setting_key,
-                previous_value=old_value_to_store,  # Use the actual DYNACONF value
-                current_value=new_value_to_store,
-                source=source,
-            )
 
         logger.info(
             f"Setting change logged: {setting_key} changed to {new_value} by {user.username if user else 'System'} via {source}"
