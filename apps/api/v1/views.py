@@ -160,7 +160,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
 
         return serialize_value(setting_dict)
 
-
     @extend_schema(operation_id="settings_list", description="Get all configuration settings", responses={200: dict})
     def list(self, request):
         """Get all current configuration settings from DYNACONF."""
@@ -170,7 +169,10 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         operation_id="settings_update",
         description="Replace all configuration settings (full update)",
         request=dict,
-        responses={204: None},
+        responses={
+            204: None,
+            400: {"error": "string"},
+        },
     )
     def update(self, request):
         """
@@ -178,6 +180,15 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
 
         Expects body like: {"DEBUG": true, "SECRET_KEY": "xyz"}
         """
+        # First validate that all keys exist in DYNACONF
+        existing_settings = DYNACONF.as_dict()
+        for key in request.data:
+            if key not in existing_settings:
+                return Response(
+                    {"error": f"Setting '{key}' does not exist. Cannot create new settings."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         # Take a snapshot of current settings before change
         old_settings = {}
         for key in request.data:
@@ -200,7 +211,10 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         operation_id="settings_partial_update",
         description="Update specific configuration settings (partial update)",
         request=dict,
-        responses={204: None},
+        responses={
+            204: None,
+            400: {"error": "string"},
+        },
     )
     def partial_update(self, request):
         """

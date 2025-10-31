@@ -235,6 +235,19 @@ def log_setting_change(user, setting_key: str, new_value, source: str, old_value
         return None
 
 
+def _parse_setting_value(value_str):
+    """
+    Helper to parse a setting value from JSON string.
+    Returns the parsed value or the original string if parsing fails.
+    """
+    if not value_str:
+        return None
+    try:
+        return json.loads(value_str)
+    except (json.JSONDecodeError, TypeError):
+        return value_str
+
+
 def rollback_configuration_change(change_id, user):
     """
     Undo a settings change by its key id.
@@ -249,17 +262,9 @@ def rollback_configuration_change(change_id, user):
             logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
             return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
 
-        # Parse the previous value from JSON (what we're rolling back TO)
-        try:
-            previous_value = json.loads(setting.previous_value) if setting.previous_value else None
-        except (json.JSONDecodeError, TypeError):
-            previous_value = setting.previous_value
-
-        # Parse the current value from JSON (what we're rolling back FROM)
-        try:
-            current_value = json.loads(setting.current_value) if setting.current_value else None
-        except (json.JSONDecodeError, TypeError):
-            current_value = setting.current_value
+        # Parse values from JSON
+        previous_value = _parse_setting_value(setting.previous_value)
+        current_value = _parse_setting_value(setting.current_value)
 
         # Rollback - set it back to the old value!
         DYNACONF.set(setting.setting_key, previous_value)
