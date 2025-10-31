@@ -35,7 +35,8 @@ class TestDynaconfPrecedence:
         from metrics_service.settings import DYNACONF
 
         # DYNACONF should have loaded the environment variable
-        assert DYNACONF.get("SECRET_KEY") == "your-secret-key-here-change-in-production"
+        # In test environment, this comes from development settings
+        assert DYNACONF.get("SECRET_KEY") == "dev-secret-key-change-in-production"
 
     def test_database_defaults_loaded(self):
         """Test that database defaults from defaults.py are loaded."""
