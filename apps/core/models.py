@@ -401,18 +401,6 @@ class Setting(CommonModel, AuditableModel, AccessControlMixin):
         help_text="The new value of the setting (JSON serialized). May be redacted for sensitive settings.",
     )
 
-    # WHERE it came from
-    source = models.CharField(
-        max_length=50,
-        choices=[
-            ("api", "API Endpoint"),
-            ("management_command", "Management Command"),
-            ("reload", "Configuration Reload"),
-            ("system", "System Process"),
-        ],
-        help_text="The source of the configuration change",
-    )
-
     @classmethod
     def access_qs(cls, user, queryset=None):
         """

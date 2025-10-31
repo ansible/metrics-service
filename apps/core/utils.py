@@ -159,7 +159,7 @@ def format_task_data(data: Any) -> str:
         return str(data)
 
 
-def log_setting_change(user, setting_key: str, new_value, source: str, old_value=None):
+def log_setting_change(user, setting_key: str, new_value, old_value=None):
     """
     Log a settings change to the database.
 
@@ -167,7 +167,6 @@ def log_setting_change(user, setting_key: str, new_value, source: str, old_value
         user: User making the change
         setting_key: The setting key being changed
         new_value: The new value
-        source: Source of the change (api, reload, rollback, etc.)
         old_value: Optional old value from DYNACONF (before the change)
 
     Returns:
@@ -211,7 +210,6 @@ def log_setting_change(user, setting_key: str, new_value, source: str, old_value
                 "last_modified_by": user,
                 "previous_value": old_value_to_store,  # Use the actual DYNACONF value
                 "current_value": new_value_to_store,
-                "source": source,
             },
         )
 
@@ -221,11 +219,10 @@ def log_setting_change(user, setting_key: str, new_value, source: str, old_value
             setting.previous_value = old_value_to_store if old_value is not None else setting.current_value
             setting.current_value = new_value_to_store
             setting.last_modified_by = user
-            setting.source = source
             setting.save()
 
         logger.info(
-            f"Setting change logged: {setting_key} changed to {new_value} by {user.username if user else 'System'} via {source}"
+            f"Setting change logged: {setting_key} changed to {new_value} by {user.username if user else 'System'}"
         )
 
         return setting
@@ -275,7 +272,6 @@ def rollback_configuration_change(change_id, user):
             setting_key=setting.setting_key,
             new_value=previous_value,
             old_value=current_value,  # The value before rollback
-            source="rollback",
         )
 
         logger.info(

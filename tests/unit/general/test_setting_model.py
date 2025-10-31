@@ -16,7 +16,7 @@ class TestSettingModel:
     def test_create_setting(self, user):
         """Test setting can be created."""
         setting = Setting.objects.create(
-            setting_key="TEST_KEY", current_value="hello", last_modified_by=user, source="api"
+            setting_key="TEST_KEY", current_value="hello", last_modified_by=user
         )
         assert setting.setting_key == "TEST_KEY"
 
@@ -24,7 +24,7 @@ class TestSettingModel:
         """Test setting saves previous value when updated."""
         # Create setting "first"
         setting = Setting.objects.create(
-            setting_key="TEST_KEY", current_value="first", previous_value=None, last_modified_by=user, source="api"
+            setting_key="TEST_KEY", current_value="first", previous_value=None, last_modified_by=user
         )
 
         setting.previous_value = setting.current_value
@@ -41,7 +41,7 @@ class TestSettingModel:
     def test_setting_string_representation(self, user):
         """Test setting string shows username and key."""
         setting = Setting.objects.create(
-            setting_key="TEST_KEY", current_value="test", last_modified_by=user, source="api"
+            setting_key="TEST_KEY", current_value="test", last_modified_by=user
         )
 
         result = str(setting)
@@ -51,7 +51,7 @@ class TestSettingModel:
     def test_setting_access_qs_regular_user(self, user):
         """Test regular users can't see settings."""
         # Create setting
-        Setting.objects.create(setting_key="SECRET", current_value="secret", last_modified_by=user, source="api")
+        Setting.objects.create(setting_key="SECRET", current_value="secret", last_modified_by=user)
 
         # Make a regular (not admin) user
         from django.contrib.auth import get_user_model

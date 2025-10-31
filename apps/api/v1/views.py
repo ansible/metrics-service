@@ -202,7 +202,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
                 setting_key=key,
                 new_value=new_value,
                 old_value=old_settings.get(key),  # Pass the old DYNACONF value
-                source="api",
             )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -253,7 +252,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
                         setting_key=key,
                         new_value=new_value,
                         old_value=old_value,  # Pass the old DYNACONF value
-                        source="reload",
                     )
 
             return Response({"message": "Configuration reloaded successfully"}, status=status.HTTP_204_NO_CONTENT)

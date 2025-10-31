@@ -304,7 +304,6 @@ class SettingSerializer(BaseModelSerializer):
             "current_value",
             "previous_value",
             "last_modified_by",
-            "source",
             "created",
             "modified",
         ]
@@ -313,7 +312,6 @@ class SettingSerializer(BaseModelSerializer):
             "url",
             "previous_value",
             "last_modified_by",
-            "source",
             "created",
             "modified",
         ]

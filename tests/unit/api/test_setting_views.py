@@ -43,7 +43,6 @@ class TestSettingViewSet(APITestCase):
             current_value='"new"',
             previous_value='"old"',
             last_modified_by=self.admin,
-            source="api",
         )
 
         self.client.force_authenticate(user=self.admin)
