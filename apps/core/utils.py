@@ -253,12 +253,16 @@ def rollback_configuration_change(change_id, user):
 
     try:
         setting = Setting.objects.get(id=change_id)
+    except Setting.DoesNotExist:
+        logger.error(f"Configuration change with ID {change_id} not found")
+        return {"success": False, "error": f"Configuration change with ID {change_id} not found"}
 
-        # Check if we can actually rollback this setting
-        if setting.previous_value == "***REDACTED***" or setting.current_value == "***REDACTED***":
-            logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
-            return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
+    # Check if we can actually rollback this setting
+    if setting.previous_value == "***REDACTED***" or setting.current_value == "***REDACTED***":
+        logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
+        return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
 
+    try:
         # Parse values from JSON
         previous_value = _parse_setting_value(setting.previous_value)
         current_value = _parse_setting_value(setting.current_value)
@@ -284,10 +288,6 @@ def rollback_configuration_change(change_id, user):
             "rolled_back_to": previous_value,
             "message": f"Successfully rolled back {setting.setting_key}",
         }
-
-    except Setting.DoesNotExist:
-        logger.error(f"Configuration change with ID {change_id} not found")
-        return {"success": False, "error": f"Configuration change with ID {change_id} not found"}
 
     except Exception as e:
         logger.error(f"Failed to rollback configuration change {change_id}: {str(e)}")
