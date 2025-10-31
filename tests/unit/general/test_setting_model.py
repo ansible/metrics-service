@@ -15,9 +15,7 @@ class TestSettingModel:
 
     def test_create_setting(self, user):
         """Test setting can be created."""
-        setting = Setting.objects.create(
-            setting_key="TEST_KEY", current_value="hello", last_modified_by=user
-        )
+        setting = Setting.objects.create(setting_key="TEST_KEY", current_value="hello", last_modified_by=user)
         assert setting.setting_key == "TEST_KEY"
 
     def test_setting_update(self, user):
@@ -40,9 +38,7 @@ class TestSettingModel:
 
     def test_setting_string_representation(self, user):
         """Test setting string shows username and key."""
-        setting = Setting.objects.create(
-            setting_key="TEST_KEY", current_value="test", last_modified_by=user
-        )
+        setting = Setting.objects.create(setting_key="TEST_KEY", current_value="test", last_modified_by=user)
 
         result = str(setting)
         assert "testuser" in result
