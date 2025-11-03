@@ -43,7 +43,7 @@ class TestDynaconfPrecedence:
 
         # Database settings should be present
         assert "default" in settings.DATABASES
-        assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3"
+        assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
         assert settings.DATABASES["default"]["NAME"] is not None
 
 
