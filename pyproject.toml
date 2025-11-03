@@ -41,7 +41,7 @@ dependencies = [
     "croniter>=1.3.0",
     "uv>=0.8.22",
     "apscheduler>=3.10.0",
-    "metrics-utility @ git+https://github.com/ansible/metrics-utility.git",
+    "metrics-utility @ git+https://github.com/ansible/metrics-utility.git@devel",
     "pip>=25.2",
 ]
 
@@ -93,9 +93,8 @@ Repository = "https://github.com/ansible/platform-service-template"
 [tool.setuptools]
 packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.tasks"]
 
-
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "black>=23.0",
     "ruff>=0.1.0",
     "isort>=5.12",

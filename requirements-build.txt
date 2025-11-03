@@ -17,6 +17,10 @@ attrs==25.3.0
     #   -r requirements-pinned.txt
     #   jsonschema
     #   referencing
+backoff==2.2.1
+    # via
+    #   -r requirements-pinned.txt
+    #   segment-analytics-python
 boto3==1.35.96
     # via
     #   -r requirements-pinned.txt
@@ -162,7 +166,7 @@ kubernetes==34.1.0
     # via
     #   -r requirements-pinned.txt
     #   metrics-utility
-metrics-utility @ git+https://github.com/ansible/metrics-utility.git@c79c3374e5ae93e03fcf2d30ccc1048ceca06619
+metrics-utility @ git+https://github.com/ansible/metrics-utility.git@e1971ea9e0a64598334ebfcf0ea9637519626e8f
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
@@ -218,6 +222,7 @@ pyjwt==2.10.1
     # via
     #   -r requirements-pinned.txt
     #   django-ansible-base
+    #   segment-analytics-python
     #   social-auth-core
 python-dateutil==2.9.0.post0
     # via
@@ -226,6 +231,7 @@ python-dateutil==2.9.0.post0
     #   croniter
     #   kubernetes
     #   pandas
+    #   segment-analytics-python
 python3-openid==3.2.0
     # via
     #   -r requirements-pinned.txt
@@ -254,6 +260,7 @@ requests==2.32.5
     #   kubernetes
     #   metrics-utility
     #   requests-oauthlib
+    #   segment-analytics-python
     #   social-auth-core
 requests-oauthlib==2.0.0
     # via
@@ -273,6 +280,10 @@ s3transfer==0.10.4
     # via
     #   -r requirements-pinned.txt
     #   boto3
+segment-analytics-python==2.3.4
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-utility
 setuptools==80.9.0
     # via
     #   -r requirements-pinned.txt
@@ -299,6 +310,8 @@ typing-extensions==4.15.0
     # via
     #   -r requirements-pinned.txt
     #   jwcrypto
+    #   psycopg
+    #   referencing
 tzdata==2025.2
     # via
     #   -r requirements-pinned.txt
