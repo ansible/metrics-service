@@ -17,6 +17,7 @@ User = get_user_model()
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestCoreURLsIntegration(TestCase):
     """Test core URLs integration."""
 
@@ -43,6 +44,7 @@ class TestCoreURLsIntegration(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestHealthURLsIntegration(TestCase):
     """Test health URLs integration."""
 
@@ -71,6 +73,7 @@ class TestHealthURLsIntegration(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestAPISchemaURL(TestCase):
     """Test API schema URL configuration."""
 
@@ -114,6 +117,7 @@ class TestAPISchemaURL(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestAPIURLsIntegration(TestCase):
     """Test API URLs integration."""
 
@@ -151,6 +155,7 @@ class TestAPIURLsIntegration(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestDjangoAnsibleBaseURLs(TestCase):
     """Test Django-Ansible-Base URLs integration."""
 
@@ -185,6 +190,7 @@ class TestDjangoAnsibleBaseURLs(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestRootURLsIntegration(TestCase):
     """Test root URLs integration."""
 
@@ -220,6 +226,7 @@ class TestRootURLsIntegration(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestURLErrorHandling(TestCase):
     """Test URL error handling and edge cases."""
 
@@ -269,6 +276,7 @@ class TestURLErrorHandling(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestURLSecurityConsiderations(TestCase):
     """Test URL security considerations."""
 
@@ -294,6 +302,7 @@ class TestURLSecurityConsiderations(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestURLPerformance(TestCase):
     """Test URL resolution performance."""
 
@@ -317,6 +326,7 @@ class TestURLPerformance(TestCase):
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestURLIntegrationWithViews(TestCase):
     """Test URL integration with actual views."""
 
