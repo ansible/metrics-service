@@ -98,7 +98,7 @@ TEMPLATES = [
             ],
             # Additional options for CI stability
             "debug": DEBUG,
-            "string_if_invalid": "" if not DEBUG else "INVALID_TEMPLATE_VARIABLE_%s",
+            "string_if_invalid": "INVALID_TEMPLATE_VARIABLE_%s",
         },
     },
 ]
