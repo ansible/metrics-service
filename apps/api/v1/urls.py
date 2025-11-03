@@ -15,8 +15,6 @@ router.register(r"users", UserViewSet, basename="user")
 router.register(r"organizations", OrganizationViewSet, basename="organization")
 
 urlpatterns = [
-    # Nested API endpoints
-    path("tasks/", include("apps.api.v1.tasks.urls", namespace="tasks")),
     # Include router URLs for other endpoints
     path("", include(router.urls)),
 ]

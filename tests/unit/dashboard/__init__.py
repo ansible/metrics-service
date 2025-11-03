@@ -1,3 +1,0 @@
-# Dashboard app tests
-
-

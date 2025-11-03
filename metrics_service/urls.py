@@ -17,8 +17,6 @@ urlpatterns = [
     path("", include("apps.core.urls")),
     # Health and system endpoints
     path("", include("apps.health.urls")),
-    # Dashboard interface
-    path("dashboard/", include("apps.dashboard.urls")),
     # API schema (needs to be at root level for DRF Spectacular)
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     # API endpoints (includes documentation)

@@ -46,20 +46,6 @@ class TestURLResolution(TestCase):
         except NoReverseMatch:
             pytest.skip("Schema URL not available in test environment")
 
-    def test_dashboard_url_resolution(self):
-        """Test dashboard URL resolution."""
-        try:
-            # Test URL resolution
-            url = reverse("dashboard:index")
-            assert url == "/dashboard/"
-
-            # Test that the URL resolves to a view
-            resolver_match = resolve("/dashboard/")
-            assert resolver_match is not None
-
-        except NoReverseMatch:
-            # Dashboard might not have URLs defined
-            pass
 
     def test_api_url_resolution(self):
         """Test API URL resolution."""
@@ -225,38 +211,8 @@ class TestAuthenticationURLs(TestCase):
     def test_authentication_redirects(self):
         """Test authentication redirects."""
         # Test that unauthenticated users are redirected
-        response = self.client.get("/dashboard/")
+        response = self.client.get("/admin/")
         assert response.status_code in [200, 302, 404]
-
-
-@pytest.mark.integration
-class TestDashboardURLs(TestCase):
-    """Test dashboard URL functionality."""
-
-    def setUp(self):
-        """Set up test environment."""
-        self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
-
-    def test_dashboard_access(self):
-        """Test dashboard access through URLs."""
-        # Test unauthenticated access
-        response = self.client.get("/dashboard/")
-        assert response.status_code in [200, 302, 404]
-
-        # Test authenticated access
-        self.client.force_login(self.user)
-        response = self.client.get("/dashboard/")
-        assert response.status_code in [200, 302, 404]
-
-    def test_dashboard_subpages(self):
-        """Test dashboard subpages."""
-        # Test various dashboard subpages
-        subpages = ["/dashboard/", "/dashboard/tasks/", "/dashboard/status/"]
-
-        for subpage in subpages:
-            response = self.client.get(subpage)
-            assert response.status_code in [200, 302, 404]
 
 
 @pytest.mark.integration
@@ -270,7 +226,7 @@ class TestErrorHandling(TestCase):
     def test_404_handling(self):
         """Test 404 error handling for non-existent URLs."""
         # Test various non-existent URLs
-        non_existent_urls = ["/nonexistent/", "/api/nonexistent/", "/dashboard/nonexistent/", "/admin/nonexistent/"]
+        non_existent_urls = ["/nonexistent/", "/api/nonexistent/", "/admin/nonexistent/"]
 
         for url in non_existent_urls:
             response = self.client.get(url)
@@ -288,7 +244,7 @@ class TestErrorHandling(TestCase):
 
     def test_malformed_urls(self):
         """Test malformed URL handling."""
-        malformed_urls = ["/api//", "/dashboard//", "/admin//", "/api/v1//"]
+        malformed_urls = ["/api//", "/admin//", "/api/v1//"]
 
         for url in malformed_urls:
             response = self.client.get(url)
@@ -310,7 +266,7 @@ class TestURLPerformance(TestCase):
         start_time = time.time()
 
         # Resolve multiple URLs
-        urls_to_test = ["/api/", "/dashboard/", "/admin/", "/login/", "/logout/"]
+        urls_to_test = ["/api/", "/admin/", "/login/", "/logout/"]
 
         for url in urls_to_test:
             with contextlib.suppress(Http404, NoReverseMatch):
@@ -355,7 +311,7 @@ class TestURLIntegrationWithViews(TestCase):
         get_resolver()
 
         # Test that URLs resolve to actual views
-        test_urls = ["/api/schema/", "/dashboard/", "/admin/", "/login/", "/logout/"]
+        test_urls = ["/api/schema/", "/admin/", "/login/", "/logout/"]
 
         for url in test_urls:
             try:
@@ -440,14 +396,10 @@ class TestURLSecurity(TestCase):
         response = self.client.get("/admin/")
         assert response.status_code in [200, 302, 404]
 
-        # Test that dashboard requires authentication
-        response = self.client.get("/dashboard/")
-        assert response.status_code in [200, 302, 404]
-
     def test_url_injection_protection(self):
         """Test protection against URL injection attacks."""
-        malicious_urls = ["/api/../../../etc/passwd", "/dashboard/../../admin/", "/admin/../../../etc/passwd"]
+        malicious_urls = ["/api/../../../etc/passwd", "/admin/../../../etc/passwd"]
         for url in malicious_urls:
             response = self.client.get(url)
             # Should not return 200 for malicious URLs
-        assert response.status_code != 200
+            assert response.status_code != 200

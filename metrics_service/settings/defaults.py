@@ -58,7 +58,6 @@ LOCAL_APPS = [
     "apps.core",
     "apps.tasks",
     "apps.api",
-    "apps.dashboard",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS

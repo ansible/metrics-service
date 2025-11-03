@@ -39,7 +39,6 @@ class TestMainURLsFileContent(TestCase):
         assert "urlpatterns = [" in content
         assert 'path("", include("apps.core.urls"))' in content
         assert 'path("", include("apps.health.urls"))' in content
-        assert 'path("dashboard/", include("apps.dashboard.urls"))' in content
         assert 'path("api/schema/", SpectacularAPIView.as_view(), name="schema")' in content
         assert 'path("api/", include("apps.api.urls"))' in content
         assert 'path("api/v1/", include(resource_api_urls))' in content
@@ -65,7 +64,7 @@ class TestMainURLsFileContent(TestCase):
             lines = f.readlines()
 
         # Test that the file has expected number of lines
-        assert len(lines) >= 30  # Should have at least 30 lines
+        assert len(lines) >= 25  # Should have at least 25 lines
 
         # Test that the file has proper indentation
         urlpatterns_line = None
@@ -135,12 +134,6 @@ class TestMainURLResolution(TestCase):
             # Schema might not be available in test environment
             pytest.skip("Schema URL not available in test environment")
 
-    def test_dashboard_url_resolution(self):
-        """Test that dashboard URLs can be resolved."""
-        # Test that dashboard URLs are accessible
-        with contextlib.suppress(Exception):
-            # This should work if dashboard URLs are properly included
-            resolve("/dashboard/")
 
     def test_api_url_resolution(self):
         """Test that API URLs can be resolved."""
