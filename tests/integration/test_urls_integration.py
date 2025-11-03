@@ -46,7 +46,6 @@ class TestURLResolution(TestCase):
         except NoReverseMatch:
             pytest.skip("Schema URL not available in test environment")
 
-
     def test_api_url_resolution(self):
         """Test API URL resolution."""
         try:

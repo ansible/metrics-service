@@ -134,7 +134,6 @@ class TestMainURLResolution(TestCase):
             # Schema might not be available in test environment
             pytest.skip("Schema URL not available in test environment")
 
-
     def test_api_url_resolution(self):
         """Test that API URLs can be resolved."""
         # Test that API URLs are accessible
