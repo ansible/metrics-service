@@ -83,7 +83,7 @@ MIDDLEWARE = [
 # URLs - simplified for testing to avoid oauth2 provider conflicts
 ROOT_URLCONF = "metrics_service.test_urls"
 
-# Templates
+# Templates - simplified for testing to avoid context processor conflicts
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -96,20 +96,40 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
             ],
+            # Additional options for CI stability
+            "debug": DEBUG,
+            "string_if_invalid": "" if not DEBUG else "INVALID_TEMPLATE_VARIABLE_%s",
         },
     },
 ]
 
-# Use SQLite for faster tests
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
-        "OPTIONS": {
-            "timeout": 20,
-        },
+# Database configuration for tests
+# Use PostgreSQL if environment variables are set (CI), otherwise SQLite
+if os.environ.get("METRICS_SERVICE_DB_HOST"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "test_metrics_service"),
+            "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+            "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+            "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "localhost"),
+            "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "5432"),
+            "OPTIONS": {
+                "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
+            },
+        }
     }
-}
+else:
+    # Use SQLite for faster local tests
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
+            "OPTIONS": {
+                "timeout": 20,
+            },
+        }
+    }
 
 
 # Disable migrations during tests for faster execution

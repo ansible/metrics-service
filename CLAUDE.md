@@ -7,7 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Setup and Database
 
 ```bash
-# Install dependencies
+# Modern setup using uv (recommended)
+uv sync --extra dev
+
+# OR traditional pip setup
 pip install -e ".[dev]"
 
 # Run database migrations
@@ -46,6 +49,10 @@ pytest -m integration
 
 # Run specific test file
 pytest tests/unit/test_models.py
+
+# Run tests for specific app
+pytest tests/unit/tasks/
+pytest tests/unit/core/
 ```
 
 ### Code Quality
@@ -65,6 +72,29 @@ mypy .
 
 # Sort imports
 isort .
+
+# Run pre-commit hooks
+pre-commit run --all-files
+```
+
+### Requirements Management
+
+```bash
+# Sync requirements files from uv.lock (when pyproject.toml changes)
+make sync-requirements
+
+# OR run script directly
+./sync-requirements.sh
+
+# Check if requirements are in sync
+make requirements-check
+
+# Modern dependency management with uv
+uv add <package>              # Add runtime dependency
+uv add --dev <package>        # Add dev dependency  
+uv remove <package>           # Remove dependency
+uv sync                       # Install dependencies
+uv sync --extra dev           # Install with dev dependencies
 ```
 
 ### Background Tasks (Dispatcherd)
@@ -86,14 +116,17 @@ python manage.py shell
 
 ```bash
 # Start full stack with PostgreSQL and task dispatcher
-docker-compose up
+docker compose up
 
 # Start in background
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f metrics-service
-docker-compose logs -f metrics-dispatcher
+docker compose logs -f metrics-service
+docker compose logs -f postgres
+
+# Using make command (if available)
+make docker-compose
 ```
 
 
@@ -214,7 +247,7 @@ The service includes a comprehensive background task system with:
 
 ### Important: ServiceID Initialization
 
-Always run `python manage.py init_service_id` after migrations. This creates the required ServiceID object for DAB's resource registry system.
+Always run `python manage.py metrics_service init-service-id` after migrations. This creates the required ServiceID object for DAB's resource registry system.
 
 ### DAB Features Available
 
@@ -253,6 +286,20 @@ Use pytest markers for test categorization:
 
 
 ## Development Notes
+
+### Virtual Environment Usage
+
+This project uses a `.venv` virtual environment in the project root. Commands automatically use this environment:
+
+```bash
+# All Python commands automatically use .venv when present
+python manage.py migrate
+pytest
+ruff check .
+
+# Virtual environment is automatically activated in scripts
+# No need to manually activate unless using interactive shell
+```
 
 ### Code Style Standards
 
@@ -301,9 +348,10 @@ FEATURE_FLAGS = {
 ### Adding Background Tasks
 
 1. Define task function in `apps/core/tasks.py`
-2. Add to `TASK_FUNCTIONS` dictionary
+2. Add to `TASK_FUNCTIONS` dictionary in `apps/tasks/tasks.py`
 3. Create Task model instance or use programmatic scheduling
 4. Test with dispatcherd: `python manage.py run_dispatcherd`
+5. OR test with unified command: `python manage.py metrics_service run`
 
 ### API Development
 
