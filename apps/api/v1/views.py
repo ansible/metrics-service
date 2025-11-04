@@ -13,12 +13,10 @@ from rest_framework.response import Response
 
 from apps.core.models import Organization, User
 from apps.core.permissions import SystemAuditorAwarePermissions
+from apps.core.utils import log_setting_change
 from metrics_service.settings import DYNACONF
 
-from .serializers import (
-    OrganizationSerializer,
-    UserSerializer,
-)
+from .serializers import OrganizationSerializer, UserSerializer
 
 
 class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
@@ -141,37 +139,145 @@ class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
                 return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class ConfigView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
+class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
     permission_classes = [IsAdminUser, AnsibleBaseObjectPermissions]
 
-    @extend_schema(operation_id="config_retrieve", description="Get current configuration", responses={200: dict})
+    def _get_current_settings(self):
+        """Helper to get serializable settings."""
+        setting_dict = DYNACONF.to_dict()
+
+        # Convert any PosixPath objects to strings
+        def serialize_value(value):
+            from pathlib import Path
+
+            if isinstance(value, Path):
+                return str(value)
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [serialize_value(item) for item in value]
+            return value
+
+        return serialize_value(setting_dict)
+
+    @extend_schema(operation_id="settings_list", description="Get all configuration settings", responses={200: dict})
     def list(self, request):
-        return Response(DYNACONF.to_dict())
+        """Get all current configuration settings from DYNACONF."""
+        return Response(self._get_current_settings())
 
     @extend_schema(
-        operation_id="config_update", description="Update current configuration", request=dict, responses={204: None}
+        operation_id="settings_update",
+        description="Replace all configuration settings (full update)",
+        request=dict,
+        responses={
+            204: None,
+            400: {"error": "string"},
+        },
     )
-    @action(detail=False, methods=["post"])
-    def update_config(self, request):
-        DYNACONF.merge(request.data)
+    def update(self, request):
+        """
+        Update configuration settings (PUT).
+
+        Expects body like: {"DEBUG": true, "SECRET_KEY": "xyz"}
+        """
+        # First validate that all keys exist in DYNACONF
+        existing_settings = DYNACONF.as_dict()
+        for key in request.data:
+            if key not in existing_settings:
+                return Response(
+                    {"error": f"Setting '{key}' does not exist. Cannot create new settings."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Take a snapshot of current settings before change
+        old_settings = {}
+        for key in request.data:
+            old_settings[key] = DYNACONF.get(key)
+
+        # Update DYNACONF and log each change
+        for key, new_value in request.data.items():
+            DYNACONF.set(key, new_value)
+            log_setting_change(
+                user=request.user,
+                setting_key=key,
+                new_value=new_value,
+                old_value=old_settings.get(key),  # Pass the old DYNACONF value
+            )
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
-        operation_id="config_reload",
-        description="Reload current configuration from files and environment variables",
+        operation_id="settings_partial_update",
+        description="Update specific configuration settings (partial update)",
+        request=dict,
+        responses={
+            204: None,
+            400: {"error": "string"},
+        },
+    )
+    def partial_update(self, request):
+        """
+        Update configuration settings (PATCH).
+
+        Expects body like: {"DEBUG": true}
+        """
+        # Same implementation as update() for settings
+        # (No difference between PUT and PATCH for a singleton resource)
+        return self.update(request)
+
+    @extend_schema(
+        operation_id="settings_reload",
+        description="Reload configuration from files and environment variables",
         responses={204: {"message": "Configuration reloaded successfully"}},
     )
     @action(detail=False, methods=["post"])
     def reload(self, request):
+        """Reload configuration from files and log changes."""
         try:
+            # Take a snapshot of current settings before reload
+            old_settings = DYNACONF.as_dict()
+            # Reload the configuration
             DYNACONF.reload()
+            # Get new settings and find what changed
+            new_settings = DYNACONF.as_dict()
+
+            for key in new_settings:
+                old_value = old_settings.get(key)
+                new_value = new_settings.get(key)
+
+                # Only log if the value actually changed
+                if old_value != new_value:
+                    log_setting_change(
+                        user=request.user,
+                        setting_key=key,
+                        new_value=new_value,
+                        old_value=old_value,  # Pass the old DYNACONF value
+                    )
+
             return Response({"message": "Configuration reloaded successfully"}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def config(self, request):
-        if request.method == "GET":
-            return Response(DYNACONF.to_dict())
-        elif request.method == "POST":
-            DYNACONF.merge(request.data)
-            return Response(status=status.HTTP_204_NO_CONTENT)
+    @extend_schema(
+        operation_id="settings_rollback",
+        description="Rollback (undo) a configuration change",
+        responses={
+            200: {"message": "string", "setting_key": "string", "rolled_back_to": "any"},
+            400: {"error": "string"},
+            404: {"error": "string"},
+        },
+    )
+    @action(detail=False, methods=["post"], url_path="rollback/(?P<change_id>[0-9]+)")
+    def rollback(self, request, change_id=None):
+        """
+        Rollback a configuration change by ID.
+        """
+        from apps.core.utils import rollback_configuration_change
+
+        result = rollback_configuration_change(change_id=change_id, user=request.user)
+
+        if result["success"]:
+            return Response(result, status=status.HTTP_200_OK)
+        else:
+            status_code = status.HTTP_404_NOT_FOUND if "not found" in result["error"] else status.HTTP_400_BAD_REQUEST
+            return Response({"error": result["error"]}, status=status_code)
