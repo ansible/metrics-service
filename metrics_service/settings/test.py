@@ -3,6 +3,8 @@ Test settings for metrics_service.
 
 This module provides test-specific Django settings that override
 the default settings for running tests with pytest.
+
+Tests use PostgreSQL to match the production environment setup.
 """
 
 import os
@@ -29,13 +31,24 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "rest_framework",
+    "rest_framework.authtoken",
+    "drf_spectacular",
+    "corsheaders",
     "oauth2_provider",
+    "social_django",
+]
+
+# DAB apps - matching production configuration
+DAB_APPS = [
     "ansible_base",
-    "ansible_base.activitystream",
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
-    "ansible_base.oauth2_provider",
+    "ansible_base.authentication",
+    # "ansible_base.oauth2_provider",  # Disabled to match defaults.py
+    "ansible_base.activitystream",
+    "ansible_base.jwt_consumer",
+    "ansible_base.resource_registry",
 ]
 
 LOCAL_APPS = [
@@ -45,7 +58,7 @@ LOCAL_APPS = [
     "apps.api",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
 
 # Django ansible-base settings for testing
 ANSIBLE_BASE_ORGANIZATION_MODEL = "core.Organization"
@@ -101,28 +114,27 @@ TEMPLATES = [
     },
 ]
 
-# Use SQLite for faster tests
+# Use PostgreSQL for tests to match production environment
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": os.environ.get("METRICS_SERVICE_DB_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "5432"),
+        "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
+        "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
+        "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "test_metrics_service"),
         "OPTIONS": {
-            "timeout": 20,
+            "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
+        },
+        "TEST": {
+            "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "test_metrics_service"),
         },
     }
 }
 
 
-# Disable migrations during tests for faster execution
-class DisableMigrations:
-    def __contains__(self, item):
-        return True
-
-    def __getitem__(self, item):
-        return None
-
-
-MIGRATION_MODULES = DisableMigrations()
+# Enable migrations during tests for proper schema management with PostgreSQL
+# This ensures tests run with the same schema as production
 
 # Security settings for testing
 SECRET_KEY = "test-secret-key-for-testing-only-not-secure"
