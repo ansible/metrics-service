@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "55432:5432"
+      - "5432:5432"
     networks:
       - metrics-service
     volumes:
