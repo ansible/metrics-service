@@ -27,6 +27,7 @@ class TestURLResolution(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
         self.api_client = APIClient()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
@@ -157,6 +158,7 @@ class TestAPIEndpoints(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
@@ -203,6 +205,7 @@ class TestAuthenticationURLs(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
@@ -235,6 +238,7 @@ class TestDashboardURLs(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
@@ -265,6 +269,7 @@ class TestErrorHandling(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_404_handling(self):
@@ -344,6 +349,7 @@ class TestURLIntegrationWithViews(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
         self.api_client = APIClient()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
@@ -430,6 +436,7 @@ class TestURLSecurity(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
