@@ -122,12 +122,13 @@ DATABASES = {
         "PORT": os.environ.get("METRICS_SERVICE_DB_PORT", "5432"),
         "USER": os.environ.get("METRICS_SERVICE_DB_USER", "metrics_service"),
         "PASSWORD": os.environ.get("METRICS_SERVICE_DB_PASSWORD", "metrics_service"),
-        "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "test_metrics_service"),
+        "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "metrics_service"),
         "OPTIONS": {
             "sslmode": os.environ.get("METRICS_SERVICE_DB_SSLMODE", "prefer"),
         },
         "TEST": {
-            "NAME": os.environ.get("METRICS_SERVICE_TEST_DB_NAME", "test_metrics_service"),
+            # Let Django create unique test database names automatically
+            "NAME": None,
         },
     }
 }
