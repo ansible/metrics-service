@@ -5,7 +5,7 @@ This replaces the complex cron_scheduler with a simpler approach that:
 1. Reads tasks from the database
 2. Handles both one-time scheduled tasks and recurring tasks
 3. Submits tasks to dispatcherd when their time comes
-4. Creates system tasks on startup based on feature flags
+4. Creates system tasks on startup based on feature enables
 """
 
 import logging
@@ -139,7 +139,7 @@ class SimpleTaskScheduler:
 
 
 def initialize_system_tasks():
-    """Initialize system tasks based on feature flags."""
+    """Initialize system tasks based on feature enables."""
     try:
         from django.contrib.auth import get_user_model
 
@@ -152,11 +152,11 @@ def initialize_system_tasks():
 
         system_tasks = []
 
-        # Check feature flags and add appropriate system tasks
-        feature_flags = getattr(settings, "FEATURE_FLAGS", {})
+        # Check feature enables and add appropriate system tasks
+        feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
 
         # Metrics collection system task
-        if feature_flags.get("METRICS_COLLECTION_ENABLED", True):
+        if feature_enabled.get("METRICS_COLLECTION_ENABLED", True):
             system_tasks.append(
                 {
                     "name": "Metrics Collection",
@@ -170,7 +170,7 @@ def initialize_system_tasks():
             )
 
         # Anonymized data cleanup task
-        if feature_flags.get("ANONYMIZED_DATA_ENABLED", True):
+        if feature_enabled.get("ANONYMIZED_DATA_ENABLED", True):
             system_tasks.append(
                 {
                     "name": "Anonymized Data Cleanup",

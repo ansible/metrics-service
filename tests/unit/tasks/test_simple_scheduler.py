@@ -347,8 +347,8 @@ class TestInitializeSystemTasks:
     @pytest.mark.django_db
     @patch("apps.tasks.simple_scheduler.settings")
     def test_initialize_system_tasks_all_enabled(self, mock_settings, caplog):
-        """Test initializing system tasks with all feature flags enabled."""
-        mock_settings.FEATURE_FLAGS = {
+        """Test initializing system tasks with all feature enables enabled."""
+        mock_settings.FEATURE_ENABLED = {
             "METRICS_COLLECTION_ENABLED": True,
             "ANONYMIZED_DATA_ENABLED": True,
         }
@@ -372,8 +372,8 @@ class TestInitializeSystemTasks:
     @pytest.mark.django_db
     @patch("apps.tasks.simple_scheduler.settings")
     def test_initialize_system_tasks_partial_enabled(self, mock_settings):
-        """Test initializing system tasks with some feature flags disabled."""
-        mock_settings.FEATURE_FLAGS = {
+        """Test initializing system tasks with some feature enables disabled."""
+        mock_settings.FEATURE_ENABLED = {
             "METRICS_COLLECTION_ENABLED": False,
             "ANONYMIZED_DATA_ENABLED": True,
         }
@@ -392,11 +392,11 @@ class TestInitializeSystemTasks:
 
     @pytest.mark.django_db
     @patch("apps.tasks.simple_scheduler.settings")
-    def test_initialize_system_tasks_no_feature_flags(self, mock_settings):
-        """Test initializing system tasks with no FEATURE_FLAGS in settings."""
-        # Simulate settings without FEATURE_FLAGS
-        del mock_settings.FEATURE_FLAGS
-        type(mock_settings).FEATURE_FLAGS = PropertyMock(side_effect=AttributeError)
+    def test_initialize_system_tasks_no_feature_enabled(self, mock_settings):
+        """Test initializing system tasks with no FEATURE_ENABLED in settings."""
+        # Simulate settings without FEATURE_ENABLED
+        del mock_settings.feature_enabled
+        type(mock_settings).feature_enabled = PropertyMock(side_effect=AttributeError)
 
         # Should default to having the flags enabled
         with patch("apps.tasks.simple_scheduler.getattr") as mock_getattr:
@@ -413,7 +413,7 @@ class TestInitializeSystemTasks:
     @patch("apps.tasks.simple_scheduler.settings")
     def test_initialize_system_tasks_idempotent(self, mock_settings, caplog):
         """Test that initializing system tasks is idempotent."""
-        mock_settings.FEATURE_FLAGS = {
+        mock_settings.FEATURE_ENABLED = {
             "METRICS_COLLECTION_ENABLED": True,
             "ANONYMIZED_DATA_ENABLED": True,
         }
@@ -480,7 +480,7 @@ class TestInitializeSystemTasks:
     @patch("apps.tasks.simple_scheduler.settings")
     def test_initialize_system_tasks_correct_cron_expressions(self, mock_settings):
         """Test that system tasks have correct cron expressions."""
-        mock_settings.FEATURE_FLAGS = {
+        mock_settings.FEATURE_ENABLED = {
             "METRICS_COLLECTION_ENABLED": True,
             "ANONYMIZED_DATA_ENABLED": True,
         }
@@ -505,7 +505,7 @@ class TestInitializeSystemTasks:
     @patch("apps.tasks.simple_scheduler.settings")
     def test_initialize_system_tasks_correct_priorities(self, mock_settings):
         """Test that system tasks have correct priorities."""
-        mock_settings.FEATURE_FLAGS = {
+        mock_settings.FEATURE_ENABLED = {
             "METRICS_COLLECTION_ENABLED": True,
             "ANONYMIZED_DATA_ENABLED": True,
         }

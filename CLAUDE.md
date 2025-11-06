@@ -250,7 +250,7 @@ The service includes a comprehensive background task system with:
 
 ### Important: ServiceID Initialization
 
-Always run `python manage.py init_service_id` after migrations. This creates the required ServiceID object for DAB's resource registry system.
+Always run `python manage.py metrics_service init-service-id` after migrations. This creates the required ServiceID object for DAB's resource registry system.
 
 ### DAB Features Available
 
@@ -345,12 +345,12 @@ The system includes these built-in task functions:
 
 The project uses a custom User model (`core.User`) that extends AbstractDABUser with enhanced functionality including access control and password handling.
 
-### Feature Flags
+### Feature Enabled
 
 Dispatcherd is permanently enabled. Other feature flags can be controlled via:
 
 ```python
-FEATURE_FLAGS = {
+FEATURE_ENABLED = {
     "DISPATCHERD_ENABLED": True,  # Always True
 }
 ```
@@ -382,7 +382,7 @@ FEATURE_FLAGS = {
 1. Define task function in `apps/core/tasks.py`
 2. Add to `TASK_FUNCTIONS` dictionary
 3. Create Task model instance or use programmatic scheduling
-4. Test with dispatcherd: `python manage.py run_dispatcherd`
+4. Test with dispatcherd: `python manage.py metrics_service run`
 
 ### API Development
 

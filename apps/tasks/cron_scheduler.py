@@ -34,12 +34,12 @@ class CronTaskScheduler:
         self._lock = threading.Lock()
 
         # Task registry for scheduled tasks
-        # Tasks are now loaded from task groups with feature flag control
+        # Tasks are now loaded from task groups with feature enable control
         self.task_registry: dict[str, dict[str, Any]] = {}
         self._load_task_registry()
 
     def _load_task_registry(self):
-        """Load task registry from task groups with feature flag control."""
+        """Load task registry from task groups with feature enable control."""
         try:
             enabled_tasks = get_all_enabled_tasks()
             self.task_registry = enabled_tasks
@@ -61,7 +61,7 @@ class CronTaskScheduler:
             self.task_registry = {}
 
     def reload_task_registry(self):
-        """Reload task registry from task groups (useful when feature flags change)."""
+        """Reload task registry from task groups (useful when feature enables change)."""
         logger.info("Reloading task registry from task groups")
         old_count = len(self.task_registry)
 

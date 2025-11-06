@@ -160,8 +160,8 @@ LOGGING = {
 # Disable dispatcherd during tests to avoid background processes
 DISPATCHERD_ENABLED = False
 
-# Disable feature flags during tests
-FEATURE_FLAGS = {
+# Disable feature enables during tests
+FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": False,
     "METRICS_COLLECTION_ENABLED": False,
 }
