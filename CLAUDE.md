@@ -7,11 +7,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Setup and Database
 
 ```bash
-# Install dependencies
+# Install dependencies (project uses uv for package management)
 pip install -e ".[dev]"
+# OR using uv (faster, project default)
+uv sync --dev
 
 # Run database migrations
 python manage.py migrate
+# OR with virtual environment
+.venv/bin/python manage.py migrate
 
 # Initialize ServiceID for ansible-base (required)
 python manage.py metrics_service init-service-id
@@ -32,11 +36,14 @@ python manage.py metrics_service run
 ### Testing
 
 ```bash
-# Run all tests (automatically uses .venv)
+# Run all tests (automatically uses .venv if available)
 pytest
+# OR explicitly with virtual environment
+.venv/bin/python -m pytest
 
-# Run with coverage
+# Run with coverage (configured for 80% minimum)
 pytest --cov=metrics_service --cov=apps
+.venv/bin/python -m pytest --cov=metrics_service --cov=apps
 
 # Run unit tests only
 pytest -m unit
@@ -46,25 +53,77 @@ pytest -m integration
 
 # Run specific test file
 pytest tests/unit/test_models.py
+.venv/bin/python -m pytest tests/unit/test_models.py
+
+# Run tests with verbose output and short traceback
+.venv/bin/python -m pytest -v --tb=short
+
+# Run tests with coverage report
+.venv/bin/python -m pytest --cov=apps --cov=metrics_service --cov-report=term-missing -v
 ```
 
 ### Code Quality
 
 ```bash
-# Format code
+# Format code (120 character line length)
 black .
 
-# Lint code
+# Lint code (extensive rule set including security, complexity)
 ruff check .
+.venv/bin/ruff check .
 
-# Fix linting issues
+# Fix linting issues automatically
 ruff check . --fix
+.venv/bin/ruff check . --fix
 
-# Type checking
+# Fix unsafe issues (use with caution)
+.venv/bin/ruff check . --unsafe-fixes --fix
+
+# Type checking (configured for gradual adoption)
 mypy .
 
-# Sort imports
+# Sort imports (black-compatible profile)
 isort .
+
+# Run all quality checks together
+black . && ruff check . --fix && mypy . && isort .
+```
+
+### Pre-commit Hooks and Requirements Management
+
+```bash
+# Install pre-commit hooks (automatically syncs requirements)
+pre-commit install
+
+# Run hooks on all files
+pre-commit run --all-files
+
+# Manually sync requirements files from pyproject.toml/uv.lock
+./sync-requirements.sh
+# OR using make
+make sync-requirements
+
+# Check if requirements are in sync
+make requirements-check
+```
+
+### Django Shell and Debugging
+
+```bash
+# Start Django shell for interactive testing
+python manage.py shell
+.venv/bin/python manage.py shell
+
+# Start shell with specific settings
+.venv/bin/python manage.py shell --settings=metrics_service.settings.development
+
+# Create tasks programmatically in shell
+python manage.py shell
+>>> from apps.tasks.models import Task
+>>> task = Task.objects.create(name="Test Task", function_name="cleanup_old_data")
+
+# Check dispatcherd status and logs
+docker-compose logs -f metrics-dispatcher
 ```
 
 ### Background Tasks (Dispatcherd)
@@ -258,7 +317,7 @@ Always run `python manage.py metrics_service init-service-id` after migrations. 
 - **Authentication** - Multiple backends (local, LDAP, SAML, OAuth)
 - **Resource Registry** - Cross-service resource synchronization
 - **Activity Stream** - Audit logging for model changes
-- **Feature Flags** - Runtime feature control
+- **Feature Enabled** - Runtime feature control via FEATURE_ENABLED settings
 
 ### Settings Configuration
 
@@ -324,12 +383,23 @@ GET /api/v1/tasks/available_functions/
 
 ### Available Task Functions
 
-The system includes these built-in task functions:
+The system includes these built-in task functions organized by feature groups:
 
+**System Tasks** (always enabled):
 - **`cleanup_old_data`** - Clean up old data from the system
+- **`cleanup_old_tasks`** - Clean up completed/failed tasks
 - **`send_notification_email`** - Send notification emails to users
 - **`process_user_data`** - Process user data in the background
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
+
+**Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`):
+- **`collect_anonymous_metrics`** - Collect anonymous system metrics
+- **`collect_config_metrics`** - Collect configuration information
+
+**Metrics Collection** (controlled by `METRICS_COLLECTION_ENABLED`):
+- **`collect_host_metrics`** - Collect host performance data
+- **`collect_job_host_summary`** - Collect job execution statistics
+- **`collect_all_metrics`** - Run multiple collectors in sequence
 
 ## Development Notes
 
@@ -345,15 +415,28 @@ The system includes these built-in task functions:
 
 The project uses a custom User model (`core.User`) that extends AbstractDABUser with enhanced functionality including access control and password handling.
 
-### Feature Enabled
+### Feature Enabled Configuration
 
-Dispatcherd is permanently enabled. Other feature flags can be controlled via:
+Dispatcherd is permanently enabled. Other features can be controlled via the `FEATURE_ENABLED` setting:
 
 ```python
 FEATURE_ENABLED = {
-    "DISPATCHERD_ENABLED": True,  # Always True
+    "DISPATCHERD_ENABLED": True,  # Always True, cannot be disabled
+    "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled
+    "METRICS_COLLECTION_ENABLED": False,  # Default disabled (customer opt-in)
 }
 ```
+
+**Environment Variable Mapping:**
+
+- `METRICS_SERVICE_ANONYMIZED_DATA=true/false` → Controls anonymized data collection tasks
+- `METRICS_SERVICE_METRICS_COLLECTION=true/false` → Controls metrics collection tasks
+
+**Task Groups Controlled by Feature Enabled:**
+
+- **System Tasks** - Always enabled (cleanup, maintenance)
+- **Anonymized Data Collection** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: enabled)
+- **Metrics Collection** - Controlled by `METRICS_COLLECTION_ENABLED` (default: disabled)
 
 ### Database Configuration
 
@@ -390,3 +473,36 @@ FEATURE_ENABLED = {
 2. Follow existing filtering and serialization patterns
 3. Add OpenAPI documentation with `@extend_schema`
 4. Test API endpoints thoroughly
+
+## Key Development Patterns
+
+### Package Management and Environment
+- **UV Package Manager**: This project uses `uv` for fast dependency management (`uv sync --dev`)
+- **Virtual Environment**: Commands should use `.venv/bin/python` for consistency
+- **Requirements Sync**: Requirements files are automatically synced via pre-commit hooks when `pyproject.toml` or `uv.lock` changes
+
+### Essential Initialization Steps
+- **ServiceID**: Always run `python manage.py metrics_service init-service-id` after migrations (required for DAB)
+- **System Tasks**: Run `python manage.py metrics_service init-system-tasks` to initialize background tasks
+
+### Testing and Quality Patterns
+- **Test Coverage**: 80% minimum coverage enforced, use `.venv/bin/python -m pytest --cov=apps --cov=metrics_service --cov-report=term-missing -v`
+- **Code Quality**: 120-char lines, comprehensive ruff rules including security checks
+- **Test Markers**: Use `@pytest.mark.unit` and `@pytest.mark.integration` for categorization
+
+### Task System Architecture
+- **Dispatcherd**: Always enabled and integrates with the unified `metrics_service` command
+- **Task Routing**: Automatic task routing - immediate tasks go to dispatcherd, scheduled tasks use APScheduler
+- **Management Command**: Use `python manage.py metrics_service run` for complete service (Django + dispatcher + scheduler)
+- **Task Groups**: Tasks organized into feature-controlled groups (System, Anonymized Data, Metrics Collection)
+
+### Feature Enabled System
+- **Configuration**: Use `FEATURE_ENABLED` dict in Django settings or environment variables with `METRICS_SERVICE_` prefix
+- **Task Groups**: System tasks always enabled, anonymized data default enabled, metrics collection default disabled
+- **Environment Variables**: `METRICS_SERVICE_ANONYMIZED_DATA` and `METRICS_SERVICE_METRICS_COLLECTION` control task groups
+- **Runtime Control**: Features can be toggled via database settings or environment variables
+
+### Code Organization
+- **Apps Structure**: `core/` (models, business logic), `api/v1/` (REST endpoints), `tasks/` (background tasks), `dashboard/` (web UI)
+- **Mixins**: Extensive use of mixins (`AccessControlMixin`, `StatusTrackingMixin`) to reduce code duplication
+- **Type Safety**: All new code requires type hints and return type annotations
