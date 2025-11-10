@@ -6,19 +6,27 @@ import sys
 
 try:
     result = subprocess.run(
-        [
-            "docker", "exec", "metrics-service-postgres",
-            "psql", "-U", "metrics_service", "-d", "awx",
-            "-c", "SELECT COUNT(*) FROM main_job"
+        [  # noqa: S607
+            "docker",
+            "exec",
+            "metrics-service-postgres",
+            "psql",
+            "-U",
+            "metrics_service",
+            "-d",
+            "awx",
+            "-c",
+            "SELECT COUNT(*) FROM main_job",
         ],
         capture_output=True,
         text=True,
-        check=True
+        check=True,
+        shell=False,
     )
 
     # Parse the count from psql output
-    lines = result.stdout.strip().split('\n')
-    count_line = [l for l in lines if l.strip().isdigit()]
+    lines = result.stdout.strip().split("\n")
+    count_line = [line for line in lines if line.strip().isdigit()]
     if count_line:
         count = count_line[0].strip()
         sys.stdout.write("AWX database connection successful!\n")
