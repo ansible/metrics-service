@@ -5,7 +5,7 @@ A modern Django-based service built for the Ansible Automation Platform (AAP) ec
 ## Features
 
 - **🚀 Modern Django Architecture** - Django 4.2+ with clean app-based structure
-- **📊 Automated Task Management** - Feature-flag controlled task groups with automatic routing
+- **📊 Automated Task Management** - Feature-enable controlled task groups with automatic routing
 - **⚡ Smart Task Routing** - Automatic submission to dispatcherd with no manual intervention
 - **🔌 REST API** - Versioned RESTful APIs with OpenAPI documentation
 - **🔐 Authentication & Authorization** - Django-Ansible-Base integration with RBAC
@@ -154,7 +154,7 @@ GET /api/v1/tasks/available_functions/
 - `send_notification_email` - Send notification emails
 - `process_user_data` - Process user data in background
 
-**Metrics Collection Tasks** (feature flag controlled):
+**Metrics Collection Tasks** (feature enable controlled):
 
 - `collect_anonymous_metrics` - Collect anonymous system metrics
 - `collect_config_metrics` - Collect configuration information
@@ -190,7 +190,7 @@ Tasks are automatically routed based on their properties:
 
 No manual intervention required - create a task and it's automatically processed!
 
-### Task Groups & Feature Flags
+### Task Groups & feature enables
 
 Control task execution with environment variables:
 
@@ -291,7 +291,7 @@ METRICS_SERVICE_SECRET_KEY=your-secret-key
 METRICS_SERVICE_DEBUG=false
 METRICS_SERVICE_ALLOWED_HOSTS=localhost,yourdomain.com
 
-# Task Feature Flags
+# Task feature enables
 METRICS_SERVICE_ANONYMIZED_DATA=true
 METRICS_SERVICE_METRICS_COLLECTION=false
 # Just run - no configuration required

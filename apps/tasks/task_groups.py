@@ -1,10 +1,15 @@
 """
 Task groups configuration for organized task management.
 
-This module defines task groups with feature flag controls and provides
+This module defines task groups with feature enabled controls and provides
 a centralized way to manage different categories of tasks.
+
+Feature enabled settings are stored in the database using the Setting model, allowing
+runtime configuration without code changes. Values fall back to Django
+settings if not found in the database.
 """
 
+import json
 import logging
 from typing import Any
 
@@ -13,16 +18,52 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> bool:
+    """
+    Get a feature enabled value from database settings.
+
+    Args:
+        setting_name: Name of the feature enabled setting
+        default: Default value if not found in database
+
+    Returns:
+        bool: Feature enabled value from database or default
+    """
+    try:
+        # Avoid circular import by importing here
+        from apps.core.models import Setting
+
+        setting = Setting.objects.filter(setting_key=setting_name).first()
+        if setting and setting.current_value:
+            try:
+                # Parse JSON value from database
+                value = json.loads(setting.current_value)
+                return bool(value)
+            except (json.JSONDecodeError, ValueError):
+                # If not valid JSON, treat as string boolean
+                return setting.current_value.lower() in ("true", "1", "yes", "on")
+
+        # Fallback to Django settings
+        feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
+        return feature_enabled.get(setting_name, default)
+
+    except Exception as e:
+        logger.warning(f"Error reading feature enabled setting {setting_name} from database: {e}")
+        # Fallback to Django settings
+        feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
+        return feature_enabled.get(setting_name, default)
+
+
 class TaskGroup:
     """
-    Represents a group of related tasks with feature flag control.
+    Represents a group of related tasks with feature enabled control.
     """
 
     def __init__(
         self,
         name: str,
         description: str,
-        enabled_flag: str = None,
+        enabled_setting: str = None,
         default_enabled: bool = True,
         tasks: list[dict[str, Any]] = None,
     ):
@@ -32,28 +73,30 @@ class TaskGroup:
         Args:
             name: Unique name for the task group
             description: Human-readable description
-            enabled_flag: Feature flag name to control this group
-            default_enabled: Default state if feature flag not set
+            enabled_setting: Feature enabled setting name to control this group
+            default_enabled: Default state if feature enabled setting not set
             tasks: List of task configurations in this group
         """
         self.name = name
         self.description = description
-        self.enabled_flag = enabled_flag
+        self.enabled_setting = enabled_setting
         self.default_enabled = default_enabled
         self.tasks = tasks or []
 
     def is_enabled(self) -> bool:
         """
-        Check if this task group is enabled based on feature flags.
+        Check if this task group is enabled based on feature enabled settings.
+
+        Feature enabled settings are read from database first, with fallback to
+        Django settings if not found in database.
 
         Returns:
             bool: True if group is enabled, False otherwise
         """
-        if not self.enabled_flag:
+        if not self.enabled_setting:
             return self.default_enabled
 
-        feature_flags = getattr(settings, "FEATURE_FLAGS", {})
-        return feature_flags.get(self.enabled_flag, self.default_enabled)
+        return get_feature_enabled_from_db(self.enabled_setting, self.default_enabled)
 
     def get_enabled_tasks(self) -> list[dict[str, Any]]:
         """
@@ -72,7 +115,7 @@ class TaskGroup:
 SYSTEM_TASKS_GROUP = TaskGroup(
     name="system_tasks",
     description="Core system maintenance tasks that are always enabled",
-    enabled_flag=None,  # Always enabled
+    enabled_setting=None,  # Always enabled
     default_enabled=True,
     tasks=[
         {
@@ -110,11 +153,11 @@ SYSTEM_TASKS_GROUP = TaskGroup(
     ],
 )
 
-# Anonymized Data Collection Group - Controlled by feature flag
+# Anonymized Data Collection Group - Controlled by feature enabled setting
 ANONYMIZED_DATA_GROUP = TaskGroup(
     name="anonymized_data",
     description="Anonymized data collection tasks",
-    enabled_flag="ANONYMIZED_DATA_COLLECTION",
+    enabled_setting="ANONYMIZED_DATA_COLLECTION",
     default_enabled=True,  # Default enabled but can be controlled
     tasks=[
         {
@@ -142,7 +185,7 @@ ANONYMIZED_DATA_GROUP = TaskGroup(
 METRICS_COLLECTION_GROUP = TaskGroup(
     name="metrics_collection",
     description="Customer-controlled metrics collection tasks",
-    enabled_flag="METRICS_COLLECTION_ENABLED",
+    enabled_setting="METRICS_COLLECTION_ENABLED",
     default_enabled=False,  # Customers must explicitly enable
     tasks=[
         {
@@ -206,63 +249,97 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
 
 def get_task_group_status() -> dict[str, Any]:
     """
-    Get status of all task groups.
+    Get status of all task groups including feature enabled setting source information.
 
     Returns:
         Dictionary with status information for each group
     """
     status = {}
+    enabled_status = get_feature_enabled_status()
 
     for group in TASK_GROUPS:
         group_status = {
             "name": group.name,
             "description": group.description,
             "enabled": group.is_enabled(),
-            "enabled_flag": group.enabled_flag,
+            "enabled_setting": group.enabled_setting,
             "total_tasks": len(group.tasks),
             "enabled_tasks": len(group.get_enabled_tasks()),
             "tasks": group.get_enabled_tasks() if group.is_enabled() else [],
         }
+
+        # Add feature enabled setting details if available
+        if group.enabled_setting and group.enabled_setting in enabled_status:
+            setting_info = enabled_status[group.enabled_setting]
+            group_status["setting_source"] = setting_info["source"]
+            if "last_modified" in setting_info:
+                group_status["setting_last_modified"] = setting_info["last_modified"]
+            if "last_modified_by" in setting_info:
+                group_status["setting_last_modified_by"] = setting_info["last_modified_by"]
+
         status[group.name] = group_status
 
     return status
 
 
-def enable_task_group(group_name: str) -> bool:
+def enable_task_group(group_name: str, user=None) -> bool:
     """
-    Enable a task group by updating its feature flag.
-
-    Note: This function shows the concept but actual implementation
-    would require runtime feature flag management.
+    Enable a task group by updating its feature enabled setting in the database.
 
     Args:
         group_name: Name of the group to enable
+        user: User making the change (optional)
 
     Returns:
-        bool: True if group was found and can be enabled
+        bool: True if group was found and enabled successfully
     """
     group = next((g for g in TASK_GROUPS if g.name == group_name), None)
-    if not group or not group.enabled_flag:
+    if not group or not group.enabled_setting:
         return False
 
-    # In a real implementation, this would update the feature flag
-    # For now, it's a placeholder showing the pattern
-    logger.info(f"Would enable task group: {group_name} via flag: {group.enabled_flag}")
-    return True
+    try:
+        from apps.core.models import Setting
+
+        # Get current value for logging
+        old_value = get_feature_enabled_from_db(group.enabled_setting, group.default_enabled)
+
+        # Update or create the setting
+        setting, created = Setting.objects.get_or_create(
+            setting_key=group.enabled_setting,
+            defaults={
+                "current_value": json.dumps(True),
+                "previous_value": json.dumps(old_value),
+                "last_modified_by": user,
+            },
+        )
+
+        if not created:
+            setting.previous_value = setting.current_value
+            setting.current_value = json.dumps(True)
+            setting.last_modified_by = user
+            setting.save()
+
+        logger.info(f"Enabled task group: {group_name} via setting: {group.enabled_setting}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to enable task group {group_name}: {e}")
+        return False
 
 
-def disable_task_group(group_name: str) -> bool:
+def disable_task_group(group_name: str, user=None) -> bool:
     """
-    Disable a task group by updating its feature flag.
+    Disable a task group by updating its feature enabled setting in the database.
 
     Args:
         group_name: Name of the group to disable
+        user: User making the change (optional)
 
     Returns:
-        bool: True if group was found and can be disabled
+        bool: True if group was found and disabled successfully
     """
     group = next((g for g in TASK_GROUPS if g.name == group_name), None)
-    if not group or not group.enabled_flag:
+    if not group or not group.enabled_setting:
         return False
 
     # System tasks cannot be disabled
@@ -270,8 +347,135 @@ def disable_task_group(group_name: str) -> bool:
         logger.warning("Cannot disable system tasks group")
         return False
 
-    logger.info(f"Would disable task group: {group_name} via flag: {group.enabled_flag}")
-    return True
+    try:
+        from apps.core.models import Setting
+
+        # Get current value for logging
+        old_value = get_feature_enabled_from_db(group.enabled_setting, group.default_enabled)
+
+        # Update or create the setting
+        setting, created = Setting.objects.get_or_create(
+            setting_key=group.enabled_setting,
+            defaults={
+                "current_value": json.dumps(False),
+                "previous_value": json.dumps(old_value),
+                "last_modified_by": user,
+            },
+        )
+
+        if not created:
+            setting.previous_value = setting.current_value
+            setting.current_value = json.dumps(False)
+            setting.last_modified_by = user
+            setting.save()
+
+        logger.info(f"Disabled task group: {group_name} via setting: {group.enabled_setting}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to disable task group {group_name}: {e}")
+        return False
+
+
+def set_feature_enabled(setting_name: str, value: bool, user=None) -> bool:
+    """
+    Set a feature enabled value in the database.
+
+    Args:
+        setting_name: Name of the feature enabled setting
+        value: Boolean value to set
+        user: User making the change (optional)
+
+    Returns:
+        bool: True if successfully set, False otherwise
+    """
+    try:
+        from apps.core.models import Setting
+
+        # Get current value for logging
+        old_value = get_feature_enabled_from_db(setting_name, False)
+
+        # Update or create the setting
+        setting, created = Setting.objects.get_or_create(
+            setting_key=setting_name,
+            defaults={
+                "current_value": json.dumps(value),
+                "previous_value": json.dumps(old_value),
+                "last_modified_by": user,
+            },
+        )
+
+        if not created:
+            setting.previous_value = setting.current_value
+            setting.current_value = json.dumps(value)
+            setting.last_modified_by = user
+            setting.save()
+
+        logger.info(f"Set feature enabled setting {setting_name} to {value}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to set feature enabled setting {setting_name}: {e}")
+        return False
+
+
+def get_feature_enabled_status() -> dict[str, Any]:
+    """
+    Get the status of all feature enabled settings used by task groups.
+
+    Returns:
+        dict: Status of each feature enabled setting including source (db/settings/default)
+    """
+    settings_status = {}
+
+    for group in TASK_GROUPS:
+        if group.enabled_setting:
+            try:
+                from apps.core.models import Setting
+
+                # Check if setting exists in database
+                db_setting = Setting.objects.filter(setting_key=group.enabled_setting).first()
+                if db_setting and db_setting.current_value:
+                    try:
+                        db_value = json.loads(db_setting.current_value)
+                        settings_status[group.enabled_setting] = {
+                            "value": bool(db_value),
+                            "source": "database",
+                            "last_modified": db_setting.modified,
+                            "last_modified_by": (
+                                db_setting.last_modified_by.username if db_setting.last_modified_by else "System"
+                            ),
+                            "group": group.name,
+                        }
+                        continue
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+
+                # Check Django settings
+                feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
+                if group.enabled_setting in feature_enabled:
+                    settings_status[group.enabled_setting] = {
+                        "value": feature_enabled[group.enabled_setting],
+                        "source": "django_settings",
+                        "group": group.name,
+                    }
+                else:
+                    settings_status[group.enabled_setting] = {
+                        "value": group.default_enabled,
+                        "source": "default",
+                        "group": group.name,
+                    }
+
+            except Exception as e:
+                logger.warning(f"Error getting status for setting {group.enabled_setting}: {e}")
+                settings_status[group.enabled_setting] = {
+                    "value": group.default_enabled,
+                    "source": "error_fallback",
+                    "error": str(e),
+                    "group": group.name,
+                }
+
+    return settings_status
 
 
 def get_tasks_by_category(category: str) -> list[dict[str, Any]]:

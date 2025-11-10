@@ -18,7 +18,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: test_metrics_service
+          POSTGRES_DB: metrics_service
           POSTGRES_USER: metrics_service
           POSTGRES_PASSWORD: metrics_service
         options: >-
@@ -47,7 +47,7 @@ jobs:
           METRICS_SERVICE_DB_PORT: 5432
           METRICS_SERVICE_DB_USER: metrics_service
           METRICS_SERVICE_DB_PASSWORD: metrics_service
-          METRICS_SERVICE_TEST_DB_NAME: test_metrics_service
+          METRICS_SERVICE_TEST_DB_NAME: metrics_service
           METRICS_SERVICE_DB_SSLMODE: disable
           DJANGO_SETTINGS_MODULE: metrics_service.settings.test
         run: |

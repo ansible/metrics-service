@@ -22,6 +22,7 @@ class TestCoreURLsIntegration(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_core_urls_inclusion(self):
@@ -48,6 +49,7 @@ class TestHealthURLsIntegration(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_health_urls_inclusion(self):
@@ -76,6 +78,7 @@ class TestDashboardURLsIntegration(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
@@ -111,6 +114,7 @@ class TestAPISchemaURL(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_schema_url_resolution(self):
@@ -154,6 +158,7 @@ class TestAPIURLsIntegration(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_api_urls_inclusion(self):
@@ -191,6 +196,7 @@ class TestDjangoAnsibleBaseURLs(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_resource_api_urls_inclusion(self):
@@ -225,6 +231,7 @@ class TestRootURLsIntegration(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_root_urls_inclusion(self):
@@ -260,6 +267,7 @@ class TestURLErrorHandling(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_nonexistent_url_404(self):
@@ -309,6 +317,7 @@ class TestURLSecurityConsiderations(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_path_traversal_protection(self):
@@ -357,6 +366,7 @@ class TestURLIntegrationWithViews(TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        super().setUp()
         self.client = Client()
 
     def test_url_view_mapping(self):

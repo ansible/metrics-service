@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "metrics-service"
 description = "AAP Service Template following modern standards"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.12"
 license = "MIT"
 authors = [
     {name = "AAP Emerging Services", email = "aap-emerging-services@redhat.com"},
@@ -247,6 +247,7 @@ addopts = [
     "--strict-config",
     "--cov=metrics_service",
     "--cov=apps",
+    "--reuse-db",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",

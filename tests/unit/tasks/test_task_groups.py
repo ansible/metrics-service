@@ -1,7 +1,7 @@
 """
 Tests for task groups functionality.
 
-This module tests the task group system including feature flag controls,
+This module tests the task group system including feature enable controls,
 task categorization, and integration with the cron scheduler.
 """
 
@@ -28,7 +28,7 @@ class TestTaskGroup(TestCase):
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_flag="TEST_FLAG",
+            enabled_setting="TEST_FLAG",
             default_enabled=True,
             tasks=[
                 {
@@ -43,40 +43,40 @@ class TestTaskGroup(TestCase):
 
         assert group.name == "test_group"
         assert group.description == "Test group"
-        assert group.enabled_flag == "TEST_FLAG"
+        assert group.enabled_setting == "TEST_FLAG"
         assert group.default_enabled is True
         assert len(group.tasks) == 1
 
-    @override_settings(FEATURE_FLAGS={"TEST_FLAG": True})
+    @override_settings(FEATURE_ENABLED={"TEST_FLAG": True})
     def test_is_enabled_with_flag_true(self):
-        """Test task group enabled when feature flag is True."""
+        """Test task group enabled when feature enable is True."""
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_flag="TEST_FLAG",
+            enabled_setting="TEST_FLAG",
             default_enabled=False,
         )
 
         assert group.is_enabled() is True
 
-    @override_settings(FEATURE_FLAGS={"TEST_FLAG": False})
+    @override_settings(FEATURE_ENABLED={"TEST_FLAG": False})
     def test_is_enabled_with_flag_false(self):
-        """Test task group disabled when feature flag is False."""
+        """Test task group disabled when feature enable is False."""
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_flag="TEST_FLAG",
+            enabled_setting="TEST_FLAG",
             default_enabled=True,
         )
 
         assert group.is_enabled() is False
 
     def test_is_enabled_no_flag(self):
-        """Test task group uses default when no feature flag."""
+        """Test task group uses default when no feature enable."""
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_flag=None,
+            enabled_setting=None,
             default_enabled=True,
         )
 
@@ -100,7 +100,7 @@ class TestTaskGroup(TestCase):
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_flag=None,
+            enabled_setting=None,
             default_enabled=True,
             tasks=tasks,
         )
@@ -122,7 +122,7 @@ class TestTaskGroup(TestCase):
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_flag=None,
+            enabled_setting=None,
             default_enabled=False,
             tasks=tasks,
         )
@@ -137,7 +137,7 @@ class TestPredefinedTaskGroups(TestCase):
     def test_system_tasks_group(self):
         """Test system tasks group is always enabled."""
         assert SYSTEM_TASKS_GROUP.name == "system_tasks"
-        assert SYSTEM_TASKS_GROUP.enabled_flag is None
+        assert SYSTEM_TASKS_GROUP.enabled_setting is None
         assert SYSTEM_TASKS_GROUP.is_enabled() is True
         assert len(SYSTEM_TASKS_GROUP.tasks) > 0
 
@@ -147,28 +147,28 @@ class TestPredefinedTaskGroups(TestCase):
         assert "weekly_data_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
-    @override_settings(FEATURE_FLAGS={"ANONYMIZED_DATA_COLLECTION": True})
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
     def test_anonymized_data_group_enabled(self):
         """Test anonymized data group when enabled."""
         assert ANONYMIZED_DATA_GROUP.name == "anonymized_data"
-        assert ANONYMIZED_DATA_GROUP.enabled_flag == "ANONYMIZED_DATA_COLLECTION"
+        assert ANONYMIZED_DATA_GROUP.enabled_setting == "ANONYMIZED_DATA_COLLECTION"
         assert ANONYMIZED_DATA_GROUP.is_enabled() is True
 
         task_ids = [task["task_id"] for task in ANONYMIZED_DATA_GROUP.get_enabled_tasks()]
         assert "collect_anonymous_metrics" in task_ids
         assert "collect_config_metrics" in task_ids
 
-    @override_settings(FEATURE_FLAGS={"ANONYMIZED_DATA_COLLECTION": False})
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_anonymized_data_group_disabled(self):
         """Test anonymized data group when disabled."""
         assert ANONYMIZED_DATA_GROUP.is_enabled() is False
         assert len(ANONYMIZED_DATA_GROUP.get_enabled_tasks()) == 0
 
-    @override_settings(FEATURE_FLAGS={"METRICS_COLLECTION_ENABLED": True})
+    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION_ENABLED": True})
     def test_metrics_collection_group_enabled(self):
         """Test metrics collection group when enabled."""
         assert METRICS_COLLECTION_GROUP.name == "metrics_collection"
-        assert METRICS_COLLECTION_GROUP.enabled_flag == "METRICS_COLLECTION_ENABLED"
+        assert METRICS_COLLECTION_GROUP.enabled_setting == "METRICS_COLLECTION_ENABLED"
         assert METRICS_COLLECTION_GROUP.is_enabled() is True
 
         task_ids = [task["task_id"] for task in METRICS_COLLECTION_GROUP.get_enabled_tasks()]
@@ -176,7 +176,7 @@ class TestPredefinedTaskGroups(TestCase):
         assert "collect_job_host_summary" in task_ids
         assert "collect_all_metrics_daily" in task_ids
 
-    @override_settings(FEATURE_FLAGS={"METRICS_COLLECTION_ENABLED": False})
+    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION_ENABLED": False})
     def test_metrics_collection_group_disabled(self):
         """Test metrics collection group when disabled."""
         assert METRICS_COLLECTION_GROUP.is_enabled() is False
@@ -187,7 +187,7 @@ class TestTaskGroupFunctions(TestCase):
     """Test utility functions for task groups."""
 
     @override_settings(
-        FEATURE_FLAGS={
+        FEATURE_ENABLED={
             "ANONYMIZED_DATA_COLLECTION": True,
             "METRICS_COLLECTION_ENABLED": False,
         }
@@ -228,7 +228,7 @@ class TestTaskGroupFunctions(TestCase):
         # Check system tasks group
         system_status = status["system_tasks"]
         assert system_status["enabled"] is True
-        assert system_status["enabled_flag"] is None
+        assert system_status["enabled_setting"] is None
         assert system_status["total_tasks"] > 0
         assert system_status["enabled_tasks"] == system_status["total_tasks"]
 
@@ -267,7 +267,7 @@ class TestTaskGroupIntegration(TestCase):
         assert result is None  # refresh_scheduler doesn't return a value
 
     @override_settings(
-        FEATURE_FLAGS={
+        FEATURE_ENABLED={
             "ANONYMIZED_DATA_COLLECTION": True,
             "METRICS_COLLECTION_ENABLED": True,
         }
@@ -295,7 +295,7 @@ class TestTaskGroupIntegration(TestCase):
         assert any("host_metrics" in task_id for task_id in task_ids)
 
     @override_settings(
-        FEATURE_FLAGS={
+        FEATURE_ENABLED={
             "ANONYMIZED_DATA_COLLECTION": False,
             "METRICS_COLLECTION_ENABLED": False,
         }
