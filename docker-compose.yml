@@ -19,6 +19,9 @@ services:
       - metrics-service
     volumes:
       - "metrics_service_db:/var/lib/postgresql/data"
+      - "./tools/docker/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro"
+      - "./tools/docker/02-restore-awx.sh:/docker-entrypoint-initdb.d/02-restore-awx.sh:ro"
+      - "./tools/docker/awx_mock_dump.sql:/docker-entrypoint-initdb.d/awx_mock_dump.sql:ro"
 
   metrics-service:
     build:
