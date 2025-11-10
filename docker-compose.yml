@@ -43,6 +43,13 @@ services:
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_DATABASES__default__NAME: metrics_service
       METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: prefer
+      METRICS_SERVICE_DATABASES__awx__ENGINE: django.db.backends.postgresql
+      METRICS_SERVICE_DATABASES__awx__HOST: postgres
+      METRICS_SERVICE_DATABASES__awx__PORT: 5432
+      METRICS_SERVICE_DATABASES__awx__USER: metrics_service
+      METRICS_SERVICE_DATABASES__awx__PASSWORD: metrics_service
+      METRICS_SERVICE_DATABASES__awx__NAME: awx
+      METRICS_SERVICE_DATABASES__awx__OPTIONS__sslmode: prefer
       METRICS_SERVICE_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service,0.0.0.0
       METRICS_SERVICE_DEBUG: "true"
       METRICS_SERVICE_ANONYMIZED_DATA: "true"
@@ -74,6 +81,13 @@ services:
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_DATABASES__default__NAME: metrics_service
       METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: prefer
+      METRICS_SERVICE_DATABASES__awx__ENGINE: django.db.backends.postgresql
+      METRICS_SERVICE_DATABASES__awx__HOST: postgres
+      METRICS_SERVICE_DATABASES__awx__PORT: 5432
+      METRICS_SERVICE_DATABASES__awx__USER: metrics_service
+      METRICS_SERVICE_DATABASES__awx__PASSWORD: metrics_service
+      METRICS_SERVICE_DATABASES__awx__NAME: awx
+      METRICS_SERVICE_DATABASES__awx__OPTIONS__sslmode: prefer
       DJANGO_SETTINGS_MODULE: metrics_service.settings.development
       DISPATCHERD_ENABLED: "true"
     networks:
