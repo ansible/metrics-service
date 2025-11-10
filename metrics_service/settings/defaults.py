@@ -134,7 +134,7 @@ DATABASES = {
         "OPTIONS": {
             "sslmode": "prefer",
         },
-    }
+    },
 }
 
 # Password validation
