@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Constants for repeated strings
 MSG_METRICS_UTILITY_NOT_AVAILABLE = "metrics-utility is not available"
 LABEL_METRICS_COLLECTION = "Metrics Collection"
-LABEL_DB_CONNECTION = "Database connection string (optional)"
+LABEL_DB_CONNECTION = "Database name from Django settings (default: 'awx')"
 LABEL_START_DATE = "Start date for collection (ISO format)"
 LABEL_END_DATE = "End date for collection (ISO format)"
 EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
@@ -64,7 +64,7 @@ def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
 
     Args:
         **kwargs: Task data containing collection parameters:
-            - db (str): Database connection string (optional)
+            - database (str): Database name from Django settings (default: 'awx')
             - since (str): Start date for collection (optional)
             - until (str): End date for collection (optional)
             - custom_params (dict): Additional custom parameters (optional)
@@ -79,13 +79,16 @@ def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
 
     try:
         # Get parameters from kwargs
-        db = kwargs.get("db")
+        from django.db import connections
+
+        db_name = kwargs.get("database", "awx")
         since = kwargs.get("since")
         until = kwargs.get("until")
         custom_params = kwargs.get("custom_params")
 
         # Create collector instance
-        collector = anonymous(db=db, since=since, until=until, custom_params=custom_params)
+        db_connection = connections[db_name]
+        collector = anonymous(db=db_connection, since=since, until=until, custom_params=custom_params)
 
         # Gather data
         metrics_data = collector.gather()
@@ -96,7 +99,12 @@ def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
                 "task_type": "collect_anonymous_metrics",
                 "metrics_data": metrics_data,
                 "collector_type": "anonymous",
-                "parameters_used": {"db": db, "since": since, "until": until, "custom_params": custom_params},
+                "parameters_used": {
+                    "database": db_name,
+                    "since": since,
+                    "until": until,
+                    "custom_params": custom_params,
+                },
             },
         )
 
@@ -166,7 +174,7 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
 
     Args:
         **kwargs: Task data containing collection parameters:
-            - db (str): Database connection string (optional)
+            - database (str): Database name from Django settings (default: 'awx')
             - since (str): Start date for collection (optional)
             - until (str): End date for collection (optional)
 
@@ -179,13 +187,16 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
     log_task_execution("collect_job_host_summary", "processing", "Collecting job host summary metrics")
 
     try:
+        from django.db import connections
+
         # Get parameters from kwargs
-        db = kwargs.get("db")
+        db_name = kwargs.get("database", "awx")
         since = kwargs.get("since")
         until = kwargs.get("until")
 
+        db_connection = connections[db_name]
         # Create collector instance
-        collector = job_host_summary(db=db, since=since, until=until)
+        collector = job_host_summary(db=db_connection, since=since, until=until)
 
         # Gather data
         summary_data = collector.gather()
@@ -196,7 +207,7 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
                 "task_type": "collect_job_host_summary",
                 "summary_data": summary_data,
                 "collector_type": "job_host_summary",
-                "parameters_used": {"db": db, "since": since, "until": until},
+                "parameters_used": {"database": db_name, "since": since, "until": until},
             },
         )
 
@@ -216,7 +227,7 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
 
     Args:
         **kwargs: Task data containing collection parameters:
-            - db (str): Database connection string (optional)
+            - database (str): Database name from Django settings (default: 'awx')
             - since (str): Start date for collection (optional)
 
     Returns:
@@ -228,12 +239,15 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
     log_task_execution("collect_host_metrics", "processing", "Collecting host metrics")
 
     try:
+        from django.db import connections
+
         # Get parameters from kwargs
-        db = kwargs.get("db")
+        db_name = kwargs.get("database", "awx")
         since = kwargs.get("since")
 
+        db_connection = connections[db_name]
         # Create collector instance
-        collector = host_metric(db=db, since=since)
+        collector = host_metric(db=db_connection, since=since)
 
         # Gather data
         host_data = collector.gather()
@@ -244,7 +258,7 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
                 "task_type": "collect_host_metrics",
                 "host_data": host_data,
                 "collector_type": "host_metric",
-                "parameters_used": {"db": db, "since": since},
+                "parameters_used": {"database": db_name, "since": since},
             },
         )
 
@@ -264,7 +278,7 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
 
     Args:
         **kwargs: Task data containing collection parameters:
-            - db (str): Database connection string (optional)
+            - database (str): Database name from Django settings (default: 'awx')
             - since (str): Start date for collection (optional)
             - until (str): End date for collection (optional)
             - collectors (list): List of specific collectors to run (optional)
@@ -278,8 +292,11 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
     log_task_execution("collect_all_metrics", "processing", "Collecting all metrics")
 
     try:
+        from django.db import connections
+
         # Get parameters from kwargs
-        db = kwargs.get("db")
+        db_name = kwargs.get("database", "awx")
+        db_connection = connections[db_name]
         since = kwargs.get("since")
         until = kwargs.get("until")
         collectors_list = kwargs.get("collectors", ["anonymous", "config", "host_metric"])
@@ -290,13 +307,13 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
         for collector_name in collectors_list:
             try:
                 if collector_name == "anonymous":
-                    collector_instance = anonymous(db=db, since=since, until=until)
+                    collector_instance = anonymous(db=db_connection, since=since, until=until)
                 elif collector_name == "config":
-                    collector_instance = config(db=db)
+                    collector_instance = config(db=db_connection)
                 elif collector_name == "job_host_summary":
-                    collector_instance = job_host_summary(db=db, since=since, until=until)
+                    collector_instance = job_host_summary(db=db_connection, since=since, until=until)
                 elif collector_name == "host_metric":
-                    collector_instance = host_metric(db=db, since=since)
+                    collector_instance = host_metric(db=db_connection, since=since)
                 else:
                     logger.warning(f"Unknown collector: {collector_name}")
                     continue
@@ -315,7 +332,7 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
                 "task_type": "collect_all_metrics",
                 "all_results": all_results,
                 "collectors_run": collectors_list,
-                "parameters_used": {"db": db, "since": since, "until": until},
+                "parameters_used": {"database": db_name, "since": since, "until": until},
             },
         )
 
@@ -913,7 +930,7 @@ TASK_METADATA = {
     "collect_config_metrics": {
         "category": LABEL_METRICS_COLLECTION,
         "description": "Collect system configuration information and metadata",
-        "parameters": {"db": {"type": "string", "description": "Database connection string (optional)"}},
+        "parameters": {"db": {"type": "string", "description": "Database name from Django settings (default: 'awx')"}},
         "examples": [{"name": "Collect configuration", "data": {}}],
     },
     "collect_job_host_summary": {
@@ -945,7 +962,7 @@ TASK_METADATA = {
         "category": LABEL_METRICS_COLLECTION,
         "description": "Run multiple collectors in sequence to gather comprehensive metrics",
         "parameters": {
-            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "database": {"type": "string", "description": LABEL_DB_CONNECTION},
             "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
             "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
             "collectors": {
