@@ -8,22 +8,21 @@ connect to and query the AWX database configured in Django settings.
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import TestCase
 
 from apps.tasks.tasks import collect_config_metrics
 
 
 @pytest.mark.unit
-class TestCollectorDatabaseIntegration(TestCase):
+class TestCollectorDatabaseIntegration:
     """Test that collectors properly use Django database connections."""
 
     @patch("apps.tasks.tasks.config")
-    @patch("django.db.connections.__getitem__")
+    @patch("django.db.connections")
     def test_collect_config_metrics_uses_django_connection(self, mock_connections, mock_config_collector):
         """Test that collect_config_metrics uses Django database connection."""
         # Setup mock database connection
         mock_db_connection = MagicMock()
-        mock_connections.return_value = mock_db_connection
+        mock_connections.__getitem__.return_value = mock_db_connection
 
         # Setup mock collector return value
         mock_collector_instance = MagicMock()
@@ -37,7 +36,7 @@ class TestCollectorDatabaseIntegration(TestCase):
         result = collect_config_metrics(database="awx")
 
         # Verify Django connections was accessed with 'awx'
-        mock_connections.assert_called_once_with("awx")
+        mock_connections.__getitem__.assert_called_once_with("awx")
 
         # Verify collector was called with the Django connection
         mock_config_collector.assert_called_once_with(db=mock_db_connection)
@@ -47,17 +46,17 @@ class TestCollectorDatabaseIntegration(TestCase):
 
         # Verify result is successful
         assert result["status"] == "success"
-        assert result["data"]["collector_type"] == "config"
-        assert result["data"]["database_used"] == "awx"
-        assert "config_data" in result["data"]
+        assert result["collector_type"] == "config"
+        assert result["parameters_used"]["database"] == "awx"
+        assert "config_data" in result
 
     @patch("apps.tasks.tasks.config")
-    @patch("django.db.connections.__getitem__")
+    @patch("django.db.connections")
     def test_collect_config_metrics_defaults_to_awx_database(self, mock_connections, mock_config_collector):
         """Test that collect_config_metrics defaults to 'awx' database."""
         # Setup mocks
         mock_db_connection = MagicMock()
-        mock_connections.return_value = mock_db_connection
+        mock_connections.__getitem__.return_value = mock_db_connection
 
         mock_collector_instance = MagicMock()
         mock_collector_instance.gather.return_value = {}
@@ -67,16 +66,16 @@ class TestCollectorDatabaseIntegration(TestCase):
         result = collect_config_metrics()
 
         # Verify 'awx' was used as default
-        mock_connections.assert_called_once_with("awx")
-        assert result["data"]["database_used"] == "awx"
+        mock_connections.__getitem__.assert_called_once_with("awx")
+        assert result["parameters_used"]["database"] == "awx"
 
     @patch("apps.tasks.tasks.config")
-    @patch("django.db.connections.__getitem__")
+    @patch("django.db.connections")
     def test_collect_config_metrics_handles_collector_error(self, mock_connections, mock_config_collector):
         """Test that collect_config_metrics handles errors from collector."""
         # Setup mock to raise an exception
         mock_db_connection = MagicMock()
-        mock_connections.return_value = mock_db_connection
+        mock_connections.__getitem__.return_value = mock_db_connection
 
         mock_collector_instance = MagicMock()
         mock_collector_instance.gather.side_effect = Exception("Database connection failed")

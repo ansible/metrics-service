@@ -146,7 +146,7 @@ def collect_config_metrics(**kwargs) -> dict[str, Any]:
                 "task_type": "collect_config_metrics",
                 "config_data": config_data,
                 "collector_type": "config",
-                "database_used": db_name,
+                "parameters_used": {"database": db_name},
             },
         )
 
