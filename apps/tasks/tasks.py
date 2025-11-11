@@ -35,12 +35,7 @@ EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
 
 # Import metrics-utility collectors
 try:
-    from metrics_utility.library.collectors import (
-        anonymous,
-        config,
-        host_metric,
-        job_host_summary,
-    )
+    from metrics_utility.library.collectors import anonymous, config, host_metric, job_host_summary
 
     METRICS_UTILITY_AVAILABLE = True
 except ImportError as e:
@@ -117,11 +112,11 @@ def collect_config_metrics(**kwargs) -> dict[str, Any]:
     Collect configuration metrics using metrics-utility library.
 
     This task uses the config collector from metrics-utility to gather
-    system configuration information.
+    system configuration information from the AWX database.
 
     Args:
         **kwargs: Task data containing collection parameters:
-            - db (str): Database connection string (optional)
+            - database (str): Database name from Django settings (default: 'awx')
 
     Returns:
         dict: Task result with collected configuration data
@@ -132,13 +127,17 @@ def collect_config_metrics(**kwargs) -> dict[str, Any]:
     log_task_execution("collect_config_metrics", "processing", "Collecting configuration metrics")
 
     try:
-        # Get parameters from kwargs
-        db = kwargs.get("db")
+        from django.db import connections
 
-        # Create collector instance
-        collector = config(db=db)
+        # Get db name from kwargs, default to 'awx' (defined in defaults.py)
+        db_name = kwargs.get("database", "awx")
 
-        # Gather data
+        # Get the Django db connection for the AWX database
+        db_connection = connections[db_name]
+
+        # Create collector instance with Django database connection
+        collector = config(db=db_connection)
+
         config_data = collector.gather()
 
         return create_task_result(
@@ -147,7 +146,7 @@ def collect_config_metrics(**kwargs) -> dict[str, Any]:
                 "task_type": "collect_config_metrics",
                 "config_data": config_data,
                 "collector_type": "config",
-                "parameters_used": {"db": db},
+                "database_used": db_name,
             },
         )
 

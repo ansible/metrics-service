@@ -121,7 +121,20 @@ DATABASES = {
         "OPTIONS": {
             "sslmode": "prefer",
         },
-    }
+    },
+    # AWX database for metrics-utility collector integration
+    # Override with METRICS_SERVICE_DATABASES__awx__HOST, etc.
+    "awx": {
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": "127.0.0.1",
+        "PORT": "5432",
+        "USER": "metrics_service",
+        "PASSWORD": "metrics_service",
+        "NAME": "awx",
+        "OPTIONS": {
+            "sslmode": "prefer",
+        },
+    },
 }
 
 # Password validation
