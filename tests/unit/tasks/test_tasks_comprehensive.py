@@ -309,12 +309,8 @@ class TestTaskFunctionsRegistry(TestCase):
 
 
 @pytest.mark.unit
-class TestEdgeCasesAndErrorHandling(TestCase):
+class TestEdgeCasesAndErrorHandling:
     """Test edge cases and error handling scenarios."""
-
-    def setUp(self):
-        """Set up test environment."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
     def test_task_execution_with_invalid_data(self):
         """Test task execution with invalid task data."""
@@ -328,12 +324,31 @@ class TestEdgeCasesAndErrorHandling(TestCase):
         result = tasks.process_user_data(user_id=None)
         assert "error" in result["status"]
 
-    def test_metrics_collection_edge_cases(self):
-        """Test metrics collection edge cases."""
-        # Test with empty parameters
+    @patch("apps.tasks.tasks.anonymous")
+    @patch("django.db.connections")
+    def test_metrics_collection_edge_cases(self, mock_connections, mock_collector):
+        """Test metrics collection works with Django database connections."""
+        # Setup mock database connection
+        mock_db_connection = object()
+        mock_connections.__getitem__.return_value = mock_db_connection
+
+        # Setup mock collector with proper gather method
+        from unittest.mock import MagicMock
+
+        mock_collector_instance = MagicMock()
+        mock_collector_instance.gather.return_value = {}
+        mock_collector.return_value = mock_collector_instance
+
+        # Call the function
         result = tasks.collect_anonymous_metrics()
-        assert isinstance(result, dict)
-        assert "success" in result["status"]
+
+        # Verify it worked
+        assert result["status"] == "success"
+        assert result["collector_type"] == "anonymous"
+
+        # Verify it used Django connections
+        mock_connections.__getitem__.assert_called_once_with("awx")
+        mock_collector.assert_called_once_with(db=mock_db_connection, since=None, until=None, custom_params=None)
 
     @patch("apps.tasks.tasks.logger")
     def test_error_logging(self, mock_logger):
