@@ -4,20 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metrics-service"
-description = "AAP Service Template following modern standards"
+description = "AAP Metrics Service"
 readme = "README.md"
 requires-python = "==3.12.*"
 license = "MIT"
 authors = [
     {name = "AAP Emerging Services", email = "aap-emerging-services@redhat.com"},
 ]
-keywords = ["ansible", "automation", "platform", "service"]
+keywords = ["ansible", "metrics", "service"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Framework :: Django",
     "Framework :: Django :: 5.2.7",
