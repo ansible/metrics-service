@@ -2,7 +2,7 @@
 Extended tests for task views and serializers to improve coverage.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -115,7 +115,7 @@ class TestTaskSerializer(TestCase):
 
     def test_task_with_scheduled_time(self):
         """Test task with scheduled time."""
-        scheduled_time = datetime.now(timezone.utc)
+        scheduled_time = datetime.now(UTC)
         data = {
             "name": "Scheduled Task",
             "function_name": "scheduled_function",
