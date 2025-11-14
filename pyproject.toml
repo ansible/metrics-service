@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "metrics-service"
 description = "AAP Service Template following modern standards"
 readme = "README.md"
-requires-python = "==3.12"
+requires-python = "==3.12.*"
 license = "MIT"
 authors = [
     {name = "AAP Emerging Services", email = "aap-emerging-services@redhat.com"},
@@ -20,16 +20,16 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Framework :: Django",
-    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.2.7",
 ]
 dynamic = ["version"]
 
 dependencies = [
-    "Django>=4.2,<5.0",
+    "Django>=5.2.7",
     "djangorestframework>=3.15",
-    "django-ansible-base[jwt_consumer,api_documentation,rbac,rest_filters]",
+    "django-ansible-base[jwt_consumer,api_documentation,rbac,rest_filters]==2025.10.20",
     "django-split-settings>=1.2",
-    "drf-spectacular>=0.27",
+    "drf-spectacular>=0.26.5",
     "django-cors-headers>=4.0",
     "psycopg[binary]>=3.1",
     "psycopg2-binary>=2.9.0",  # Required for dispatcherd PostgreSQL LISTEN/NOTIFY
@@ -41,7 +41,8 @@ dependencies = [
     "croniter>=1.3.0",
     "uv>=0.8.22",
     "apscheduler>=3.10.0",
-    "metrics-utility @ git+https://github.com/ansible/metrics-utility.git",
+    "metrics-utility==0.7.20251112",
+    "django-prometheus>=2.3.1",
     "pip>=25.2",
 ]
 
