@@ -216,7 +216,7 @@ known_first_party = ["metrics_service", "apps"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "DJANGO", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.mypy]
-python = "3.11"
+python = "3.12"
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 warn_return_any = true
 warn_unused_configs = true
