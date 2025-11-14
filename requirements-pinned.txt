@@ -18,6 +18,10 @@ attrs==25.3.0 \
     # via
     #   jsonschema
     #   referencing
+backoff==2.2.1 \
+    --hash=sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba \
+    --hash=sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8
+    # via segment-analytics-python
 boto3==1.35.96 \
     --hash=sha256:bace02ef2181d176cedc1f8f90c95c301bb7c555db124cf80bc193cbb52a7c64 \
     --hash=sha256:e6acb2380791b13d8fd55062d9bbc6e27c3ddb3e73cff71c4ca02e6743780c67
@@ -120,23 +124,24 @@ distro==1.9.0 \
     --hash=sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed \
     --hash=sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2
     # via metrics-utility
-django==4.2.21 \
-    --hash=sha256:1d658c7bf5d31c7d0cac1cab58bc1f822df89255080fec81909256c30e6180b3 \
-    --hash=sha256:b54ac28d6aa964fc7c2f7335138a54d78980232011e0cd2231d04eed393dcb0d
+django==5.2.7 \
+    --hash=sha256:59a13a6515f787dec9d97a0438cd2efac78c8aca1c80025244b0fe507fe0754b \
+    --hash=sha256:e0f6f12e2551b1716a95a63a1366ca91bbcd7be059862c1b18f989b1da356cdd
     # via
     #   channels
     #   django-ansible-base
     #   django-cors-headers
     #   django-crum
     #   django-oauth-toolkit
+    #   django-prometheus
     #   djangorestframework
     #   drf-spectacular
     #   metrics-service
     #   metrics-utility
     #   social-auth-app-django
-django-ansible-base==2025.8.18 \
-    --hash=sha256:2ad5bd979d93d2d1ae3b818c38641377991c70b2b93252424ac54b0351103681 \
-    --hash=sha256:fa54b32441942b98d6d26806d63daf2e6b4b0dd176bc841db64a0493cbf29ace
+django-ansible-base==2025.10.20 \
+    --hash=sha256:11562985d3c62989afb60065be5fb3b89b35f01ce5844132b2bb82f361f476e2 \
+    --hash=sha256:7c4383aaf9fd798d6c894a6546048158de451232c88f1750bbdd55a6fc23c3ee
     # via metrics-service
 django-cors-headers==4.7.0 \
     --hash=sha256:6fdf31bf9c6d6448ba09ef57157db2268d515d94fc5c89a0a1028e1fc03ee52b \
@@ -150,6 +155,10 @@ django-oauth-toolkit==3.0.1 \
     --hash=sha256:3ef00b062a284f2031b0732b32dc899e3bbf0eac221bbb1cffcb50b8932e55ed \
     --hash=sha256:7200e4a9fb229b145a6d808cbf0423b6d69a87f68557437733eec3c0cf71db02
     # via metrics-service
+django-prometheus==2.4.1 \
+    --hash=sha256:073628243d2a6de6a8a8c20e5b512872dfb85d66e1b60b28bcf1eca0155dad95 \
+    --hash=sha256:7fe5af7f7c9ad9cd8a429fe0f3f1bf651f0e244f77162147869eab7ec09cc5e7
+    # via metrics-service
 django-split-settings==1.3.2 \
     --hash=sha256:72bd7dd9f12602585681074d1f859643fb4f6b196b584688fab86bdd73a57dff \
     --hash=sha256:d3975aa3601e37f65c59b9977b6bcb1de8bc27496930054078589c7d56998a9d
@@ -161,9 +170,9 @@ djangorestframework==3.16.1 \
     #   django-ansible-base
     #   drf-spectacular
     #   metrics-service
-drf-spectacular==0.28.0 \
-    --hash=sha256:2c778a47a40ab2f5078a7c42e82baba07397bb35b074ae4680721b2805943061 \
-    --hash=sha256:856e7edf1056e49a4245e87a61e8da4baff46c83dbc25be1da2df77f354c7cb4
+drf-spectacular==0.26.5 \
+    --hash=sha256:aee55330a774ba8a9cbdb125714d1c9ee05a8aafd3ce3be8bfd26527649aeb44 \
+    --hash=sha256:c0002a820b11771fdbf37853deb371947caf0159d1afeeffe7598e964bc1db94
     # via
     #   django-ansible-base
     #   metrics-service
@@ -217,7 +226,9 @@ kubernetes==34.1.0 \
     --hash=sha256:8fe8edb0b5d290a2f3ac06596b23f87c658977d46b5f8df9d0f4ea83d0003912 \
     --hash=sha256:bffba2272534e224e6a7a74d582deb0b545b7c9879d2cd9e4aae9481d1f2cc2a
     # via metrics-utility
-metrics-utility @ git+https://github.com/ansible/metrics-utility.git@c79c3374e5ae93e03fcf2d30ccc1048ceca06619
+metrics-utility==0.7.20251112 \
+    --hash=sha256:47545d25e293c1e05ff0b320be18c68c8bb2c46191dc8866b09060fa4f37acfb \
+    --hash=sha256:bbaa329030ab80ada17f54d1655bc7c9ca251c6f0fa7be2e1d2ade66a584b83e
     # via metrics-service
 numpy==2.3.3 \
     --hash=sha256:067e3d7159a5d8f8a0b46ee11148fc35ca9b21f61e3c49fbd0a027450e65a33b \
@@ -258,6 +269,10 @@ pip==25.2 \
     --hash=sha256:578283f006390f85bb6282dffb876454593d637f5d1be494b5202ce4877e71f2 \
     --hash=sha256:6d67a2b4e7f14d8b31b8b52648866fa717f45a1eb70e83002f4331d07e953717
     # via metrics-service
+prometheus-client==0.23.1 \
+    --hash=sha256:6ae8f9081eaaaf153a2e959d2e6c4f4fb57b12ef76c8c7980202f1e57b48b2ce \
+    --hash=sha256:dd1913e6e76b59cfe44e7a4b83e01afc9873c1bdfd2ed8739f1e76aeca115f99
+    # via django-prometheus
 psycopg==3.2.10 \
     --hash=sha256:0bce99269d16ed18401683a8569b2c5abd94f72f8364856d56c0389bcd50972a \
     --hash=sha256:ab5caf09a9ec42e314a21f5216dbcceac528e0e05142e42eea83a3b28b320ac3
@@ -309,6 +324,7 @@ pyjwt==2.10.1 \
     --hash=sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb
     # via
     #   django-ansible-base
+    #   segment-analytics-python
     #   social-auth-core
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
@@ -318,6 +334,7 @@ python-dateutil==2.9.0.post0 \
     #   croniter
     #   kubernetes
     #   pandas
+    #   segment-analytics-python
 python3-openid==3.2.0 \
     --hash=sha256:33fbf6928f401e0b790151ed2b5290b02545e8775f982485205a066f874aaeaf \
     --hash=sha256:6626f771e0417486701e0b4daff762e7212e820ca5b29fcc0d05f6f8736dfa6b
@@ -358,6 +375,7 @@ requests==2.32.5 \
     #   kubernetes
     #   metrics-utility
     #   requests-oauthlib
+    #   segment-analytics-python
     #   social-auth-core
 requests-oauthlib==2.0.0 \
     --hash=sha256:7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36 \
@@ -393,6 +411,10 @@ s3transfer==0.10.4 \
     --hash=sha256:244a76a24355363a68164241438de1b72f8781664920260c48465896b712a41e \
     --hash=sha256:29edc09801743c21eb5ecbc617a152df41d3c287f67b615f73e5f750583666a7
     # via boto3
+segment-analytics-python==2.3.4 \
+    --hash=sha256:ea2b6432bef1c017d24f69bf5f778e45c2385ec9df527242e2b42ee6cefd7367 \
+    --hash=sha256:f188e864cc0fed9fb141aff73c21bfaab783a1dd1b97ab1eff44340aed68f50b
+    # via metrics-utility
 setuptools==80.9.0 \
     --hash=sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922 \
     --hash=sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c

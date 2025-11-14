@@ -35,7 +35,19 @@ EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
 
 # Import metrics-utility collectors
 try:
-    from metrics_utility.library.collectors import anonymous, config, host_metric, job_host_summary
+    # TODO The AS is just a filler till this is corrected with a later PR
+    from metrics_utility.library.collectors.controller import (
+        config,
+    )
+    from metrics_utility.library.collectors.controller import (
+        job_host_summary as anonymous,
+    )
+    from metrics_utility.library.collectors.controller import (
+        main_host as job_host_summary,
+    )
+    from metrics_utility.library.collectors.controller import (
+        main_jobevent as host_metric,
+    )
 
     METRICS_UTILITY_AVAILABLE = True
 except ImportError as e:
