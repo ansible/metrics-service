@@ -261,7 +261,7 @@ markers = [
     "slow: Slow running tests",
 ]
 filterwarnings = [
-    "ignore::django.utils.deprecation.RemovedInDjango50Warning",
+    "ignore::django.utils.deprecation.RemovedInDjango60Warning",
     "ignore::DeprecationWarning",
     "ignore::pytest.PytestUnraisableExceptionWarning",
     "ignore:Overriding setting DATABASES:UserWarning",
