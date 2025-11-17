@@ -221,8 +221,8 @@ class TestAuthenticationURLs(TestCase):
 
     def test_logout_url(self):
         """Test logout URL functionality."""
-        # Test logout URL
-        response = self.client.get("/logout/")
+        # Test logout URL - LogoutView requires POST by default
+        response = self.client.post("/logout/")
         assert response.status_code in [200, 302, 404]
 
     def test_authentication_redirects(self):
