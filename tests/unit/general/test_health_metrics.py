@@ -29,11 +29,8 @@ class TestHealthEndpoint:
             response = client.get("/health")
             assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
-<<<<<<< HEAD
     def test_health_check_works_without_authentication(self, client, db):
-=======
-    def test_health_check_works_without_authentication(self, client):
->>>>>>> 80fb3e0 (add health endpoints)
+
         """Test that health endpoint doesn't require authentication."""
         response = client.get("/health")
         assert response.json() == {"status": "ok"}
