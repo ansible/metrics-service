@@ -43,7 +43,7 @@ uv run python manage.py migrate --noinput
 
 # Initialize ServiceID for Django-Ansible-Base
 echo "🔧 Initializing ServiceID..."
-uv run python manage.py init_service_id
+uv run python manage.py metrics_service init-service-id
 
 # Collect static files (if needed)
 echo "📦 Collecting static files..."
@@ -51,7 +51,7 @@ uv run python manage.py collectstatic --noinput --clear || echo "⚠️  Static 
 
 # Create logs directory with proper permissions
 mkdir -p /app/logs
-chmod 755 /app/logs
+chmod 755 /app/logs || true
 
 echo "🎉 Initialization complete! Starting application..."
 
