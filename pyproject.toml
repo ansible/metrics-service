@@ -36,7 +36,6 @@ dependencies = [
     "django-oauth-toolkit>=2.2.0",
     "dispatcherd>=2025.5.21",
     "croniter>=1.3.0",
-    "uv>=0.8.22",
     "apscheduler>=3.10.0",
     "metrics-utility==0.7.20251112",
     "django-prometheus>=2.3.1",
@@ -92,8 +91,8 @@ Repository = "https://github.com/ansible/platform-service-template"
 packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.tasks", "apps.dashboard"]
 
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "black>=23.0",
     "ruff>=0.1.0",
     "isort>=5.12",
