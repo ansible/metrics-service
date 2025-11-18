@@ -48,7 +48,7 @@ services:
       METRICS_SERVICE_ANONYMIZED_DATA: "true"
       METRICS_SERVICE_METRICS_COLLECTION: "false"
       DJANGO_SETTINGS_MODULE: metrics_service.settings
-      DISPATCHERD_CONFIG_FILE: /app/config/dispatcherd.docker.yaml
+      DISPATCHERD_CONFIG_FILE: /app/config/dispatcherd.yaml
       DISPATCHERD_ENABLED: "true"
     networks:
       - metrics-service
