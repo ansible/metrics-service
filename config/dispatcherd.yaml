@@ -6,53 +6,50 @@ version: 2
 
 brokers:
   pg_notify:
-    config:
-      # Database connection - configured for current Django settings
-      dbname: "metrics_service"
-      user: "metrics_service"
-      password: "metrics_service"
-      host: "127.0.0.1"
-      port: "55432"
-    
+    # Database connection inherits from Django settings
+    # The broker will use the same database connection as Django
+    # which is configured via METRICS_SERVICE_DATABASES__default__* env vars
+    use_django_db: true
+
     channels:
-      - "metrics_tasks"          # Main task execution channel
-      - "metrics_cleanup"        # Cleanup and maintenance tasks
-      - "metrics_notifications"  # Email and notification tasks
-      - "metrics_collectors"     # Metrics collection tasks
-      - "metrics_utility"        # Metrics-utility specific tasks
+      - 'metrics_tasks' # Main task execution channel
+      - 'metrics_cleanup' # Cleanup and maintenance tasks
+      - 'metrics_notifications' # Email and notification tasks
+      - 'metrics_collectors' # Metrics collection tasks
+      - 'metrics_utility' # Metrics-utility specific tasks
 
 service:
   pool_kwargs:
     max_workers: 4
-  
+
   # Task execution settings
   task_settings:
-    default_timeout: 3600      # 1 hour default timeout
+    default_timeout: 3600 # 1 hour default timeout
     max_retries: 3
-    retry_delay: 30            # 30 seconds between retries
+    retry_delay: 30 # 30 seconds between retries
 
 # Logging configuration
 logging:
   level: INFO
-  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  format: '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 
 # Queue routing - map task types to specific channels
 queue_routing:
-  "hello_world": "metrics_tasks"
-  "cleanup_old_data": "metrics_cleanup"
-  "cleanup_old_tasks": "metrics_cleanup"
-  "send_notification_email": "metrics_notifications"
-  "process_user_data": "metrics_tasks"
-  "execute_db_task": "metrics_tasks"
-  "sleep": "metrics_tasks"
-  "collect_anonymous_metrics": "metrics_collectors"
-  "collect_config_metrics": "metrics_collectors"
-  "collect_job_host_summary": "metrics_collectors"
-  "collect_host_metrics": "metrics_collectors"
-  "collect_all_metrics": "metrics_collectors"
-  
+  'hello_world': 'metrics_tasks'
+  'cleanup_old_data': 'metrics_cleanup'
+  'cleanup_old_tasks': 'metrics_cleanup'
+  'send_notification_email': 'metrics_notifications'
+  'process_user_data': 'metrics_tasks'
+  'execute_db_task': 'metrics_tasks'
+  'sleep': 'metrics_tasks'
+  'collect_anonymous_metrics': 'metrics_collectors'
+  'collect_config_metrics': 'metrics_collectors'
+  'collect_job_host_summary': 'metrics_collectors'
+  'collect_host_metrics': 'metrics_collectors'
+  'collect_all_metrics': 'metrics_collectors'
+
   # Metrics-utility tasks
-  "gather_automation_controller_billing_data": "metrics_utility"
-  "build_metrics_report": "metrics_utility"
-  "metrics_utility_health_check": "metrics_utility"
-  "metrics_utility_custom_command": "metrics_utility"
+  'gather_automation_controller_billing_data': 'metrics_utility'
+  'build_metrics_report': 'metrics_utility'
+  'metrics_utility_health_check': 'metrics_utility'
+  'metrics_utility_custom_command': 'metrics_utility'

@@ -4,7 +4,7 @@ metadata:
   name: metrics-service-config
 data:
   METRICS_SERVICE_DB_HOST: 'postgresql'
-  METRICS_SERVICE_DB_PORT: '55432'
+  METRICS_SERVICE_DB_PORT: '5432'
   METRICS_SERVICE_DB_NAME: 'metrics_service'
   metrics_service_REDIS_URL: 'redis://redis:6379/0'
   metrics_service_ALLOWED_HOSTS: 'localhost,127.0.0.1,metrics-service'

@@ -5,7 +5,7 @@ echo "🚀 Starting Metrics Service container..."
 
 # Wait for database to be ready
 echo "⏳ Waiting for database to be ready..."
-uv run python -c "
+python -c "
 import os, time, psycopg
 host = os.environ.get('METRICS_SERVICE_DATABASES__default__HOST', 'postgres')
 port = os.environ.get('METRICS_SERVICE_DATABASES__default__PORT', '5432')
@@ -39,15 +39,15 @@ else:
 
 # Run database migrations
 echo "🔄 Running database migrations..."
-uv run python manage.py migrate --noinput
+python manage.py migrate --noinput
 
 # Initialize ServiceID for Django-Ansible-Base
 echo "🔧 Initializing ServiceID..."
-uv run python manage.py init_service_id
+python manage.py metrics_service init-service-id
 
 # Collect static files (if needed)
 echo "📦 Collecting static files..."
-uv run python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection failed (continuing...)"
+python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection failed (continuing...)"
 
 # Create logs directory with proper permissions
 mkdir -p /app/logs

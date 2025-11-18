@@ -10,7 +10,7 @@ A modern Django-based service built for the Ansible Automation Platform (AAP) ec
 - **🔌 REST API** - Versioned RESTful APIs with OpenAPI documentation
 - **🔐 Authentication & Authorization** - Django-Ansible-Base integration with RBAC
 - **📈 Real-time Dashboard** - Web-based task monitoring and management interface
-- **🐳 Docker Ready** - Simplified single-container deployment with PostgreSQL
+- **🐳 Docker Ready** - Multi-container deployment with PostgreSQL
 - **🧪 Comprehensive Testing** - Unit and integration tests with coverage reporting
 - **📝 API Documentation** - Interactive Swagger/OpenAPI documentation
 - **🔧 Metrics Collection** - Integrated metrics-utility for data collection
@@ -50,10 +50,8 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # Install dependencies
 pip install -e ".[dev]"
 
-# Configure database (update as needed)
-cp .env.example .env
-
-# Set up database
+# Set up database (configure via environment variables if needed)
+# See Configuration section below for environment variable options
 python manage.py migrate
 python manage.py metrics_service init-service-id
 python manage.py metrics_service init-system-tasks
@@ -153,11 +151,17 @@ GET /api/v1/tasks/available_functions/
 - `cleanup_old_tasks` - Clean up completed/failed tasks
 - `send_notification_email` - Send notification emails
 - `process_user_data` - Process user data in background
+- `hello_world` - Simple test task for dispatcherd integration
+- `sleep` - Sleep for specified duration (testing)
+- `execute_db_task` - Execute database-defined tasks with lifecycle management
 
-**Metrics Collection Tasks** (feature enable controlled):
+**Anonymized Data Collection Tasks** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled):
 
 - `collect_anonymous_metrics` - Collect anonymous system metrics
 - `collect_config_metrics` - Collect configuration information
+
+**Metrics Collection Tasks** (controlled by `METRICS_COLLECTION_ENABLED`, default: disabled):
+
 - `collect_job_host_summary` - Collect job execution statistics
 - `collect_host_metrics` - Collect host performance data
 - `collect_all_metrics` - Run multiple collectors in sequence
@@ -190,17 +194,19 @@ Tasks are automatically routed based on their properties:
 
 No manual intervention required - create a task and it's automatically processed!
 
-### Task Groups & feature enables
+### Task Groups & Feature Flags
 
 Control task execution with environment variables:
 
 ```bash
-# Enable/disable anonymized data collection
+# Enable/disable anonymized data collection (default: true)
 METRICS_SERVICE_ANONYMIZED_DATA=true
 
-# Enable/disable metrics collection
+# Enable/disable metrics collection (default: false)
 METRICS_SERVICE_METRICS_COLLECTION=false
 ```
+
+These environment variables control which task groups are active in the scheduler.
 
 ## Development
 
@@ -281,7 +287,7 @@ Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings manageme
 ```bash
 # Database
 METRICS_SERVICE_DB_HOST=localhost
-METRICS_SERVICE_DB_PORT=55432
+METRICS_SERVICE_DB_PORT=5432
 METRICS_SERVICE_DB_USER=metrics_service
 METRICS_SERVICE_DB_PASSWORD=metrics_service
 METRICS_SERVICE_DB_NAME=metrics_service
@@ -291,10 +297,14 @@ METRICS_SERVICE_SECRET_KEY=your-secret-key
 METRICS_SERVICE_DEBUG=false
 METRICS_SERVICE_ALLOWED_HOSTS=localhost,yourdomain.com
 
-# Task feature enables
+# Task feature flags
 METRICS_SERVICE_ANONYMIZED_DATA=true
 METRICS_SERVICE_METRICS_COLLECTION=false
-# Just run - no configuration required
+```
+
+**Note:** Development mode works with default settings - just run the server:
+
+```bash
 python manage.py runserver
 ```
 
@@ -353,11 +363,16 @@ docker build -t metrics-service .
 
 # Run with production settings
 docker run -p 8000:8000 \
-  -e METRICS_SERVICE_ENV=production \
+  -e METRICS_SERVICE_MODE=production \
   -e METRICS_SERVICE_SECRET_KEY=your-secret-key \
-  -e METRICS_SERVICE_DB_HOST=your-db-host \
+  -e METRICS_SERVICE_DATABASES__default__HOST=your-db-host \
+  -e METRICS_SERVICE_DATABASES__default__PASSWORD=your-db-password \
   metrics-service
+```
 
+### Kubernetes
+
+For Kubernetes deployment, see the manifests in the `manifests/base/apps/metrics-service/` directory.
 
 ## Contributing
 
@@ -385,4 +400,7 @@ This project is licensed under the Apache License - see the [LICENSE](LICENSE) f
 - **Documentation**: Check the [CLAUDE.md](CLAUDE.md) file for detailed development guidance
 - **Issues**: Report bugs and feature requests via GitHub issues
 - **API Documentation**: Interactive docs available at `/api/docs/` when running
+
+```
+
 ```

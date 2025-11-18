@@ -26,7 +26,7 @@ def setup_django_for_tests():
                 "default": {
                     "ENGINE": "django.db.backends.postgresql",
                     "HOST": "127.0.0.1",
-                    "PORT": "55432",
+                    "PORT": "5432",
                     "USER": "metrics_service",
                     "PASSWORD": "metrics_service",
                     "NAME": "test_metrics_service",
