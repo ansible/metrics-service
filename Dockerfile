@@ -41,7 +41,7 @@ USER 1001
 EXPOSE 8000
 # Set entrypoint and default command
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
 
 LABEL com.redhat.component="metrics-utility" \
       name="metrics-utility" \
