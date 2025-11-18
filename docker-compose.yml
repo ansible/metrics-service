@@ -1,7 +1,7 @@
 ---
 services:
   postgres:
-    image: "postgres:15"
+    image: "mirror.gcr.io/postgres:15"
     container_name: metrics-service-postgres
     environment:
       POSTGRES_DB: metrics_service
