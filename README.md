@@ -281,7 +281,7 @@ Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings manageme
 ```bash
 # Database
 METRICS_SERVICE_DB_HOST=localhost
-METRICS_SERVICE_DB_PORT=55432
+METRICS_SERVICE_DB_PORT=5432
 METRICS_SERVICE_DB_USER=metrics_service
 METRICS_SERVICE_DB_PASSWORD=metrics_service
 METRICS_SERVICE_DB_NAME=metrics_service

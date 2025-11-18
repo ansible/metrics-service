@@ -15,9 +15,6 @@ RUN dnf update -y && \
     dnf install -y gcc postgresql-devel openldap-devel && \
     dnf clean all
 
-# Install uv for fast dependency management
-RUN pip install uv
-
 # Create app directory and set permissions
 RUN mkdir -p /app && chown -R 1001:1001 /app
 
@@ -27,10 +24,7 @@ COPY --chown=1001:1001 . /app/
 # Switch back to default user
 USER 1001
 
-# Set uv to install globally available packages in system Python
-ENV UV_SYSTEM_PYTHON=1
-
-# Install dependencies using uv
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements-build.txt
 
 # Copy and set up entrypoint script

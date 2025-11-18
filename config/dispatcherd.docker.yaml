@@ -1,5 +1,4 @@
----
-# Dispatcherd Configuration for Metrics Service
+# Dispatcherd Configuration for Docker Environment
 # This configuration enables task scheduling and execution across processes
 
 version: 2
@@ -7,12 +6,11 @@ version: 2
 brokers:
   pg_notify:
     config:
-      # Database connection - uses environment variables set by docker-compose
-      # Defaults to localhost for local development
+      # Database connection - configured for Docker environment
       dbname: metrics_service
       user: metrics_service
       password: metrics_service
-      host: 127.0.0.1
+      host: postgres
       port: 5432
 
     channels:
@@ -26,11 +24,10 @@ service:
   pool_kwargs:
     max_workers: 4
 
-  # Task execution settings
-  task_settings:
-    default_timeout: 3600 # 1 hour default timeout
-    max_retries: 3
-    retry_delay: 30 # 30 seconds between retries
+  # Health check configuration
+  health_check:
+    enabled: true
+    interval: 60  # seconds
 
 # Logging configuration
 logging:
@@ -57,3 +54,4 @@ queue_routing:
   'build_metrics_report': 'metrics_utility'
   'metrics_utility_health_check': 'metrics_utility'
   'metrics_utility_custom_command': 'metrics_utility'
+
