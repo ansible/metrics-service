@@ -48,6 +48,9 @@ try:
     from metrics_utility.library.collectors.controller import (
         main_jobevent as host_metric,
     )
+    from metrics_utility.library.anonymize.anonymized_rollups_processor import (
+        anonymized_rollups_processor,
+    )
 
     METRICS_UTILITY_AVAILABLE = True
 except ImportError as e:
@@ -351,6 +354,101 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in collect_all_metrics: {str(e)}")
         return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("anonymize_collected_data")
+def anonymize_collected_data(**kwargs) -> dict[str, Any]:
+    """
+    Anonymize collected data using metrics-utility library.
+
+    Anonymization process collects data from the controller DB, processes it through anonymized
+    rollups, and returns anonymized JSON data.
+
+    Args:
+        **kwargs: Task data containing anonymization parameters:
+            - database (str): Database name from Django settings (default: 'awx')
+            - salt (str): Salt string for hashing sensitive data (required)
+            - since (str): Start date for data collection (ISO format, optional)
+            - until (str): End date for data collection (ISO format, optional)
+            - ship_path (str): Base path for saving rollup files (optional, defaults to MEDIA_ROOT)
+            - save_rollups (bool): Whether to save rollup files to disk (default: True)
+
+    Returns:
+        dict: Task result with anonymized data
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    log_task_execution("anonymize_collected_data", "processing", "Anonymizing collected data")
+
+    try:
+        from datetime import datetime
+
+        from django.conf import settings
+        from django.db import connections
+
+        # Get parameters from kwargs
+        db_name = kwargs.get("database", "awx")
+        salt = kwargs.get("salt")
+        since = kwargs.get("since")
+        until = kwargs.get("until")
+        ship_path = kwargs.get("ship_path")
+        save_rollups = kwargs.get("save_rollups", True)
+
+        # Validate required parameters
+        if not salt:
+            return create_task_result("error", error="salt parameter is required for anonymization")
+
+        # Convert string dates to datetime objects if provided as strings
+        if since and isinstance(since, str):
+            try:
+                since = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            except ValueError:
+                return create_task_result("error", error=f"Invalid date format for 'since': {since}")
+
+        if until and isinstance(until, str):
+            try:
+                until = datetime.fromisoformat(until.replace("Z", "+00:00"))
+            except ValueError:
+                return create_task_result("error", error=f"Invalid date format for 'until': {until}")
+
+        # Get the Django db connection
+        db_connection = connections[db_name]
+
+        # Default ship_path to MEDIA_ROOT if not provided
+        if not ship_path:
+            ship_path = str(settings.MEDIA_ROOT)
+
+        # Call the anonymization processor
+        anonymized_data = anonymized_rollups_processor(
+            db=db_connection,
+            salt=salt,
+            since=since,
+            until=until,
+            ship_path=ship_path,
+            save_rollups=save_rollups,
+        )
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "anonymize_collected_data",
+                "anonymized_data": anonymized_data,
+                "parameters_used": {
+                    "database": db_name,
+                    "salt": "******" if salt else None,
+                    "since": since,
+                    "until": until,
+                    "ship_path": ship_path,
+                    "save_rollups": save_rollups,
+                },
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in anonymize_collected_data: {str(e)}")
+        return create_task_result("error", error=f"Anonymization failed: {str(e)}")
 
 
 @task(queue="metrics_tasks", decorate=False)
@@ -782,6 +880,7 @@ TASK_FUNCTIONS = {
     "collect_job_host_summary": collect_job_host_summary,
     "collect_host_metrics": collect_host_metrics,
     "collect_all_metrics": collect_all_metrics,
+    "anonymize_collected_data": anonymize_collected_data,
 }
 
 # Enhanced task metadata for dashboard display
@@ -994,6 +1093,47 @@ TASK_METADATA = {
                     "until": "2024-01-02T00:00:00Z",
                     "collectors": ["anonymous", "config", "host_metric"],
                 },
+            },
+        ],
+    },
+    "anonymize_collected_data": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Anonymize collected data from Controller DB using metrics-utility anonymization feature",
+        "parameters": {
+            "database": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "salt": {
+                "type": "string",
+                "required": True,
+                "description": "Salt string for hashing sensitive data (required for anonymization)",
+            },
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "ship_path": {
+                "type": "string",
+                "description": "Base path for saving rollup files (defaults to MEDIA_ROOT)",
+            },
+            "save_rollups": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to save rollup files to disk",
+            },
+        },
+        "examples": [
+            {
+                "name": "Basic anonymization",
+                "data": {"salt": "my-secret-salt-value"},
+            },
+            {
+                "name": "Anonymize with date range",
+                "data": {
+                    "salt": "my-secret-salt-value",
+                    "since": EXAMPLE_START_DATE,
+                    "until": "2024-01-02T00:00:00Z",
+                },
+            },
+            {
+                "name": "Anonymize without saving rollups",
+                "data": {"salt": "my-secret-salt-value", "save_rollups": False},
             },
         ],
     },
