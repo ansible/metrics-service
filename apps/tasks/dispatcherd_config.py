@@ -5,12 +5,13 @@ This module provides utilities for configuring dispatcherd across different
 processes and components of the metrics service.
 """
 
-import logging
 import os
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_config_file_path() -> Path:

@@ -21,7 +21,6 @@ class ManagementCommandsCoverageTestCase(TestCase):
         from apps.tasks.management.commands import run_dispatcherd
 
         # Verify module-level imports
-        self.assertTrue(hasattr(run_dispatcherd, "logging"))
         self.assertTrue(hasattr(run_dispatcherd, "sys"))
         self.assertTrue(hasattr(run_dispatcherd, "BaseCommand"))
         self.assertTrue(hasattr(run_dispatcherd, "setup_dispatcherd_config"))
@@ -32,7 +31,6 @@ class ManagementCommandsCoverageTestCase(TestCase):
         from apps.tasks.management.commands import run_task_scheduler
 
         # Verify module-level imports
-        self.assertTrue(hasattr(run_task_scheduler, "logging"))
         self.assertTrue(hasattr(run_task_scheduler, "sys"))
         self.assertTrue(hasattr(run_task_scheduler, "time"))
         self.assertTrue(hasattr(run_task_scheduler, "BaseCommand"))
@@ -150,20 +148,3 @@ class ManagementCommandsCoverageTestCase(TestCase):
         # Test that commands have help text defined as class attributes
         self.assertTrue(hasattr(DispatcherdCommand, "help"))
         self.assertTrue(hasattr(SchedulerCommand, "help"))
-
-    def test_logging_module_imports(self):
-        """Test that logging module is properly imported."""
-        from apps.tasks.management.commands.run_dispatcherd import (
-            logging as dispatcherd_logging,
-        )
-        from apps.tasks.management.commands.run_task_scheduler import (
-            logging as scheduler_logging,
-        )
-
-        # Verify logging modules
-        self.assertIsNotNone(dispatcherd_logging)
-        self.assertIsNotNone(scheduler_logging)
-
-        # Test logging level constants are available
-        self.assertTrue(hasattr(dispatcherd_logging, "INFO"))
-        self.assertTrue(hasattr(scheduler_logging, "INFO"))

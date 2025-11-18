@@ -5,7 +5,6 @@ This module provides a dictionary-based task scheduler that replaces the
 database polling approach with a more efficient cron-based system.
 """
 
-import logging
 import threading
 from typing import Any
 
@@ -13,10 +12,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from django.utils import timezone
 
+from metrics_service.logger import get_logger
+
 from .task_groups import get_all_enabled_tasks, get_task_group_status
 from .tasks import TASK_FUNCTIONS
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CronTaskScheduler:

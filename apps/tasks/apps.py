@@ -30,12 +30,12 @@ class TasksConfig(AppConfig):
         """
         Initialize system tasks and start the simple scheduler.
         """
-        import logging
-
         from django.db import connection
         from django.db.utils import OperationalError, ProgrammingError
 
-        logger = logging.getLogger(__name__)
+        from metrics_service.logger import get_logger
+
+        logger = get_logger(__name__)
 
         try:
             # Check if database is ready and tasks table exists

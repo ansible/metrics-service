@@ -5,12 +5,13 @@ This module provides task functions and utilities for executing background
 tasks with proper error handling, status tracking, and dependency management.
 """
 
-import logging
 import os
 import time
 from typing import Any
 
 from django.utils import timezone
+
+from metrics_service.logger import get_logger
 
 from .utils import (
     create_task_result,
@@ -23,7 +24,7 @@ from .utils import (
     update_task_status,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Constants for repeated strings
 MSG_METRICS_UTILITY_NOT_AVAILABLE = "metrics-utility is not available"

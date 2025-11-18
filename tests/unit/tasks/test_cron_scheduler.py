@@ -243,7 +243,7 @@ class TestCronTaskScheduler:
 
         # Should add enabled task and skip disabled one
         scheduler._add_scheduled_task.assert_called_once_with("test_task_1", mock_task_groups["test_task_1"])
-        assert "Skipping disabled task: test_task_2" in caplog.text
+        assert any("disabled" in message and "tasks skipped" in message for message in caplog.messages)
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     def test_add_registry_tasks_with_error(self, caplog):

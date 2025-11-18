@@ -135,7 +135,7 @@ docker-compose logs -f metrics-dispatcher
 python manage.py metrics_service run
 
 # OR run individual components (for development/debugging)
-python manage.py metrics_service run --workers 2 --log-level DEBUG
+python manage.py metrics_service run --workers 2
 
 # Create sample tasks (using Django shell or admin interface)
 python manage.py shell
@@ -231,7 +231,7 @@ python manage.py metrics_service tasks --help
 python manage.py metrics_service cron --help
 
 # Run service with custom configuration
-python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4 --log-level DEBUG
+python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4
 
 # Task management
 python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_data" --cron "0 2 * * *"
@@ -437,6 +437,63 @@ FEATURE_ENABLED = {
 - **System Tasks** - Always enabled (cleanup, maintenance)
 - **Anonymized Data Collection** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: enabled)
 - **Metrics Collection** - Controlled by `METRICS_COLLECTION_ENABLED` (default: disabled)
+
+### Logging Configuration
+
+The project uses a centralized logging system (`metrics_service/logger.py`) that integrates with Django's logging framework.
+
+**Using the Centralized Logger:**
+
+```python
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)  # Always use __name__ for proper module identification
+
+logger.debug("Detailed debug information")
+logger.info("Informational message")
+logger.warning("Warning about potential issues")
+logger.error("Error that needs attention")
+```
+
+**Setting Log Level:**
+
+The log level is controlled by the `METRICS_SERVICE_LOG_LEVEL` environment variable:
+
+```bash
+# For development - see everything
+export METRICS_SERVICE_LOG_LEVEL=DEBUG
+
+# For production - standard informational logging (default)
+export METRICS_SERVICE_LOG_LEVEL=INFO
+
+# For troubleshooting - warnings and errors only
+export METRICS_SERVICE_LOG_LEVEL=WARNING
+
+# For critical issues only
+export METRICS_SERVICE_LOG_LEVEL=ERROR
+```
+
+**Quick Debug Mode:**
+
+```bash
+# Run server with debug logging
+METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py runserver
+
+# Run tests with debug logging
+METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
+```
+
+**How It Works:**
+
+- `get_logger(name)` reads `METRICS_SERVICE_LOG_LEVEL` from environment on every call (runtime configuration)
+- Sets the logger level explicitly to ensure environment variable is respected
+- Works seamlessly with Django's LOGGING configuration in `settings/defaults.py`
+- All log output uses Django's configured format (timestamps, log level, request ID, module name, message)
+
+**Important:**
+- **Always use `get_logger(__name__)`** instead of `logging.getLogger(__name__)`
+- **Do NOT call `logging.basicConfig()`** - it conflicts with Django's configuration
+- **Do NOT add `--log-level` command arguments** - use environment variable instead
 
 ### Database Configuration
 

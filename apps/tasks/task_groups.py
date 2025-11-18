@@ -10,12 +10,13 @@ settings if not found in the database.
 """
 
 import json
-import logging
 from typing import Any
 
 from django.conf import settings
 
-logger = logging.getLogger(__name__)
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> bool:

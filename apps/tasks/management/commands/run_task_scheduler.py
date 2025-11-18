@@ -4,13 +4,14 @@ Django management command to run the task scheduler.
 This command starts the task scheduler to handle cron-based recurring tasks.
 """
 
-import logging
 import sys
 import time
 
 from django.core.management.base import BaseCommand
 
-logger = logging.getLogger(__name__)
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Command(BaseCommand):
@@ -21,12 +22,6 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         """Add command line arguments."""
         parser.add_argument(
-            "--log-level",
-            choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-            default="INFO",
-            help="Log level (default: INFO)",
-        )
-        parser.add_argument(
             "--check-interval",
             type=int,
             default=60,
@@ -36,10 +31,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Handle the command execution."""
         try:
-            # Configure logging
-            log_level = getattr(logging, options["log_level"])
-            logging.basicConfig(level=log_level)
-
             self.stdout.write(
                 self.style.SUCCESS(f"Starting task scheduler (check interval: {options['check_interval']}s)")
             )

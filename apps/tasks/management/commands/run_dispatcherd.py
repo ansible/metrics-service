@@ -4,14 +4,14 @@ Django management command to run dispatcherd worker processes.
 This command starts dispatcherd workers to process background tasks from the database.
 """
 
-import logging
 import sys
 
 from django.core.management.base import BaseCommand
 
 from apps.tasks.dispatcherd_config import setup_dispatcherd_config
+from metrics_service.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Command(BaseCommand):
@@ -39,20 +39,10 @@ class Command(BaseCommand):
             default=100,
             help="Maximum tasks per worker before respawn (default: 100)",
         )
-        parser.add_argument(
-            "--log-level",
-            choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-            default="INFO",
-            help="Log level (default: INFO)",
-        )
 
     def handle(self, *args, **options):
         """Handle the command execution."""
         try:
-            # Configure logging
-            log_level = getattr(logging, options["log_level"])
-            logging.basicConfig(level=log_level)
-
             # Setup dispatcherd configuration
             setup_dispatcherd_config()
 

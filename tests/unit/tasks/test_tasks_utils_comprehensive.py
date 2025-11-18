@@ -366,7 +366,9 @@ class TaskUtilsTestCase(TestCase):
         """Test logging task execution with info level."""
         utils.log_task_execution("test_task", "start", "Starting task", "info")
 
-        mock_logger.info.assert_called_once_with("Task 'test_task' start: Starting task")
+        mock_logger.info.assert_called_once_with(
+            "Task 'test_task' start: Starting task",
+        )
 
     @patch("apps.tasks.utils.logger")
     def test_log_task_execution_error(self, mock_logger):

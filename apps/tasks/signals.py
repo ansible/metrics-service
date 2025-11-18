@@ -5,14 +5,14 @@ This module contains Django signal handlers that handle immediate task execution
 The simple scheduler handles all scheduled and recurring tasks.
 """
 
-import logging
-
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from metrics_service.logger import get_logger
+
 from .models import Task
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @receiver(post_save, sender=Task)

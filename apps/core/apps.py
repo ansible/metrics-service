@@ -37,7 +37,7 @@ class CoreConfig(AppConfig):
             pass
         except Exception as e:
             # Models might already be registered or other DAB setup issues
-            import logging
+            from metrics_service.logger import get_logger
 
-            logger = logging.getLogger(__name__)
+            logger = get_logger(__name__)
             logger.warning(f"DAB permission registry registration failed: {e}")

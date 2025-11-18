@@ -254,7 +254,6 @@ class ProcessManagerTestCase(TestCase):
             "--workers=4",
             "--timeout=3600",
             "--max-tasks=100",
-            "--log-level=INFO",
         ]
         self.assertEqual(cmd, expected)
         mock_validate.assert_called_once_with(4, 3600, 100, "INFO")
@@ -268,9 +267,8 @@ class ProcessManagerTestCase(TestCase):
 
         cmd = self.process_manager._build_task_scheduler_command("INFO")
 
-        expected = [sys.executable, str(mock_path), "run_task_scheduler", "--log-level=INFO"]
+        expected = [sys.executable, str(mock_path), "run_task_scheduler"]
         self.assertEqual(cmd, expected)
-        mock_validate.assert_called_once_with("INFO")
 
     @patch("subprocess.Popen")
     def test_start_process_success(self, mock_popen):
@@ -441,26 +439,21 @@ class ProcessManagerTestCase(TestCase):
         mock_process.terminate.assert_called_once()
         mock_process.kill.assert_called_once()
 
-    @patch("logging.getLogger")
     @patch.object(ProcessManager, "_monitor_process_output")
     @patch.object(ProcessManager, "_build_django_command")
     @patch.object(ProcessManager, "_get_manage_py_path")
     @patch("subprocess.Popen")
-    def test_run_django_server(self, mock_popen, mock_get_path, mock_build_cmd, mock_monitor, mock_get_logger):
+    def test_run_django_server(self, mock_popen, mock_get_path, mock_build_cmd, mock_monitor):
         """Test running Django server."""
         mock_process = Mock()
         mock_popen.return_value = mock_process
         mock_path = Path("/fake/manage.py")
         mock_get_path.return_value = mock_path
         mock_build_cmd.return_value = ["python", "manage.py", "runserver"]
-        mock_logger = Mock()
-        mock_get_logger.return_value = mock_logger
 
         self.process_manager._run_django_server("127.0.0.1", "8000", "INFO")
-
-        mock_get_logger.assert_called_with("django")
-        mock_logger.setLevel.assert_called_with(20)  # INFO level
         mock_build_cmd.assert_called_once_with(mock_path, "127.0.0.1", "8000", "INFO")
+
         mock_popen.assert_called_once()
         self.assertIn(mock_process, self.process_manager.processes)
         mock_monitor.assert_called_once_with(mock_process, "[Django]")

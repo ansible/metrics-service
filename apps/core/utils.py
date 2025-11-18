@@ -27,7 +27,6 @@ Performance Considerations:
 """
 
 import json
-import logging
 import uuid
 from typing import Any
 
@@ -35,8 +34,9 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.core.models import Setting
+from metrics_service.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_related_object_safely(instance: Any, field_name: str, default: Any = None) -> Any:

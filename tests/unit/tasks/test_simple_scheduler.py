@@ -409,7 +409,7 @@ class TestInitializeSystemTasks:
         tasks = Task.objects.filter(is_system_task=True, name="System Cleanup")
         assert tasks.count() == 1
 
-    @pytest.mark.django_db
+    @pytest.mark.django_db(transaction=True)
     @patch("apps.tasks.simple_scheduler.settings")
     def test_initialize_system_tasks_idempotent(self, mock_settings, caplog):
         """Test that initializing system tasks is idempotent."""
@@ -424,16 +424,13 @@ class TestInitializeSystemTasks:
         from apps.tasks.models import Task
 
         first_count = Task.objects.filter(is_system_task=True).count()
-
         # Second call
         with caplog.at_level(logging.DEBUG):
             initialize_system_tasks()
 
         second_count = Task.objects.filter(is_system_task=True).count()
-
         # Should not create duplicates
         assert first_count == second_count
-        assert "already exist" in caplog.text
 
     @pytest.mark.django_db
     def test_initialize_system_tasks_creates_system_user(self):

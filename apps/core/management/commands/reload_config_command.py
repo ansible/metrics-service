@@ -5,13 +5,12 @@ This command triggers a reload of the dynaconf settings, allowing configuration
 changes to be applied without restarting the entire application.
 """
 
-import logging
-
 from django.core.management.base import BaseCommand
 
+from metrics_service.logger import get_logger
 from metrics_service.settings import DYNACONF
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Command(BaseCommand):

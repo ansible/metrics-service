@@ -8,7 +8,6 @@ This replaces the complex cron_scheduler with a simpler approach that:
 4. Creates system tasks on startup based on feature enables
 """
 
-import logging
 import threading
 import time
 from datetime import datetime
@@ -17,7 +16,9 @@ from croniter import croniter
 from django.conf import settings
 from django.utils import timezone
 
-logger = logging.getLogger(__name__)
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class SimpleTaskScheduler:

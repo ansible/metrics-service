@@ -5,7 +5,6 @@ Handles starting, monitoring, and managing subprocesses for the metrics service,
 including Django server, dispatcher, and task scheduler.
 """
 
-import logging
 import signal
 import subprocess
 import sys
@@ -16,7 +15,9 @@ from typing import Any
 
 from django.core.management.base import CommandError
 
-logger = logging.getLogger(__name__)
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ProcessManager:
@@ -162,10 +163,6 @@ class ProcessManager:
     def _run_django_server(self, host: str, port: str, log_level: str) -> None:
         """Run the Django development server."""
         try:
-            # Configure Django logging
-            django_logger = logging.getLogger("django")
-            django_logger.setLevel(getattr(logging, log_level))
-
             # Use subprocess to run runserver to avoid conflicts
             manage_py = self._get_manage_py_path()
             cmd = self._build_django_command(manage_py, host, port, log_level)
@@ -240,7 +237,6 @@ class ProcessManager:
             f"--workers={workers}",
             f"--timeout={timeout}",
             f"--max-tasks={max_tasks}",
-            f"--log-level={log_level}",
         ]
 
     def _build_task_scheduler_command(self, log_level: str) -> list[str]:
@@ -252,7 +248,6 @@ class ProcessManager:
             sys.executable,
             str(manage_py),
             "run_task_scheduler",
-            f"--log-level={log_level}",
         ]
 
     def _start_process(self, cmd: list[str], name: str) -> subprocess.Popen | None:

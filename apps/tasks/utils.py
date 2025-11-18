@@ -2,13 +2,14 @@
 Utility functions for task management and execution.
 """
 
-import logging
 from typing import Any
 
 from django.db import transaction
 from django.utils import timezone
 
-logger = logging.getLogger(__name__)
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def ensure_django_setup():
