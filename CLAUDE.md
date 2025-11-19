@@ -135,7 +135,7 @@ docker-compose logs -f metrics-dispatcher
 python manage.py metrics_service run
 
 # OR run individual components (for development/debugging)
-python manage.py metrics_service run --workers 2 --log-level DEBUG
+python manage.py metrics_service run --workers 2
 
 # Create sample tasks (using Django shell or admin interface)
 python manage.py shell
@@ -231,7 +231,7 @@ python manage.py metrics_service tasks --help
 python manage.py metrics_service cron --help
 
 # Run service with custom configuration
-python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4 --log-level DEBUG
+python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4
 
 # Task management
 python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_data" --cron "0 2 * * *"
@@ -386,6 +386,7 @@ GET /api/v1/tasks/available_functions/
 The system includes these built-in task functions organized by feature groups:
 
 **System Tasks** (always enabled):
+
 - **`cleanup_old_data`** - Clean up old data from the system
 - **`cleanup_old_tasks`** - Clean up completed/failed tasks
 - **`send_notification_email`** - Send notification emails to users
@@ -393,10 +394,12 @@ The system includes these built-in task functions organized by feature groups:
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
 
 **Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`):
+
 - **`collect_anonymous_metrics`** - Collect anonymous system metrics
 - **`collect_config_metrics`** - Collect configuration information
 
 **Metrics Collection** (controlled by `METRICS_COLLECTION_ENABLED`):
+
 - **`collect_host_metrics`** - Collect host performance data
 - **`collect_job_host_summary`** - Collect job execution statistics
 - **`collect_all_metrics`** - Run multiple collectors in sequence
@@ -438,6 +441,55 @@ FEATURE_ENABLED = {
 - **Anonymized Data Collection** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: enabled)
 - **Metrics Collection** - Controlled by `METRICS_COLLECTION_ENABLED` (default: disabled)
 
+### Logging Configuration
+
+The project uses a centralized logging system (`metrics_service/logger.py`) that integrates with Django's logging framework.
+
+**Using the Centralized Logger:**
+
+```python
+from metrics_service.logger import get_logger
+
+logger = get_logger(__name__)  # Always use __name__ for proper module identification
+
+logger.debug("Detailed debug information")
+logger.info("Informational message")
+logger.warning("Warning about potential issues")
+logger.error("Error that needs attention")
+```
+
+**Setting Log Level:**
+
+The log level is controlled by the `METRICS_SERVICE_LOG_LEVEL` environment variable:
+
+```bash
+# For development - see everything
+export METRICS_SERVICE_LOG_LEVEL=DEBUG
+
+# For production - standard informational logging (default)
+export METRICS_SERVICE_LOG_LEVEL=INFO
+
+# For troubleshooting - warnings and errors only
+export METRICS_SERVICE_LOG_LEVEL=WARNING
+
+# For critical issues only
+export METRICS_SERVICE_LOG_LEVEL=ERROR
+```
+
+**Quick Debug Mode:**
+
+```bash
+# Run server with debug logging
+METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py runserver
+
+# Run tests with debug logging
+METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
+```
+
+**How It Works:**
+
+- \*\* Django logging- we use built in django logging in conjunction with Dynaconf to help us handle out logging level. The logging level is established at app start up and defaults to "INFO". If you need to change the log level, you will have to restart the app after updating the environment variable METRICS_SERVICE_LOG_LEVEL.
+
 ### Database Configuration
 
 - **Development** - PostgreSQL for consistent development/production setup
@@ -477,32 +529,38 @@ FEATURE_ENABLED = {
 ## Key Development Patterns
 
 ### Package Management and Environment
+
 - **UV Package Manager**: This project uses `uv` for fast dependency management (`uv sync --dev`)
 - **Virtual Environment**: Commands should use `.venv/bin/python` for consistency
 - **Requirements Sync**: Requirements files are automatically synced via pre-commit hooks when `pyproject.toml` or `uv.lock` changes
 
 ### Essential Initialization Steps
+
 - **ServiceID**: Always run `python manage.py metrics_service init-service-id` after migrations (required for DAB)
 - **System Tasks**: Run `python manage.py metrics_service init-system-tasks` to initialize background tasks
 
 ### Testing and Quality Patterns
+
 - **Test Coverage**: 80% minimum coverage enforced, use `.venv/bin/python -m pytest --cov=apps --cov=metrics_service --cov-report=term-missing -v`
 - **Code Quality**: 120-char lines, comprehensive ruff rules including security checks
 - **Test Markers**: Use `@pytest.mark.unit` and `@pytest.mark.integration` for categorization
 
 ### Task System Architecture
+
 - **Dispatcherd**: Always enabled and integrates with the unified `metrics_service` command
 - **Task Routing**: Automatic task routing - immediate tasks go to dispatcherd, scheduled tasks use APScheduler
 - **Management Command**: Use `python manage.py metrics_service run` for complete service (Django + dispatcher + scheduler)
 - **Task Groups**: Tasks organized into feature-controlled groups (System, Anonymized Data, Metrics Collection)
 
 ### Feature Enabled System
+
 - **Configuration**: Use `FEATURE_ENABLED` dict in Django settings or environment variables with `METRICS_SERVICE_` prefix
 - **Task Groups**: System tasks always enabled, anonymized data default enabled, metrics collection default disabled
 - **Environment Variables**: `METRICS_SERVICE_ANONYMIZED_DATA` and `METRICS_SERVICE_METRICS_COLLECTION` control task groups
 - **Runtime Control**: Features can be toggled via database settings or environment variables
 
 ### Code Organization
+
 - **Apps Structure**: `core/` (models, business logic), `api/v1/` (REST endpoints), `tasks/` (background tasks), `dashboard/` (web UI)
 - **Mixins**: Extensive use of mixins (`AccessControlMixin`, `StatusTrackingMixin`) to reduce code duplication
 - **Type Safety**: All new code requires type hints and return type annotations

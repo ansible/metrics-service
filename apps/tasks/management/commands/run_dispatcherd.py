@@ -49,10 +49,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Handle the command execution."""
         try:
-            # Configure logging
             log_level = getattr(logging, options["log_level"])
             logging.basicConfig(level=log_level)
-
             # Setup dispatcherd configuration
             setup_dispatcherd_config()
 

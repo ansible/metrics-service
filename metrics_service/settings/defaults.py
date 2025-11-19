@@ -9,6 +9,7 @@ These are default values that can be overridden by:
 All environment variable overrides are handled by Dynaconf in settings/__init__.py
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -294,6 +295,7 @@ CACHES = {
 # Session Configuration
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
+LOG_LEVEL = os.environ.get("METRICS_SERVICE_LOG_LEVEL", "INFO").upper()
 # Logging Configuration (will be enhanced in post_load.py)
 LOGGING = {
     "version": 1,
@@ -323,22 +325,22 @@ LOGGING = {
     "loggers": {
         "ansible_base": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "metrics_service": {
             "handlers": ["console"],
-            "level": "DEBUG",
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "django": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "": {
             "handlers": ["console"],
-            "level": "WARNING",
+            "level": LOG_LEVEL,
             "propagate": True,
         },
     },
