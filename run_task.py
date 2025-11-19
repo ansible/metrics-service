@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# ruff: noqa: E402, I001, T201
 """
 Run tasks directly from the command line.
 
