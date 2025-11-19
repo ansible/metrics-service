@@ -6,10 +6,13 @@ version: 2
 
 brokers:
   pg_notify:
-    # Database connection inherits from Django settings
-    # The broker will use the same database connection as Django
-    # which is configured via METRICS_SERVICE_DATABASES__default__* env vars
-    use_django_db: true
+    config:
+      # Database connection - configured for current Django settings
+      dbname: 'metrics_service'
+      user: 'metrics_service'
+      password: 'metrics_service'
+      host: '127.0.0.1'
+      port: '5432'
 
     channels:
       - 'metrics_tasks' # Main task execution channel
