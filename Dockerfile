@@ -15,9 +15,6 @@ RUN dnf update -y && \
     dnf install -y gcc postgresql-devel openldap-devel && \
     dnf clean all
 
-# Install uv for fast dependency management
-RUN pip install uv
-
 # Create app directory and set permissions
 RUN mkdir -p /app && chown -R 1001:1001 /app
 
@@ -27,10 +24,7 @@ COPY --chown=1001:1001 . /app/
 # Switch back to default user
 USER 1001
 
-# Set uv to install globally available packages in system Python
-ENV UV_SYSTEM_PYTHON=1
-
-# Install dependencies using uv
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements-build.txt
 
 # Copy and set up entrypoint script
@@ -47,7 +41,7 @@ USER 1001
 EXPOSE 8000
 # Set entrypoint and default command
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
 
 LABEL com.redhat.component="metrics-utility" \
       name="metrics-utility" \

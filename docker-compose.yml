@@ -1,7 +1,7 @@
 ---
 services:
   postgres:
-    image: "postgres:15"
+    image: "mirror.gcr.io/postgres:15"
     container_name: metrics-service-postgres
     environment:
       POSTGRES_DB: metrics_service
@@ -25,11 +25,11 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: metrics-service-app
-    command: "uv run python manage.py metrics_service run --host 0.0.0.0 --port 8000 --workers 4"
+    command: "python manage.py metrics_service run --host 0.0.0.0 --port 8000 --workers 4"
     volumes:
       - "./:/app:z"
     ports:
-      - ${metrics_service_PORT:-8000}:8000
+      - ${METRICS_SERVICE_PORT:-8000}:8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,38 +43,12 @@ services:
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_DATABASES__default__NAME: metrics_service
       METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: prefer
-      METRICS_SERVICE_ALLOWED_HOSTS: localhost,127.0.0.1,metrics-service,0.0.0.0
+      METRICS_SERVICE_ALLOWED_HOSTS: '["localhost","127.0.0.1","metrics-service","0.0.0.0"]'
       METRICS_SERVICE_DEBUG: "true"
       METRICS_SERVICE_ANONYMIZED_DATA: "true"
       METRICS_SERVICE_METRICS_COLLECTION: "false"
-      DJANGO_SETTINGS_MODULE: metrics_service.settings.development
+      DJANGO_SETTINGS_MODULE: metrics_service.settings
       DISPATCHERD_CONFIG_FILE: /app/config/dispatcherd.yaml
-      DISPATCHERD_ENABLED: "true"
-    networks:
-      - metrics-service
-
-  metrics-dispatcher:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: metrics-service-dispatcher
-    command: "uv run python manage.py run_dispatcherd --workers=4 --timeout=3600"
-    volumes:
-      - "./:/app:z"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      METRICS_SERVICE_MODE: development
-      METRICS_SERVICE_SECRET_KEY: dev-secret-key-change-in-production
-      METRICS_SERVICE_DATABASES__default__ENGINE: django.db.backends.postgresql
-      METRICS_SERVICE_DATABASES__default__HOST: postgres
-      METRICS_SERVICE_DATABASES__default__PORT: 5432
-      METRICS_SERVICE_DATABASES__default__USER: metrics_service
-      METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
-      METRICS_SERVICE_DATABASES__default__NAME: metrics_service
-      METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: prefer
-      DJANGO_SETTINGS_MODULE: metrics_service.settings.development
       DISPATCHERD_ENABLED: "true"
     networks:
       - metrics-service
