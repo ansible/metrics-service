@@ -9,6 +9,7 @@ import logging
 import os
 import time
 from typing import Any
+fro
 
 from django.utils import timezone
 
@@ -351,6 +352,24 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in collect_all_metrics: {str(e)}")
         return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_tasks", decorate=False)
+@task_execution_wrapper("send_to_segment")
+def send_to_segment(**kwargs) -> dict[str, Any]:
+    """
+    Send JSON data to Segment.com for analytics using metrics-utility.
+    """
+    # Simple task that just prints hello world for now
+    message = "Will be seding data"
+    logger.info(f"Task executing: {message}")
+
+    return create_task_result(
+        "success",
+        {
+            "message": message,
+        },
+    )
 
 
 @task(queue="metrics_tasks", decorate=False)
@@ -782,6 +801,7 @@ TASK_FUNCTIONS = {
     "collect_job_host_summary": collect_job_host_summary,
     "collect_host_metrics": collect_host_metrics,
     "collect_all_metrics": collect_all_metrics,
+    "send_to_segment": send_to_segment,
 }
 
 # Enhanced task metadata for dashboard display
@@ -791,6 +811,12 @@ TASK_METADATA = {
         "description": "Simple hello world task for testing the dispatcherd integration",
         "parameters": {},
         "examples": [{"name": "Basic Hello World", "data": {}}],
+    },
+    "send_to_segment": {
+        "category": "Testing",
+        "description": "Send JSON data to Segment.com for analytics using metrics-utility",
+        "parameters": {},
+        "examples": [{"name": "Basic send to segment", "data": {}}],
     },
     "sleep": {
         "category": "Testing",
