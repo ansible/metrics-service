@@ -24,8 +24,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # Setup Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'metrics_service.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings")
 import django
+
 django.setup()
 
 # Now we can import from the apps
@@ -40,7 +41,7 @@ def list_available_tasks():
     # Group by category
     by_category = {}
     for task_name, metadata in TASK_METADATA.items():
-        category = metadata.get('category', 'Other')
+        category = metadata.get("category", "Other")
         if category not in by_category:
             by_category[category] = []
         by_category[category].append((task_name, metadata))
@@ -50,7 +51,7 @@ def list_available_tasks():
         print(f"\n{category}:")
         print("-" * 80)
         for task_name, metadata in sorted(by_category[category]):
-            description = metadata.get('description', 'No description')
+            description = metadata.get("description", "No description")
             print(f"  {task_name:30} - {description}")
 
     print("\n" + "=" * 80)
@@ -70,26 +71,26 @@ def show_task_help(task_name):
     print(f"Category: {metadata.get('category', 'Unknown')}")
     print(f"Description: {metadata.get('description', 'No description')}")
 
-    params = metadata.get('parameters', {})
+    params = metadata.get("parameters", {})
     if params:
         print("\nParameters:")
         for param_name, param_info in params.items():
-            required = param_info.get('required', False)
-            param_type = param_info.get('type', 'any')
-            default = param_info.get('default', 'N/A')
-            desc = param_info.get('description', '')
+            required = param_info.get("required", False)
+            param_type = param_info.get("type", "any")
+            default = param_info.get("default", "N/A")
+            desc = param_info.get("description", "")
             req_str = " (required)" if required else f" (default: {default})"
             print(f"  {param_name} ({param_type}){req_str}")
             if desc:
                 print(f"    {desc}")
 
-    examples = metadata.get('examples', [])
+    examples = metadata.get("examples", [])
     if examples:
         print("\nExamples:")
         for example in examples:
-            name = example.get('name', '')
-            data = example.get('data', {})
-            data_str = json.dumps(data) if data else ''
+            name = example.get("name", "")
+            data = example.get("data", {})
+            data_str = json.dumps(data) if data else ""
             print(f"  {name}:")
             print(f"    uv run ./run_task.py {task_name} '{data_str}'")
 
@@ -137,6 +138,7 @@ def run_task(task_name, params=None):
     except Exception as e:
         print(f"\nError running task: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -150,7 +152,7 @@ def main():
     task_name = sys.argv[1]
 
     # Handle help flags
-    if task_name in ['-h', '--help', 'help']:
+    if task_name in ["-h", "--help", "help"]:
         if len(sys.argv) > 2:
             # Show help for specific task
             show_task_help(sys.argv[2])
@@ -166,5 +168,5 @@ def main():
     return 0 if success else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
