@@ -24,7 +24,8 @@ dynamic = ["version"]
 dependencies = [
     "Django==5.2.7",
     "djangorestframework>=3.15",
-    "django-ansible-base[jwt_consumer,api_documentation,rbac,rest_filters]==2025.10.20",
+    "django-ansible-base[jwt_consumer,api_documentation,rbac,rest_filters]",
+    "django-prometheus>=2.3.1",
     "django-split-settings>=1.2",
     "drf-spectacular>=0.26.5",
     "django-cors-headers>=4.0",
