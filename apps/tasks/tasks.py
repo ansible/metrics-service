@@ -49,6 +49,7 @@ try:
     from metrics_utility.library.collectors.controller import (
         main_jobevent as host_metric,
     )
+    from metrics_utility.library.storage.segment import StorageSegment
 
     METRICS_UTILITY_AVAILABLE = True
 except ImportError as e:
@@ -355,26 +356,38 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
 
 
 @task(queue="metrics_tasks", decorate=False)
-@task_execution_wrapper("send_to_segment")
-def send_to_segment(**kwargs) -> dict[str, Any]:
+@task_execution_wrapper("send_to_segment_hello_world")
+def send_to_segment_hello_world(**kwargs) -> dict[str, Any]:
     """
     Send testing JSON data to Segment.com for analytics using metrics-utility.
     """
     # Simple task that just prints hello world for now
-    message = "Will be seding data 3"
+    message = "Will be sending data 3"
     logger.info(f"Task executing: {message}")
 
     # obtain write key from django conf
     write_key = DYNACONF.get("SEGMENT_WRITE_KEY", None)
     logger.info(f"Write key: {write_key}")
 
-    
+    try:
+    # send hello world data to segment using metrics-utility
+        segment = StorageSegment(write_key=write_key, debug=True)
+        segment.put("hello_world", 'metrics_service_hell_world',dict={"message": message})
+        success = True
+    except Exception as e:
+        logger.error(f"Error sending hello world data to segment: {str(e)}")
+        success = False
+        error = str(e)
+
+    task_result_name = "success" if success else "error"
 
     return create_task_result(
-        "success",
+        task_result_name,
         {
             "message": message,
             "write_key": write_key,
+            "success": success,
+            "error": error,
         },
     )
 
@@ -808,7 +821,7 @@ TASK_FUNCTIONS = {
     "collect_job_host_summary": collect_job_host_summary,
     "collect_host_metrics": collect_host_metrics,
     "collect_all_metrics": collect_all_metrics,
-    "send_to_segment": send_to_segment,
+    "send_to_segment_hello_world": send_to_segment_hello_world,
 }
 
 # Enhanced task metadata for dashboard display
@@ -819,7 +832,7 @@ TASK_METADATA = {
         "parameters": {},
         "examples": [{"name": "Basic Hello World", "data": {}}],
     },
-    "send_to_segment": {
+    "send_to_segment_hello_world": {
         "category": "Testing",
         "description": "Send testing JSON data to Segment.com for analytics using metrics-utility",
         "parameters": {},
