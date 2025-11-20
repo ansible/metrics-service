@@ -370,10 +370,15 @@ def send_to_segment_hello_world(**kwargs) -> dict[str, Any]:
     logger.info(f"Write key: {write_key}")
 
     try:
-    # send hello world data to segment using metrics-utility
+        # send hello world data to segment using metrics-utility
         segment = StorageSegment(write_key=write_key, debug=True)
-        segment.put("hello_world", 'metrics_service_hell_world',dict={"message": message})
+        segment.put(
+            artifact_name="hello_world",
+            dict={"message": message},
+            event_name="metrics_service_hello_world"
+        )
         success = True
+        error = None
     except Exception as e:
         logger.error(f"Error sending hello world data to segment: {str(e)}")
         success = False
