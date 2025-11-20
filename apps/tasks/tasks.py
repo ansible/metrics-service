@@ -10,6 +10,7 @@ import os
 import time
 from typing import Any
 from metrics_service.settings import DYNACONF
+import json
 
 from django.utils import timezone
 
@@ -369,12 +370,29 @@ def send_to_segment_hello_world(**kwargs) -> dict[str, Any]:
     write_key = DYNACONF.get("SEGMENT_WRITE_KEY", None)
     logger.info(f"Write key: {write_key}")
 
+    large_list = []
+    for i in range(100):
+        list_item_dict = {}
+        for j in range(10):
+            list_item_dict[f'list_item_dict_item_{j}'] = f'list_item_dict_item_value_{j}'
+        large_list_item = list_item_dict
+        large_list.append(large_list_item)
+
+    large_dict = {}
+    for i in range(100):
+        large_dict[f'dict_item_{i}'] = f'dict_item_value_{i}'
+
+    dict = {
+        'large_list' : large_list,
+        'large_dict' : large_dict,
+    }
+
     try:
         # send hello world data to segment using metrics-utility
         segment = StorageSegment(write_key=write_key, debug=True)
         segment.put(
             artifact_name="hello_world",
-            dict={"message": message},
+            dict=dict,
             event_name="metrics_service_hello_world"
         )
         success = True
