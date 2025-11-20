@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from typing import Any
-from django.conf import settings
+from metrics_service.settings import DYNACONF
 
 from django.utils import timezone
 
@@ -358,15 +358,17 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
 @task_execution_wrapper("send_to_segment")
 def send_to_segment(**kwargs) -> dict[str, Any]:
     """
-    Send JSON data to Segment.com for analytics using metrics-utility.
+    Send testing JSON data to Segment.com for analytics using metrics-utility.
     """
     # Simple task that just prints hello world for now
-    message = "Will be seding data 2"
+    message = "Will be seding data 3"
     logger.info(f"Task executing: {message}")
 
     # obtain write key from django conf
-    write_key = settings.SEGMENT_WRITE_KEY
+    write_key = DYNACONF.get("SEGMENT_WRITE_KEY", None)
     logger.info(f"Write key: {write_key}")
+
+    
 
     return create_task_result(
         "success",
@@ -819,7 +821,7 @@ TASK_METADATA = {
     },
     "send_to_segment": {
         "category": "Testing",
-        "description": "Send JSON data to Segment.com for analytics using metrics-utility",
+        "description": "Send testing JSON data to Segment.com for analytics using metrics-utility",
         "parameters": {},
         "examples": [{"name": "Basic send to segment", "data": {}}],
     },
