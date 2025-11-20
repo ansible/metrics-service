@@ -36,6 +36,9 @@ EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
 # Import metrics-utility collectors
 try:
     # TODO The AS is just a filler till this is corrected with a later PR
+    from metrics_utility.library.anonymize.anonymized_rollups_processor import (
+        anonymized_rollups_processor,
+    )
     from metrics_utility.library.collectors.controller import (
         config,
     )
@@ -47,9 +50,6 @@ try:
     )
     from metrics_utility.library.collectors.controller import (
         main_jobevent as host_metric,
-    )
-    from metrics_utility.library.anonymize.anonymized_rollups_processor import (
-        anonymized_rollups_processor,
     )
 
     METRICS_UTILITY_AVAILABLE = True
