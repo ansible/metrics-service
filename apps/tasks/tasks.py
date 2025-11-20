@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from typing import Any
-fro
+from django.conf import settings
 
 from django.utils import timezone
 
@@ -361,13 +361,18 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
     Send JSON data to Segment.com for analytics using metrics-utility.
     """
     # Simple task that just prints hello world for now
-    message = "Will be seding data"
+    message = "Will be seding data 2"
     logger.info(f"Task executing: {message}")
+
+    # obtain write key from django conf
+    write_key = settings.SEGMENT_WRITE_KEY
+    logger.info(f"Write key: {write_key}")
 
     return create_task_result(
         "success",
         {
             "message": message,
+            "write_key": write_key,
         },
     )
 
