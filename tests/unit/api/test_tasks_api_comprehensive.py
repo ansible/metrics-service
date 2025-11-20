@@ -5,7 +5,6 @@ Comprehensive tests for tasks API to achieve 100% coverage.
 from datetime import timedelta
 from unittest.mock import patch
 
-import pytest
 from django.test import TestCase
 from django.utils import timezone as django_timezone
 from rest_framework.serializers import ValidationError
@@ -22,7 +21,6 @@ from apps.core.models import User
 from apps.tasks.models import Task, TaskExecution
 
 
-@pytest.mark.django_db
 class TestTaskViewSetComprehensive(TestCase):
     """Comprehensive tests for TaskViewSet to achieve 100% coverage."""
 
@@ -131,7 +129,6 @@ class TestTaskViewSetComprehensive(TestCase):
         self.assertIn("error", response.data)
 
 
-@pytest.mark.django_db
 class TestTaskExecutionViewSetComprehensive(TestCase):
     """Comprehensive tests for TaskExecutionViewSet to achieve 100% coverage."""
 
@@ -179,7 +176,6 @@ class TestTaskExecutionViewSetComprehensive(TestCase):
         self.assertEqual(filterset_fields, expected_fields)
 
 
-@pytest.mark.django_db
 class TestSerializerValidationComprehensive(TestCase):
     """Comprehensive tests for serializer validation to achieve 100% coverage."""
 

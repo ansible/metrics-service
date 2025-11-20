@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 
 from apps.tasks import tasks
 from apps.tasks.models import Task
@@ -110,7 +110,7 @@ class TestSystemTasksCreation(TestCase):
 
 
 @pytest.mark.unit
-class TestSystemTaskHelpers(TestCase):
+class TestSystemTaskHelpers(TransactionTestCase):
     """Test system task helper functions."""
 
     def setUp(self):

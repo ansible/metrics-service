@@ -5,13 +5,13 @@ Comprehensive unit tests for tasks utils module.
 import os
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import TransactionTestCase
 
 from apps.tasks import utils
 from apps.tasks.models import Task, TaskDependency, TaskExecution
 
 
-class TaskUtilsTestCase(TestCase):
+class TaskUtilsTestCase(TransactionTestCase):
     """Test cases for task utility functions."""
 
     def setUp(self):

@@ -5,7 +5,6 @@ Extended tests for task views and serializers to improve coverage.
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
-import pytest
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
@@ -15,7 +14,6 @@ from apps.core.models import User
 from apps.tasks.models import Task, TaskChain, TaskExecution
 
 
-@pytest.mark.django_db
 class TestTaskViewSet(TestCase):
     """Test TaskViewSet functionality."""
 
@@ -71,7 +69,6 @@ class TestTaskViewSet(TestCase):
         assert hasattr(viewset, "available_functions")
 
 
-@pytest.mark.django_db
 class TestTaskSerializer(TestCase):
     """Test TaskSerializer functionality."""
 
@@ -146,7 +143,6 @@ class TestTaskSerializer(TestCase):
         serializer.is_valid()
 
 
-@pytest.mark.django_db
 class TestTaskExecutionSerializer(TestCase):
     """Test TaskExecutionSerializer functionality."""
 
@@ -233,7 +229,6 @@ class TestTaskImports(TestCase):
         assert TaskChain
 
 
-@pytest.mark.django_db
 class TestTaskViewSetActions(TestCase):
     """Test TaskViewSet action methods."""
 
@@ -282,7 +277,6 @@ class TestTaskViewSetActions(TestCase):
         assert ordered is not None
 
 
-@pytest.mark.django_db
 class TestSerializerFieldCoverage(TestCase):
     """Test serializer field coverage."""
 

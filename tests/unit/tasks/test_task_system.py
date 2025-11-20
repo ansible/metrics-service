@@ -6,7 +6,7 @@ from datetime import timedelta
 from unittest.mock import Mock, patch
 
 import pytest
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from apps.core.models import User
@@ -103,7 +103,7 @@ class TaskFunctionsTestCase(TestCase):
 
 
 @pytest.mark.unit
-class ExecuteDbTaskTestCase(TestCase):
+class ExecuteDbTaskTestCase(TransactionTestCase):
     """Test cases for execute_db_task function."""
 
     def setUp(self):
