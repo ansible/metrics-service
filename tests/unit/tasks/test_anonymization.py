@@ -9,13 +9,12 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import TestCase
 
 from apps.tasks.tasks import anonymize_collected_data
 
 
 @pytest.mark.unit
-class TestAnonymizationIntegration(TestCase):
+class TestAnonymizationIntegration:
     """Test that anonymization task properly uses metrics-utility."""
 
     @patch("apps.tasks.tasks.anonymized_rollups_processor")
