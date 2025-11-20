@@ -73,6 +73,10 @@ class TestAnonymizationIntegration(TestCase):
         assert result["anonymized_data"] == mock_anonymized_data
         assert result["parameters_used"]["database"] == "awx"
         assert result["parameters_used"]["save_rollups"] is False
+        assert isinstance(result["parameters_used"]["since"], str)
+        assert isinstance(result["parameters_used"]["until"], str)
+        assert result["parameters_used"]["since"].startswith("2024-01-01")
+        assert result["parameters_used"]["until"].startswith("2024-01-02")
 
     @patch("apps.tasks.tasks.anonymized_rollups_processor")
     @patch("django.db.connections")
@@ -162,7 +166,7 @@ class TestAnonymizationIntegration(TestCase):
     @patch("django.db.connections")
     @patch("django.conf.settings")
     def test_anonymize_collected_data_converts_date_strings(self, mock_settings, mock_connections, mock_processor):
-        """Test that anonymize_collected_data converts string dates to datetime objects."""
+        """Test that anonymize_collected_data converts string dates to datetime objects for processor."""
         # Setup mocks
         mock_settings.MEDIA_ROOT = "/tmp/media"  # noqa: S108
         mock_db_connection = MagicMock()
@@ -170,18 +174,24 @@ class TestAnonymizationIntegration(TestCase):
         mock_processor.return_value = {}
 
         # Call with string dates
-        anonymize_collected_data(
+        result = anonymize_collected_data(
             salt="test-salt",
             since="2024-01-01T00:00:00Z",
             until="2024-01-02T00:00:00Z",
         )
 
-        # Verify dates were converted
+        # Verify dates were converted to datetime objects for processor
         call_args = mock_processor.call_args
         assert isinstance(call_args.kwargs["since"], datetime)
         assert isinstance(call_args.kwargs["until"], datetime)
         assert call_args.kwargs["since"].isoformat().startswith("2024-01-01")
         assert call_args.kwargs["until"].isoformat().startswith("2024-01-02")
+
+        # Verify dates are returned as ISO strings in result
+        assert isinstance(result["parameters_used"]["since"], str)
+        assert isinstance(result["parameters_used"]["until"], str)
+        assert result["parameters_used"]["since"].startswith("2024-01-01")
+        assert result["parameters_used"]["until"].startswith("2024-01-02")
 
     @patch("apps.tasks.tasks.anonymized_rollups_processor")
     @patch("django.db.connections")
@@ -247,3 +257,5 @@ class TestAnonymizationIntegration(TestCase):
         call_args = mock_processor.call_args
         assert call_args.kwargs["since"] is None
         assert call_args.kwargs["until"] is None
+        assert result["parameters_used"]["since"] is None
+        assert result["parameters_used"]["until"] is None

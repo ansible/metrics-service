@@ -42,15 +42,9 @@ try:
     from metrics_utility.library.collectors.controller import (
         config,
     )
-    from metrics_utility.library.collectors.controller import (
-        job_host_summary as anonymous,
-    )
-    from metrics_utility.library.collectors.controller import (
-        main_host as job_host_summary,
-    )
-    from metrics_utility.library.collectors.controller import (
-        main_jobevent as host_metric,
-    )
+    from metrics_utility.library.collectors.controller import job_host_summary as anonymous
+    from metrics_utility.library.collectors.controller import main_host as job_host_summary
+    from metrics_utility.library.collectors.controller import main_jobevent as host_metric
 
     METRICS_UTILITY_AVAILABLE = True
 except ImportError as e:
@@ -438,8 +432,8 @@ def anonymize_collected_data(**kwargs) -> dict[str, Any]:
                 "parameters_used": {
                     "database": db_name,
                     "salt": "******" if salt else None,
-                    "since": since,
-                    "until": until,
+                    "since": since.isoformat() if since else None,
+                    "until": until.isoformat() if until else None,
                     "ship_path": ship_path,
                     "save_rollups": save_rollups,
                 },
