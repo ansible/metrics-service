@@ -109,8 +109,16 @@ class ExecuteDbTaskTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = Task.objects.create(name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7})
+        self.task = self._create_task_safely(name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7})
 
+    def _create_task_safely(self, **kwargs):
+        """Create a task without triggering signals."""
+        task = Task(**kwargs)
+        task._skip_signals = True
+        task.save()
+        return task
+
+    @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_success(self):
         """Test execute_db_task success."""
         result = execute_db_task(task_id=self.task.id)
@@ -124,6 +132,7 @@ class ExecuteDbTaskTestCase(TestCase):
         self.assertIsNotNone(self.task.started_at)
         self.assertIsNotNone(self.task.completed_at)
 
+    @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_with_execution_record(self):
         """Test execute_db_task with execution record."""
         execution = TaskExecution.objects.create(task=self.task, status="pending")
@@ -212,6 +221,13 @@ class TaskSchedulerTestCase(TestCase):
         self.scheduler = SimpleTaskScheduler()
         self.user = User.objects.create_user(username="scheduleuser")
 
+    def _create_task_safely(self, **kwargs):
+        """Create a task without triggering signals."""
+        task = Task(**kwargs)
+        task._skip_signals = True
+        task.save()
+        return task
+
     def test_task_scheduler_init(self):
         """Test SimpleTaskScheduler initialization."""
         self.assertEqual(self.scheduler.check_interval, 30)
@@ -222,7 +238,7 @@ class TaskSchedulerTestCase(TestCase):
         """Test SimpleTaskScheduler with tasks not ready to run."""
         # Create a task with future scheduled time
         future_time = timezone.now() + timedelta(hours=1)
-        Task.objects.create(
+        self._create_task_safely(
             name="Future Task",
             function_name="cleanup_old_data",
             status="pending",
