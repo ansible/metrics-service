@@ -2,7 +2,7 @@
 Unified signal handlers for task management.
 
 This module contains Django signal handlers that manage both immediate task execution
-and registration of scheduled/recurring tasks with the unified scheduler.
+and registration of scheduled/recurring tasks with the task scheduler.
 """
 
 import logging
@@ -37,7 +37,7 @@ def task_created_or_updated(sender, instance, created, **kwargs):
             logger.info(f"Task updated: {task.name} (ID: {task.id})")
             _handle_updated_task(task)
 
-        # Register scheduled/recurring tasks with unified scheduler
+        # Register scheduled/recurring tasks with task scheduler
         _register_with_scheduler(task, created)
 
     except Exception as e:
@@ -54,7 +54,7 @@ def _handle_new_task(task):
 
     # Scheduled/recurring tasks will be registered with scheduler below
     if task.scheduled_time or task.is_recurring:
-        logger.info(f"Task will be registered with unified scheduler: {task.name}")
+        logger.info(f"Task will be registered with task scheduler: {task.name}")
 
 
 def _handle_updated_task(task):
@@ -84,7 +84,7 @@ def _submit_task_to_dispatcherd_directly(task):
 
 
 def _register_with_scheduler(task, is_new_task):
-    """Register scheduled/recurring tasks with the unified scheduler."""
+    """Register scheduled/recurring tasks with the task scheduler."""
     try:
         from .cron_scheduler import get_scheduler
 

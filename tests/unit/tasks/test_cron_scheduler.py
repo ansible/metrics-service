@@ -175,7 +175,7 @@ class TestUnifiedTaskScheduler:
         assert scheduler.running is True
         scheduler._add_registry_tasks.assert_called_once()
         scheduler.scheduler.start.assert_called_once()
-        assert "Unified task scheduler started" in caplog.text
+        assert "Task scheduler started" in caplog.text
         assert "Registered 2 task group tasks" in caplog.text
 
     def test_start_already_running(self, caplog):
@@ -210,7 +210,7 @@ class TestUnifiedTaskScheduler:
 
         assert scheduler.running is False
         scheduler.scheduler.shutdown.assert_called_once()
-        assert "Unified task scheduler stopped" in caplog.text
+        assert "Task scheduler stopped" in caplog.text
 
     def test_stop_not_running(self):
         """Test stopping scheduler when not running."""

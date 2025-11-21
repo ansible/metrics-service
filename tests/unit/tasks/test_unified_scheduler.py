@@ -1,7 +1,7 @@
 """
 Comprehensive unit tests for the UnifiedTaskScheduler module.
 
-Tests the unified scheduler that combines task group scheduling and database task scheduling
+Tests the task scheduler that combines task group scheduling and database task scheduling
 without database polling, using APScheduler for optimal performance.
 """
 
@@ -352,7 +352,7 @@ class TestBackwardCompatibility:
 
 @pytest.mark.unit
 class TestErrorHandling:
-    """Test error handling in the unified scheduler."""
+    """Test error handling in the task scheduler."""
 
     def test_sync_database_tasks_error(self, scheduler, caplog):
         """Test error handling in _sync_database_tasks."""

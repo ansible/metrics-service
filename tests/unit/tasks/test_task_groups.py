@@ -252,12 +252,12 @@ class TestTaskGroupIntegration(TestCase):
 
     @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_scheduler_integration(self, mock_get_scheduler):
-        """Test integration with the unified scheduler."""
+        """Test integration with the task scheduler."""
         mock_scheduler = MagicMock()
         mock_scheduler.running = True
         mock_get_scheduler.return_value = mock_scheduler
 
-        # With the unified scheduler, we just verify it's running
+        # With the task scheduler, we just verify it's running
         # Import here to avoid issues during test discovery
         from apps.tasks.cron_scheduler import refresh_scheduler
 

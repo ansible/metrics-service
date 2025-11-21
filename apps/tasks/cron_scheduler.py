@@ -1,7 +1,7 @@
 """
-Unified task scheduler using APScheduler.
+Task scheduler using APScheduler.
 
-This module provides a unified scheduler that handles both task group definitions
+This module provides a task scheduler that handles both task group definitions
 and database tasks without database polling, using APScheduler for optimal performance.
 """
 
@@ -22,14 +22,14 @@ logger = logging.getLogger(__name__)
 
 class UnifiedTaskScheduler:
     """
-    Unified task scheduler using APScheduler.
+    Task scheduler using APScheduler.
 
     This scheduler handles both task group definitions and database tasks
     without database polling, providing optimal performance for all task types.
     """
 
     def __init__(self, check_interval: int = 60):
-        """Initialize the unified scheduler."""
+        """Initialize the task scheduler."""
         self.scheduler = BackgroundScheduler()
         self.running = False
         self._lock = threading.Lock()
@@ -105,7 +105,7 @@ class UnifiedTaskScheduler:
                 # Load database tasks into scheduler
                 self._sync_database_tasks()
 
-                logger.info("Unified task scheduler started")
+                logger.info("Task scheduler started")
                 logger.info(f"Registered {len(self.task_registry)} task group tasks")
                 logger.info(f"Loaded {len(self._db_task_jobs)} database tasks")
 
@@ -123,7 +123,7 @@ class UnifiedTaskScheduler:
                 self.scheduler.shutdown()
                 self.running = False
                 self._db_task_jobs.clear()
-                logger.info("Unified task scheduler stopped")
+                logger.info("Task scheduler stopped")
             except Exception as e:
                 logger.error(f"Error stopping cron scheduler: {str(e)}")
 
