@@ -106,8 +106,18 @@ class ExecuteDbTaskTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = Task.objects.create(name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7})
+        self.task = self._create_task_safely(
+            name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7}
+        )
 
+    def _create_task_safely(self, **kwargs):
+        """Create a task without triggering signals."""
+        task = Task(**kwargs)
+        task._skip_signals = True
+        task.save()
+        return task
+
+    @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_success(self):
         """Test execute_db_task success."""
         result = execute_db_task(task_id=self.task.id)
@@ -121,6 +131,7 @@ class ExecuteDbTaskTestCase(TestCase):
         self.assertIsNotNone(self.task.started_at)
         self.assertIsNotNone(self.task.completed_at)
 
+    @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_with_execution_record(self):
         """Test execute_db_task with execution record."""
         execution = TaskExecution.objects.create(task=self.task, status="pending")
@@ -200,46 +211,49 @@ class SubmitTaskTestCase(TestCase):
         self.assertIn("Failed to submit to dispatcher", self.task.error_message)
 
 
-# NOTE: TaskSchedulerTestCase has been disabled because SimpleTaskScheduler
-# has been replaced by UnifiedTaskScheduler in cron_scheduler.py
-# See tests/unit/tasks/test_unified_scheduler.py for updated tests
+@pytest.mark.unit
+class TaskSchedulerTestCase(TestCase):
+    """Test cases for SimpleTaskScheduler class."""
 
-# @pytest.mark.unit
-# class TaskSchedulerTestCase(TestCase):
-#     """Test cases for SimpleTaskScheduler class."""
-#
-#     def setUp(self):
-#         """Set up test data."""
-#         self.scheduler = SimpleTaskScheduler()
-#         self.user = User.objects.create_user(username="scheduleuser")
-#
-#     def test_task_scheduler_init(self):
-#         """Test SimpleTaskScheduler initialization."""
-#         self.assertEqual(self.scheduler.check_interval, 30)
-#         self.assertFalse(self.scheduler.running)
-#
-#     @patch.object(SimpleTaskScheduler, "_submit_task_to_dispatcherd")
-#     def test_process_pending_tasks_not_ready(self, mock_submit):
-#         """Test SimpleTaskScheduler with tasks not ready to run."""
-#         # Create a task with future scheduled time
-#         future_time = timezone.now() + timedelta(hours=1)
-#         Task.objects.create(
-#             name="Future Task",
-#             function_name="cleanup_old_data",
-#             status="pending",
-#             scheduled_time=future_time,
-#             created_by=self.user,
-#         )
-#
-#         self.scheduler._check_and_submit_tasks()
-#
-#         mock_submit.assert_not_called()
-#
-#     def test_stop_method(self):
-#         """Test SimpleTaskScheduler stop method."""
-#         self.scheduler.running = True
-#         self.scheduler.stop()
-#         self.assertFalse(self.scheduler.running)
+    def setUp(self):
+        """Set up test data."""
+        self.scheduler = SimpleTaskScheduler()
+        self.user = User.objects.create_user(username="scheduleuser")
+
+    def _create_task_safely(self, **kwargs):
+        """Create a task without triggering signals."""
+        task = Task(**kwargs)
+        task._skip_signals = True
+        task.save()
+        return task
+
+    def test_task_scheduler_init(self):
+        """Test SimpleTaskScheduler initialization."""
+        self.assertEqual(self.scheduler.check_interval, 30)
+        self.assertFalse(self.scheduler.running)
+
+    @patch.object(SimpleTaskScheduler, "_submit_task_to_dispatcherd")
+    def test_process_pending_tasks_not_ready(self, mock_submit):
+        """Test SimpleTaskScheduler with tasks not ready to run."""
+        # Create a task with future scheduled time
+        future_time = timezone.now() + timedelta(hours=1)
+        self._create_task_safely(
+            name="Future Task",
+            function_name="cleanup_old_data",
+            status="pending",
+            scheduled_time=future_time,
+            created_by=self.user,
+        )
+
+        self.scheduler._check_and_submit_tasks()
+
+        mock_submit.assert_not_called()
+
+    def test_stop_method(self):
+        """Test SimpleTaskScheduler stop method."""
+        self.scheduler.running = True
+        self.scheduler.stop()
+        self.assertFalse(self.scheduler.running)
 
 
 @pytest.mark.unit
