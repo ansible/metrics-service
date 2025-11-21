@@ -492,6 +492,7 @@ def send_to_segment_hello_world(**kwargs) -> dict[str, Any]:
         "review",
     ]
 
+    # generate random uuid
     # This is now for testing purposes only
     # In production we will have to have some unique identifier for certain collection
     # So its idempotent
@@ -500,7 +501,7 @@ def send_to_segment_hello_world(**kwargs) -> dict[str, Any]:
     try:
         # send hello world data to segment using metrics-utility
         segment = StorageSegment(write_key=write_key, debug=False)
-        chunks = segment.put(artifact_name=random_name, dict=dict, event_name="metrics_service_hello_world")
+        chunks = segment.put(artifact_name=random_name, dict=dict, event_name=random_name)
         success = True
         error = None
     except Exception as e:
