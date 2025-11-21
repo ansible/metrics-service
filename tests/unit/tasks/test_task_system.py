@@ -109,7 +109,9 @@ class ExecuteDbTaskTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = self._create_task_safely(name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7})
+        self.task = self._create_task_safely(
+            name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7}
+        )
 
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
