@@ -24,7 +24,7 @@ class TestTaskFunctions(BaseTaskFunctionsTest):
     @patch("django.contrib.auth.get_user_model")
     def test_process_user_data(self, mock_get_user_model):
         """Test process_user_data function."""
-        from apps.tasks import process_user_data
+        from apps.tasks.tasks import process_user_data
 
         # Mock user and user model
         mock_user = Mock()

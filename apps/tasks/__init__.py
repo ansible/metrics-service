@@ -2,6 +2,6 @@
 Tasks module for background task processing.
 """
 
-from .tasks import process_user_data
-
-__all__ = ["process_user_data"]
+# Avoid circular imports at app loading time
+# Tasks can be imported directly from apps.tasks.tasks when needed
+__all__ = []
