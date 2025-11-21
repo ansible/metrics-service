@@ -42,6 +42,13 @@ except ImportError as e:
     logger.warning(f"metrics-utility not available: {e}")
     METRICS_UTILITY_AVAILABLE = False
 
+    # Provide fallback attributes for testing when metrics-utility is not available
+    anonymized_rollups_processor = None
+    config = None
+    job_host_summary = None
+    main_host = None
+    main_jobevent = None
+
 try:
     from dispatcherd.publish import task
 except ImportError:

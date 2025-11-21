@@ -176,7 +176,7 @@ class TestUnifiedTaskScheduler:
         scheduler._add_registry_tasks.assert_called_once()
         scheduler.scheduler.start.assert_called_once()
         assert "Unified task scheduler started" in caplog.text
-        assert "Registered 2 scheduled tasks" in caplog.text
+        assert "Registered 2 task group tasks" in caplog.text
 
     def test_start_already_running(self, caplog):
         """Test starting scheduler when already running."""
@@ -524,9 +524,11 @@ class TestUnifiedTaskScheduler:
         result = scheduler.list_tasks()
 
         expected_result = {
-            "registry": {"task1": {"function": "hello_world"}},
+            "task_groups": {"task1": {"function": "hello_world"}},
+            "database_tasks": 0,
             "scheduled_jobs": [{"id": "task1", "name": "Task 1", "next_run_time": None, "trigger": "cron"}],
-            "task_groups": {"group1": {"enabled": True}},
+            "task_groups_status": {"group1": {"enabled": True}},
+            "total_jobs": 1,
         }
 
         assert result == expected_result
