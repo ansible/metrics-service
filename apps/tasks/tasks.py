@@ -7,11 +7,13 @@ tasks with proper error handling, status tracking, and dependency management.
 
 import logging
 import os
+import random
 import time
 from typing import Any
-from metrics_service.settings import DYNACONF
 
 from django.utils import timezone
+
+from metrics_service.settings import DYNACONF
 
 from .utils import (
     create_task_result,
@@ -373,39 +375,141 @@ def send_to_segment_hello_world(**kwargs) -> dict[str, Any]:
     for i in range(130):
         list_item_dict = {}
         for j in range(10):
-            list_item_dict[f'{i}_list_item_dict_item_{j}'] = f'list_item'
+            list_item_dict[f"{i}_list_item_dict_item_{j}"] = "list_item"
         large_list_item = list_item_dict
         large_list.append(large_list_item)
 
     large_dict = {}
     for i in range(100):
-        large_dict[f'dict_item_{i}'] = f'dict_item_value_{i}'
+        large_dict[f"dict_item_{i}"] = f"dict_item_value_{i}"
 
     dict = {
-        'large_dict' : large_dict,
-        'large_list' : large_list,
-        'second_large_dict' : large_dict,
+        "large_dict": large_dict,
+        "large_list": large_list,
+        "second_large_dict": large_dict,
     }
+
+    # generate random readable name
+    choice1 = [
+        "amazing",
+        "wonderful",
+        "fantastic",
+        "incredible",
+        "magnificent",
+        "spectacular",
+        "awesome",
+        "terrific",
+        "magnificent",
+        "spectacular",
+        "awesome",
+        "terrific",
+        "brilliant",
+        "remarkable",
+        "extraordinary",
+        "marvelous",
+        "stellar",
+        "exceptional",
+        "impressive",
+        "phenomenal",
+        "outstanding",
+        "radiant",
+        "glorious",
+        "superb",
+    ]
+
+    choice2 = [
+        "quiet",
+        "anonymized",
+        "secret",
+        "hidden",
+        "private",
+        "secure",
+        "confidential",
+        "hidden",
+        "secret",
+        "confidential",
+        "stealthy",
+        "discreet",
+        "low-profile",
+        "shielded",
+        "veiled",
+        "masked",
+        "encrypted",
+        "obscured",
+        "camouflaged",
+        "protected",
+        "secluded",
+        "isolated",
+    ]
+
+    choice3 = [
+        "apple",
+        "banana",
+        "cherry",
+        "date",
+        "elderberry",
+        "fig",
+        "grape",
+        "honeydew",
+        "kiwi",
+        "lemon",
+        "mango",
+        "nectarine",
+        "orange",
+        "papaya",
+        "quince",
+        "raspberry",
+        "strawberry",
+        "tangerine",
+        "watermelon",
+        "blueberry",
+        "blackberry",
+        "pineapple",
+    ]
+
+    choice4 = [
+        "analysis",
+        "report",
+        "summary",
+        "metrics",
+        "data",
+        "information",
+        "insights",
+        "reports",
+        "analytics",
+        "stats",
+        "overview",
+        "breakdown",
+        "dashboard",
+        "evaluation",
+        "assessment",
+        "briefing",
+        "log",
+        "record",
+        "dataset",
+        "profile",
+        "observations",
+        "review",
+    ]
+
+    # This is now for testing purposes only
+    # In production we will have to have some unique identifier for certain collection
+    # So its idempotent
+    random_name = f"{random.choice(choice1)}_{random.choice(choice2)}_{random.choice(choice3)}_{random.choice(choice4)}"
 
     try:
         # send hello world data to segment using metrics-utility
         segment = StorageSegment(write_key=write_key, debug=False)
-        chunks = segment.put(
-            artifact_name="hello_world",
-            dict=dict,
-            event_name="metrics_service_hello_world"
-        )
+        chunks = segment.put(artifact_name=random_name, dict=dict, event_name="metrics_service_hello_world")
         success = True
         error = None
     except Exception as e:
-        logger.error(f"Error sending hello world data to segment")
+        logger.error("Error sending hello world data to segment")
         success = False
         error = str(e)
 
-    task_result_name = "success" if success else "error"
-
     return create_task_result(
-        task_result_name,
+        "success",
         {
             "message": message,
             "write_key": write_key,
