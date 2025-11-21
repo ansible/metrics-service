@@ -20,7 +20,7 @@ SECRET_KEY = "dev-secret-key-change-in-production"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Override with METRICS_SERVICE_DEBUG environment variable
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 

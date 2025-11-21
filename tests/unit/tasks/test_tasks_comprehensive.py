@@ -11,7 +11,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from apps.tasks import tasks
+from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task
 
 User = get_user_model()
@@ -27,7 +27,7 @@ class TestMetricsUtilityImport(TestCase):
         assert hasattr(tasks, "METRICS_UTILITY_AVAILABLE")
         assert isinstance(tasks.METRICS_UTILITY_AVAILABLE, bool)
 
-    @patch("apps.tasks.tasks.logger")
+    @patch("apps.tasks.tasks_collector.logger")
     def test_metrics_utility_import_error(self, mock_logger):
         """Test handling of metrics utility import errors."""
         # This tests the import error path that's normally not covered
@@ -39,17 +39,17 @@ class TestMetricsUtilityImport(TestCase):
 class TestDispatcherdDecorator(TestCase):
     """Test dispatcherd decorator functionality."""
 
-    @patch("apps.tasks.tasks.task")
+    @patch("apps.tasks.tasks_system.task")
     def test_task_decorator_applied(self, mock_task):
         """Test that task decorator is properly applied."""
-        # Verify the task decorator exists and can be called
-        assert callable(tasks.task)
+        # Verify the task decorator exists and can be called from tasks_system
+        assert callable(tasks_system.task)
 
     def test_fallback_decorator(self):
         """Test fallback decorator when dispatcherd is not available."""
 
         # Create a mock function to test the decorator
-        @tasks.task()
+        @tasks_system.task()
         def test_function():
             return "test"
 
@@ -70,7 +70,7 @@ class TestSystemTasksCreation(TestCase):
         """Test handling of disabled system tasks."""
         # Test that disabled tasks are skipped
         with patch(
-            "apps.tasks.tasks.SYSTEM_TASKS",
+            "apps.tasks.tasks_system.SYSTEM_TASKS",
             [
                 {
                     "name": "Test Disabled Task",
@@ -84,13 +84,13 @@ class TestSystemTasksCreation(TestCase):
                 }
             ],
         ):
-            result = tasks.create_system_tasks()
+            result = tasks_system.create_system_tasks()
             assert result["skipped"] >= 1
 
     def test_create_system_tasks_exception_handling(self):
         """Test exception handling in system tasks creation."""
         with patch(
-            "apps.tasks.tasks.SYSTEM_TASKS",
+            "apps.tasks.tasks_system.SYSTEM_TASKS",
             [
                 {
                     "name": "Test Task",
@@ -104,7 +104,7 @@ class TestSystemTasksCreation(TestCase):
                 }
             ],
         ):
-            result = tasks.create_system_tasks()
+            result = tasks_system.create_system_tasks()
             # Should handle any exceptions gracefully
             assert "tasks" in result
 
@@ -137,7 +137,7 @@ class TestSystemTaskHelpers(TestCase):
         }
         results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
 
-        tasks._process_system_task(system_task_config, results, Task)
+        tasks_system._process_system_task(system_task_config, results, Task)
 
         assert results["created"] == 1
         assert len(results["tasks"]) == 1
@@ -169,7 +169,7 @@ class TestSystemTaskHelpers(TestCase):
         }
         results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
 
-        tasks._process_system_task(system_task_config, results, Task)
+        tasks_system._process_system_task(system_task_config, results, Task)
 
         assert results["updated"] == 1
         assert len(results["tasks"]) == 1
@@ -202,7 +202,7 @@ class TestSystemTaskHelpers(TestCase):
 
         results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
 
-        tasks._process_system_task(system_task_config, results, Task)
+        tasks_system._process_system_task(system_task_config, results, Task)
 
         assert results["skipped"] == 1
         assert len(results["tasks"]) == 1
@@ -229,7 +229,7 @@ class TestSystemTaskHelpers(TestCase):
         }
         results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
 
-        tasks._update_existing_system_task(existing_task, system_task_config, results)
+        tasks_system._update_existing_system_task(existing_task, system_task_config, results)
 
         assert results["updated"] == 1
         assert results["skipped"] == 0
@@ -254,7 +254,7 @@ class TestSystemTaskHelpers(TestCase):
         }
         results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
 
-        tasks._create_new_system_task(system_task_config, results, Task)
+        tasks_system._create_new_system_task(system_task_config, results, Task)
 
         assert results["created"] == 1
         assert len(results["tasks"]) == 1
@@ -294,11 +294,11 @@ class TestTaskFunctionsRegistry(TestCase):
 
     def test_system_tasks_configuration(self):
         """Test SYSTEM_TASKS configuration."""
-        assert hasattr(tasks, "SYSTEM_TASKS")
-        assert isinstance(tasks.SYSTEM_TASKS, list)
+        assert hasattr(tasks_system, "SYSTEM_TASKS")
+        assert isinstance(tasks_system.SYSTEM_TASKS, list)
 
         # Each system task should have required fields
-        for system_task in tasks.SYSTEM_TASKS:
+        for system_task in tasks_system.SYSTEM_TASKS:
             required_fields = [
                 "name",
                 "description",
@@ -331,7 +331,7 @@ class TestEdgeCasesAndErrorHandling:
         result = tasks.process_user_data(user_id=None)
         assert "error" in result["status"]
 
-    @patch("apps.tasks.tasks.anonymous")
+    @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     def test_metrics_collection_edge_cases(self, mock_connections, mock_collector):
         """Test metrics collection works with Django database connections."""
@@ -339,28 +339,26 @@ class TestEdgeCasesAndErrorHandling:
         mock_db_connection = object()
         mock_connections.__getitem__.return_value = mock_db_connection
 
-        # Setup mock collector with proper gather method
-        from unittest.mock import MagicMock
-
-        mock_collector_instance = MagicMock()
-        mock_collector_instance.gather.return_value = {}
-        mock_collector.return_value = mock_collector_instance
+        # Setup mock collector return value
+        mock_collector.return_value = {}
 
         # Call the function
         result = tasks.collect_anonymous_metrics()
 
         # Verify it worked
         assert result["status"] == "success"
-        assert result["collector_type"] == "anonymous"
+        assert result["collector_type"] == "anonymized_rollups"
 
         # Verify it used Django connections
         mock_connections.__getitem__.assert_called_once_with("awx")
-        mock_collector.assert_called_once_with(db=mock_db_connection, since=None, until=None, custom_params=None)
+        mock_collector.assert_called_once_with(
+            db=mock_db_connection, salt="default-salt", since=None, until=None, ship_path=None, save_rollups=True
+        )
 
-    @patch("apps.tasks.tasks.logger")
+    @patch("apps.tasks.tasks_collector.logger")
     def test_error_logging(self, mock_logger):
         """Test that errors are properly logged."""
-        with patch("apps.tasks.tasks.anonymous", side_effect=Exception("Test error")):
+        with patch("apps.tasks.tasks_collector.anonymized_rollups_processor", side_effect=Exception("Test error")):
             tasks.collect_anonymous_metrics()
             # Logger should be called for error cases
             # Note: Specific logging assertions depend on implementation

@@ -67,7 +67,7 @@ default:
 # Development environment overrides
 # Inherits from default and adds dev-specific settings
 development:
-  DEBUG: true
+  DEBUG: false
   CORS_ALLOW_ALL_ORIGINS: true
   # Inherits SECRET_KEY and database settings from default - safe for local dev
 

@@ -212,51 +212,6 @@ class SubmitTaskTestCase(TestCase):
 
 
 @pytest.mark.unit
-class TaskSchedulerTestCase(TestCase):
-    """Test cases for SimpleTaskScheduler class."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.scheduler = SimpleTaskScheduler()
-        self.user = User.objects.create_user(username="scheduleuser")
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task._skip_signals = True
-        task.save()
-        return task
-
-    def test_task_scheduler_init(self):
-        """Test SimpleTaskScheduler initialization."""
-        self.assertEqual(self.scheduler.check_interval, 30)
-        self.assertFalse(self.scheduler.running)
-
-    @patch.object(SimpleTaskScheduler, "_submit_task_to_dispatcherd")
-    def test_process_pending_tasks_not_ready(self, mock_submit):
-        """Test SimpleTaskScheduler with tasks not ready to run."""
-        # Create a task with future scheduled time
-        future_time = timezone.now() + timedelta(hours=1)
-        self._create_task_safely(
-            name="Future Task",
-            function_name="cleanup_old_data",
-            status="pending",
-            scheduled_time=future_time,
-            created_by=self.user,
-        )
-
-        self.scheduler._check_and_submit_tasks()
-
-        mock_submit.assert_not_called()
-
-    def test_stop_method(self):
-        """Test SimpleTaskScheduler stop method."""
-        self.scheduler.running = True
-        self.scheduler.stop()
-        self.assertFalse(self.scheduler.running)
-
-
-@pytest.mark.unit
 class TaskFunctionRegistryTestCase(TestCase):
     """Test cases for TASK_FUNCTIONS registry."""
 

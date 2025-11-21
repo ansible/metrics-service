@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Basic required settings
 SECRET_KEY = "test-secret-key-for-testing-only-not-secure"
-DEBUG = True
+DEBUG = False
 TESTING = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 

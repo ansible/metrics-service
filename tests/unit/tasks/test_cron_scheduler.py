@@ -1,5 +1,5 @@
 """
-Comprehensive unit tests for the CronTaskScheduler module.
+Comprehensive unit tests for the UnifiedTaskScheduler module.
 
 Tests all methods, edge cases, and error conditions for full code coverage.
 """
@@ -13,7 +13,7 @@ import pytest
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from apps.tasks.cron_scheduler import (
-    CronTaskScheduler,
+    UnifiedTaskScheduler,
     get_scheduler,
     start_scheduler,
     stop_scheduler,
@@ -71,8 +71,8 @@ def mock_task_functions():
     }
 
 
-class TestCronTaskScheduler:
-    """Test cases for CronTaskScheduler class."""
+class TestUnifiedTaskScheduler:
+    """Test cases for UnifiedTaskScheduler class."""
 
     @patch("apps.tasks.cron_scheduler.get_all_enabled_tasks")
     @patch("apps.tasks.cron_scheduler.get_task_group_status")
@@ -81,7 +81,7 @@ class TestCronTaskScheduler:
         mock_get_tasks.return_value = mock_task_groups
         mock_get_status.return_value = mock_task_group_status
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         assert isinstance(scheduler.scheduler, BackgroundScheduler)
         assert scheduler.running is False
@@ -98,7 +98,7 @@ class TestCronTaskScheduler:
         mock_get_status.return_value = {}
 
         with caplog.at_level(logging.ERROR):
-            scheduler = CronTaskScheduler()
+            scheduler = UnifiedTaskScheduler()
 
         assert scheduler.task_registry == {}
         assert "Failed to load task registry from groups: Load error" in caplog.text
@@ -112,7 +112,7 @@ class TestCronTaskScheduler:
         mock_get_tasks.return_value = mock_task_groups
         mock_get_status.return_value = mock_task_group_status
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         with caplog.at_level(logging.INFO):
             scheduler._load_task_registry()
@@ -128,7 +128,7 @@ class TestCronTaskScheduler:
         mock_get_tasks.return_value = mock_task_groups
         mock_get_status.return_value = {}
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.task_registry = {"old_task": {"function": "test"}}
 
         with caplog.at_level(logging.INFO):
@@ -145,7 +145,7 @@ class TestCronTaskScheduler:
         mock_get_tasks.return_value = mock_task_groups
         mock_get_status.return_value = {}
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.running = True
         scheduler.task_registry = {"old_task": {"function": "test"}}
 
@@ -160,10 +160,11 @@ class TestCronTaskScheduler:
         assert scheduler.scheduler.remove_job.call_count == 1
         scheduler._add_registry_tasks.assert_called_once()
 
+    @pytest.mark.django_db
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     def test_start_success(self, mock_task_groups, caplog):
         """Test successful scheduler start."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.task_registry = mock_task_groups
         scheduler.scheduler.start = Mock()
         scheduler._add_registry_tasks = Mock()
@@ -174,12 +175,12 @@ class TestCronTaskScheduler:
         assert scheduler.running is True
         scheduler._add_registry_tasks.assert_called_once()
         scheduler.scheduler.start.assert_called_once()
-        assert "Cron-based task scheduler started" in caplog.text
+        assert "Unified task scheduler started" in caplog.text
         assert "Registered 2 scheduled tasks" in caplog.text
 
     def test_start_already_running(self, caplog):
         """Test starting scheduler when already running."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.running = True
 
         with caplog.at_level(logging.WARNING):
@@ -189,7 +190,7 @@ class TestCronTaskScheduler:
 
     def test_start_failure(self, caplog):
         """Test scheduler start failure."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.start = Mock(side_effect=Exception("Start error"))
 
         with pytest.raises(Exception, match="Start error"), caplog.at_level(logging.ERROR):
@@ -197,9 +198,10 @@ class TestCronTaskScheduler:
 
         assert "Failed to start cron scheduler: Start error" in caplog.text
 
+    @pytest.mark.django_db
     def test_stop_success(self, caplog):
         """Test successful scheduler stop."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.running = True
         scheduler.scheduler.shutdown = Mock()
 
@@ -208,11 +210,11 @@ class TestCronTaskScheduler:
 
         assert scheduler.running is False
         scheduler.scheduler.shutdown.assert_called_once()
-        assert "Cron-based task scheduler stopped" in caplog.text
+        assert "Unified task scheduler stopped" in caplog.text
 
     def test_stop_not_running(self):
         """Test stopping scheduler when not running."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.running = False
         scheduler.scheduler.shutdown = Mock()
 
@@ -222,7 +224,7 @@ class TestCronTaskScheduler:
 
     def test_stop_failure(self, caplog):
         """Test scheduler stop failure."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.running = True
         scheduler.scheduler.shutdown = Mock(side_effect=Exception("Stop error"))
 
@@ -234,7 +236,7 @@ class TestCronTaskScheduler:
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock(), "cleanup_old_data": Mock()})
     def test_add_registry_tasks(self, mock_task_groups, caplog):
         """Test adding registry tasks to scheduler."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.task_registry = mock_task_groups
         scheduler._add_scheduled_task = Mock()
 
@@ -248,7 +250,7 @@ class TestCronTaskScheduler:
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     def test_add_registry_tasks_with_error(self, caplog):
         """Test adding registry tasks with error."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.task_registry = {"test_task": {"function": "hello_world", "enabled": True}}
         scheduler._add_scheduled_task = Mock(side_effect=Exception("Add error"))
 
@@ -264,7 +266,7 @@ class TestCronTaskScheduler:
         mock_trigger = Mock()
         mock_cron_trigger.from_crontab.return_value = mock_trigger
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.add_job = Mock()
 
         config = {
@@ -292,7 +294,7 @@ class TestCronTaskScheduler:
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
     def test_add_scheduled_task_unknown_function(self):
         """Test adding scheduled task with unknown function."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         config = {"function": "unknown_function", "cron": "0 */1 * * *"}
 
         with pytest.raises(ValueError, match="Unknown task function: unknown_function"):
@@ -302,7 +304,7 @@ class TestCronTaskScheduler:
     @patch("dispatcherd.publish.submit_task")
     def test_execute_scheduled_task_success(self, mock_submit, caplog):
         """Test successful scheduled task execution."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure:
             with caplog.at_level(logging.INFO):
@@ -317,7 +319,7 @@ class TestCronTaskScheduler:
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
     def test_execute_scheduled_task_unknown_function(self, caplog):
         """Test executing scheduled task with unknown function."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"), caplog.at_level(logging.ERROR):
             scheduler._execute_scheduled_task("test_task", "unknown_function", {})
@@ -327,7 +329,7 @@ class TestCronTaskScheduler:
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     def test_execute_scheduled_task_config_error(self, caplog):
         """Test executing scheduled task with configuration error."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         with (
             patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")),
@@ -339,7 +341,7 @@ class TestCronTaskScheduler:
 
     def test_get_queue_for_function_known_functions(self):
         """Test queue mapping for known functions."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         # Test specific queue mappings
         assert scheduler._get_queue_for_function("cleanup_old_data") == "metrics_cleanup"
@@ -349,13 +351,13 @@ class TestCronTaskScheduler:
 
     def test_get_queue_for_function_unknown_function(self):
         """Test queue mapping for unknown function."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         assert scheduler._get_queue_for_function("unknown_function") == "metrics_tasks"
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     def test_add_dynamic_task_success(self, caplog):
         """Test successful dynamic task addition."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler._add_scheduled_task = Mock()
 
         with caplog.at_level(logging.INFO):
@@ -377,7 +379,7 @@ class TestCronTaskScheduler:
 
     def test_add_dynamic_task_default_args(self):
         """Test adding dynamic task with default arguments."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler._add_scheduled_task = Mock()
 
         scheduler.add_dynamic_task("dynamic_task", "hello_world", "0 */1 * * *")
@@ -394,7 +396,7 @@ class TestCronTaskScheduler:
 
     def test_add_dynamic_task_failure(self, caplog):
         """Test dynamic task addition failure."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler._add_scheduled_task = Mock(side_effect=Exception("Add error"))
 
         with pytest.raises(Exception, match="Add error"), caplog.at_level(logging.ERROR):
@@ -404,7 +406,7 @@ class TestCronTaskScheduler:
 
     def test_remove_task_success(self, caplog):
         """Test successful task removal."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.remove_job = Mock()
         scheduler.task_registry = {"test_task": {"function": "hello_world"}}
 
@@ -417,7 +419,7 @@ class TestCronTaskScheduler:
 
     def test_remove_task_not_in_registry(self, caplog):
         """Test removing task not in registry."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.remove_job = Mock()
         scheduler.task_registry = {}
 
@@ -429,7 +431,7 @@ class TestCronTaskScheduler:
 
     def test_remove_task_failure(self, caplog):
         """Test task removal failure."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.remove_job = Mock(side_effect=Exception("Remove error"))
 
         with caplog.at_level(logging.ERROR):
@@ -439,7 +441,7 @@ class TestCronTaskScheduler:
 
     def test_update_task_success(self, caplog):
         """Test successful task update."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.remove_job = Mock()
         scheduler._add_scheduled_task = Mock()
         scheduler.task_registry = {"test_task": {"function": "hello_world", "cron": "0 */1 * * *"}}
@@ -454,7 +456,7 @@ class TestCronTaskScheduler:
 
     def test_update_task_not_found(self):
         """Test updating non-existent task."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.task_registry = {}
 
         with pytest.raises(ValueError, match="Task test_task not found"):
@@ -462,7 +464,7 @@ class TestCronTaskScheduler:
 
     def test_get_task_status_success(self):
         """Test successful task status retrieval."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         mock_job = Mock()
         mock_job.id = "test_task"
@@ -485,7 +487,7 @@ class TestCronTaskScheduler:
 
     def test_get_task_status_not_found(self):
         """Test task status retrieval for non-existent task."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.get_job = Mock(return_value=None)
 
         status = scheduler.get_task_status("test_task")
@@ -493,7 +495,7 @@ class TestCronTaskScheduler:
 
     def test_get_task_status_failure(self, caplog):
         """Test task status retrieval failure."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.get_job = Mock(side_effect=Exception("Status error"))
 
         with caplog.at_level(logging.ERROR):
@@ -502,12 +504,13 @@ class TestCronTaskScheduler:
         assert status is None
         assert "Failed to get status for task test_task: Status error" in caplog.text
 
+    @pytest.mark.django_db
     @patch("apps.tasks.cron_scheduler.get_task_group_status")
     def test_list_tasks(self, mock_get_status):
         """Test listing all tasks."""
         mock_get_status.return_value = {"group1": {"enabled": True}}
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.task_registry = {"task1": {"function": "hello_world"}}
 
         mock_job = Mock()
@@ -534,7 +537,7 @@ class TestCronTaskScheduler:
             mock_status = {"group1": {"enabled": True}}
             mock_get_status.return_value = mock_status
 
-            scheduler = CronTaskScheduler()
+            scheduler = UnifiedTaskScheduler()
             # Reset the call count from __init__
             mock_get_status.reset_mock()
 
@@ -550,7 +553,7 @@ class TestCronTaskScheduler:
         """Test successful immediate task scheduling."""
         mock_timezone.now.return_value.timestamp.return_value = 1234567890.0
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure:
             with caplog.at_level(logging.INFO):
@@ -569,7 +572,7 @@ class TestCronTaskScheduler:
         """Test scheduling immediate task with default arguments."""
         mock_timezone.now.return_value.timestamp.return_value = 1234567890.0
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.schedule_immediate_task = Mock(return_value="immediate_1234567890.0")
 
         scheduler.schedule_immediate_task("hello_world")
@@ -583,7 +586,7 @@ class TestCronTaskScheduler:
         """Test scheduling immediate task with unknown function."""
         mock_timezone.now.return_value.timestamp.return_value = 1234567890.0
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         with (
             patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"),
@@ -602,7 +605,7 @@ class TestCronTaskScheduler:
         """Test scheduling immediate task with configuration error."""
         mock_timezone.now.return_value.timestamp.return_value = 1234567890.0
 
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         with (
             patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")),
@@ -617,6 +620,7 @@ class TestCronTaskScheduler:
 class TestGlobalSchedulerFunctions:
     """Test cases for global scheduler functions."""
 
+    @pytest.mark.django_db
     def test_get_scheduler_first_call(self):
         """Test getting scheduler instance for first time."""
         # Reset global instance
@@ -624,7 +628,7 @@ class TestGlobalSchedulerFunctions:
 
         apps.tasks.cron_scheduler._scheduler_instance = None
 
-        with patch("apps.tasks.cron_scheduler.CronTaskScheduler") as mock_class:
+        with patch("apps.tasks.cron_scheduler.UnifiedTaskScheduler") as mock_class:
             mock_instance = Mock()
             mock_class.return_value = mock_instance
 
@@ -684,7 +688,7 @@ class TestThreadSafety:
 
     def test_start_with_concurrent_calls(self):
         """Test starting scheduler with concurrent calls."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.start = Mock()
         scheduler._add_registry_tasks = Mock()
 
@@ -712,7 +716,7 @@ class TestThreadSafety:
 
     def test_stop_with_concurrent_calls(self):
         """Test stopping scheduler with concurrent calls."""
-        scheduler = CronTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.running = True
         scheduler.scheduler.shutdown = Mock()
 
@@ -756,5 +760,5 @@ class TestThreadSafety:
 )
 def test_queue_mapping_parametrized(function_name, expected_queue):
     """Test queue mapping for all known functions."""
-    scheduler = CronTaskScheduler()
+    scheduler = UnifiedTaskScheduler()
     assert scheduler._get_queue_for_function(function_name) == expected_queue
