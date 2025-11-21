@@ -2,13 +2,8 @@
 URL configuration for metrics_service project.
 """
 
-from ansible_base.lib.dynamic_config.dynamic_urls import (
-    api_version_urls,
-    root_urls,
-)
-from ansible_base.resource_registry.urls import (
-    urlpatterns as resource_api_urls,
-)
+from ansible_base.lib.dynamic_config.dynamic_urls import api_version_urls, root_urls
+from ansible_base.resource_registry.urls import urlpatterns as resource_api_urls
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView
 
@@ -28,4 +23,6 @@ urlpatterns = [
     path("api/v1/", include(api_version_urls)),  # General DAB v1 endpoints
     # Root URLs
     path("", include(root_urls)),
+    # Prometheus urls
+    path("", include("django_prometheus.urls")),
 ]

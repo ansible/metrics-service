@@ -45,6 +45,7 @@ class TestMainURLsFileContent(TestCase):
         assert 'path("api/v1/", include(resource_api_urls))' in content
         assert 'path("api/v1/", include(api_version_urls))' in content
         assert 'path("", include(root_urls))' in content
+        assert 'path("", include("django_prometheus.urls"))' in content
 
     def test_urls_file_docstring(self):
         """Test that the main urls.py file has proper docstring."""
@@ -65,7 +66,7 @@ class TestMainURLsFileContent(TestCase):
             lines = f.readlines()
 
         # Test that the file has expected number of lines
-        assert len(lines) >= 30  # Should have at least 30 lines
+        assert len(lines) >= 25  # Should have at least 25 lines
 
         # Test that the file has proper indentation
         urlpatterns_line = None
