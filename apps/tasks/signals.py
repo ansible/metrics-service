@@ -1,13 +1,13 @@
 """
-Simplified signal handlers for task management.
+Unified signal handlers for task management.
 
-This module contains Django signal handlers that handle immediate task execution.
-The simple scheduler handles all scheduled and recurring tasks.
+This module contains Django signal handlers that manage both immediate task execution
+and registration of scheduled/recurring tasks with the unified scheduler.
 """
 
 import logging
 
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from .models import Task
@@ -37,8 +37,8 @@ def task_created_or_updated(sender, instance, created, **kwargs):
             logger.info(f"Task updated: {task.name} (ID: {task.id})")
             _handle_updated_task(task)
 
-        # Signal the scheduler to refresh (pick up new tasks on next cycle)
-        _signal_scheduler_refresh()
+        # Register scheduled/recurring tasks with unified scheduler
+        _register_with_scheduler(task, created)
 
     except Exception as e:
         logger.error(f"Error in task signal handler: {str(e)}")
@@ -52,9 +52,9 @@ def _handle_new_task(task):
         _submit_task_to_dispatcherd_directly(task)
         return
 
-    # All other tasks (scheduled/recurring) are handled by the scheduler
+    # Scheduled/recurring tasks will be registered with scheduler below
     if task.scheduled_time or task.is_recurring:
-        logger.info(f"Task will be handled by scheduler: {task.name}")
+        logger.info(f"Task will be registered with unified scheduler: {task.name}")
 
 
 def _handle_updated_task(task):
@@ -70,7 +70,7 @@ def _submit_task_to_dispatcherd_directly(task):
     Submit a task directly to dispatcherd for immediate execution.
     """
     try:
-        from .tasks import submit_task_to_dispatcher
+        from .tasks_system import submit_task_to_dispatcher
 
         submit_task_to_dispatcher(task)
         logger.info(f"Submitted task to dispatcherd: {task.name} (ID: {task.id})")
@@ -83,12 +83,34 @@ def _submit_task_to_dispatcherd_directly(task):
         task.save()
 
 
-def _signal_scheduler_refresh():
-    """Signal the scheduler that new tasks may be available."""
+def _register_with_scheduler(task, is_new_task):
+    """Register scheduled/recurring tasks with the unified scheduler."""
     try:
-        from .simple_scheduler import refresh_scheduler
+        from .cron_scheduler import get_scheduler
 
-        refresh_scheduler()
+        scheduler = get_scheduler()
+
+        # Only register if task has scheduled time or is recurring
+        if task.status == "pending" and (task.scheduled_time or task.is_recurring):
+            if is_new_task:
+                scheduler.add_database_task(task)
+            else:
+                scheduler.update_database_task(task)
+
     except Exception as e:
-        logger.debug(f"Could not signal scheduler refresh: {e}")
-        # This is not critical, scheduler will pick up tasks on next cycle anyway
+        logger.debug(f"Could not register task with scheduler: {e}")
+        # This is not critical for immediate tasks
+
+
+@receiver(post_delete, sender=Task)
+def task_deleted(sender, instance, **kwargs):
+    """Handle task deletion by removing from scheduler."""
+    try:
+        from .cron_scheduler import get_scheduler
+
+        scheduler = get_scheduler()
+        scheduler.remove_database_task_by_id(instance.id)
+        logger.info(f"Removed task {instance.name} (ID: {instance.id}) from scheduler")
+
+    except Exception as e:
+        logger.debug(f"Could not remove task from scheduler: {e}")

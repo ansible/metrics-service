@@ -250,15 +250,16 @@ class TestTaskGroupFunctions(TestCase):
 class TestTaskGroupIntegration(TestCase):
     """Test integration between task groups and other components."""
 
-    @patch("apps.tasks.simple_scheduler.get_scheduler")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_scheduler_integration(self, mock_get_scheduler):
-        """Test integration with the simple scheduler."""
+        """Test integration with the unified scheduler."""
         mock_scheduler = MagicMock()
+        mock_scheduler.running = True
         mock_get_scheduler.return_value = mock_scheduler
 
-        # With the simple scheduler, we just verify it's running
+        # With the unified scheduler, we just verify it's running
         # Import here to avoid issues during test discovery
-        from apps.tasks.simple_scheduler import refresh_scheduler
+        from apps.tasks.cron_scheduler import refresh_scheduler
 
         result = refresh_scheduler()
 

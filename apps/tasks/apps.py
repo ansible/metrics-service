@@ -28,7 +28,7 @@ class TasksConfig(AppConfig):
 
     def _initialize_system_and_scheduler(self):
         """
-        Initialize system tasks and start the simple scheduler.
+        Initialize system tasks and start the unified scheduler.
         """
         import logging
 
@@ -52,14 +52,15 @@ class TasksConfig(AppConfig):
                     logger.debug("Tasks table not found - skipping initialization")
                     return
 
-            # Initialize system tasks using the new simple approach
-            from .simple_scheduler import initialize_system_tasks, start_scheduler
+            # Initialize system tasks using the unified scheduler
+            from .cron_scheduler import start_scheduler
+            from .tasks_system import create_system_tasks
 
-            initialize_system_tasks()
+            create_system_tasks()
 
-            # Start the simple scheduler
+            # Start the unified scheduler
             start_scheduler()
-            logger.info("Task system initialized with simple scheduler")
+            logger.info("Task system initialized with unified scheduler")
 
         except (OperationalError, ProgrammingError) as e:
             # Database not ready yet (migrations not run)

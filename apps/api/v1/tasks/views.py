@@ -467,7 +467,7 @@ class TaskViewSet(BaseViewSet):
             Response: Scheduler status and list of scheduled tasks
         """
         try:
-            from apps.tasks.simple_scheduler import get_scheduler
+            from apps.tasks.cron_scheduler import get_scheduler
 
             scheduler = get_scheduler()
 

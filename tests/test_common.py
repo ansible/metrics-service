@@ -5,6 +5,7 @@ Common test utilities and base classes to reduce duplication across test files.
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 # Mock Django before importing any Django modules
 import django
@@ -91,20 +92,25 @@ class BaseTaskSchedulerTest(unittest.TestCase):
     """Base test case for TaskScheduler with common test methods."""
 
     def test_task_scheduler_init(self):
-        """Test SimpleTaskScheduler initialization."""
-        from apps.tasks.simple_scheduler import SimpleTaskScheduler
+        """Test UnifiedTaskScheduler initialization."""
+        from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
-        scheduler = SimpleTaskScheduler()
-        self.assertEqual(scheduler.check_interval, 30)  # Default check interval
+        with patch("apps.tasks.cron_scheduler.get_all_enabled_tasks", return_value={}):
+            scheduler = UnifiedTaskScheduler(check_interval=30)
+        self.assertEqual(scheduler.check_interval, 30)
         self.assertFalse(scheduler.running)
 
     def test_task_scheduler_stop(self):
-        """Test SimpleTaskScheduler stop method."""
-        from apps.tasks.simple_scheduler import SimpleTaskScheduler
+        """Test UnifiedTaskScheduler stop method."""
+        from unittest.mock import patch
 
-        scheduler = SimpleTaskScheduler()
+        from apps.tasks.cron_scheduler import UnifiedTaskScheduler
+
+        with patch("apps.tasks.cron_scheduler.get_all_enabled_tasks", return_value={}):
+            scheduler = UnifiedTaskScheduler()
         scheduler.running = True
-        scheduler.stop()
+        with patch.object(scheduler.scheduler, "shutdown"):
+            scheduler.stop()
         self.assertFalse(scheduler.running)
 
 

@@ -131,8 +131,8 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "127.0.0.1",
         "PORT": "5432",
-        "USER": "metrics_service",
-        "PASSWORD": "metrics_service",
+        "USER": "myuser",
+        "PASSWORD": "mypassword",
         "NAME": "awx",
         "OPTIONS": {
             "sslmode": "prefer",
