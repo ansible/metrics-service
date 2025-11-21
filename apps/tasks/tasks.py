@@ -381,10 +381,11 @@ def anonymize_collected_data(**kwargs) -> dict[str, Any]:
 
         from django.conf import settings
         from django.db import connections
+        from uuid import uuid4
 
         # Get parameters from kwargs
         db_name = kwargs.get("database", "awx")
-        salt = kwargs.get("salt")
+        salt = str(uuid4()) 
         since = kwargs.get("since")
         until = kwargs.get("until")
         ship_path = kwargs.get("ship_path")
