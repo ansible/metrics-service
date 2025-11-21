@@ -45,7 +45,6 @@ class TestAnonymizationIntegration:
 
         # Call the task function
         result = anonymize_collected_data(
-            salt="test-salt-12345",
             database="awx",
             since="2024-01-01T00:00:00Z",
             until="2024-01-02T00:00:00Z",
@@ -59,7 +58,10 @@ class TestAnonymizationIntegration:
         mock_processor.assert_called_once()
         call_args = mock_processor.call_args
         assert call_args.kwargs["db"] == mock_db_connection
-        assert call_args.kwargs["salt"] == "test-salt-12345"
+        # Verify salt was auto-generated and is a valid UUID string
+        assert "salt" in call_args.kwargs
+        assert isinstance(call_args.kwargs["salt"], str)
+        assert len(call_args.kwargs["salt"]) == 36
         assert call_args.kwargs["save_rollups"] is False
         # Verify dates were converted to datetime objects
         assert isinstance(call_args.kwargs["since"], datetime)
@@ -89,7 +91,7 @@ class TestAnonymizationIntegration:
         mock_processor.return_value = {}
 
         # Call without specifying database
-        result = anonymize_collected_data(salt="test-salt")
+        result = anonymize_collected_data()
 
         # Verify 'awx' was used as default
         mock_connections.__getitem__.assert_called_once_with("awx")
@@ -107,7 +109,7 @@ class TestAnonymizationIntegration:
         mock_processor.return_value = {}
 
         # Call without specifying ship_path
-        anonymize_collected_data(salt="test-salt")
+        anonymize_collected_data()
 
         # Verify MEDIA_ROOT was used
         call_args = mock_processor.call_args
@@ -125,20 +127,11 @@ class TestAnonymizationIntegration:
         mock_processor.return_value = {}
 
         # Call with custom ship_path
-        anonymize_collected_data(salt="test-salt", ship_path="/custom/path")
+        anonymize_collected_data(ship_path="/custom/path")
 
         # Verify custom path was used
         call_args = mock_processor.call_args
         assert call_args.kwargs["ship_path"] == "/custom/path"
-
-    def test_anonymize_collected_data_requires_salt(self):
-        """Test that anonymize_collected_data requires salt parameter."""
-        # Call without salt
-        result = anonymize_collected_data()
-
-        # Verify error is returned
-        assert result["status"] == "error"
-        assert "salt parameter is required" in result["error"]
 
     @patch("apps.tasks.tasks.anonymized_rollups_processor")
     @patch("django.db.connections")
@@ -154,7 +147,7 @@ class TestAnonymizationIntegration:
         mock_processor.side_effect = Exception("Database connection failed")
 
         # Call the task function
-        result = anonymize_collected_data(salt="test-salt")
+        result = anonymize_collected_data()
 
         # Verify error is handled
         assert result["status"] == "error"
@@ -174,7 +167,6 @@ class TestAnonymizationIntegration:
 
         # Call with string dates
         result = anonymize_collected_data(
-            salt="test-salt",
             since="2024-01-01T00:00:00Z",
             until="2024-01-02T00:00:00Z",
         )
@@ -203,7 +195,7 @@ class TestAnonymizationIntegration:
         mock_connections.__getitem__.return_value = mock_db_connection
 
         # Call with invalid date format
-        result = anonymize_collected_data(salt="test-salt", since="invalid-date")
+        result = anonymize_collected_data(since="invalid-date")
 
         # Verify error is returned
         assert result["status"] == "error"
@@ -213,7 +205,7 @@ class TestAnonymizationIntegration:
     def test_anonymize_collected_data_handles_missing_metrics_utility(self):
         """Test that anonymize_collected_data handles missing metrics-utility."""
         # Call the task function
-        result = anonymize_collected_data(salt="test-salt")
+        result = anonymize_collected_data()
 
         # Verify appropriate error is returned
         assert result["status"] == "error"
@@ -231,7 +223,7 @@ class TestAnonymizationIntegration:
         mock_processor.return_value = {}
 
         # Call without specifying save_rollups
-        anonymize_collected_data(salt="test-salt")
+        anonymize_collected_data()
 
         # Verify save_rollups defaults to True
         call_args = mock_processor.call_args
@@ -249,7 +241,7 @@ class TestAnonymizationIntegration:
         mock_processor.return_value = {}
 
         # Call without dates
-        result = anonymize_collected_data(salt="test-salt")
+        result = anonymize_collected_data()
 
         # Verify it works
         assert result["status"] == "success"
@@ -258,3 +250,39 @@ class TestAnonymizationIntegration:
         assert call_args.kwargs["until"] is None
         assert result["parameters_used"]["since"] is None
         assert result["parameters_used"]["until"] is None
+
+    @patch("apps.tasks.tasks.anonymized_rollups_processor")
+    @patch("django.db.connections")
+    @patch("django.conf.settings")
+    def test_anonymize_collected_data_auto_generates_salt(self, mock_settings, mock_connections, mock_processor):
+        """Test that anonymize_collected_data auto-generates a valid UUID salt."""
+        # Setup mocks
+        mock_settings.MEDIA_ROOT = "/tmp/media"  # noqa: S108
+        mock_db_connection = MagicMock()
+        mock_connections.__getitem__.return_value = mock_db_connection
+        mock_processor.return_value = {}
+
+        # Call the function
+        result = anonymize_collected_data()
+
+        # Verify salt was auto-generated
+        assert result["status"] == "success"
+        call_args = mock_processor.call_args
+
+        # Verify salt exists and is a valid UUID format
+        assert "salt" in call_args.kwargs
+        salt = call_args.kwargs["salt"]
+        assert isinstance(salt, str)
+        assert len(salt) == 36
+
+        # Verify salt has UUID structure (8-4-4-4-12 with dashes)
+        parts = salt.split("-")
+        assert len(parts) == 5
+        assert len(parts[0]) == 8
+        assert len(parts[1]) == 4
+        assert len(parts[2]) == 4
+        assert len(parts[3]) == 4
+        assert len(parts[4]) == 12
+
+        # Verify salt is masked in returned parameters
+        assert result["parameters_used"]["salt"] == "******"

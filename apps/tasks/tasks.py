@@ -362,7 +362,6 @@ def anonymize_collected_data(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing anonymization parameters:
             - database (str): Database name from Django settings (default: 'awx')
-            - salt (str): Salt string for hashing sensitive data (required)
             - since (str): Start date for data collection (ISO format, optional)
             - until (str): End date for data collection (ISO format, optional)
             - ship_path (str): Base path for saving rollup files (optional, defaults to MEDIA_ROOT)
@@ -378,22 +377,18 @@ def anonymize_collected_data(**kwargs) -> dict[str, Any]:
 
     try:
         from datetime import datetime
+        from uuid import uuid4
 
         from django.conf import settings
         from django.db import connections
-        from uuid import uuid4
 
         # Get parameters from kwargs
         db_name = kwargs.get("database", "awx")
-        salt = str(uuid4()) 
+        salt = str(uuid4())  # Always auto-generate a unique salt
         since = kwargs.get("since")
         until = kwargs.get("until")
         ship_path = kwargs.get("ship_path")
         save_rollups = kwargs.get("save_rollups", True)
-
-        # Validate required parameters
-        if not salt:
-            return create_task_result("error", error="salt parameter is required for anonymization")
 
         # Convert string dates to datetime objects if provided as strings
         if since and isinstance(since, str):
@@ -1096,11 +1091,6 @@ TASK_METADATA = {
         "description": "Anonymize collected data from Controller DB using metrics-utility anonymization feature",
         "parameters": {
             "database": {"type": "string", "description": LABEL_DB_CONNECTION},
-            "salt": {
-                "type": "string",
-                "required": True,
-                "description": "Salt string for hashing sensitive data (required for anonymization)",
-            },
             "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
             "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
             "ship_path": {
@@ -1116,19 +1106,18 @@ TASK_METADATA = {
         "examples": [
             {
                 "name": "Basic anonymization",
-                "data": {"salt": "my-secret-salt-value"},
+                "data": {},
             },
             {
                 "name": "Anonymize with date range",
                 "data": {
-                    "salt": "my-secret-salt-value",
                     "since": EXAMPLE_START_DATE,
                     "until": "2024-01-02T00:00:00Z",
                 },
             },
             {
                 "name": "Anonymize without saving rollups",
-                "data": {"salt": "my-secret-salt-value", "save_rollups": False},
+                "data": {"save_rollups": False},
             },
         ],
     },
