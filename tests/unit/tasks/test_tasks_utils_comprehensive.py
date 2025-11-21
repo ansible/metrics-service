@@ -17,7 +17,8 @@ class TaskUtilsTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = self._create_test_user()
-        self.task = Task.objects.create(
+        # Create task with signals disabled to prevent automatic submission to dispatcherd
+        self.task = self._create_task_safely(
             name="Test Task", function_name="test_function", task_data={"param": "value"}, created_by=self.user
         )
 
@@ -26,6 +27,13 @@ class TaskUtilsTestCase(TestCase):
         from apps.core.models import User
 
         return User.objects.create_user(username="testuser", email="test@example.com")
+
+    def _create_task_safely(self, **kwargs):
+        """Create a task without triggering signals."""
+        task = Task(**kwargs)
+        task._skip_signals = True
+        task.save()
+        return task
 
     @patch("django.setup")
     @patch("django.conf.settings")
@@ -107,7 +115,7 @@ class TaskUtilsTestCase(TestCase):
 
     def test_trigger_dependent_tasks_task_not_found(self):
         """Test triggering dependent tasks when dependent task is deleted."""
-        dependent_task = Task.objects.create(
+        dependent_task = self._create_task_safely(
             name="Dependent Task", function_name="dependent_function", task_data={}, created_by=self.user
         )
 
