@@ -331,6 +331,7 @@ class TestEdgeCasesAndErrorHandling:
         result = tasks.process_user_data(user_id=None)
         assert "error" in result["status"]
 
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     def test_metrics_collection_edge_cases(self, mock_connections, mock_collector):
@@ -355,6 +356,7 @@ class TestEdgeCasesAndErrorHandling:
             db=mock_db_connection, salt="default-salt", since=None, until=None, ship_path=None, save_rollups=True
         )
 
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.logger")
     def test_error_logging(self, mock_logger):
         """Test that errors are properly logged."""
