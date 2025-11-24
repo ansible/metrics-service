@@ -77,7 +77,7 @@ class TestResourceAPIConfiguration(TestCase):
 
             auth_configs = [rc for rc in RESOURCE_LIST if rc.model == Authenticator]
             # Should have at least one if import succeeded
-            assert len(auth_configs) >= 0  # May or may not be present depending on environment
+            assert len(auth_configs) > 0  # May or may not be present depending on environment
         except ImportError:
             # If import fails, that's expected and covered by the except block
             pass
@@ -92,7 +92,7 @@ class TestResourceAPIConfiguration(TestCase):
 
             role_configs = [rc for rc in RESOURCE_LIST if rc.model == RoleDefinition]
             # Should have at least one if import succeeded
-            assert len(role_configs) >= 0  # May or may not be present depending on environment
+            assert len(role_configs) > 0  # May or may not be present depending on environment
         except ImportError:
             # If import fails, that's expected and covered by the except block
             pass

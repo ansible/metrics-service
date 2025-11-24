@@ -222,7 +222,7 @@ class TestStatusTrackingMixin:
         duration = StatusTrackingMixin.get_duration(instance)
 
         # Verify duration is calculated correctly
-        assert duration == 10.0
+        assert duration == 10
 
     def test_get_duration_without_started_at(self):
         """Test get_duration returns None when started_at is not set"""
