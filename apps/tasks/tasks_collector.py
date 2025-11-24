@@ -253,9 +253,9 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
         db_connection = connections[db_name]
         # Create collector instance with parsed datetime objects (only if not None)
         if since_dt is not None and until_dt is not None:
-            collector = job_host_summary(db=db_connection, since=since_dt, until=until_dt, format="json")
+            collector = job_host_summary(db=db_connection, since=since_dt, until=until_dt)
         else:
-            collector = job_host_summary(db=db_connection, format="json")
+            collector = job_host_summary(db=db_connection)
 
         # Gather data
         summary_data = collector.gather()
@@ -317,9 +317,9 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
         db_connection = connections[db_name]
         # Create collector instance with parsed datetime object (only if not None)
         if since_dt is not None:
-            collector = main_jobevent(db=db_connection, since=since_dt, format="json")
+            collector = main_jobevent(db=db_connection, since=since_dt)
         else:
-            collector = main_jobevent(db=db_connection, format="json")
+            collector = main_jobevent(db=db_connection)
 
         # Gather data
         host_data = collector.gather()
@@ -425,21 +425,25 @@ def _parse_datetime_string(date_str: str) -> datetime | None:
         return None
 
 
-def _get_date_defaults(collector_name: str, since_dt: datetime | None, until_dt: datetime | None) -> tuple[datetime | None, datetime | None]:
+def _get_date_defaults(
+    collector_name: str, since_dt: datetime | None, until_dt: datetime | None
+) -> tuple[datetime | None, datetime | None]:
     """Get default date values for collectors that require them."""
     from datetime import datetime, timedelta
 
     # For collectors that require date ranges, provide sensible defaults if none given
-    if since_dt is None and collector_name in ["job_host_summary", "main_host", "main_jobevent"]:
+    if since_dt is None and collector_name in ["job_host_summary", "main_jobevent", "anonymized_rollups"]:
         since_dt = datetime.now(UTC) - timedelta(days=30)
 
-    if until_dt is None and collector_name in ["job_host_summary", "main_host"]:
+    if until_dt is None and collector_name in ["job_host_summary", "main_jobevent", "anonymized_rollups"]:
         until_dt = datetime.now(UTC)
 
     return since_dt, until_dt
 
 
-def _run_anonymized_rollups(db_connection, salt: str, since_dt: datetime | None, until_dt: datetime | None) -> dict[str, Any]:
+def _run_anonymized_rollups(
+    db_connection, salt: str, since_dt: datetime | None, until_dt: datetime | None
+) -> dict[str, Any]:
     """Run the anonymized_rollups collector."""
     return anonymized_rollups_processor(
         db=db_connection,
@@ -457,27 +461,42 @@ def _run_config_collector(db_connection) -> dict[str, Any]:
     return collector_instance.gather()
 
 
-def _run_job_host_summary_collector(db_connection, since_dt: datetime | None, until_dt: datetime | None) -> dict[str, Any]:
+def _run_job_host_summary_collector(
+    db_connection, since_dt: datetime | None, until_dt: datetime | None
+) -> dict[str, Any]:
     """Run the job_host_summary collector."""
     if since_dt is not None and until_dt is not None:
-        collector_instance = job_host_summary(db=db_connection, since=since_dt, until=until_dt, format="json")
+        collector_instance = job_host_summary(db=db_connection, since=since_dt, until=until_dt)
     else:
-        collector_instance = job_host_summary(db=db_connection, format="json")
+        collector_instance = job_host_summary(db=db_connection)
     return collector_instance.gather()
 
 
-def _run_main_host_collector(db_connection) -> dict[str, Any]:
+def _run_main_host_collector(
+    db_connection, since_dt: datetime | None = None, until_dt: datetime | None = None
+) -> dict[str, Any]:
     """Run the main_host collector."""
-    collector_instance = main_host(db=db_connection, format="json")
+    # main_host collector doesn't accept date parameters, only db connection
+    collector_instance = main_host(db=db_connection)
     return collector_instance.gather()
 
 
-def _run_main_jobevent_collector(db_connection, since_dt: datetime | None) -> dict[str, Any]:
+def _run_main_jobevent_collector(
+    db_connection, since_dt: datetime | None, until_dt: datetime | None = None
+) -> dict[str, Any]:
     """Run the main_jobevent collector."""
-    if since_dt is not None:
-        collector_instance = main_jobevent(db=db_connection, since=since_dt, format="json")
-    else:
-        collector_instance = main_jobevent(db=db_connection, format="json")
+    # main_jobevent requires since and until dates, so ensure we have them
+    if since_dt is None:
+        from datetime import datetime, timedelta
+
+        since_dt = datetime.now(UTC) - timedelta(days=30)
+
+    if until_dt is None:
+        from datetime import datetime
+
+        until_dt = datetime.now(UTC)
+
+    collector_instance = main_jobevent(db=db_connection, since=since_dt, until=until_dt)
     return collector_instance.gather()
 
 
@@ -495,8 +514,8 @@ def _run_single_collector(collector_name: str, db_connection, since: str, until:
         "anonymized_rollups": lambda: _run_anonymized_rollups(db_connection, salt, since_dt, until_dt),
         "config": lambda: _run_config_collector(db_connection),
         "job_host_summary": lambda: _run_job_host_summary_collector(db_connection, since_dt, until_dt),
-        "main_host": lambda: _run_main_host_collector(db_connection),
-        "main_jobevent": lambda: _run_main_jobevent_collector(db_connection, since_dt),
+        "main_host": lambda: _run_main_host_collector(db_connection, since_dt, until_dt),
+        "main_jobevent": lambda: _run_main_jobevent_collector(db_connection, since_dt, until_dt),
     }
 
     collector_func = collector_functions.get(collector_name)
@@ -791,7 +810,6 @@ def anonymize_data(**kwargs) -> dict[str, Any]:
         **kwargs: Task data containing anonymization parameters:
             - data (dict): Raw metrics data to anonymize (required)
             - salt (str): Salt for anonymization (auto-generated UUID4 if not provided)
-            - output_format (str): Output format (default: 'segment_ready')
 
     Returns:
         dict: Task result with anonymized data
