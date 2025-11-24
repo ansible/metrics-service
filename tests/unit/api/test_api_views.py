@@ -53,7 +53,9 @@ class UserViewSetTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
         self.admin_user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password="adminpass123"
         )
@@ -96,7 +98,9 @@ class OrganizationViewSetTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.user = User.objects.create_superuser(username="orguser", email="org@example.com", password=get_test_password())
+        self.user = User.objects.create_superuser(
+            username="orguser", email="org@example.com", password=get_test_password()
+        )
         self.organization = Organization.objects.create(name="Test Organization")
 
     def test_organization_detail_authenticated(self):
@@ -146,7 +150,9 @@ class APIErrorHandlingTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.user = User.objects.create_user(username="erroruser", email="error@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="erroruser", email="error@example.com", password=get_test_password()
+        )
 
     def test_not_found_error(self):
         """Test 404 error handling."""
@@ -240,7 +246,9 @@ class UserPasswordTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_superuser(username="admin", email="admin@example.com", password="adminpass123")
-        self.test_user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.test_user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_set_password_success(self):
         """Test successful password change."""

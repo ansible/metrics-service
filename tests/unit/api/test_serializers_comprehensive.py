@@ -16,7 +16,6 @@ from apps.api.v1.serializers import (
     UserSerializer,
 )
 from apps.core.models import Organization, Setting, Team, User
-from tests.test_utils import get_test_password
 
 # ============================================================================
 # UserSerializer Tests

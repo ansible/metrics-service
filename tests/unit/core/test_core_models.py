@@ -22,7 +22,9 @@ class CoreModelsTestCase(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
         self.organization = Organization.objects.create(name="Test Organization", description="A test organization")
 

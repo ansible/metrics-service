@@ -32,7 +32,9 @@ class TestURLResolution(TestCase):
         super().setUp()
         self.client = Client()
         self.api_client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_schema_url_resolution(self):
         """Test that schema URL can be resolved and accessed."""
@@ -162,7 +164,9 @@ class TestAPIEndpoints(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_api_root_endpoint(self):
         """Test API root endpoint."""
@@ -209,7 +213,9 @@ class TestAuthenticationURLs(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_login_url(self):
         """Test login URL functionality."""
@@ -242,7 +248,9 @@ class TestDashboardURLs(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_dashboard_access(self):
         """Test dashboard access through URLs."""
@@ -354,7 +362,9 @@ class TestURLIntegrationWithViews(TestCase):
         super().setUp()
         self.client = Client()
         self.api_client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_url_to_view_mapping(self):
         """Test that URLs correctly map to views."""
@@ -440,7 +450,9 @@ class TestURLSecurity(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_secure_url_access(self):
         """Test that secure URLs require authentication."""
