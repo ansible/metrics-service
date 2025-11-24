@@ -15,6 +15,7 @@ from apps.core.mixins import (
     TimestampMixin,
     UserRelatedMixin,
 )
+from tests.test_utils import get_test_password
 
 # ============================================================================
 # Test Models (Concrete implementations for testing abstract mixins)
@@ -359,7 +360,7 @@ class TestMixinsIntegration:
         from apps.core.models import Organization, User
 
         org = Organization.objects.create(name="Test Org", description="Test")
-        user = User.objects.create_user(username="testuser", password="testpass123")
+        user = User.objects.create_user(username="testuser", password=get_test_password())
 
         # Test add_user
         org.add_user(user)
@@ -383,7 +384,7 @@ class TestMixinsIntegration:
 
         org = Organization.objects.create(name="Test Org", description="Test")
         team = Team.objects.create(name="Test Team", organization=org)
-        user = User.objects.create_user(username="testuser2", password="testpass123")
+        user = User.objects.create_user(username="testuser2", password=get_test_password())
 
         # Test add_user
         team.add_user(user)
@@ -432,7 +433,7 @@ class TestMixinsIntegration:
         """Test AccessControlMixin with User model"""
         from apps.core.models import User
 
-        user = User.objects.create_user(username="testuser3", password="testpass123")
+        user = User.objects.create_user(username="testuser3", password=get_test_password())
 
         # Test access_qs with User model
         queryset = User.access_qs(user)

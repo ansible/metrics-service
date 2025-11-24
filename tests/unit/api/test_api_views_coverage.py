@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.core.models import Organization, Team, User
+from tests.test_utils import get_test_password
 
 
 @pytest.mark.unit
@@ -17,9 +18,11 @@ class APIViewsCoverageTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.admin_user = User.objects.create_superuser(
-            username="admin", email="admin@example.com", password="adminpass123"
+            username="admin", email="admin@example.com", password=get_test_password()
         )
-        self.regular_user = User.objects.create_user(username="user", email="user@example.com", password="userpass123")
+        self.regular_user = User.objects.create_user(
+            username="user", email="user@example.com", password=get_test_password()
+        )
         self.organization = Organization.objects.create(name="Test Org")
         self.team = Team.objects.create(name="Test Team", organization=self.organization)
 
@@ -79,7 +82,7 @@ class APIViewsCoverageTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Test POST
-        data = {"username": "newuser", "email": "newuser@example.com", "password": "newpass123"}
+        data = {"username": "newuser", "email": "newuser@example.com", "password": get_test_password()}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 

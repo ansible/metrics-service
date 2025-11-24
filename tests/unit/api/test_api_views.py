@@ -57,7 +57,7 @@ class UserViewSetTestCase(APITestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
         self.admin_user = User.objects.create_superuser(
-            username="admin", email="admin@example.com", password="adminpass123"
+            username="admin", email="admin@example.com", password=get_test_password()
         )
 
     def test_user_detail_authenticated(self):
@@ -74,7 +74,7 @@ class UserViewSetTestCase(APITestCase):
         """Test user creation via API."""
         self.client.force_authenticate(user=self.admin_user)
         url = reverse("api:v1:user-list")
-        data = {"username": "newuser", "email": "new@example.com", "password": "newpass123"}
+        data = {"username": "newuser", "email": "new@example.com", "password": get_test_password()}
         response = self.client.post(url, data, format="json")
 
         # Response code depends on permissions, but should not be 401
@@ -245,7 +245,9 @@ class UserPasswordTestCase(APITestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_superuser(username="admin", email="admin@example.com", password="adminpass123")
+        self.user = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password=get_test_password()
+        )
         self.test_user = User.objects.create_user(
             username="testuser", email="test@example.com", password=get_test_password()
         )

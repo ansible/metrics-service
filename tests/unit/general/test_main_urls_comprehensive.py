@@ -13,6 +13,8 @@ from django.test import Client, TestCase
 from django.urls import NoReverseMatch, resolve, reverse
 from django.urls.exceptions import Resolver404
 
+from tests.test_utils import get_test_password
+
 User = get_user_model()
 
 
@@ -80,7 +82,9 @@ class TestDashboardURLsIntegration(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_dashboard_urls_inclusion(self):
         """Test that dashboard URLs are properly included."""

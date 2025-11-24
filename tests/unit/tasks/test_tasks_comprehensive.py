@@ -13,6 +13,7 @@ from django.test import TestCase
 
 from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task
+from tests.test_utils import get_test_password
 
 User = get_user_model()
 
@@ -64,7 +65,9 @@ class TestSystemTasksCreation(TestCase):
 
     def setUp(self):
         """Set up test environment."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_create_system_tasks_disabled_task(self):
         """Test handling of disabled system tasks."""
@@ -115,7 +118,9 @@ class TestSystemTaskHelpers(TestCase):
 
     def setUp(self):
         """Set up test environment."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
