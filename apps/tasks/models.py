@@ -162,6 +162,23 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         """
         return self.attempts < self.max_attempts and self.status == "failed"
 
+    def retry(self) -> bool:
+        """
+        Retry a failed task by resetting its status to pending.
+
+        Returns:
+            bool: True if task was successfully reset for retry, False otherwise
+        """
+        if not self.can_retry():
+            return False
+
+        self.status = "pending"
+        self.error_message = ""
+        self.started_at = None
+        self.completed_at = None
+        self.save()
+        return True
+
     def can_delete(self) -> bool:
         """
         Check if task can be deleted.

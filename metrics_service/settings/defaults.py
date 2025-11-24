@@ -336,6 +336,11 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        "apps": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "": {
             "handlers": ["console"],
             "level": "WARNING",

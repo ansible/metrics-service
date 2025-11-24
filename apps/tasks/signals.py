@@ -48,6 +48,13 @@ def _handle_new_task(task):
     """Handle a newly created task - only immediate execution."""
     # Only handle tasks for immediate execution (no scheduled time, no recurring)
     if task.is_ready_to_run() and task.status == "pending" and not task.scheduled_time and not task.is_recurring:
+        # Check if task already has execution records to avoid duplicate submissions
+        from .models import TaskExecution
+
+        if TaskExecution.objects.filter(task=task).exists():
+            logger.debug(f"Task {task.name} already has execution records, skipping submission")
+            return
+
         logger.info(f"Task ready for immediate execution: {task.name}")
         _submit_task_to_dispatcherd_directly(task)
         return
@@ -59,8 +66,19 @@ def _handle_new_task(task):
 
 def _handle_updated_task(task):
     """Handle an updated task - only immediate execution."""
+    # Skip if task is already being processed or completed to avoid loops
+    if task.status in ["running", "completed", "failed"]:
+        return
+
     # If task is now ready to run and pending (and not scheduled/recurring)
     if task.is_ready_to_run() and task.status == "pending" and not task.scheduled_time and not task.is_recurring:
+        # Check if task already has execution records to avoid duplicate submissions
+        from .models import TaskExecution
+
+        if TaskExecution.objects.filter(task=task).exists():
+            logger.debug(f"Task {task.name} already has execution records, skipping submission")
+            return
+
         logger.info(f"Updated task now ready for immediate execution: {task.name}")
         _submit_task_to_dispatcherd_directly(task)
 

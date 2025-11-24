@@ -12,11 +12,13 @@ import logging
 # Import all collector tasks
 from .tasks_collector import (
     METRICS_UTILITY_AVAILABLE,
-    collect_all_metrics,
-    collect_anonymous_metrics,
-    collect_config_metrics,
-    collect_host_metrics,
-    collect_job_host_summary,
+    anonymize_data,
+    collect_metrics,
+    debug_segment_messages,
+    full_process,
+    full_process_anonymize,
+    send_to_segment,
+    test_segment_track,
 )
 
 # Import all system tasks
@@ -54,12 +56,14 @@ TASK_FUNCTIONS = {
     "process_user_data": process_user_data,
     "execute_db_task": execute_db_task,
     "sleep": sleep,
-    # Collector tasks
-    "collect_anonymous_metrics": collect_anonymous_metrics,
-    "collect_config_metrics": collect_config_metrics,
-    "collect_job_host_summary": collect_job_host_summary,
-    "collect_host_metrics": collect_host_metrics,
-    "collect_all_metrics": collect_all_metrics,
+    # Metrics Collection Tasks (7 unified tasks)
+    "collect_metrics": collect_metrics,
+    "anonymize_data": anonymize_data,
+    "send_to_segment": send_to_segment,
+    "full_process": full_process,
+    "full_process_anonymize": full_process_anonymize,
+    "test_segment_track": test_segment_track,
+    "debug_segment_messages": debug_segment_messages,
 }
 
 # Enhanced task metadata for dashboard display
@@ -200,79 +204,168 @@ TASK_METADATA = {
         },
         "examples": [{"name": "Execute task by ID", "data": {"task_id": 123}}],
     },
-    "collect_anonymous_metrics": {
+    "collect_metrics": {
         "category": LABEL_METRICS_COLLECTION,
-        "description": "Collect anonymous system metrics without exposing sensitive information",
-        "parameters": {
-            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
-            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
-            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
-            "custom_params": {"type": "object", "description": "Additional custom parameters for collection"},
-        },
-        "examples": [
-            {"name": "Basic anonymous collection", "data": {}},
-            {
-                "name": "Date range collection",
-                "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"},
-            },
-        ],
-    },
-    "collect_config_metrics": {
-        "category": LABEL_METRICS_COLLECTION,
-        "description": "Collect system configuration information and metadata",
-        "parameters": {"db": {"type": "string", "description": "Database name from Django settings (default: 'awx')"}},
-        "examples": [{"name": "Collect configuration", "data": {}}],
-    },
-    "collect_job_host_summary": {
-        "category": LABEL_METRICS_COLLECTION,
-        "description": "Collect job execution statistics and host performance data",
-        "parameters": {
-            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
-            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
-            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
-        },
-        "examples": [
-            {"name": "Current job summary", "data": {}},
-            {"name": "Weekly job summary", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-08T00:00:00Z"}},
-        ],
-    },
-    "collect_host_metrics": {
-        "category": LABEL_METRICS_COLLECTION,
-        "description": "Collect host performance and system metrics",
-        "parameters": {
-            "db": {"type": "string", "description": LABEL_DB_CONNECTION},
-            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
-        },
-        "examples": [
-            {"name": "Current host metrics", "data": {}},
-            {"name": "Historical host metrics", "data": {"since": EXAMPLE_START_DATE}},
-        ],
-    },
-    "collect_all_metrics": {
-        "category": LABEL_METRICS_COLLECTION,
-        "description": "Run multiple collectors in sequence to gather comprehensive metrics",
+        "description": "Unified task to collect metrics from all available collectors",
         "parameters": {
             "database": {"type": "string", "description": LABEL_DB_CONNECTION},
             "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
             "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
             "collectors": {
                 "type": "array",
-                "default": ["anonymous", "config", "host_metric"],
+                "default": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
                 "description": "List of specific collectors to run",
-                "items": ["anonymous", "config", "job_host_summary", "host_metric"],
+                "items": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
             },
         },
         "examples": [
-            {"name": "All default collectors", "data": {}},
-            {"name": "Specific collectors", "data": {"collectors": ["anonymous", "config"]}},
-            {
-                "name": "Full metrics with date range",
-                "data": {
-                    "since": EXAMPLE_START_DATE,
-                    "until": "2024-01-02T00:00:00Z",
-                    "collectors": ["anonymous", "config", "host_metric"],
-                },
+            {"name": "All collectors", "data": {}},
+            {"name": "Specific collectors", "data": {"collectors": ["config", "job_host_summary"]}},
+            {"name": "Date range collection", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"}},
+        ],
+    },
+    "anonymize_data": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Dedicated task to anonymize collected metrics data",
+        "parameters": {
+            "data": {"type": "object", "required": True, "description": "Raw metrics data to anonymize"},
+            "salt": {"type": "string", "description": "Salt for anonymization (auto-generated UUID4 if not provided)"},
+            "output_format": {
+                "type": "string",
+                "default": "segment_ready",
+                "description": "Output format for anonymized data",
             },
+        },
+        "examples": [
+            {"name": "Basic anonymization", "data": {"data": {"collectors_run": ["config"], "collected_data": {}}}},
+            {"name": "Custom salt", "data": {"data": {"collectors_run": ["config"]}, "salt": "custom-salt"}},
+        ],
+    },
+    "send_to_segment": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Dedicated task to send anonymized data to Segment.com",
+        "parameters": {
+            "data": {"type": "object", "required": True, "description": "Anonymized data to send"},
+            "segment_write_key": {
+                "type": "string",
+                "default": "NA",
+                "description": "Segment.com write key for analytics",
+                "sensitive": True,
+            },
+            "user_id": {"type": "string", "default": "anonymous-user", "description": "User ID for tracking"},
+            "event_name": {"type": "string", "default": "metrics_sent", "description": "Event name for tracking"},
+        },
+        "examples": [
+            {"name": "Send data", "data": {"data": {"collectors_run": ["config"]}}},
+            {"name": "Custom event", "data": {"data": {"collectors_run": []}, "event_name": "custom_metrics"}},
+        ],
+    },
+    "full_process": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Complete pipeline: collect, anonymize, and send metrics data to Segment.com as single message",
+        "parameters": {
+            "database": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "collectors": {
+                "type": "array",
+                "default": ["anonymized_rollups", "config", "job_host_summary"],
+                "description": "List of specific collectors to run",
+                "items": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
+            },
+            "salt": {"type": "string", "description": "Salt for anonymization (auto-generated UUID4 if not provided)"},
+            "segment_write_key": {
+                "type": "string",
+                "default": "NA",
+                "description": "Segment.com write key for analytics",
+                "sensitive": True,
+            },
+            "user_id": {"type": "string", "default": "anonymous-user", "description": "User ID for tracking"},
+            "event_name": {"type": "string", "default": "metrics_collected", "description": "Event name for tracking"},
+            "send_to_segment": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to send data to Segment.com",
+            },
+        },
+        "examples": [
+            {"name": "Full process", "data": {}},
+            {"name": "Custom collectors", "data": {"collectors": ["config", "job_host_summary"]}},
+            {"name": "Test mode (no Segment)", "data": {"send_to_segment": False}},
+        ],
+    },
+    "full_process_anonymize": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Focused pipeline: collect anonymized metrics and send directly to Segment.com as single message",
+        "parameters": {
+            "database": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "salt": {"type": "string", "description": "Salt for anonymization (auto-generated UUID4 if not provided)"},
+            "segment_write_key": {
+                "type": "string",
+                "default": "NA",
+                "description": "Segment.com write key for analytics",
+                "sensitive": True,
+            },
+            "user_id": {"type": "string", "default": "anonymous-user", "description": "User ID for tracking"},
+            "event_name": {
+                "type": "string",
+                "default": "anonymized_metrics_collected",
+                "description": "Event name for tracking",
+            },
+            "send_to_segment": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to send data to Segment.com",
+            },
+        },
+        "examples": [
+            {"name": "Anonymized collection", "data": {}},
+            {"name": "Custom date range", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"}},
+            {"name": "Test mode (no Segment)", "data": {"send_to_segment": False}},
+        ],
+    },
+    "test_segment_track": {
+        "category": "Testing",
+        "description": "Send a simple test track message to Segment.com to verify consolidated messaging",
+        "parameters": {
+            "message": {
+                "type": "string",
+                "default": "Test message from metrics-service",
+                "description": "Test message content to send",
+            },
+            "segment_write_key": {
+                "type": "string",
+                "default": "NA",
+                "description": "Segment.com write key for analytics",
+                "sensitive": True,
+            },
+            "user_id": {"type": "string", "default": "test-user", "description": "User ID for tracking"},
+            "event_name": {"type": "string", "default": "test_track_message", "description": "Event name for tracking"},
+        },
+        "examples": [
+            {"name": "Basic test", "data": {}},
+            {"name": "Custom message", "data": {"message": "Hello from consolidated messaging test!"}},
+            {"name": "Custom user", "data": {"user_id": "test-consolidated-user", "message": "Testing one message"}},
+        ],
+    },
+    "debug_segment_messages": {
+        "category": "Testing",
+        "description": "Debug helper to trace exactly what Segment messages are being sent",
+        "parameters": {
+            "segment_write_key": {
+                "type": "string",
+                "default": "NA",
+                "description": "Segment.com write key for analytics",
+                "sensitive": True,
+            },
+            "user_id": {"type": "string", "default": "debug-user", "description": "User ID for tracking"},
+            "event_name": {"type": "string", "default": "debug_segment_test", "description": "Event name for tracking"},
+        },
+        "examples": [
+            {"name": "Basic debug", "data": {}},
+            {"name": "Custom user", "data": {"user_id": "my-debug-test"}},
         ],
     },
 }
@@ -291,12 +384,14 @@ __all__ = [
     "create_system_tasks",
     "get_system_task_info",
     "SYSTEM_TASKS",
-    # Collector tasks
-    "collect_anonymous_metrics",
-    "collect_config_metrics",
-    "collect_job_host_summary",
-    "collect_host_metrics",
-    "collect_all_metrics",
+    # Metrics Collection tasks
+    "collect_metrics",
+    "anonymize_data",
+    "send_to_segment",
+    "full_process",
+    "full_process_anonymize",
+    "test_segment_track",
+    "debug_segment_messages",
     "METRICS_UTILITY_AVAILABLE",
     # Configuration
     "TASK_FUNCTIONS",

@@ -178,6 +178,15 @@ ANONYMIZED_DATA_GROUP = TaskGroup(
             "description": "Collect system configuration information anonymously",
             "category": "anonymous_metrics",
         },
+        {
+            "task_id": "full_process_anonymize",
+            "function": "full_process_anonymize",
+            "cron": "0 */12 * * *",  # Every 12 hours
+            "args": {},
+            "enabled": True,
+            "description": "Collect anonymized metrics and send directly to Segment.com",
+            "category": "anonymous_metrics",
+        },
     ],
 )
 

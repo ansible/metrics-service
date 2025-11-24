@@ -73,15 +73,10 @@ def sleep(duration: int = 10) -> dict[str, Any]:
     """
     time.sleep(duration)
     message = f"Slept for {duration} seconds"
+    logger.info(f"Sleep task completed: {message}")
 
     return create_task_result(
-        "success",
-        {
-            "message": message,
-            "task_type": "sleep",
-            "duration": duration,
-            "completed": True,
-        },
+        "success", {"message": message, "task_type": "sleep", "duration": duration, "completed": True}
     )
 
 
@@ -440,6 +435,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
         # Update task status to indicate it's been submitted
         task.status = "pending"
+        task._skip_signals = True  # Prevent signal recursion
         task.save()
 
         logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
@@ -448,6 +444,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         logger.error(f"Error submitting task to dispatcher: {str(e)}")
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
+        task._skip_signals = True  # Prevent signal recursion
         task.save()
 
 
