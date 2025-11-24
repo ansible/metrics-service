@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+
+from tests.test_utils import get_test_password
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
@@ -27,7 +29,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
 
     def setUp(self):
         """Set up test environment."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
 
     def test_init_system_tasks_list(self):
         """Test the init-system-tasks --list subcommand."""

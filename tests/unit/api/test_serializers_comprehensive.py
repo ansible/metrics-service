@@ -16,6 +16,7 @@ from apps.api.v1.serializers import (
     UserSerializer,
 )
 from apps.core.models import Organization, Setting, Team, User
+from tests.test_utils import get_test_password
 
 # ============================================================================
 # UserSerializer Tests
@@ -107,7 +108,7 @@ class TestUserSerializer:
     def test_validate_password_match(self):
         """Test password validation when passwords match"""
         serializer = UserSerializer()
-        data = {"password": "testpass123", "confirm_password": "testpass123"}
+        data = {"password": "get_test_password()", "confirm_password": "get_test_password()"}
 
         validated = serializer.validate(data)
 
@@ -116,7 +117,7 @@ class TestUserSerializer:
     def test_validate_password_mismatch(self):
         """Test password validation when passwords don't match"""
         serializer = UserSerializer()
-        data = {"password": "testpass123", "confirm_password": "different"}
+        data = {"password": "get_test_password()", "confirm_password": "different"}
 
         with pytest.raises(serializers.ValidationError) as exc_info:
             serializer.validate(data)
@@ -133,7 +134,7 @@ class TestUserSerializer:
     def test_validate_confirm_without_password(self):
         """Test validation when confirm_password provided without password"""
         serializer = UserSerializer()
-        data = {"confirm_password": "testpass123"}
+        data = {"confirm_password": "get_test_password()"}
 
         with pytest.raises(serializers.ValidationError) as exc_info:
             serializer.validate(data)
@@ -160,15 +161,15 @@ class TestUserSerializer:
         validated_data = {
             "username": "testuser",
             "email": "test@example.com",
-            "password": "testpass123",
-            "confirm_password": "testpass123",
+            "password": "get_test_password()",
+            "confirm_password": "get_test_password()",
         }
 
         user = serializer.create(validated_data)
 
         assert user.username == "testuser"
         assert user.email == "test@example.com"
-        assert user.check_password("testpass123")
+        assert user.check_password("get_test_password()")
         assert "password" not in validated_data  # Password should be removed
         assert "confirm_password" not in validated_data  # confirm_password should be removed
 

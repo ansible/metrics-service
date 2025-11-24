@@ -11,6 +11,7 @@ from apps.api.v1.base_views import BaseViewSet, UserManagementMixin
 from apps.api.v1.serializers import OrganizationSerializer, TeamSerializer, UserSerializer
 from apps.api.v1.views import OrganizationViewSet, UserViewSet
 from apps.core.models import Organization, Team, User
+from tests.test_utils import get_test_password
 
 
 @pytest.mark.django_db
@@ -156,7 +157,7 @@ class TestUserSerializer(TestCase):
 
     def test_password_validation(self):
         """Test password validation in user serializer."""
-        data = {"username": "testuser2", "email": "test2@example.com", "password": "testpass123"}
+        data = {"username": "testuser2", "email": "test2@example.com", "password": get_test_password()}
         serializer = UserSerializer(data=data)
         # Should handle password validation
         serializer.is_valid()

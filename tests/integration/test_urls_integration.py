@@ -18,6 +18,8 @@ from django.test import Client, TestCase
 from django.urls import NoReverseMatch, resolve, reverse
 from rest_framework.test import APIClient
 
+from tests.test_utils import get_test_password
+
 User = get_user_model()
 
 
@@ -30,7 +32,7 @@ class TestURLResolution(TestCase):
         super().setUp()
         self.client = Client()
         self.api_client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
 
     def test_schema_url_resolution(self):
         """Test that schema URL can be resolved and accessed."""
@@ -160,7 +162,7 @@ class TestAPIEndpoints(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
 
     def test_api_root_endpoint(self):
         """Test API root endpoint."""
@@ -207,7 +209,7 @@ class TestAuthenticationURLs(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
 
     def test_login_url(self):
         """Test login URL functionality."""
@@ -216,7 +218,7 @@ class TestAuthenticationURLs(TestCase):
         assert response.status_code in [200, 302, 404]
 
         # Test login form submission
-        response = self.client.post("/login/", {"username": "testuser", "password": "testpass123"})
+        response = self.client.post("/login/", {"username": "testuser", "password": get_test_password()})
         assert response.status_code in [200, 302, 404]
 
     def test_logout_url(self):
@@ -240,7 +242,7 @@ class TestDashboardURLs(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
 
     def test_dashboard_access(self):
         """Test dashboard access through URLs."""
@@ -352,7 +354,7 @@ class TestURLIntegrationWithViews(TestCase):
         super().setUp()
         self.client = Client()
         self.api_client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
 
     def test_url_to_view_mapping(self):
         """Test that URLs correctly map to views."""
@@ -438,7 +440,7 @@ class TestURLSecurity(TestCase):
         """Set up test environment."""
         super().setUp()
         self.client = Client()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
 
     def test_secure_url_access(self):
         """Test that secure URLs require authentication."""

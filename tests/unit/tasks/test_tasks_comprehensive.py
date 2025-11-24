@@ -352,8 +352,11 @@ class TestEdgeCasesAndErrorHandling:
 
         # Verify it used Django connections
         mock_connections.__getitem__.assert_called_once_with("awx")
+        # Note: salt is now auto-generated UUID4, so we use ANY matcher
+        from unittest.mock import ANY
+
         mock_collector.assert_called_once_with(
-            db=mock_db_connection, salt="default-salt", since=None, until=None, ship_path=None, save_rollups=True
+            db=mock_db_connection, salt=ANY, since=None, until=None, ship_path=None, save_rollups=True
         )
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)

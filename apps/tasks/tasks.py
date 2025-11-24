@@ -13,6 +13,11 @@ import logging
 from .tasks_collector import (
     METRICS_UTILITY_AVAILABLE,
     anonymize_data,
+    collect_all_metrics,
+    collect_anonymous_metrics,
+    collect_config_metrics,
+    collect_host_metrics,
+    collect_job_host_summary,
     collect_metrics,
     debug_segment_messages,
     full_process,
@@ -56,8 +61,13 @@ TASK_FUNCTIONS = {
     "process_user_data": process_user_data,
     "execute_db_task": execute_db_task,
     "sleep": sleep,
-    # Metrics Collection Tasks (7 unified tasks)
+    # Metrics Collection Tasks (unified + individual collectors)
     "collect_metrics": collect_metrics,
+    "collect_all_metrics": collect_all_metrics,
+    "collect_anonymous_metrics": collect_anonymous_metrics,
+    "collect_config_metrics": collect_config_metrics,
+    "collect_job_host_summary": collect_job_host_summary,
+    "collect_host_metrics": collect_host_metrics,
     "anonymize_data": anonymize_data,
     "send_to_segment": send_to_segment,
     "full_process": full_process,
@@ -386,6 +396,11 @@ __all__ = [
     "SYSTEM_TASKS",
     # Metrics Collection tasks
     "collect_metrics",
+    "collect_all_metrics",
+    "collect_anonymous_metrics",
+    "collect_config_metrics",
+    "collect_host_metrics",
+    "collect_job_host_summary",
     "anonymize_data",
     "send_to_segment",
     "full_process",
