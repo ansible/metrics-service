@@ -181,12 +181,18 @@ class TestGetSystemUuid(TestCase):
         # Should be parseable as UUID
         uuid.UUID(result)
 
-    def test_get_system_uuid_consistent(self):
+    @patch("apps.core.utils.settings")
+    def test_get_system_uuid_consistent(self, mock_settings):
         """Test that get_system_uuid returns consistent value."""
+        # Mock settings to return a consistent UUID
+        test_uuid = "12345678-1234-5678-1234-567812345678"
+        mock_settings.SYSTEM_UUID = test_uuid
+
         result1 = get_system_uuid()
         result2 = get_system_uuid()
-        # Should be consistent (assuming it's cached or deterministic)
+        # Should be consistent when settings has SYSTEM_UUID
         assert result1 == result2
+        assert result1 == test_uuid
 
     def test_get_system_uuid_format(self):
         """Test that get_system_uuid returns properly formatted UUID."""
@@ -234,14 +240,13 @@ class TestIsSystemAuditorUser(TestCase):
     def test_is_system_auditor_user_with_mock_user(self):
         """Test with mock user object."""
         mock_user = MagicMock()
-        mock_user.is_system_auditor = True
+        mock_user.is_system_auditor_user.return_value = True
         result = is_system_auditor_user(mock_user)
         assert result is True
 
     def test_is_system_auditor_user_missing_attribute(self):
-        """Test with user object missing is_system_auditor attribute."""
-        mock_user = MagicMock()
-        del mock_user.is_system_auditor  # Remove the attribute
+        """Test with user object missing is_system_auditor_user method."""
+        mock_user = MagicMock(spec=[])  # Create mock without any attributes
         result = is_system_auditor_user(mock_user)
         assert result is False
 

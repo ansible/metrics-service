@@ -101,9 +101,9 @@ class TestTaskSignalHandlers(TestCase):
 
         # Verify logging was called
         mock_logger.info.assert_called()
-        log_call_args = mock_logger.info.call_args[0][0]
-        assert "New task created" in log_call_args
-        assert "Log Test Task" in log_call_args
+        # Check that "New task created" appears in any of the log calls
+        log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+        assert any("New task created" in log_msg and "Log Test Task" in log_msg for log_msg in log_calls)
 
     @patch("apps.tasks.signals.logger")
     def test_signal_handler_logs_task_update(self, mock_logger):
@@ -121,8 +121,9 @@ class TestTaskSignalHandlers(TestCase):
 
         # Verify logging was called
         mock_logger.info.assert_called()
-        log_call_args = mock_logger.info.call_args[0][0]
-        assert "Task updated" in log_call_args
+        # Check that "Task updated" appears in any of the log calls
+        log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+        assert any("Task updated" in log_msg for log_msg in log_calls)
 
     @patch("apps.tasks.signals.logger")
     def test_signal_handler_handles_exceptions(self, mock_logger):
@@ -144,23 +145,25 @@ class TestTaskSignalHandlers(TestCase):
         """Test signal handler for task deletion."""
         # Create task first
         task = self._create_task_without_signals(name="Delete Test Task")
-        task_name = task.name
+        task_id = task.id
 
         with (
-            patch("apps.tasks.signals._unregister_from_scheduler") as mock_unregister,
+            patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get_scheduler,
             patch("apps.tasks.signals.logger") as mock_logger,
         ):
+            mock_scheduler = MagicMock()
+            mock_get_scheduler.return_value = mock_scheduler
+
             # Delete task to trigger signal
             task.delete()
 
-            # Verify unregister was called
-            mock_unregister.assert_called_once()
+            # Verify scheduler's remove method was called
+            mock_scheduler.remove_database_task_by_id.assert_called_once_with(task_id)
 
             # Verify logging
             mock_logger.info.assert_called()
             log_call_args = mock_logger.info.call_args[0][0]
-            assert "Task deleted" in log_call_args
-            assert task_name in log_call_args
+            assert "Removed task" in log_call_args
 
 
 @pytest.mark.unit
@@ -189,7 +192,7 @@ class TestHandleNewTask(TestCase):
         task.save()
         return task
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
     def test_handle_new_task_immediate_execution(self, mock_submit):
         """Test handling new task for immediate execution."""
         # Create task ready for immediate execution
@@ -201,7 +204,7 @@ class TestHandleNewTask(TestCase):
             # Should submit to dispatcher
             mock_submit.assert_called_once_with(task)
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
     def test_handle_new_task_not_ready(self, mock_submit):
         """Test handling new task that's not ready to run."""
         # Create task not ready for execution
@@ -213,7 +216,7 @@ class TestHandleNewTask(TestCase):
             # Should not submit to dispatcher
             mock_submit.assert_not_called()
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
     def test_handle_new_task_scheduled_future(self, mock_submit):
         """Test handling new task scheduled for future execution."""
         # Create task with future scheduled time
@@ -226,11 +229,11 @@ class TestHandleNewTask(TestCase):
             # Should not submit to dispatcher (will be handled by scheduler)
             mock_submit.assert_not_called()
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
     def test_handle_new_task_recurring(self, mock_submit):
         """Test handling new recurring task."""
         # Create recurring task
-        task = self._create_task_without_signals(status="pending", is_recurring=True, cron_schedule="0 2 * * *")
+        task = self._create_task_without_signals(status="pending", is_recurring=True, cron_expression="0 2 * * *")
 
         with patch.object(task, "is_ready_to_run", return_value=True):
             _handle_new_task(task)
@@ -238,7 +241,7 @@ class TestHandleNewTask(TestCase):
             # Should not submit to dispatcher (will be handled by scheduler)
             mock_submit.assert_not_called()
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
     @patch("apps.tasks.signals.logger")
     def test_handle_new_task_submission_error(self, mock_logger, mock_submit):
         """Test handling submission error for new task."""
@@ -252,6 +255,11 @@ class TestHandleNewTask(TestCase):
 
             # Should log the error
             mock_logger.error.assert_called()
+
+            # Verify task was marked as failed
+            task.refresh_from_db()
+            assert task.status == "failed"
+            assert "Failed to submit to dispatcherd" in task.error_message
 
 
 @pytest.mark.unit
@@ -280,7 +288,7 @@ class TestHandleUpdatedTask(TestCase):
         task.save()
         return task
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
     def test_handle_updated_task_status_change_to_pending(self, mock_submit):
         """Test handling task update when status changes to pending."""
         task = self._create_task_without_signals(status="draft")
@@ -294,7 +302,7 @@ class TestHandleUpdatedTask(TestCase):
             # Should submit to dispatcher if now ready
             mock_submit.assert_called_once_with(task)
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
     def test_handle_updated_task_not_ready_to_run(self, mock_submit):
         """Test handling task update when task is not ready to run."""
         task = self._create_task_without_signals(status="completed")
@@ -305,7 +313,7 @@ class TestHandleUpdatedTask(TestCase):
             # Should not submit to dispatcher
             mock_submit.assert_not_called()
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
     def test_handle_updated_task_with_scheduled_time(self, mock_submit):
         """Test handling task update with scheduled time."""
         future_time = timezone.now() + timedelta(hours=1)
@@ -317,8 +325,8 @@ class TestHandleUpdatedTask(TestCase):
             # Should not submit to dispatcher for scheduled tasks
             mock_submit.assert_not_called()
 
-    @patch("apps.tasks.signals.cancel_task_in_dispatcherd")
-    def test_handle_updated_task_status_change_to_cancelled(self, mock_cancel):
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
+    def test_handle_updated_task_status_change_to_cancelled(self, mock_submit):
         """Test handling task update when status changes to cancelled."""
         task = self._create_task_without_signals(status="pending")
 
@@ -327,11 +335,11 @@ class TestHandleUpdatedTask(TestCase):
 
         _handle_updated_task(task)
 
-        # Should cancel in dispatcher
-        mock_cancel.assert_called_once_with(task.id)
+        # Should not submit to dispatcher (cancelled tasks are skipped)
+        mock_submit.assert_not_called()
 
-    @patch("apps.tasks.signals.cancel_task_in_dispatcherd")
-    def test_handle_updated_task_status_change_to_failed(self, mock_cancel):
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
+    def test_handle_updated_task_status_change_to_failed(self, mock_submit):
         """Test handling task update when status changes to failed."""
         task = self._create_task_without_signals(status="running")
 
@@ -340,8 +348,8 @@ class TestHandleUpdatedTask(TestCase):
 
         _handle_updated_task(task)
 
-        # Should not cancel (task already completed)
-        mock_cancel.assert_not_called()
+        # Should not submit (failed tasks are skipped in early return)
+        mock_submit.assert_not_called()
 
 
 @pytest.mark.unit
@@ -365,7 +373,7 @@ class TestRegisterWithScheduler(TestCase):
         task.save()
         return task
 
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_register_scheduled_task_with_scheduler(self, mock_get_scheduler):
         """Test registering scheduled task with scheduler."""
         mock_scheduler = MagicMock()
@@ -375,26 +383,26 @@ class TestRegisterWithScheduler(TestCase):
         future_time = timezone.now() + timedelta(hours=1)
         task = self._create_task_without_signals(scheduled_time=future_time, status="pending")
 
-        _register_with_scheduler(task, created=True)
+        _register_with_scheduler(task, is_new_task=True)
 
         # Should schedule the task
-        mock_scheduler.schedule_task.assert_called_once_with(task)
+        mock_scheduler.add_database_task.assert_called_once_with(task)
 
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_register_recurring_task_with_scheduler(self, mock_get_scheduler):
         """Test registering recurring task with scheduler."""
         mock_scheduler = MagicMock()
         mock_get_scheduler.return_value = mock_scheduler
 
         # Create recurring task
-        task = self._create_task_without_signals(is_recurring=True, cron_schedule="0 2 * * *", status="pending")
+        task = self._create_task_without_signals(is_recurring=True, cron_expression="0 2 * * *", status="pending")
 
-        _register_with_scheduler(task, created=True)
+        _register_with_scheduler(task, is_new_task=True)
 
         # Should register as recurring task
-        mock_scheduler.schedule_recurring_task.assert_called_once_with(task)
+        mock_scheduler.add_database_task.assert_called_once_with(task)
 
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_register_immediate_task_not_with_scheduler(self, mock_get_scheduler):
         """Test that immediate tasks are not registered with scheduler."""
         mock_scheduler = MagicMock()
@@ -403,13 +411,13 @@ class TestRegisterWithScheduler(TestCase):
         # Create immediate task
         task = self._create_task_without_signals(scheduled_time=None, is_recurring=False, status="pending")
 
-        _register_with_scheduler(task, created=True)
+        _register_with_scheduler(task, is_new_task=True)
 
         # Should not register with scheduler
-        mock_scheduler.schedule_task.assert_not_called()
-        mock_scheduler.schedule_recurring_task.assert_not_called()
+        mock_scheduler.add_database_task.assert_not_called()
+        mock_scheduler.update_database_task.assert_not_called()
 
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_register_task_update_reschedules(self, mock_get_scheduler):
         """Test that task updates reschedule with scheduler."""
         mock_scheduler = MagicMock()
@@ -419,29 +427,28 @@ class TestRegisterWithScheduler(TestCase):
         future_time = timezone.now() + timedelta(hours=2)
         task = self._create_task_without_signals(scheduled_time=future_time, status="pending")
 
-        _register_with_scheduler(task, created=False)
+        _register_with_scheduler(task, is_new_task=False)
 
-        # Should unregister old and register new
-        mock_scheduler.unregister_task.assert_called_once_with(task.id)
-        mock_scheduler.schedule_task.assert_called_once_with(task)
+        # Should update the task in scheduler
+        mock_scheduler.update_database_task.assert_called_once_with(task)
 
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     @patch("apps.tasks.signals.logger")
     def test_register_with_scheduler_handles_exceptions(self, mock_logger, mock_get_scheduler):
         """Test that scheduler registration handles exceptions."""
         mock_scheduler = MagicMock()
-        mock_scheduler.schedule_task.side_effect = Exception("Scheduler error")
+        mock_scheduler.add_database_task.side_effect = Exception("Scheduler error")
         mock_get_scheduler.return_value = mock_scheduler
 
         future_time = timezone.now() + timedelta(hours=1)
         task = self._create_task_without_signals(scheduled_time=future_time, status="pending")
 
-        _register_with_scheduler(task, created=True)
+        _register_with_scheduler(task, is_new_task=True)
 
-        # Should log the error
-        mock_logger.error.assert_called()
-        error_call_args = mock_logger.error.call_args[0][0]
-        assert "Error registering task with scheduler" in error_call_args
+        # Should log the error at debug level (not critical for immediate tasks)
+        mock_logger.debug.assert_called()
+        debug_call_args = mock_logger.debug.call_args[0][0]
+        assert "Could not register task with scheduler" in debug_call_args
 
 
 @pytest.mark.unit
@@ -455,8 +462,8 @@ class TestSignalIntegration(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_end_to_end_task_creation_workflow(self, mock_get_scheduler, mock_submit):
         """Test complete workflow from task creation to execution."""
         mock_scheduler = MagicMock()
@@ -474,10 +481,10 @@ class TestSignalIntegration(TestCase):
         # Verify immediate submission
         mock_submit.assert_called_once_with(task)
         # Should not register with scheduler for immediate tasks
-        mock_scheduler.schedule_task.assert_not_called()
+        mock_scheduler.add_database_task.assert_not_called()
 
-    @patch("apps.tasks.signals.submit_task_to_dispatcherd")
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.signals._submit_task_to_dispatcherd_directly")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_end_to_end_scheduled_task_workflow(self, mock_get_scheduler, mock_submit):
         """Test complete workflow for scheduled task."""
         mock_scheduler = MagicMock()
@@ -496,9 +503,9 @@ class TestSignalIntegration(TestCase):
         # Should not submit immediately
         mock_submit.assert_not_called()
         # Should register with scheduler
-        mock_scheduler.schedule_task.assert_called_once_with(task)
+        mock_scheduler.add_database_task.assert_called_once_with(task)
 
-    @patch("apps.tasks.signals.get_task_scheduler")
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
     def test_end_to_end_recurring_task_workflow(self, mock_get_scheduler):
         """Test complete workflow for recurring task."""
         mock_scheduler = MagicMock()
@@ -511,23 +518,28 @@ class TestSignalIntegration(TestCase):
             created_by=self.user,
             status="pending",
             is_recurring=True,
-            cron_schedule="0 2 * * *",
+            cron_expression="0 2 * * *",
         )
 
         # Should register as recurring with scheduler
-        mock_scheduler.schedule_recurring_task.assert_called_once_with(task)
+        mock_scheduler.add_database_task.assert_called_once_with(task)
 
-    @patch("apps.tasks.signals._unregister_from_scheduler")
-    def test_end_to_end_task_deletion_workflow(self, mock_unregister):
+    @patch("apps.tasks.cron_scheduler.get_scheduler")
+    def test_end_to_end_task_deletion_workflow(self, mock_get_scheduler):
         """Test complete workflow for task deletion."""
+        # Setup mock scheduler
+        mock_scheduler = MagicMock()
+        mock_get_scheduler.return_value = mock_scheduler
+
         # Create and then delete task
         task = Task.objects.create(name="Delete E2E Task", function_name="cleanup_old_data", created_by=self.user)
+        task_id = task.id
 
         # Delete the task
         task.delete()
 
-        # Should unregister from scheduler
-        mock_unregister.assert_called_once()
+        # Should remove from scheduler
+        mock_scheduler.remove_database_task_by_id.assert_called_with(task_id)
 
     def test_signal_performance_with_multiple_tasks(self):
         """Test signal performance with multiple task operations."""

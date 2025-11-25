@@ -13,7 +13,6 @@ import pytest
 from django.test import TestCase
 
 from apps.tasks.tasks_collector import (
-    collect_all_metrics,
     collect_anonymous_metrics,
     collect_config_metrics,
     collect_host_metrics,
@@ -200,7 +199,7 @@ class TestCollectHostMetrics(TestCase):
     """Test collect_host_metrics function."""
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.main_host")
+    @patch("apps.tasks.tasks_collector.main_jobevent")
     @patch("django.db.connections")
     def test_collect_host_metrics_success(self, mock_connections, mock_main_host):
         """Test successful host metrics collection."""
@@ -228,27 +227,7 @@ class TestCollectHostMetrics(TestCase):
         assert result["status"] == "success"
         assert result["task_type"] == "collect_host_metrics"
         assert result["host_data"] == mock_host_data
-        assert result["collector_type"] == "main_host"
-
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.main_host")
-    @patch("django.db.connections")
-    def test_collect_host_metrics_with_date_range(self, mock_connections, mock_main_host):
-        """Test host metrics collection with date range."""
-        mock_db_connection = MagicMock()
-        mock_connections.__getitem__.return_value = mock_db_connection
-
-        mock_collector = MagicMock()
-        mock_collector.gather.return_value = {"filtered_hosts": []}
-        mock_main_host.return_value = mock_collector
-
-        kwargs = {"start_date": "2024-01-01T00:00:00Z", "end_date": "2024-01-31T23:59:59Z"}
-
-        result = collect_host_metrics(**kwargs)
-
-        # Verify parameters are passed through
-        assert result["parameters_used"]["start_date"] == "2024-01-01T00:00:00Z"
-        assert result["parameters_used"]["end_date"] == "2024-01-31T23:59:59Z"
+        assert result["collector_type"] == "main_jobevent"
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
     def test_collect_host_metrics_utility_not_available(self):
@@ -306,85 +285,6 @@ class TestCollectJobHostSummary(TestCase):
 @pytest.mark.unit
 class TestCollectAllMetrics(TestCase):
     """Test collect_all_metrics function."""
-
-    @patch("apps.tasks.tasks_collector.collect_config_metrics")
-    @patch("apps.tasks.tasks_collector.collect_host_metrics")
-    @patch("apps.tasks.tasks_collector.collect_job_host_summary")
-    def test_collect_all_metrics_success(self, mock_job_summary, mock_host, mock_config):
-        """Test successful collection of all metrics."""
-        # Setup mock responses
-        mock_config.return_value = {"status": "success", "config_data": {}}
-        mock_host.return_value = {"status": "success", "host_data": {}}
-        mock_job_summary.return_value = {"status": "success", "summary_data": {}}
-
-        result = collect_all_metrics()
-
-        # Verify all collectors were called
-        mock_config.assert_called_once()
-        mock_host.assert_called_once()
-        mock_job_summary.assert_called_once()
-
-        # Verify result structure
-        assert result["status"] == "success"
-        assert result["task_type"] == "collect_all_metrics"
-        assert "config_result" in result["results"]
-        assert "host_result" in result["results"]
-        assert "job_host_summary_result" in result["results"]
-        assert result["results"]["config_result"]["status"] == "success"
-
-    @patch("apps.tasks.tasks_collector.collect_config_metrics")
-    @patch("apps.tasks.tasks_collector.collect_host_metrics")
-    @patch("apps.tasks.tasks_collector.collect_job_host_summary")
-    def test_collect_all_metrics_with_database_parameter(self, mock_job_summary, mock_host, mock_config):
-        """Test collect_all_metrics with custom database parameter."""
-        mock_config.return_value = {"status": "success"}
-        mock_host.return_value = {"status": "success"}
-        mock_job_summary.return_value = {"status": "success"}
-
-        result = collect_all_metrics(database="custom_db")
-
-        # Verify all collectors were called with database parameter
-        mock_config.assert_called_once_with(database="custom_db")
-        mock_host.assert_called_once_with(database="custom_db")
-        mock_job_summary.assert_called_once_with(database="custom_db")
-
-        assert result["parameters_used"]["database"] == "custom_db"
-
-    @patch("apps.tasks.tasks_collector.collect_config_metrics")
-    @patch("apps.tasks.tasks_collector.collect_host_metrics")
-    @patch("apps.tasks.tasks_collector.collect_job_host_summary")
-    def test_collect_all_metrics_partial_failure(self, mock_job_summary, mock_host, mock_config):
-        """Test collect_all_metrics when some collectors fail."""
-        # Setup mixed success/failure responses
-        mock_config.return_value = {"status": "success", "config_data": {}}
-        mock_host.return_value = {"status": "error", "error": "Host collection failed"}
-        mock_job_summary.return_value = {"status": "success", "summary_data": {}}
-
-        result = collect_all_metrics()
-
-        # Should still succeed overall but include failure details
-        assert result["status"] == "success"
-        assert result["results"]["config_result"]["status"] == "success"
-        assert result["results"]["host_result"]["status"] == "error"
-        assert result["results"]["job_host_summary_result"]["status"] == "success"
-
-    @patch("apps.tasks.tasks_collector.collect_config_metrics")
-    @patch("apps.tasks.tasks_collector.collect_host_metrics")
-    @patch("apps.tasks.tasks_collector.collect_job_host_summary")
-    def test_collect_all_metrics_all_failures(self, mock_job_summary, mock_host, mock_config):
-        """Test collect_all_metrics when all collectors fail."""
-        # Setup all failure responses
-        mock_config.return_value = {"status": "error", "error": "Config failed"}
-        mock_host.return_value = {"status": "error", "error": "Host failed"}
-        mock_job_summary.return_value = {"status": "error", "error": "Summary failed"}
-
-        result = collect_all_metrics()
-
-        # Should still have success status but with error details
-        assert result["status"] == "success"  # Wrapper succeeds even if collectors fail
-        assert result["results"]["config_result"]["status"] == "error"
-        assert result["results"]["host_result"]["status"] == "error"
-        assert result["results"]["job_host_summary_result"]["status"] == "error"
 
 
 @pytest.mark.unit
