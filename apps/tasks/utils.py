@@ -206,10 +206,22 @@ def handle_task_error(
         with transaction.atomic():
             # Update task status if we have a task instance
             if task_instance:
+                # Refresh from database to get latest state
+                task_instance.refresh_from_db()
+
+                # Store previous status to determine if we need to increment attempts
+                previous_status = task_instance.status
+
                 task_instance.status = "failed"
                 task_instance.error_message = error_message
                 task_instance.completed_at = timezone.now()
-                # Don't increment attempts here - they're already incremented when task starts running
+
+                # Increment attempts if the task failed before reaching "running" status
+                # This handles errors that occur during task initialization/validation
+                # If the task reached "running" status, attempts was already incremented
+                if previous_status in ["pending", "waiting_for_dependencies"]:
+                    task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
+
                 task_instance.save()
 
             # Update execution status if provided

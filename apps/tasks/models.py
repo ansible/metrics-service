@@ -176,6 +176,7 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         self.error_message = ""
         self.started_at = None
         self.completed_at = None
+        self.attempts = 0
         self.save()
         return True
 
