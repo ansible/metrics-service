@@ -111,4 +111,3 @@ class TestRetryMaxAttemptsBypass(TestCase):
         assert task.can_retry() is False
         result = task.retry()
         assert result is False
-
