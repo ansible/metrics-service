@@ -391,22 +391,6 @@ All logs use Django's configured format with timestamps, log levels, request IDs
 2025-01-18 10:15:24,789 WARNING  [] apps.core.utils Database connection slow: 2.3s
 ```
 
-**For Developers:**
-
-When writing code, import the centralized logger:
-
-```python
-from metrics_service.logger import get_logger
-
-logger = get_logger(__name__)
-
-# Use standard logging methods
-logger.debug("Detailed debug information")
-logger.info("Informational message")
-logger.warning("Warning message")
-logger.error("Error message")
-```
-
 For comprehensive configuration documentation, validators, troubleshooting, and testing information, see **[metrics_service/settings/README.md](metrics_service/settings/README.md)**.
 
 ## Deployment
