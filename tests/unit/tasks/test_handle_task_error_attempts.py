@@ -117,10 +117,6 @@ class TestHandleTaskErrorAttempts(TestCase):
 
         # Simulate multiple early failures (e.g., function not found each time)
         for expected_attempts in range(1, 4):
-            # Task should be retryable before max_attempts
-            if expected_attempts < 3:
-                assert task.can_retry() is True, f"Task should be retryable at attempt {expected_attempts}"
-
             # Simulate failure before reaching "running" status
             handle_task_error(
                 task_instance=task,
@@ -132,7 +128,18 @@ class TestHandleTaskErrorAttempts(TestCase):
             assert task.attempts == expected_attempts, f"Attempts should be {expected_attempts}"
             assert task.status == "failed"
 
-        # After 3 attempts, task should NOT be retryable
+            # After each failure, check if task can be retried
+            # Task should be retryable before max_attempts is reached
+            if expected_attempts < 3:
+                assert task.can_retry() is True, f"Task should be retryable at attempt {expected_attempts}"
+                # Reset task to pending to simulate retry (this is what would happen in practice)
+                task.status = "pending"
+                task.error_message = ""
+                task.save()
+            else:
+                assert task.can_retry() is False, "Task should not be retryable after max_attempts reached"
+
+        # Final verification: After 3 attempts, task should NOT be retryable
         task.refresh_from_db()
         assert task.attempts == 3
         assert task.can_retry() is False, "Task should not be retryable after max_attempts reached"

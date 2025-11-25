@@ -5,6 +5,7 @@ This module contains all task-related models including task definitions,
 executions, dependencies, and task chains for workflow management.
 """
 
+import logging
 from datetime import datetime
 
 from django.conf import settings
@@ -42,6 +43,9 @@ except ImportError:
     class AuditableModel(models.Model):
         class Meta:
             abstract = True
+
+
+logger = logging.getLogger(__name__)
 
 
 class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingMixin):
@@ -177,7 +181,24 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         self.started_at = None
         self.completed_at = None
         self.attempts = 0
+
+        # Skip signals to avoid the signal handler checking for existing TaskExecution records
+        # and skipping submission. We'll manually submit the task after saving.
+        self._skip_signals = True
         self.save()
+
+        # Manually submit the task for immediate execution if it has no scheduled time
+        # and is not recurring (otherwise it will be picked up by the scheduler)
+        if not self.scheduled_time and not self.is_recurring:
+            try:
+                from apps.tasks.signals import _submit_task_to_dispatcherd_directly
+
+                _submit_task_to_dispatcherd_directly(self)
+            except Exception as e:
+                # If submission fails, log the error. The submission function
+                # will also update the task status to failed
+                logger.error(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")
+
         return True
 
     def can_delete(self) -> bool:

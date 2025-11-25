@@ -926,6 +926,9 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
             except (ValueError, AttributeError):
                 until_dt = None
 
+        # Apply default date ranges if None (required by anonymized_rollups_processor)
+        since_dt, until_dt = _get_date_defaults("anonymized_rollups", since_dt, until_dt)
+
         # Step 1: Collect anonymized metrics using anonymized_rollups_processor
         log_task_execution("full_process_anonymize", "processing", "Collecting anonymized metrics data")
 
@@ -938,17 +941,22 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
             save_rollups=False,
         )
 
-        # Step 2: Send to Segment.com if enabled (using test_segment_track for verification)
+        # Step 2: Send to Segment.com if enabled
         segment_status = "skipped"
         if send_to_segment and SEGMENT_AVAILABLE:
-            # Use test_segment_track to verify consolidated messaging works
-            test_result = test_segment_track(
-                message=f"Anonymized metrics collected: {len(str(anonymized_data))} bytes",
-                segment_write_key=segment_write_key,
-                user_id=user_id,
-                event_name=event_name,
-            )
-            segment_status = test_result.get("data", {}).get("segment_status", "test_completed")
+            # Prepare anonymized data for Segment transmission
+            segment_data = {
+                "anonymized_rollups": anonymized_data,
+                "collection_metadata": {
+                    "database": db_name,
+                    "since": since,
+                    "until": until,
+                    "salt": salt,
+                    "collection_timestamp": datetime.now(UTC).isoformat(),
+                },
+            }
+            # Send actual anonymized data to Segment
+            segment_status = _send_to_segment(segment_write_key, user_id, event_name, segment_data)
 
         return create_task_result(
             "success",

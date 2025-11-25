@@ -569,18 +569,18 @@ class TestTasksCollectorFullCoverage(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
-    @patch("apps.tasks.tasks_collector.test_segment_track")
+    @patch("apps.tasks.tasks_collector._send_to_segment")
     @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
-    def test_full_process_anonymize(self, mock_create_result, mock_connections, mock_test_segment, mock_processor):
+    def test_full_process_anonymize(self, mock_create_result, mock_connections, mock_send_segment, mock_processor):
         """Test full_process_anonymize function."""
         from apps.tasks.tasks_collector import full_process_anonymize
 
         mock_db = MagicMock()
         mock_connections.__getitem__.return_value = mock_db
         mock_processor.return_value = {"anonymized": "data"}
-        mock_test_segment.return_value = {"data": {"segment_status": "success"}}
+        mock_send_segment.return_value = "success"
         mock_create_result.return_value = {"status": "success"}
 
         # Test with valid dates
@@ -814,9 +814,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         # Test list handling in _prepare_segment_data (line 573)
         # Need to create a scenario where data is a list AND doesn't have "error" key
         collectors_list = ["test_collector"]
-        all_results = {
-            "test_collector": [{"item": "data"}]  # This is a list, should trigger line 573
-        }
+        all_results = {"test_collector": [{"item": "data"}]}  # This is a list, should trigger line 573
 
         result = _prepare_segment_data(collectors_list, all_results, "test_db", "2024-01-01", "2024-12-31", "salt")
         # Due to implementation bug, lists aren't handled properly, but this exercises the code
