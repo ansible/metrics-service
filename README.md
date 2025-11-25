@@ -177,7 +177,7 @@ The service includes an automated background task system with intelligent routin
 python manage.py metrics_service run
 
 # Start with custom configuration
-python manage.py metrics_service run --workers 4 --log-level DEBUG
+python manage.py metrics_service run --workers 4
 
 # Individual components (for development)
 python manage.py run_dispatcherd --workers 2
@@ -339,6 +339,7 @@ Settings are loaded in order of precedence (lowest to highest):
 | `METRICS_SERVICE_MODE`                         | Environment mode (development/production) | No (defaults to development) |
 | `METRICS_SERVICE_SECRET_KEY`                   | Django secret key                         | **Yes**                      |
 | `METRICS_SERVICE_DEBUG`                        | Enable debug mode                         | No                           |
+| `METRICS_SERVICE_LOG_LEVEL`                    | Logging level (DEBUG/INFO/WARNING/ERROR)  | No (defaults to INFO)        |
 | `METRICS_SERVICE_DATABASES__default__HOST`     | Database host                             | No (has default)             |
 | `METRICS_SERVICE_DATABASES__default__PASSWORD` | Database password                         | No (has default)             |
 | `METRICS_SERVICE_ALLOWED_HOSTS`                | Allowed hosts (comma-separated)           | **Yes** (production)         |
@@ -349,6 +350,45 @@ Settings are loaded in order of precedence (lowest to highest):
 # Nested database configuration
 export METRICS_SERVICE_DATABASES__default__HOST=localhost
 export METRICS_SERVICE_DATABASES__default__PORT=5432
+```
+
+### Logging Configuration
+
+Metrics Service uses a centralized logging system that integrates with Django's logging framework. All log levels are controlled by a single environment variable.
+
+**Setting Log Level:**
+
+```bash
+# For development - see all debug messages
+export METRICS_SERVICE_LOG_LEVEL=DEBUG
+
+# For production - informational messages only
+export METRICS_SERVICE_LOG_LEVEL=INFO
+
+# For troubleshooting - warnings and errors
+export METRICS_SERVICE_LOG_LEVEL=WARNING
+
+# For critical issues only
+export METRICS_SERVICE_LOG_LEVEL=ERROR
+```
+
+**Quick Debug Mode:**
+
+```bash
+# Run with debug logging temporarily
+METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py runserver
+
+# Or for the complete service
+METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py metrics_service run
+```
+
+**Log Output Format:**
+
+All logs use Django's configured format with timestamps, log levels, request IDs (when applicable), module names, and messages:
+
+```
+2025-01-18 10:15:23,456 INFO     [abc123] apps.tasks.signals New task created: Cleanup (ID: 42)
+2025-01-18 10:15:24,789 WARNING  [] apps.core.utils Database connection slow: 2.3s
 ```
 
 For comprehensive configuration documentation, validators, troubleshooting, and testing information, see **[metrics_service/settings/README.md](metrics_service/settings/README.md)**.
