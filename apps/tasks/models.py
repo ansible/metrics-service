@@ -170,6 +170,10 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         """
         Retry a failed task by resetting its status to pending.
 
+        The attempts counter is NOT reset to properly enforce max_attempts limit.
+        This ensures that the total number of execution attempts (automatic + manual retries)
+        respects the max_attempts setting and prevents indefinite retries.
+
         Returns:
             bool: True if task was successfully reset for retry, False otherwise
         """
@@ -180,7 +184,9 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         self.error_message = ""
         self.started_at = None
         self.completed_at = None
-        self.attempts = 0
+        # NOTE: Do NOT reset attempts to 0 here. The attempts counter must persist
+        # across retries to properly enforce the max_attempts limit. Without this,
+        # users could bypass max_attempts by repeatedly calling retry().
 
         # Skip signals to avoid the signal handler checking for existing TaskExecution records
         # and skipping submission. We'll manually submit the task after saving.

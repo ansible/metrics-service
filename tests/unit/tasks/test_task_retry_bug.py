@@ -43,6 +43,10 @@ class TestTaskRetryBug(TestCase):
         This test verifies that calling retry() on a failed task with existing
         TaskExecution records will properly submit the task to dispatcherd,
         rather than being silently skipped by the signal handler.
+
+        IMPORTANT: The attempts counter should NOT be reset to 0 on retry.
+        This ensures max_attempts is properly enforced across all retries
+        (both automatic and manual), preventing indefinite retry loops.
         """
         # Verify preconditions
         assert self.task.status == "failed"
@@ -61,7 +65,9 @@ class TestTaskRetryBug(TestCase):
         # Verify task was reset to pending
         assert self.task.status == "pending"
         assert self.task.error_message == ""
-        assert self.task.attempts == 0
+        # NOTE: attempts should NOT be reset to 0 to properly enforce max_attempts
+        # The counter tracks total execution attempts across all retries
+        assert self.task.attempts == 1  # Stays at 1, not reset to 0
         assert self.task.started_at is None
         assert self.task.completed_at is None
 
