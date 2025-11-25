@@ -443,21 +443,6 @@ FEATURE_ENABLED = {
 
 ### Logging Configuration
 
-The project uses a centralized logging system (`metrics_service/logger.py`) that integrates with Django's logging framework.
-
-**Using the Centralized Logger:**
-
-```python
-from metrics_service.logger import get_logger
-
-logger = get_logger(__name__)  # Always use __name__ for proper module identification
-
-logger.debug("Detailed debug information")
-logger.info("Informational message")
-logger.warning("Warning about potential issues")
-logger.error("Error that needs attention")
-```
-
 **Setting Log Level:**
 
 The log level is controlled by the `METRICS_SERVICE_LOG_LEVEL` environment variable:
