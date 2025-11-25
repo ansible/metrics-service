@@ -8,7 +8,6 @@ leading to potential infinite retry loops.
 
 import pytest
 from django.test import TestCase
-from django.utils import timezone
 
 from apps.core.models import User
 from apps.tasks.models import Task, TaskExecution
@@ -21,9 +20,7 @@ class TestHandleTaskErrorAttempts(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass123"
-        )
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
 
     def test_handle_task_error_increments_attempts_for_pending_task(self):
         """
@@ -199,4 +196,3 @@ class TestHandleTaskErrorAttempts(TestCase):
         assert task.status == "failed"
         assert task.error_message == "Task failed with exception"
         assert result["status"] == "error"
-
