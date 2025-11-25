@@ -25,6 +25,7 @@ LABEL_DB_CONNECTION = "Database name from Django settings (default: 'awx')"
 LABEL_START_DATE = "Start date for collection (ISO format)"
 LABEL_END_DATE = "End date for collection (ISO format)"
 EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
+UTC_OFFSET_SUFFIX = "+00:00"
 
 # Import metrics-utility collectors
 try:
@@ -240,13 +241,13 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
 
         if since:
             try:
-                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                since_dt = datetime.fromisoformat(since.replace("Z", UTC_OFFSET_SUFFIX))
             except (ValueError, AttributeError):
                 since_dt = None
 
         if until:
             try:
-                until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+                until_dt = datetime.fromisoformat(until.replace("Z", UTC_OFFSET_SUFFIX))
             except (ValueError, AttributeError):
                 until_dt = None
 
@@ -310,7 +311,7 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
         since_dt = None
         if since:
             try:
-                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                since_dt = datetime.fromisoformat(since.replace("Z", UTC_OFFSET_SUFFIX))
             except (ValueError, AttributeError):
                 since_dt = None
 
@@ -413,14 +414,14 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
         return create_task_result("error", error=f"Collection failed: {str(e)}")
 
 
-def _parse_datetime_string(date_str: str) -> datetime | None:
+def _parse_datetime_string(date_str: str | None) -> datetime | None:
     """Parse an ISO datetime string, return None if invalid."""
     from datetime import datetime
 
     if not date_str:
         return None
     try:
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return datetime.fromisoformat(date_str.replace("Z", UTC_OFFSET_SUFFIX))
     except (ValueError, AttributeError):
         return None
 
@@ -472,9 +473,7 @@ def _run_job_host_summary_collector(
     return collector_instance.gather()
 
 
-def _run_main_host_collector(
-    db_connection, since_dt: datetime | None = None, until_dt: datetime | None = None
-) -> dict[str, Any]:
+def _run_main_host_collector(db_connection) -> dict[str, Any]:
     """Run the main_host collector."""
     # main_host collector doesn't accept date parameters, only db connection
     collector_instance = main_host(db=db_connection)
@@ -514,7 +513,7 @@ def _run_single_collector(collector_name: str, db_connection, since: str, until:
         "anonymized_rollups": lambda: _run_anonymized_rollups(db_connection, salt, since_dt, until_dt),
         "config": lambda: _run_config_collector(db_connection),
         "job_host_summary": lambda: _run_job_host_summary_collector(db_connection, since_dt, until_dt),
-        "main_host": lambda: _run_main_host_collector(db_connection, since_dt, until_dt),
+        "main_host": lambda: _run_main_host_collector(db_connection),
         "main_jobevent": lambda: _run_main_jobevent_collector(db_connection, since_dt, until_dt),
     }
 
@@ -563,18 +562,13 @@ def _prepare_segment_data(
                 "salt_used": bool(salt),
             },
         },
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
-    # Add anonymized metrics counts without exposing sensitive data
+    # Add the actual anonymized collector results
     for collector_name, data in all_results.items():
-        if isinstance(data, dict) and "error" not in data:
-            if isinstance(data, list):
-                segment_data[f"{collector_name}_count"] = len(data)
-                # Don't include raw data - only metadata to keep message small
-            elif isinstance(data, dict):
-                segment_data[f"{collector_name}_keys_count"] = len(data.keys())
-                # Don't include raw data - only metadata to keep message small
+        if "error" not in data:
+            segment_data[collector_name] = data
 
     return segment_data
 
@@ -612,7 +606,7 @@ def _send_to_segment(segment_write_key: str, user_id: str, event_name: str, segm
             properties={
                 "artifact_name": f"metrics_collection_{user_id}",
                 "data": segment_data,
-                "upload_timestamp": datetime.utcnow().isoformat(),
+                "upload_timestamp": datetime.now(UTC).isoformat(),
                 "message_info": {
                     "message_type": "simple_direct",
                     "message_id": message_id,
@@ -916,13 +910,13 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
 
         if since:
             try:
-                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                since_dt = datetime.fromisoformat(since.replace("Z", UTC_OFFSET_SUFFIX))
             except (ValueError, AttributeError):
                 since_dt = None
 
         if until:
             try:
-                until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+                until_dt = datetime.fromisoformat(until.replace("Z", UTC_OFFSET_SUFFIX))
             except (ValueError, AttributeError):
                 until_dt = None
 

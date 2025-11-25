@@ -356,7 +356,6 @@ class TestDABFallback:
         assert hasattr(models_module, "TaskChainMembership")
 
         # If we get here, the model classes are available
-        assert True
 
 
 @pytest.mark.django_db

@@ -339,34 +339,34 @@ class TestTasksCollectorFullCoverage(TestCase):
         mock_main_jobevent.return_value = mock_collector_instance
 
         # Test _run_anonymized_rollups
-        result = _run_anonymized_rollups(mock_db, "salt", None, None)
+        _run_anonymized_rollups(mock_db, "salt", None, None)
         mock_processor.assert_called_once()
 
         # Test _run_config_collector
-        result = _run_config_collector(mock_db)
+        _run_config_collector(mock_db)
         mock_config.assert_called_once()
 
         # Test _run_job_host_summary_collector with dates
         dt_now = datetime.now(UTC)
-        result = _run_job_host_summary_collector(mock_db, dt_now, dt_now)
+        _run_job_host_summary_collector(mock_db, dt_now, dt_now)
         mock_job_host.assert_called()
 
         # Test _run_job_host_summary_collector without dates
         mock_job_host.reset_mock()
-        result = _run_job_host_summary_collector(mock_db, None, None)
+        _run_job_host_summary_collector(mock_db, None, None)
         mock_job_host.assert_called()
 
         # Test _run_main_host_collector
-        result = _run_main_host_collector(mock_db)
+        _run_main_host_collector(mock_db)
         mock_main_host.assert_called_once()
 
         # Test _run_main_jobevent_collector with dates
-        result = _run_main_jobevent_collector(mock_db, dt_now, dt_now)
+        _run_main_jobevent_collector(mock_db, dt_now, dt_now)
         mock_main_jobevent.assert_called()
 
         # Test _run_main_jobevent_collector with None dates (should get defaults)
         mock_main_jobevent.reset_mock()
-        result = _run_main_jobevent_collector(mock_db, None, None)
+        _run_main_jobevent_collector(mock_db, None, None)
         mock_main_jobevent.assert_called()
 
         # Test _run_single_collector with all collector types
@@ -395,7 +395,7 @@ class TestTasksCollectorFullCoverage(TestCase):
 
         # Test ValueError (unknown collector)
         mock_run_single.side_effect = ValueError("Unknown collector")
-        result = _collect_all_metrics(["unknown"], mock_db, "", "", "salt")
+        _collect_all_metrics(["unknown"], mock_db, "", "", "salt")
         mock_logger.warning.assert_called()
 
         # Test general exception
@@ -409,26 +409,32 @@ class TestTasksCollectorFullCoverage(TestCase):
         """Test _prepare_segment_data with all data types."""
         from apps.tasks.tasks_collector import _prepare_segment_data
 
-        # Test with successful results - note the implementation has a bug where lists are not handled correctly
-        # since isinstance(data, list) is checked after isinstance(data, dict) and "error" not in data
+        # Test with mixed successful results (dict and list types)
         collectors_list = ["config", "main_host"]
         all_results = {
             "config": {"key1": "value1", "key2": "value2"},
-            "main_host": [{"item1": "data"}, {"item2": "data"}],  # This will be skipped due to logic bug
+            "main_host": [{"item1": "data"}, {"item2": "data"}],
             "failed_collector": {"error": "Failed"},
         }
 
         result = _prepare_segment_data(collectors_list, all_results, "awx", "2024-01-01", "2024-12-31", "salt")
 
+        # Check metadata is present
         assert "collectors_run" in result
         assert "collection_summary" in result
         assert result["collection_summary"]["successful_collectors"] == 2
         assert result["collection_summary"]["failed_collectors"] == 1
-        assert "config_keys_count" in result
-        # main_host is a list, but due to the logic bug in the implementation, it's not processed
-        # because isinstance(data, dict) is checked first and lists don't have "error" key check properly
 
-        # Test with all dict data to cover the dict branch
+        # Check that raw data is included (not counts)
+        assert "config" in result
+        assert result["config"] == {"key1": "value1", "key2": "value2"}
+        assert "main_host" in result
+        assert result["main_host"] == [{"item1": "data"}, {"item2": "data"}]
+
+        # Check that errors are excluded
+        assert "failed_collector" not in result
+
+        # Test with all dict data
         all_results_dict = {
             "config": {"key1": "value1", "key2": "value2"},
             "main_host": {"host1": "data", "host2": "data"},
@@ -436,8 +442,11 @@ class TestTasksCollectorFullCoverage(TestCase):
         }
 
         result2 = _prepare_segment_data(collectors_list, all_results_dict, "awx", "2024-01-01", "2024-12-31", "salt")
-        assert "config_keys_count" in result2
-        assert "main_host_keys_count" in result2
+        assert "config" in result2
+        assert result2["config"] == {"key1": "value1", "key2": "value2"}
+        assert "main_host" in result2
+        assert result2["main_host"] == {"host1": "data", "host2": "data"}
+        assert "failed_collector" not in result2
 
     @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.logger")
@@ -816,7 +825,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         collectors_list = ["test_collector"]
         all_results = {"test_collector": [{"item": "data"}]}  # This is a list, should trigger line 573
 
-        result = _prepare_segment_data(collectors_list, all_results, "test_db", "2024-01-01", "2024-12-31", "salt")
+        _prepare_segment_data(collectors_list, all_results, "test_db", "2024-01-01", "2024-12-31", "salt")
         # Due to implementation bug, lists aren't handled properly, but this exercises the code
 
         # Test ValueError path in collect_all_metrics (lines around 388, 411-413)

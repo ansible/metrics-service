@@ -50,6 +50,10 @@ LABEL_DB_CONNECTION = "Database name from Django settings (default: 'awx')"
 LABEL_START_DATE = "Start date for collection (ISO format)"
 LABEL_END_DATE = "End date for collection (ISO format)"
 EXAMPLE_START_DATE = "2024-01-01T00:00:00Z"
+DESC_SALT_ANONYMIZATION = "Salt for anonymization (auto-generated UUID4 if not provided)"
+DESC_SEGMENT_WRITE_KEY = "Segment.com write key for analytics"
+DESC_USER_ID_TRACKING = "User ID for tracking"
+DESC_EVENT_NAME_TRACKING = "Event name for tracking"
 
 # Task configuration for dispatcherd
 TASK_FUNCTIONS = {
@@ -239,7 +243,7 @@ TASK_METADATA = {
         "description": "Dedicated task to anonymize collected metrics data",
         "parameters": {
             "data": {"type": "object", "required": True, "description": "Raw metrics data to anonymize"},
-            "salt": {"type": "string", "description": "Salt for anonymization (auto-generated UUID4 if not provided)"},
+            "salt": {"type": "string", "description": DESC_SALT_ANONYMIZATION},
             "output_format": {
                 "type": "string",
                 "default": "segment_ready",
@@ -259,11 +263,11 @@ TASK_METADATA = {
             "segment_write_key": {
                 "type": "string",
                 "default": "NA",
-                "description": "Segment.com write key for analytics",
+                "description": DESC_SEGMENT_WRITE_KEY,
                 "sensitive": True,
             },
-            "user_id": {"type": "string", "default": "anonymous-user", "description": "User ID for tracking"},
-            "event_name": {"type": "string", "default": "metrics_sent", "description": "Event name for tracking"},
+            "user_id": {"type": "string", "default": "anonymous-user", "description": DESC_USER_ID_TRACKING},
+            "event_name": {"type": "string", "default": "metrics_sent", "description": DESC_EVENT_NAME_TRACKING},
         },
         "examples": [
             {"name": "Send data", "data": {"data": {"collectors_run": ["config"]}}},
@@ -283,15 +287,15 @@ TASK_METADATA = {
                 "description": "List of specific collectors to run",
                 "items": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
             },
-            "salt": {"type": "string", "description": "Salt for anonymization (auto-generated UUID4 if not provided)"},
+            "salt": {"type": "string", "description": DESC_SALT_ANONYMIZATION},
             "segment_write_key": {
                 "type": "string",
                 "default": "NA",
-                "description": "Segment.com write key for analytics",
+                "description": DESC_SEGMENT_WRITE_KEY,
                 "sensitive": True,
             },
-            "user_id": {"type": "string", "default": "anonymous-user", "description": "User ID for tracking"},
-            "event_name": {"type": "string", "default": "metrics_collected", "description": "Event name for tracking"},
+            "user_id": {"type": "string", "default": "anonymous-user", "description": DESC_USER_ID_TRACKING},
+            "event_name": {"type": "string", "default": "metrics_collected", "description": DESC_EVENT_NAME_TRACKING},
             "send_to_segment": {
                 "type": "boolean",
                 "default": True,
@@ -311,18 +315,18 @@ TASK_METADATA = {
             "database": {"type": "string", "description": LABEL_DB_CONNECTION},
             "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
             "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
-            "salt": {"type": "string", "description": "Salt for anonymization (auto-generated UUID4 if not provided)"},
+            "salt": {"type": "string", "description": DESC_SALT_ANONYMIZATION},
             "segment_write_key": {
                 "type": "string",
                 "default": "NA",
-                "description": "Segment.com write key for analytics",
+                "description": DESC_SEGMENT_WRITE_KEY,
                 "sensitive": True,
             },
-            "user_id": {"type": "string", "default": "anonymous-user", "description": "User ID for tracking"},
+            "user_id": {"type": "string", "default": "anonymous-user", "description": DESC_USER_ID_TRACKING},
             "event_name": {
                 "type": "string",
                 "default": "anonymized_metrics_collected",
-                "description": "Event name for tracking",
+                "description": DESC_EVENT_NAME_TRACKING,
             },
             "send_to_segment": {
                 "type": "boolean",
@@ -348,11 +352,11 @@ TASK_METADATA = {
             "segment_write_key": {
                 "type": "string",
                 "default": "NA",
-                "description": "Segment.com write key for analytics",
+                "description": DESC_SEGMENT_WRITE_KEY,
                 "sensitive": True,
             },
-            "user_id": {"type": "string", "default": "test-user", "description": "User ID for tracking"},
-            "event_name": {"type": "string", "default": "test_track_message", "description": "Event name for tracking"},
+            "user_id": {"type": "string", "default": "test-user", "description": DESC_USER_ID_TRACKING},
+            "event_name": {"type": "string", "default": "test_track_message", "description": DESC_EVENT_NAME_TRACKING},
         },
         "examples": [
             {"name": "Basic test", "data": {}},
@@ -367,11 +371,11 @@ TASK_METADATA = {
             "segment_write_key": {
                 "type": "string",
                 "default": "NA",
-                "description": "Segment.com write key for analytics",
+                "description": DESC_SEGMENT_WRITE_KEY,
                 "sensitive": True,
             },
-            "user_id": {"type": "string", "default": "debug-user", "description": "User ID for tracking"},
-            "event_name": {"type": "string", "default": "debug_segment_test", "description": "Event name for tracking"},
+            "user_id": {"type": "string", "default": "debug-user", "description": DESC_USER_ID_TRACKING},
+            "event_name": {"type": "string", "default": "debug_segment_test", "description": DESC_EVENT_NAME_TRACKING},
         },
         "examples": [
             {"name": "Basic debug", "data": {}},

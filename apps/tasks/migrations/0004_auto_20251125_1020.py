@@ -6,24 +6,24 @@ from django.db import migrations
 def reset_attempts_for_failed_tasks(apps, schema_editor):
     """
     Reset attempts counter for failed tasks to ensure proper retry behavior.
-    
+
     This addresses a bug where the retry() method didn't reset the attempts counter,
     causing retried tasks to show incorrect attempt numbers and potentially
     preventing valid retries when attempts reached max_attempts prematurely.
     """
-    Task = apps.get_model('tasks', 'Task')
-    
+    task_model = apps.get_model('tasks', 'Task')
+
     # Reset attempts for failed tasks that could potentially be retried
-    failed_tasks = Task.objects.filter(status='failed')
+    failed_tasks = task_model.objects.filter(status='failed')
     updated_count = 0
-    
+
     for task in failed_tasks:
         # Only reset if the task is still eligible for retry
         if task.attempts < task.max_attempts:
             task.attempts = 0
             task.save(update_fields=['attempts'])
             updated_count += 1
-    
+
     if updated_count > 0:
         print(f"Reset attempts counter for {updated_count} failed tasks")
 
@@ -32,7 +32,6 @@ def reverse_reset_attempts(apps, schema_editor):
     """
     Reverse migration - no action needed as this was a data cleanup operation.
     """
-    pass
 
 
 class Migration(migrations.Migration):
