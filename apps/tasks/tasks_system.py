@@ -393,6 +393,13 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         error_message = result.get("error", "") if status == "failed" else ""
 
         update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
+
+        # For recurring tasks, reset status to pending for next execution
+        if task.is_recurring:
+            task.status = "pending"
+            task._skip_signals = True
+            task.save()
+            logger.info(f"Reset recurring task {task.name} (ID: {task.id}) status to pending for next execution")
         log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
         # Handle post-execution tasks

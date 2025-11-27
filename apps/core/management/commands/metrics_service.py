@@ -658,12 +658,16 @@ class Command(BaseCommand):
             self.output.success("Starting metrics service:")
             self.output.write(f"Django server: http://{config['host']}:{config['port']}")
             self.output.write(f"Dispatcher workers: {config['workers']}")
+            self.output.write("Task scheduler: APScheduler with cron support")
 
             # Start Django server
             self._start_django_thread(config)
 
             # Start dispatcher
             self._start_dispatcher_thread(config)
+
+            # Start task scheduler
+            self._start_scheduler_thread(config)
 
             # Monitor services
             self._monitor_services(config)
@@ -694,13 +698,25 @@ class Command(BaseCommand):
         thread.start()
         self.threads.append(thread)
 
+    def _start_scheduler_thread(self, config: dict[str, Any]) -> None:
+        """Start task scheduler in a thread."""
+        import threading
+
+        def scheduler_runner():
+            self._run_task_scheduler(config["log_level"])
+
+        thread = threading.Thread(target=scheduler_runner, daemon=True)
+        thread.start()
+        self.threads.append(thread)
+
     def _monitor_services(self, config: dict[str, Any]) -> None:
         """Monitor running services."""
         import time
 
         self.output.write(f"Django server started on http://{config['host']}:{config['port']}")
         self.output.write(f"Dispatcher started with {config['workers']} workers")
-        self.output.write("Metrics service is running")
+        self.output.write("Task scheduler started with cron support")
+        self.output.write("Metrics service is running (Press Ctrl+C to stop)")
 
         while not self.shutdown_requested:
             # Check if any threads have died
@@ -710,12 +726,44 @@ class Command(BaseCommand):
                         self.output.error("Django server thread stopped unexpectedly")
                     elif i == 1:  # Dispatcher thread
                         self.output.error("Dispatcher thread stopped unexpectedly")
+                    elif i == 2:  # Scheduler thread
+                        self.output.error("Task scheduler thread stopped unexpectedly")
                     self.shutdown_requested = True
                     break
 
             time.sleep(1)
 
         self._cleanup_processes_and_threads()
+
+    def _run_task_scheduler(self, log_level: str) -> None:
+        """Run task scheduler with APScheduler."""
+        try:
+            import logging
+            import time
+
+            # Configure logging level
+            log_level_value = getattr(logging, log_level, logging.INFO)
+            logging.getLogger("apscheduler").setLevel(log_level_value)
+
+            # Import and start the scheduler
+            from apps.tasks.cron_scheduler import get_scheduler, start_scheduler
+
+            self.output.write("[Scheduler] Starting task scheduler...")
+            start_scheduler()
+            scheduler = get_scheduler()
+            self.output.write("[Scheduler] Task scheduler started successfully")
+
+            # Keep the scheduler running
+            while not self.shutdown_requested:
+                time.sleep(1)
+                if not scheduler.running:
+                    self.output.error("[Scheduler] Scheduler stopped unexpectedly")
+                    break
+
+        except ImportError as e:
+            self.output.error(f"[Scheduler] Failed to import scheduler: {e}")
+        except Exception as e:
+            self.output.error(f"[Scheduler] Scheduler error: {e}")
 
     def _run_dispatcherd(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> None:
         """Run dispatcherd process."""

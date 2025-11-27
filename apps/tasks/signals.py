@@ -29,6 +29,9 @@ def task_created_or_updated(sender, instance, created, **kwargs):
     if getattr(task, "_skip_signals", False):
         return
 
+    # Add debug logging to see if signal is triggered
+    logger.info(f"Signal triggered for task: {task.name} (ID: {task.id}), created={created}")
+
     try:
         if created:
             logger.info(f"New task created: {task.name} (ID: {task.id})")
@@ -110,9 +113,16 @@ def _register_with_scheduler(task, is_new_task):
 
         # Only register if task has scheduled time or is recurring
         if task.status == "pending" and (task.scheduled_time or task.is_recurring):
+            # Check if scheduler is actually running
+            if not scheduler.running:
+                logger.warning(f"Scheduler not running, skipping registration for task {task.name} (ID: {task.id})")
+                return
+
             if is_new_task:
+                logger.info(f"Registering new scheduled task with scheduler: {task.name} (ID: {task.id})")
                 scheduler.add_database_task(task)
             else:
+                logger.info(f"Updating scheduled task in scheduler: {task.name} (ID: {task.id})")
                 scheduler.update_database_task(task)
 
     except Exception as e:
@@ -131,4 +141,4 @@ def task_deleted(sender, instance, **kwargs):
         logger.info(f"Removed task {instance.name} (ID: {instance.id}) from scheduler")
 
     except Exception as e:
-        logger.debug(f"Could not remove task from scheduler: {e}")
+        logger.error(f"Could not remove task from scheduler: {e}")

@@ -192,6 +192,7 @@ class TestUnifiedTaskScheduler:
         mock_task.id = task_id
         mock_task.name = "Test"
         mock_task.is_recurring = False
+        mock_task.status = "pending"  # Set status to pending for the test
 
         mock_task_model.objects.get.return_value = mock_task
 
@@ -210,13 +211,29 @@ class TestUnifiedTaskScheduler:
         mock_task.id = task_id
         mock_task.name = "Recurring Test"
         mock_task.is_recurring = True
+        mock_task.status = "pending"
+        mock_task.function_name = "test_function"
+        mock_task.task_data = {}
+        mock_task.priority = 2
+        mock_task.max_attempts = 3
+        mock_task.timeout_seconds = 300
+        mock_task.created_by = None
+        mock_task.is_system_task = False
+
+        # Mock the execution task that gets created
+        mock_execution_task = Mock()
+        mock_execution_task.id = 999
+        mock_execution_task.name = "Recurring Test (Execution 2024-01-01 12:00:00)"
 
         mock_task_model.objects.get.return_value = mock_task
+        mock_task_model.objects.create.return_value = mock_execution_task
 
         with patch.object(scheduler, "_remove_database_task") as mock_remove:
             scheduler._execute_database_task(task_id)
 
-            mock_submit.assert_called_once_with(mock_task)
+            # Should create execution task and submit that
+            mock_task_model.objects.create.assert_called_once()
+            mock_submit.assert_called_once_with(mock_execution_task)
             # Should not remove recurring tasks
             mock_remove.assert_not_called()
 

@@ -107,6 +107,39 @@ class TaskViewSet(BaseViewSet):
             return TaskListSerializer
         return self.serializer_class
 
+    def create(self, request, *args, **kwargs):
+        """Create task and refresh scheduler to pick up new scheduled tasks."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Call parent create method
+        response = super().create(request, *args, **kwargs)
+
+        # Get the created task from the response data
+        task_id = response.data.get("id")
+        if task_id:
+            try:
+                task = Task.objects.get(id=task_id)
+                logger.info(f"Task created via API: {task.name} (ID: {task.id})")
+
+                # If it's a scheduled or recurring task, refresh the scheduler to pick it up
+                if task.status == "pending" and (task.scheduled_time or task.is_recurring):
+                    try:
+                        from apps.tasks.cron_scheduler import refresh_scheduler
+
+                        logger.info(f"Refreshing scheduler to register task {task.id}")
+                        refresh_scheduler()
+                        logger.info(f"Scheduler refreshed for task {task.id}")
+
+                    except Exception as e:
+                        logger.error(f"Failed to refresh scheduler for task {task.id}: {e}")
+
+            except Task.DoesNotExist:
+                logger.error(f"Task with ID {task_id} not found after creation")
+
+        return response
+
     @extend_schema(
         operation_id="tasks_list_filtered",
         description="List tasks with filtering similar to manage_tasks list command",
