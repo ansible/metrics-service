@@ -256,14 +256,23 @@ class UnifiedTaskScheduler:
         try:
             from .models import Task
 
-            # Get all pending database tasks that are scheduled or recurring
+            # Get all pending database tasks (immediate, scheduled, or recurring)
+            immediate_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=True, is_recurring=False)
             scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False, is_recurring=False)
             recurring_tasks = Task.objects.filter(
                 status="pending", is_recurring=True, cron_expression__isnull=False
             ).exclude(cron_expression="")
 
+            new_immediate = 0
             new_scheduled = 0
             new_recurring = 0
+
+            # Handle immediate tasks - execute them right away
+            for task in immediate_tasks:
+                if task.id not in self._db_task_jobs and task.is_ready_to_run():
+                    logger.info(f"Found new immediate task: {task.name} (ID: {task.id}) - executing now")
+                    self._execute_database_task(task.id)
+                    new_immediate += 1
 
             # Check for new scheduled tasks
             for task in scheduled_tasks:
@@ -279,8 +288,10 @@ class UnifiedTaskScheduler:
                     self._add_database_recurring_task(task)
                     new_recurring += 1
 
-            if new_scheduled > 0 or new_recurring > 0:
-                logger.info(f"Periodic sync added {new_scheduled} scheduled and {new_recurring} recurring tasks")
+            if new_immediate > 0 or new_scheduled > 0 or new_recurring > 0:
+                logger.info(
+                    f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
+                )
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
@@ -380,7 +391,6 @@ class UnifiedTaskScheduler:
                     created_by=task.created_by,
                     is_system_task=task.is_system_task,
                 )
-                execution_task._skip_signals = True  # Prevent signal recursion
                 execution_task.save()
 
                 logger.info(

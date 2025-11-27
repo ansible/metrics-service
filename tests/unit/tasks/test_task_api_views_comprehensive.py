@@ -35,7 +35,6 @@ class TestTaskViewSetAPI(APITestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -247,5 +246,4 @@ class TestTaskExecutionViewSetAPI(APITestCase):
         )
 
         self.task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
-        self.task._skip_signals = True
         self.task.save()

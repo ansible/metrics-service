@@ -20,9 +20,6 @@ class TasksConfig(AppConfig):
         This method is called when Django starts up and the app is fully loaded.
         It's the right place to perform any app initialization.
         """
-        # Import signal handlers if any
-        from . import signals  # noqa
-
         # Initialize system tasks
         self._initialize_system_tasks()
 

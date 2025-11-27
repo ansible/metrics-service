@@ -188,22 +188,21 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
         # across retries to properly enforce the max_attempts limit. Without this,
         # users could bypass max_attempts by repeatedly calling retry().
 
-        # Skip signals to avoid the signal handler checking for existing TaskExecution records
-        # and skipping submission. We'll manually submit the task after saving.
-        self._skip_signals = True
         self.save()
 
-        # Manually submit the task for immediate execution if it has no scheduled time
+        # Submit the task for immediate execution if it has no scheduled time
         # and is not recurring (otherwise it will be picked up by the scheduler)
         if not self.scheduled_time and not self.is_recurring:
             try:
-                from apps.tasks.signals import _submit_task_to_dispatcherd_directly
+                from .tasks_system import submit_task_to_dispatcher
 
-                _submit_task_to_dispatcherd_directly(self)
+                submit_task_to_dispatcher(self)
             except Exception as e:
-                # If submission fails, log the error. The submission function
-                # will also update the task status to failed
+                # If submission fails, update the task status
                 logger.error(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")
+                self.status = "failed"
+                self.error_message = f"Failed to submit to dispatcher: {str(e)}"
+                self.save()
 
         return True
 
