@@ -1,8 +1,8 @@
 """
-Cron-based task scheduler using APScheduler.
+Task scheduler using APScheduler.
 
-This module provides a dictionary-based task scheduler that replaces the
-database polling approach with a more efficient cron-based system.
+This module provides a task scheduler that handles both task group definitions
+and database tasks without database polling, using APScheduler for optimal performance.
 """
 
 import logging
@@ -11,6 +11,7 @@ from typing import Any
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from django.utils import timezone
 
 from .task_groups import get_all_enabled_tasks, get_task_group_status
@@ -19,24 +20,27 @@ from .tasks import TASK_FUNCTIONS
 logger = logging.getLogger(__name__)
 
 
-class CronTaskScheduler:
+class UnifiedTaskScheduler:
     """
-    Cron-based task scheduler using APScheduler.
+    Task scheduler using APScheduler.
 
-    This scheduler uses a dictionary-based approach instead of polling
-    the database, providing better performance and immediate task execution.
+    This scheduler handles both task group definitions and database tasks
+    without database polling, providing optimal performance for all task types.
     """
 
-    def __init__(self):
-        """Initialize the cron scheduler."""
+    def __init__(self, check_interval: int = 30):
+        """Initialize the task scheduler."""
         self.scheduler = BackgroundScheduler()
         self.running = False
         self._lock = threading.Lock()
+        self.check_interval = check_interval
 
-        # Task registry for scheduled tasks
-        # Tasks are now loaded from task groups with feature enable control
+        # Task registry for scheduled tasks from task groups
         self.task_registry: dict[str, dict[str, Any]] = {}
         self._load_task_registry()
+
+        # Database task tracking
+        self._db_task_jobs: dict[int, str] = {}  # task_id -> job_id mapping
 
     def _load_task_registry(self):
         """Load task registry from task groups with feature enable control."""
@@ -98,8 +102,23 @@ class CronTaskScheduler:
                 self.scheduler.start()
                 self.running = True
 
-                logger.info("Cron-based task scheduler started")
-                logger.info(f"Registered {len(self.task_registry)} scheduled tasks")
+                # Load database tasks into scheduler
+                self._sync_database_tasks()
+
+                # Add periodic task to check for new database tasks
+                self.scheduler.add_job(
+                    func=self._periodic_database_sync,
+                    trigger="interval",
+                    seconds=self.check_interval,  # Check every minute by default
+                    id="periodic_db_sync",
+                    name="Periodic Database Task Sync",
+                    replace_existing=True,
+                )
+
+                logger.info("Task scheduler started")
+                logger.info(f"Registered {len(self.task_registry)} task group tasks")
+                logger.info(f"Loaded {len(self._db_task_jobs)} database tasks")
+                logger.info(f"Periodic database sync will run every {self.check_interval} seconds")
 
             except Exception as e:
                 logger.error(f"Failed to start cron scheduler: {str(e)}")
@@ -114,7 +133,8 @@ class CronTaskScheduler:
             try:
                 self.scheduler.shutdown()
                 self.running = False
-                logger.info("Cron-based task scheduler stopped")
+                self._db_task_jobs.clear()
+                logger.info("Task scheduler stopped")
             except Exception as e:
                 logger.error(f"Error stopping cron scheduler: {str(e)}")
 
@@ -204,6 +224,238 @@ class CronTaskScheduler:
 
         return queue_mapping.get(function_name, "metrics_tasks")
 
+    def _sync_database_tasks(self):
+        """Synchronize database tasks with the scheduler."""
+        try:
+            from .models import Task
+
+            # Get all pending database tasks that are scheduled or recurring
+            scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False, is_recurring=False)
+
+            recurring_tasks = Task.objects.filter(
+                status="pending", is_recurring=True, cron_expression__isnull=False
+            ).exclude(cron_expression="")
+
+            # Add scheduled tasks
+            for task in scheduled_tasks:
+                self._add_database_scheduled_task(task)
+
+            # Add recurring tasks
+            for task in recurring_tasks:
+                self._add_database_recurring_task(task)
+
+            logger.info(
+                f"Synchronized {len(scheduled_tasks)} scheduled and {len(recurring_tasks)} recurring database tasks"
+            )
+
+        except Exception as e:
+            logger.error(f"Error synchronizing database tasks: {e}")
+
+    def _periodic_database_sync(self):
+        """Periodically check for new database tasks and add them to the scheduler."""
+        try:
+            from .models import Task
+
+            # Get all pending database tasks that are scheduled or recurring
+            scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False, is_recurring=False)
+            recurring_tasks = Task.objects.filter(
+                status="pending", is_recurring=True, cron_expression__isnull=False
+            ).exclude(cron_expression="")
+
+            new_scheduled = 0
+            new_recurring = 0
+
+            # Check for new scheduled tasks
+            for task in scheduled_tasks:
+                if task.id not in self._db_task_jobs:
+                    logger.info(f"Found new scheduled task: {task.name} (ID: {task.id})")
+                    self._add_database_scheduled_task(task)
+                    new_scheduled += 1
+
+            # Check for new recurring tasks
+            for task in recurring_tasks:
+                if task.id not in self._db_task_jobs:
+                    logger.info(f"Found new recurring task: {task.name} (ID: {task.id})")
+                    self._add_database_recurring_task(task)
+                    new_recurring += 1
+
+            if new_scheduled > 0 or new_recurring > 0:
+                logger.info(f"Periodic sync added {new_scheduled} scheduled and {new_recurring} recurring tasks")
+
+        except Exception as e:
+            logger.error(f"Error in periodic database sync: {e}")
+
+    def _add_database_scheduled_task(self, task):
+        """Add a one-time scheduled database task to the scheduler."""
+        if task.id in self._db_task_jobs:
+            return  # Already scheduled
+
+        try:
+            job_id = f"db_task_{task.id}"
+
+            # Check if the scheduled time is in the past
+            now = timezone.now()
+            if task.scheduled_time <= now:
+                # Execute immediately if past due
+                logger.info(
+                    f"Task {task.name} (ID: {task.id}) is past due (scheduled: {task.scheduled_time}, now: {now}), executing immediately"
+                )
+                self._execute_database_task(task.id)
+                return
+
+            # Create date trigger for the scheduled time
+            trigger = DateTrigger(run_date=task.scheduled_time)
+
+            # Add job to scheduler
+            self.scheduler.add_job(
+                func=self._execute_database_task,
+                trigger=trigger,
+                args=[task.id],
+                id=job_id,
+                name=f"DB Task: {task.name}",
+                replace_existing=True,
+                max_instances=1,
+            )
+
+            self._db_task_jobs[task.id] = job_id
+            logger.info(f"Added scheduled database task: {task.name} (ID: {task.id}) at {task.scheduled_time}")
+
+        except Exception as e:
+            logger.error(f"Failed to add scheduled database task {task.id}: {e}")
+
+    def _add_database_recurring_task(self, task):
+        """Add a recurring database task to the scheduler."""
+        if task.id in self._db_task_jobs:
+            return  # Already scheduled
+
+        try:
+            job_id = f"db_recurring_{task.id}"
+
+            # Create cron trigger from expression
+            trigger = CronTrigger.from_crontab(task.cron_expression)
+
+            # Add job to scheduler
+            self.scheduler.add_job(
+                func=self._execute_database_task,
+                trigger=trigger,
+                args=[task.id],
+                id=job_id,
+                name=f"DB Recurring: {task.name}",
+                replace_existing=True,
+                max_instances=1,
+            )
+
+            self._db_task_jobs[task.id] = job_id
+            logger.info(f"Added recurring database task: {task.name} (ID: {task.id}) with cron: {task.cron_expression}")
+
+        except Exception as e:
+            logger.error(f"Failed to add recurring database task {task.id}: {e}")
+
+    def _execute_database_task(self, task_id: int):
+        """Execute a database task by submitting it to dispatcherd."""
+        try:
+            from .models import Task
+
+            # Get the task (don't filter by status for recurring tasks)
+            try:
+                task = Task.objects.get(id=task_id)
+            except Task.DoesNotExist:
+                logger.warning(f"Database task {task_id} not found")
+                self._remove_database_task(task_id)
+                return
+
+            # Handle recurring tasks by creating a new execution record
+            if task.is_recurring:
+                # Create a new task record for this execution
+                execution_task = Task.objects.create(
+                    name=f"{task.name} (Execution {timezone.now().strftime('%Y-%m-%d %H:%M:%S')})",
+                    function_name=task.function_name,
+                    task_data=task.task_data,
+                    scheduled_time=None,  # Execute immediately
+                    cron_expression=None,  # This is not a recurring task
+                    is_recurring=False,  # This is a one-time execution
+                    priority=task.priority,
+                    max_attempts=task.max_attempts,
+                    timeout_seconds=task.timeout_seconds,
+                    created_by=task.created_by,
+                    is_system_task=task.is_system_task,
+                )
+                execution_task._skip_signals = True  # Prevent signal recursion
+                execution_task.save()
+
+                logger.info(
+                    f"Created execution record for recurring task: {task.name} → {execution_task.name} (ID: {execution_task.id})"
+                )
+
+                # Submit the execution task (not the original recurring task)
+                from .tasks_system import submit_task_to_dispatcher
+
+                submit_task_to_dispatcher(execution_task)
+
+                # Keep the original recurring task unchanged (it stays as template)
+                logger.info(f"Recurring task {task.name} (ID: {task_id}) remains as template for future executions")
+                return
+
+            # Check if task is ready to run
+            if task.status not in ["pending"]:
+                logger.warning(f"Task {task_id} is not in pending status (current: {task.status})")
+                self._remove_database_task(task_id)
+                return
+
+            logger.info(f"Executing database task: {task.name} (ID: {task_id})")
+
+            # Import submit function here to avoid circular imports
+            from .tasks_system import submit_task_to_dispatcher
+
+            # Submit to dispatcherd
+            submit_task_to_dispatcher(task)
+
+            # Remove from tracking after submission (since it's not recurring)
+            self._remove_database_task(task_id)
+
+        except Exception as e:
+            logger.error(f"Failed to execute database task {task_id}: {e}")
+
+    def _remove_database_task(self, task_id: int):
+        """Remove a database task from the scheduler."""
+        if task_id in self._db_task_jobs:
+            job_id = self._db_task_jobs[task_id]
+            try:
+                self.scheduler.remove_job(job_id)
+            except Exception as e:
+                logger.debug(f"Job {job_id} not found in scheduler: {e}")
+            del self._db_task_jobs[task_id]
+
+    def add_database_task(self, task):
+        """Add a database task to the scheduler (called by signals)."""
+        if not self.running:
+            return
+
+        try:
+            if task.scheduled_time and not task.is_recurring:
+                self._add_database_scheduled_task(task)
+            elif task.is_recurring and task.cron_expression:
+                self._add_database_recurring_task(task)
+
+        except Exception as e:
+            logger.error(f"Failed to add database task {task.id}: {e}")
+
+    def update_database_task(self, task):
+        """Update a database task in the scheduler (called by signals)."""
+        if not self.running:
+            return
+
+        # Remove existing job
+        self._remove_database_task(task.id)
+
+        # Add updated task if still pending and scheduled
+        if task.status == "pending":
+            self.add_database_task(task)
+
+    def remove_database_task_by_id(self, task_id: int):
+        """Remove a database task by ID (called by signals)."""
+        self._remove_database_task(task_id)
+
     def add_dynamic_task(
         self,
         task_id: str,
@@ -277,13 +529,17 @@ class CronTaskScheduler:
 
     def list_tasks(self) -> dict[str, Any]:
         """List all registered tasks."""
+        scheduled_jobs = [
+            {"id": job.id, "name": job.name, "next_run_time": job.next_run_time, "trigger": str(job.trigger)}
+            for job in self.scheduler.get_jobs()
+        ]
+
         return {
-            "registry": self.task_registry,
-            "scheduled_jobs": [
-                {"id": job.id, "name": job.name, "next_run_time": job.next_run_time, "trigger": str(job.trigger)}
-                for job in self.scheduler.get_jobs()
-            ],
-            "task_groups": get_task_group_status(),
+            "task_groups": self.task_registry,
+            "database_tasks": len(self._db_task_jobs),
+            "scheduled_jobs": scheduled_jobs,
+            "task_groups_status": get_task_group_status(),
+            "total_jobs": len(scheduled_jobs),
         }
 
     def get_task_groups_info(self) -> dict[str, Any]:
@@ -334,14 +590,14 @@ class CronTaskScheduler:
 
 
 # Global scheduler instance
-_scheduler_instance: CronTaskScheduler | None = None
+_scheduler_instance: UnifiedTaskScheduler | None = None
 
 
-def get_scheduler() -> CronTaskScheduler:
+def get_scheduler() -> UnifiedTaskScheduler:
     """Get the global scheduler instance."""
     global _scheduler_instance
     if _scheduler_instance is None:
-        _scheduler_instance = CronTaskScheduler()
+        _scheduler_instance = UnifiedTaskScheduler()
     return _scheduler_instance
 
 
@@ -358,3 +614,21 @@ def stop_scheduler():
     if _scheduler_instance:
         _scheduler_instance.stop()
         _scheduler_instance = None
+
+
+def sync_database_tasks():
+    """Synchronize database tasks with the scheduler."""
+    scheduler = get_scheduler()
+    if scheduler.running:
+        scheduler._sync_database_tasks()
+
+
+def refresh_scheduler():
+    """Refresh the scheduler to pick up new database tasks."""
+    scheduler = get_scheduler()
+    if scheduler.running:
+        scheduler._sync_database_tasks()
+
+
+# Aliases for backward compatibility
+CronTaskScheduler = UnifiedTaskScheduler

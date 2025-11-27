@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from apps.core.models import Organization
+from tests.test_utils import get_test_password
 
 User = get_user_model()
 
@@ -22,7 +23,7 @@ class APIAuthenticationTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.user = User.objects.create_user(username="apiuser", email="api@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="apiuser", email="api@example.com", password=get_test_password())
 
     def test_unauthenticated_access(self):
         """Test that unauthenticated requests are rejected."""
@@ -52,9 +53,11 @@ class UserViewSetTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
         self.admin_user = User.objects.create_superuser(
-            username="admin", email="admin@example.com", password="adminpass123"
+            username="admin", email="admin@example.com", password=get_test_password()
         )
 
     def test_user_detail_authenticated(self):
@@ -71,7 +74,7 @@ class UserViewSetTestCase(APITestCase):
         """Test user creation via API."""
         self.client.force_authenticate(user=self.admin_user)
         url = reverse("api:v1:user-list")
-        data = {"username": "newuser", "email": "new@example.com", "password": "newpass123"}
+        data = {"username": "newuser", "email": "new@example.com", "password": get_test_password()}
         response = self.client.post(url, data, format="json")
 
         # Response code depends on permissions, but should not be 401
@@ -95,7 +98,9 @@ class OrganizationViewSetTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.user = User.objects.create_superuser(username="orguser", email="org@example.com", password="testpass123")
+        self.user = User.objects.create_superuser(
+            username="orguser", email="org@example.com", password=get_test_password()
+        )
         self.organization = Organization.objects.create(name="Test Organization")
 
     def test_organization_detail_authenticated(self):
@@ -145,7 +150,9 @@ class APIErrorHandlingTestCase(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.user = User.objects.create_user(username="erroruser", email="error@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="erroruser", email="error@example.com", password=get_test_password()
+        )
 
     def test_not_found_error(self):
         """Test 404 error handling."""
@@ -173,7 +180,7 @@ class APIVersioningTestCase(APITestCase):
         """Set up test data."""
         self.client = APIClient()
         self.user = User.objects.create_user(
-            username="versionuser", email="version@example.com", password="testpass123"
+            username="versionuser", email="version@example.com", password=get_test_password()
         )
 
     def test_v1_api_access(self):
@@ -203,7 +210,7 @@ class APISerializerTestCase(APITestCase):
         """Set up test data."""
         self.client = APIClient()
         self.user = User.objects.create_superuser(
-            username="serializeruser", email="serializer@example.com", password="testpass123"
+            username="serializeruser", email="serializer@example.com", password=get_test_password()
         )
         self.organization = Organization.objects.create(name="Serializer Org")
 
@@ -238,8 +245,12 @@ class UserPasswordTestCase(APITestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_superuser(username="admin", email="admin@example.com", password="adminpass123")
-        self.test_user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password=get_test_password()
+        )
+        self.test_user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_set_password_success(self):
         """Test successful password change."""

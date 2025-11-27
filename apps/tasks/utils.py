@@ -206,10 +206,22 @@ def handle_task_error(
         with transaction.atomic():
             # Update task status if we have a task instance
             if task_instance:
+                # Refresh from database to get latest state
+                task_instance.refresh_from_db()
+
+                # Store previous status to determine if we need to increment attempts
+                previous_status = task_instance.status
+
                 task_instance.status = "failed"
                 task_instance.error_message = error_message
                 task_instance.completed_at = timezone.now()
-                task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
+
+                # Increment attempts if the task failed before reaching "running" status
+                # This handles errors that occur during task initialization/validation
+                # If the task reached "running" status, attempts was already incremented
+                if previous_status in ["pending", "waiting_for_dependencies"]:
+                    task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
+
                 task_instance.save()
 
             # Update execution status if provided
@@ -252,6 +264,9 @@ def update_task_status(
         # Refresh from database to get latest state
         task_instance.refresh_from_db()
 
+        # Store previous status before updating
+        previous_status = task_instance.status
+
         # Update task fields
         task_instance.status = status
         if result_data is not None:
@@ -263,9 +278,13 @@ def update_task_status(
 
         if status in ["completed", "failed"]:
             task_instance.completed_at = timezone.now()
-        elif status == "running":
+        elif status == "running" and previous_status != "running":
+            # Only set started_at if this is the first time running (not a status update)
             task_instance.started_at = timezone.now()
-            task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
+            # Only increment attempts if this is a new execution attempt
+            # (either first run or retry after failure)
+            if previous_status in ["pending", "failed"]:
+                task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
 
         task_instance.save()
 

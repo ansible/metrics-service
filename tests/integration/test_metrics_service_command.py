@@ -17,6 +17,7 @@ from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from apps.tasks.models import Task
+from tests.test_utils import get_test_password
 
 User = get_user_model()
 
@@ -27,7 +28,9 @@ class TestMetricsServiceCommand(TransactionTestCase):
 
     def setUp(self):
         """Set up test environment."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_init_system_tasks_list(self):
         """Test the init-system-tasks --list subcommand."""

@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from apps.core.models import Organization, Team
 from apps.tasks.models import Task, TaskChain, TaskChainMembership, TaskDependency, TaskExecution
+from tests.test_utils import get_test_password
 
 User = get_user_model()
 
@@ -21,7 +22,9 @@ class CoreModelsTestCase(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
         self.organization = Organization.objects.create(name="Test Organization", description="A test organization")
 
@@ -31,7 +34,7 @@ class CoreModelsTestCase(TestCase):
         """Test User model creation and string representation."""
         self.assertEqual(str(self.user), "testuser")
         self.assertEqual(self.user.email, "test@example.com")
-        self.assertTrue(self.user.check_password("testpass123"))
+        self.assertTrue(self.user.check_password(get_test_password()))
 
     def test_user_summary_fields(self):
         """Test User summary_fields method."""

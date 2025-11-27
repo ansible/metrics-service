@@ -23,12 +23,14 @@ class TasksConfig(AppConfig):
         # Import signal handlers if any
         from . import signals  # noqa
 
-        # Initialize system tasks and start scheduler
-        self._initialize_system_and_scheduler()
+        # Initialize system tasks
+        self._initialize_system_tasks()
 
-    def _initialize_system_and_scheduler(self):
+    def _initialize_system_tasks(self):
         """
-        Initialize system tasks and start the simple scheduler.
+        Initialize system tasks.
+
+        The task scheduler is started separately via the run_task_scheduler command.
         """
         import logging
 
@@ -52,14 +54,11 @@ class TasksConfig(AppConfig):
                     logger.debug("Tasks table not found - skipping initialization")
                     return
 
-            # Initialize system tasks using the new simple approach
-            from .simple_scheduler import initialize_system_tasks, start_scheduler
+            # Initialize system tasks (database records)
+            from .tasks_system import create_system_tasks
 
-            initialize_system_tasks()
-
-            # Start the simple scheduler
-            start_scheduler()
-            logger.info("Task system initialized with simple scheduler")
+            create_system_tasks()
+            logger.info("System tasks initialized successfully")
 
         except (OperationalError, ProgrammingError) as e:
             # Database not ready yet (migrations not run)

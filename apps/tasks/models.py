@@ -5,6 +5,7 @@ This module contains all task-related models including task definitions,
 executions, dependencies, and task chains for workflow management.
 """
 
+import logging
 from datetime import datetime
 
 from django.conf import settings
@@ -42,6 +43,9 @@ except ImportError:
     class AuditableModel(models.Model):
         class Meta:
             abstract = True
+
+
+logger = logging.getLogger(__name__)
 
 
 class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingMixin):
@@ -161,6 +165,47 @@ class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingM
             bool: True if task can be retried, False otherwise
         """
         return self.attempts < self.max_attempts and self.status == "failed"
+
+    def retry(self) -> bool:
+        """
+        Retry a failed task by resetting its status to pending.
+
+        The attempts counter is NOT reset to properly enforce max_attempts limit.
+        This ensures that the total number of execution attempts (automatic + manual retries)
+        respects the max_attempts setting and prevents indefinite retries.
+
+        Returns:
+            bool: True if task was successfully reset for retry, False otherwise
+        """
+        if not self.can_retry():
+            return False
+
+        self.status = "pending"
+        self.error_message = ""
+        self.started_at = None
+        self.completed_at = None
+        # NOTE: Do NOT reset attempts to 0 here. The attempts counter must persist
+        # across retries to properly enforce the max_attempts limit. Without this,
+        # users could bypass max_attempts by repeatedly calling retry().
+
+        # Skip signals to avoid the signal handler checking for existing TaskExecution records
+        # and skipping submission. We'll manually submit the task after saving.
+        self._skip_signals = True
+        self.save()
+
+        # Manually submit the task for immediate execution if it has no scheduled time
+        # and is not recurring (otherwise it will be picked up by the scheduler)
+        if not self.scheduled_time and not self.is_recurring:
+            try:
+                from apps.tasks.signals import _submit_task_to_dispatcherd_directly
+
+                _submit_task_to_dispatcherd_directly(self)
+            except Exception as e:
+                # If submission fails, log the error. The submission function
+                # will also update the task status to failed
+                logger.error(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")
+
+        return True
 
     def can_delete(self) -> bool:
         """

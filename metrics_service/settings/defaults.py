@@ -21,7 +21,7 @@ SECRET_KEY = "dev-secret-key-change-in-production"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Override with METRICS_SERVICE_DEBUG environment variable
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 
@@ -132,8 +132,8 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "127.0.0.1",
         "PORT": "5432",
-        "USER": "metrics_service",
-        "PASSWORD": "metrics_service",
+        "USER": "myuser",
+        "PASSWORD": "mypassword",
         "NAME": "awx",
         "OPTIONS": {
             "sslmode": "prefer",
@@ -336,6 +336,11 @@ LOGGING = {
         "django": {
             "handlers": ["console"],
             "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "apps": {
+            "handlers": ["console"],
+            "level": "INFO",
             "propagate": False,
         },
         "": {

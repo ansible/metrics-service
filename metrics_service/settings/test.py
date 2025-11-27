@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Basic required settings
 SECRET_KEY = "test-secret-key-for-testing-only-not-secure"
-DEBUG = True
+DEBUG = False
 TESTING = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 
@@ -212,6 +212,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
+    "DEFAULT_FILTER_BACKENDS": [
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 25,
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }
 

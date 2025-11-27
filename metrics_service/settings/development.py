@@ -29,7 +29,7 @@ USE_TZ = defaults.USE_TZ
 DEFAULT_AUTO_FIELD = defaults.DEFAULT_AUTO_FIELD
 
 # Override DEBUG setting
-DEBUG = True
+DEBUG = False
 
 # More permissive ALLOWED_HOSTS for development
 ALLOWED_HOSTS = ["*"]

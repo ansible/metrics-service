@@ -18,6 +18,7 @@ from apps.tasks.task_groups import (
     get_feature_enabled_status,
     set_feature_enabled,
 )
+from tests.test_utils import get_test_password
 
 User = get_user_model()
 
@@ -27,7 +28,9 @@ class TestFeatureEnabledDB(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_get_feature_enabled_from_db_no_setting(self):
         """Test getting feature enabled when no database setting exists."""
@@ -270,7 +273,9 @@ class TestFeatureEnabledIntegration(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_task_group_uses_database_setting(self):
         """Test that task groups use database settings when available."""
@@ -340,7 +345,9 @@ class TestTaskGroupsCoverageCompleteness(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(
+            username="testuser", email="test@example.com", password=get_test_password()
+        )
 
     def test_get_task_group_status_with_database_metadata(self):
         """Test get_task_group_status includes database metadata when available."""

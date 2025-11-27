@@ -105,7 +105,7 @@ All settings can be overridden using environment variables with the `METRICS_SER
 ### Flat Settings
 
 ```bash
-export METRICS_SERVICE_DEBUG=true
+export METRICS_SERVICE_DEBUG=False
 export METRICS_SERVICE_SECRET_KEY="my-secret-key"
 ```
 

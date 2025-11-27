@@ -20,6 +20,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from apps.core.models import Organization
+from tests.test_utils import get_test_password
 
 User = get_user_model()
 view_name_org_detail = "api:v1:organization-detail"
@@ -35,20 +36,20 @@ class SystemAuditorPermissionTests(APITestCase):
 
         # Create different user types
         self.system_admin = User.objects.create_superuser(
-            username="sysadmin", email="sysadmin@example.com", password="adminpass123"
+            username="sysadmin", email="sysadmin@example.com", password=get_test_password()
         )
 
         self.system_auditor = User.objects.create_user(
-            username="auditor", email="auditor@example.com", password="auditorpass123", is_system_auditor=True
+            username="auditor", email="auditor@example.com", password=get_test_password(), is_system_auditor=True
         )
 
         self.regular_user = User.objects.create_user(
-            username="regularuser", email="regular@example.com", password="regularpass123"
+            username="regularuser", email="regular@example.com", password=get_test_password()
         )
 
         # Create organization admin user
         self.org_admin = User.objects.create_user(
-            username="orgadmin", email="orgadmin@example.com", password="orgadminpass123"
+            username="orgadmin", email="orgadmin@example.com", password=get_test_password()
         )
 
         # Create test organizations with different access patterns
@@ -271,11 +272,11 @@ class SystemAuditorAccessQsTests(APITestCase):
     def setUp(self):
         """Set up test data for access_qs testing."""
         self.system_auditor = User.objects.create_user(
-            username="auditor", email="auditor@example.com", password="auditorpass123", is_system_auditor=True
+            username="auditor", email="auditor@example.com", password=get_test_password(), is_system_auditor=True
         )
 
         self.regular_user = User.objects.create_user(
-            username="regular", email="regular@example.com", password="regularpass123"
+            username="regular", email="regular@example.com", password=get_test_password()
         )
 
         self.org1 = Organization.objects.create(name="Org 1")
