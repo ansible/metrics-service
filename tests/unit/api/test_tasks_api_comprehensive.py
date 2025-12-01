@@ -33,7 +33,7 @@ class TestTaskViewSetComprehensive(TestCase):
         self.viewset = TaskViewSet()
 
         # Create test tasks with different statuses
-        self.pending_task = self._create_task_safely(
+        self.pending_task = Task.objects.create(
             name="Pending Task",
             function_name="cleanup_old_data",
             task_data={"days": 30},
@@ -41,7 +41,7 @@ class TestTaskViewSetComprehensive(TestCase):
             created_by=self.user,
         )
 
-        self.running_task = self._create_task_safely(
+        self.running_task = Task.objects.create(
             name="Running Task",
             function_name="send_notification_email",
             task_data={"email": "test@example.com"},
@@ -50,7 +50,7 @@ class TestTaskViewSetComprehensive(TestCase):
             started_at=django_timezone.now(),
         )
 
-        self.completed_task = self._create_task_safely(
+        self.completed_task = Task.objects.create(
             name="Completed Task",
             function_name="process_user_data",
             task_data={},
@@ -60,7 +60,7 @@ class TestTaskViewSetComprehensive(TestCase):
             completed_at=django_timezone.now() - timedelta(hours=1),
         )
 
-        self.failed_task = self._create_task_safely(
+        self.failed_task = Task.objects.create(
             name="Failed Task",
             function_name="cleanup_old_data",
             task_data={},
@@ -70,12 +70,6 @@ class TestTaskViewSetComprehensive(TestCase):
             created_by=self.user,
             error_message="Test error",
         )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_get_serializer_class_create(self):
         """Test get_serializer_class returns TaskCreateSerializer for create action."""
@@ -93,7 +87,7 @@ class TestTaskViewSetComprehensive(TestCase):
     def test_retry_action_success(self):
         """Test retry action with a failed task that can be retried."""
         # Create a task that can be retried
-        retry_task = self._create_task_safely(
+        retry_task = Task.objects.create(
             name="Retry Task",
             function_name="cleanup_old_data",
             task_data={},
@@ -149,7 +143,7 @@ class TestTaskExecutionViewSetComprehensive(TestCase):
         self.viewset = TaskExecutionViewSet()
 
         # Create test task and executions
-        self.task = self._create_task_safely(
+        self.task = Task.objects.create(
             name="Test Task",
             function_name="cleanup_old_data",
             task_data={"days": 30},
@@ -164,12 +158,6 @@ class TestTaskExecutionViewSetComprehensive(TestCase):
             worker_id="worker-123",
             result_data={"success": True},
         )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_search_fields_property(self):
         """Test search_fields property returns correct fields."""
@@ -200,15 +188,9 @@ class TestSerializerValidationComprehensive(TestCase):
         self.user = User.objects.create_user(username="testuser", email="test@example.com")
         self.factory = APIRequestFactory()
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def test_task_serializer_get_methods(self):
         """Test TaskSerializer SerializerMethodField methods."""
-        task = self._create_task_safely(
+        task = Task.objects.create(
             name="Test Task",
             function_name="cleanup_old_data",
             task_data={"days": 30},
@@ -252,7 +234,7 @@ class TestSerializerValidationComprehensive(TestCase):
 
     def test_task_serializer_get_next_run_time(self):
         """Test TaskSerializer get_next_run_time method."""
-        task = self._create_task_safely(
+        task = Task.objects.create(
             name="Recurring Task",
             function_name="cleanup_old_data",
             task_data={},
@@ -393,7 +375,7 @@ class TestSerializerValidationComprehensive(TestCase):
     def test_task_execution_serializer_get_duration_no_times(self):
         """Test TaskExecutionSerializer get_duration without times."""
         execution = TaskExecution.objects.create(
-            task=self._create_task_safely(name="Test", function_name="test", task_data={}, created_by=self.user),
+            task=Task.objects.create(name="Test", function_name="test", task_data={}, created_by=self.user),
             status="running",
         )
 

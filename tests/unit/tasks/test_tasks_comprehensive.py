@@ -122,12 +122,6 @@ class TestSystemTaskHelpers(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def test_process_system_task_new_task(self):
         """Test _process_system_task with new task creation."""
         system_task_config = {
@@ -150,7 +144,7 @@ class TestSystemTaskHelpers(TestCase):
     def test_process_system_task_update_existing(self):
         """Test _process_system_task with existing task update."""
         # Create existing task
-        self._create_task_safely(
+        Task.objects.create(
             name="Test System Task",
             description="Old description",
             function_name="test_function",
@@ -192,7 +186,7 @@ class TestSystemTaskHelpers(TestCase):
             "priority": 2,
         }
 
-        self._create_task_safely(
+        Task.objects.create(
             name=system_task_config["name"],
             description=system_task_config["description"],
             function_name=system_task_config["function_name"],
@@ -214,7 +208,7 @@ class TestSystemTaskHelpers(TestCase):
 
     def test_update_existing_system_task_multiple_fields(self):
         """Test _update_existing_system_task with multiple field changes."""
-        existing_task = self._create_task_safely(
+        existing_task = Task.objects.create(
             name="Test Task",
             description="Old description",
             function_name="test_function",

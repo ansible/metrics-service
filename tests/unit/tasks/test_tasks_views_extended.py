@@ -22,15 +22,9 @@ class TestTaskViewSet(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = User.objects.create_user(username="test", email="test@example.com")
-        self.task = self._create_task_safely(
+        self.task = Task.objects.create(
             name="Test Task", function_name="test_function", task_data={"key": "value"}, created_by=self.user
         )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_viewset_initialization(self):
         """Test TaskViewSet can be initialized."""
@@ -83,15 +77,9 @@ class TestTaskSerializer(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="test", email="test@example.com")
-        self.task = self._create_task_safely(
+        self.task = Task.objects.create(
             name="Test Task", function_name="test_function", task_data={"key": "value"}, created_by=self.user
         )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_task_serialization(self):
         """Test task serialization."""
@@ -164,16 +152,10 @@ class TestTaskExecutionSerializer(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="test", email="test@example.com")
-        self.task = self._create_task_safely(
+        self.task = Task.objects.create(
             name="Test Task", function_name="test_function", task_data={"key": "value"}, created_by=self.user
         )
         self.execution = TaskExecution.objects.create(task=self.task, status="running")
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_execution_serialization(self):
         """Test task execution serialization."""
@@ -262,12 +244,6 @@ class TestTaskViewSetActions(TestCase):
         self.viewset.request = MagicMock()
         self.viewset.request.user = self.user
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def test_viewset_has_action_methods(self):
         """Test viewset has all expected action methods."""
         expected_actions = ["running", "pending", "retry", "cancel", "available_functions"]
@@ -288,10 +264,10 @@ class TestTaskViewSetActions(TestCase):
     def test_task_filtering(self):
         """Test task filtering in viewset."""
         # Create tasks with different statuses
-        self._create_task_safely(
+        Task.objects.create(
             name="Pending Task", function_name="test_function", task_data={}, created_by=self.user, status="pending"
         )
-        self._create_task_safely(
+        Task.objects.create(
             name="Running Task", function_name="test_function", task_data={}, created_by=self.user, status="running"
         )
 
@@ -312,12 +288,6 @@ class TestSerializerFieldCoverage(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="test", email="test@example.com")
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_task_serializer_fields(self):
         """Test TaskSerializer field coverage."""
@@ -362,7 +332,7 @@ class TestSerializerFieldCoverage(TestCase):
 
     def test_task_serializer_update(self):
         """Test TaskSerializer update method."""
-        task = self._create_task_safely(
+        task = Task.objects.create(
             name="Update Test", function_name="test_function", task_data={}, created_by=self.user
         )
 

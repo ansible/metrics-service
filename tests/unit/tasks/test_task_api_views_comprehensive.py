@@ -32,21 +32,13 @@ class TestTaskViewSetAPI(APITestCase):
             username="user", email="user@example.com", password=get_test_password()
         )
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def test_task_list_endpoint(self):
         """Test GET /api/v1/tasks/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
         # Create test tasks
-        self._create_task_safely(
-            name="Task 1", function_name="cleanup_old_data", created_by=self.user, status="pending"
-        )
-        self._create_task_safely(
+        Task.objects.create(name="Task 1", function_name="cleanup_old_data", created_by=self.user, status="pending")
+        Task.objects.create(
             name="Task 2", function_name="send_notification_email", created_by=self.user, status="completed"
         )
 
@@ -60,7 +52,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test GET /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = Task.objects.create(
             name="Detail Task", function_name="cleanup_old_data", created_by=self.user, task_data={"days_old": 30}
         )
 
@@ -141,7 +133,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test PUT /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Original Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task.objects.create(name="Original Task", function_name="cleanup_old_data", created_by=self.user)
 
         url = reverse("api:v1:tasks:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Updated Task", "function_name": "cleanup_old_data", "task_data": {"days_old": 60}}
@@ -155,7 +147,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test PATCH /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Patch Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task.objects.create(name="Patch Task", function_name="cleanup_old_data", created_by=self.user)
 
         url = reverse("api:v1:tasks:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Patched Task"}
@@ -170,7 +162,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test DELETE /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Delete Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task.objects.create(name="Delete Task", function_name="cleanup_old_data", created_by=self.user)
         task_id = task.pk
 
         url = reverse("api:v1:tasks:task-detail", kwargs={"pk": task_id})
@@ -184,10 +176,10 @@ class TestTaskViewSetAPI(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         # Create tasks with different statuses
-        self._create_task_safely(
+        Task.objects.create(
             name="Running Task", function_name="cleanup_old_data", created_by=self.user, status="running"
         )
-        self._create_task_safely(
+        Task.objects.create(
             name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
         )
 
@@ -203,7 +195,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test GET /api/v1/tasks/pending/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        self._create_task_safely(
+        Task.objects.create(
             name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
         )
 

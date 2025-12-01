@@ -106,15 +106,7 @@ class ExecuteDbTaskTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = self._create_task_safely(
-            name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7}
-        )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
+        self.task = Task.objects.create(name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7})
 
     @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_success(self):
@@ -192,7 +184,6 @@ class SubmitTaskTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="submituser")
-        # Create task without triggering signals to prevent recursion during test setup
         self.task = Task(name="Submit Task", function_name="cleanup_old_data", created_by=self.user)
         self.task.save()
 

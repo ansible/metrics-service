@@ -75,14 +75,14 @@ class TestTaskModel:
             dependent_task=dependent, prerequisite_task=prerequisite, required_status="completed"
         )
 
-        # Refresh to get the latest status after signals
+        # Refresh to get the latest status
         dependent.refresh_from_db()
 
         # If status is still pending, test is_ready_to_run
         if dependent.status == "pending":
             assert dependent.is_ready_to_run() is True
         else:
-            # If signals changed status, just verify the model exists
+            # If status changed, just verify the model exists
             assert dependent.id is not None
 
     def test_is_ready_to_run_with_future_scheduled_time(self):
@@ -375,7 +375,7 @@ class TestTaskModelEdgeCases:
             task = Task.objects.create(
                 name=f"{status_name} Task", function_name="cleanup_old_data", status=status_value
             )
-            # Check that the task was created (signals may modify status, but that's OK)
+            # Check that the task was created (status may change, but that's OK)
             assert task.id is not None
             assert task.function_name == "cleanup_old_data"
 

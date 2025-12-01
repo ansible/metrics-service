@@ -70,17 +70,11 @@ class CoreModelsTestCase(TestCase):
 class TaskModelTestCase(TestCase):
     """Test cases for Task system models."""
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser", email="task@example.com")
 
-        self.task = self._create_task_safely(
+        self.task = Task.objects.create(
             name="Test Task",
             function_name="test_function",
             task_data={"param": "value"},
@@ -138,9 +132,7 @@ class TaskModelTestCase(TestCase):
 
     def test_task_dependency_creation(self):
         """Test TaskDependency model creation."""
-        task2 = self._create_task_safely(
-            name="Dependent Task", function_name="dependent_function", created_by=self.user
-        )
+        task2 = Task.objects.create(name="Dependent Task", function_name="dependent_function", created_by=self.user)
 
         dependency = TaskDependency.objects.create(
             dependent_task=task2, prerequisite_task=self.task, required_status="completed"
@@ -185,7 +177,7 @@ class TaskModelTestCase(TestCase):
         self.assertTrue(chain.is_active)
 
         # Test task chain membership
-        task2 = self._create_task_safely(name="Task 2", function_name="function2", created_by=self.user)
+        task2 = Task.objects.create(name="Task 2", function_name="function2", created_by=self.user)
 
         membership1 = TaskChainMembership.objects.create(chain=chain, task=self.task, order=1)
 
@@ -204,12 +196,6 @@ class TaskModelTestCase(TestCase):
 class ModelValidationTestCase(TestCase):
     """Test cases for model validation and constraints."""
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="validationuser")
@@ -227,8 +213,8 @@ class ModelValidationTestCase(TestCase):
 
     def test_task_dependency_unique_constraint(self):
         """Test TaskDependency unique constraint."""
-        task1 = self._create_task_safely(name="Task 1", function_name="func1")
-        task2 = self._create_task_safely(name="Task 2", function_name="func2")
+        task1 = Task.objects.create(name="Task 1", function_name="func1")
+        task2 = Task.objects.create(name="Task 2", function_name="func2")
 
         # First dependency should be created successfully
         dep1 = TaskDependency.objects.create(dependent_task=task2, prerequisite_task=task1)
@@ -239,7 +225,7 @@ class ModelValidationTestCase(TestCase):
     def test_task_chain_membership_unique_constraint(self):
         """Test TaskChainMembership unique constraint."""
         chain = TaskChain.objects.create(name="Test Chain")
-        task = self._create_task_safely(name="Test Task", function_name="func")
+        task = Task.objects.create(name="Test Task", function_name="func")
 
         # First membership should be created successfully
         membership1 = TaskChainMembership.objects.create(chain=chain, task=task, order=1)
@@ -252,12 +238,6 @@ class ModelValidationTestCase(TestCase):
 @pytest.mark.unit
 class ModelMethodsTestCase(TestCase):
     """Test cases for model methods and properties."""
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def setUp(self):
         """Set up test data."""
@@ -277,7 +257,7 @@ class ModelMethodsTestCase(TestCase):
 
     def test_task_priority_choices(self):
         """Test Task priority choices."""
-        task = self._create_task_safely(name="Priority Test", function_name="priority_func")
+        task = Task.objects.create(name="Priority Test", function_name="priority_func")
 
         valid_priorities = [1, 2, 3, 4]  # Low, Normal, High, Critical
 

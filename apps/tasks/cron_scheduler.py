@@ -437,7 +437,7 @@ class UnifiedTaskScheduler:
             del self._db_task_jobs[task_id]
 
     def add_database_task(self, task):
-        """Add a database task to the scheduler (called by signals)."""
+        """Add a database task to the scheduler."""
         if not self.running:
             return
 
@@ -451,7 +451,7 @@ class UnifiedTaskScheduler:
             logger.error(f"Failed to add database task {task.id}: {e}")
 
     def update_database_task(self, task):
-        """Update a database task in the scheduler (called by signals)."""
+        """Update a database task in the scheduler."""
         if not self.running:
             return
 
@@ -463,7 +463,7 @@ class UnifiedTaskScheduler:
             self.add_database_task(task)
 
     def remove_database_task_by_id(self, task_id: int):
-        """Remove a database task by ID (called by signals)."""
+        """Remove a database task by ID."""
         self._remove_database_task(task_id)
 
     def add_dynamic_task(
