@@ -16,10 +16,8 @@ from django.utils import timezone
 from apps.tasks.cron_scheduler import (
     UnifiedTaskScheduler,
     get_scheduler,
-    refresh_scheduler,
     start_scheduler,
     stop_scheduler,
-    sync_database_tasks,
 )
 
 User = get_user_model()
@@ -255,43 +253,6 @@ class TestUnifiedTaskScheduler:
             assert not scheduler.running
             assert len(scheduler._db_task_jobs) == 0
 
-    def test_add_database_task_scheduled(self, scheduler, mock_task):
-        """Test adding a database task via the API."""
-        scheduler.running = True
-
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler.add_database_task(mock_task)
-            mock_add.assert_called_once_with(mock_task)
-
-    def test_add_database_task_recurring(self, scheduler, mock_recurring_task):
-        """Test adding a recurring database task via the API."""
-        scheduler.running = True
-
-        with patch.object(scheduler, "_add_database_recurring_task") as mock_add:
-            scheduler.add_database_task(mock_recurring_task)
-            mock_add.assert_called_once_with(mock_recurring_task)
-
-    def test_add_database_task_not_running(self, scheduler, mock_task):
-        """Test adding a database task when scheduler is not running."""
-        scheduler.running = False
-
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler.add_database_task(mock_task)
-            mock_add.assert_not_called()
-
-    def test_update_database_task(self, scheduler, mock_task):
-        """Test updating a database task."""
-        scheduler.running = True
-
-        with (
-            patch.object(scheduler, "_remove_database_task") as mock_remove,
-            patch.object(scheduler, "add_database_task") as mock_add,
-        ):
-            scheduler.update_database_task(mock_task)
-
-            mock_remove.assert_called_once_with(mock_task.id)
-            mock_add.assert_called_once_with(mock_task)
-
     def test_list_tasks(self, scheduler):
         """Test listing all tasks."""
         scheduler.task_registry = {"test": "config"}
@@ -337,49 +298,10 @@ class TestGlobalSchedulerFunctions:
             stop_scheduler()
             mock_scheduler.stop.assert_called_once()
 
-    def test_sync_database_tasks(self):
-        """Test sync_database_tasks function."""
-        mock_scheduler = Mock()
-        mock_scheduler.running = True
-
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            sync_database_tasks()
-            mock_scheduler._sync_database_tasks.assert_called_once()
-
-    def test_refresh_scheduler(self):
-        """Test refresh_scheduler function."""
-        mock_scheduler = Mock()
-        mock_scheduler.running = True
-
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            refresh_scheduler()
-            mock_scheduler._sync_database_tasks.assert_called_once()
-
-
-@pytest.mark.unit
-class TestBackwardCompatibility:
-    """Test backward compatibility aliases."""
-
-    def test_cron_task_scheduler_alias(self):
-        """Test that CronTaskScheduler is aliased to UnifiedTaskScheduler."""
-        from apps.tasks.cron_scheduler import CronTaskScheduler, UnifiedTaskScheduler
-
-        assert CronTaskScheduler is UnifiedTaskScheduler
-
 
 @pytest.mark.unit
 class TestErrorHandling:
     """Test error handling in the task scheduler."""
-
-    def test_sync_database_tasks_error(self, scheduler, caplog):
-        """Test error handling in _sync_database_tasks."""
-        with patch("apps.tasks.models.Task") as mock_task:
-            mock_task.objects.filter.side_effect = Exception("DB Error")
-
-            with caplog.at_level(logging.ERROR):
-                scheduler._sync_database_tasks()
-
-            assert "Error synchronizing database tasks" in caplog.text
 
     def test_add_database_scheduled_task_error(self, scheduler, mock_task, caplog):
         """Test error handling when adding scheduled task fails."""

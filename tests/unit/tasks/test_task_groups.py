@@ -5,8 +5,6 @@ This module tests the task group system including feature enable controls,
 task categorization, and integration with the cron scheduler.
 """
 
-from unittest.mock import MagicMock, patch
-
 from django.test import TestCase, override_settings
 
 from apps.tasks.task_groups import (
@@ -249,23 +247,6 @@ class TestTaskGroupFunctions(TestCase):
 
 class TestTaskGroupIntegration(TestCase):
     """Test integration between task groups and other components."""
-
-    @patch("apps.tasks.cron_scheduler.get_scheduler")
-    def test_scheduler_integration(self, mock_get_scheduler):
-        """Test integration with the task scheduler."""
-        mock_scheduler = MagicMock()
-        mock_scheduler.running = True
-        mock_get_scheduler.return_value = mock_scheduler
-
-        # With the task scheduler, we just verify it's running
-        # Import here to avoid issues during test discovery
-        from apps.tasks.cron_scheduler import refresh_scheduler
-
-        result = refresh_scheduler()
-
-        # Simple scheduler doesn't have reload_task_registry, it reads from DB
-        # Just verify the function runs successfully
-        assert result is None  # refresh_scheduler doesn't return a value
 
     @override_settings(
         FEATURE_ENABLED={
