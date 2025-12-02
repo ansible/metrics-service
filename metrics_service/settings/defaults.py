@@ -23,6 +23,10 @@ SECRET_KEY = "dev-secret-key-change-in-production"
 # Override with METRICS_SERVICE_DEBUG environment variable
 DEBUG = False
 
+# Developer mode flag for enabling development-specific features
+# Override with METRICS_SERVICE_DEVELOPER_MODE environment variable
+DEVELOPER_MODE = False
+
 ALLOWED_HOSTS = ["*"]
 
 # Service identification for AAP
