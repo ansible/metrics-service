@@ -247,7 +247,6 @@ class TestUnifiedTaskScheduler:
             id="test_task",
             name="Test task",
             replace_existing=True,
-            max_instances=1,
         )
         assert "Added scheduled task: test_task (0 */1 * * *)" in caplog.text
 

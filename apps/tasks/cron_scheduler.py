@@ -146,7 +146,6 @@ class UnifiedTaskScheduler:
             id=task_id,
             name=config.get("description", task_id),
             replace_existing=True,
-            max_instances=1,  # Prevent overlapping executions
         )
 
         logger.info(f"Added scheduled task: {task_id} ({config['cron']})")
@@ -302,7 +301,6 @@ class UnifiedTaskScheduler:
                 id=job_id,
                 name=f"DB Task: {task.name}",
                 replace_existing=True,
-                max_instances=1,
             )
 
             self._db_task_jobs[task.id] = job_id
@@ -330,7 +328,6 @@ class UnifiedTaskScheduler:
                 id=job_id,
                 name=f"DB Recurring: {task.name}",
                 replace_existing=True,
-                max_instances=1,
             )
 
             self._db_task_jobs[task.id] = job_id
