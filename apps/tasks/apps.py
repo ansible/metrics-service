@@ -39,13 +39,7 @@ class TasksConfig(AppConfig):
         try:
             # Check if database is ready and tasks table exists
             with connection.cursor() as cursor:
-                if connection.vendor == "sqlite":
-                    query = "SELECT name FROM sqlite_master WHERE type='table' AND name='tasks_task';"
-                elif connection.vendor == "postgresql":
-                    query = "SELECT tablename FROM pg_tables WHERE tablename='tasks_task';"
-                else:
-                    query = "SHOW TABLES LIKE 'tasks_task';"
-
+                query = "SELECT tablename FROM pg_tables WHERE tablename='tasks_task';"
                 cursor.execute(query)
                 if not cursor.fetchone():
                     logger.debug("Tasks table not found - skipping initialization")
