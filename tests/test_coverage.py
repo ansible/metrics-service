@@ -10,11 +10,7 @@ from .test_common import (
     BaseTaskFunctionsTest,
     BaseTaskSchedulerTest,
     BaseUtilitiesTest,
-    setup_django_for_tests,
 )
-
-# Setup Django for testing
-setup_django_for_tests()
 
 
 class TestTaskFunctions(BaseTaskFunctionsTest):
@@ -62,9 +58,3 @@ class TestUtilities(BaseUtilitiesTest):
         except ImportError:
             # DAB not available, skip test
             pass
-
-
-if __name__ == "__main__":
-    import unittest
-
-    unittest.main()

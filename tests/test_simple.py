@@ -6,11 +6,7 @@ from .test_common import (
     BaseTaskFunctionsTest,
     BaseTaskSchedulerTest,
     BaseUtilitiesTest,
-    setup_django_for_tests,
 )
-
-# Setup Django for testing
-setup_django_for_tests()
 
 
 class TestTaskFunctions(BaseTaskFunctionsTest):
@@ -32,9 +28,3 @@ class TestTaskScheduler(BaseTaskSchedulerTest):
 
 class TestUtilities(BaseUtilitiesTest):
     """Test utility functions."""
-
-
-if __name__ == "__main__":
-    import unittest
-
-    unittest.main()

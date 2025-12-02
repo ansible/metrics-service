@@ -2,49 +2,11 @@
 Common test utilities and base classes to reduce duplication across test files.
 """
 
-import os
-import sys
 import unittest
 from unittest.mock import patch
 
 # Mock Django before importing any Django modules
-import django
 from django.conf import settings
-
-
-def setup_django_for_tests():
-    """Configure minimal Django settings for testing."""
-    # Add the project root to path
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    sys.path.insert(0, project_root)
-
-    # Configure minimal Django settings
-    if not settings.configured:
-        settings.configure(
-            USE_TZ=True,
-            SECRET_KEY="test-key",
-            DATABASES={
-                "default": {
-                    "ENGINE": "django.db.backends.postgresql",
-                    "HOST": "127.0.0.1",
-                    "PORT": "5432",
-                    "USER": "metrics_service",
-                    "PASSWORD": "metrics_service",
-                    "NAME": "test_metrics_service",
-                    "OPTIONS": {
-                        "sslmode": "prefer",
-                    },
-                }
-            },
-            INSTALLED_APPS=[
-                "django.contrib.auth",
-                "django.contrib.contenttypes",
-            ],
-            USE_I18N=False,
-            USE_L10N=False,
-        )
-
-    django.setup()
 
 
 class BaseTaskFunctionsTest(unittest.TestCase):
@@ -119,7 +81,6 @@ class BaseUtilitiesTest(unittest.TestCase):
 
     def test_settings_validation(self):
         """Test that critical settings exist."""
-        from django.conf import settings
 
         self.assertTrue(hasattr(settings, "SECRET_KEY"))
         self.assertTrue(hasattr(settings, "DATABASES"))
