@@ -24,8 +24,8 @@ SECRET_KEY = "dev-secret-key-change-in-production"
 DEBUG = False
 
 # Developer mode flag for enabling development-specific features
-# Override with METRICS_SERVICE_DEVELOPER_MODE environment variable
-DEVELOPER_MODE = False
+# Override with METRICS_SERVICE_DEVELOPER_MODE_ENABLED environment variable
+DEVELOPER_MODE_ENABLED = False
 
 ALLOWED_HOSTS = ["*"]
 
