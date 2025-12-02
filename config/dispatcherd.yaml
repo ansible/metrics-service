@@ -6,14 +6,7 @@ version: 2
 
 brokers:
   pg_notify:
-    config:
-      # Database connection - configured for current Django settings
-      dbname: 'metrics_service'
-      user: 'metrics_service'
-      password: 'metrics_service'
-      host: '127.0.0.1'
-      port: '5432'
-
+    config: null # overwritten by setup_dispatcherd_config
     channels:
       - 'metrics_tasks' # Main task execution channel
       - 'metrics_cleanup' # Cleanup and maintenance tasks

@@ -25,6 +25,57 @@ def get_config_file_path() -> Path:
     return project_root / "config" / "dispatcherd.yaml"
 
 
+def fallback_dispatcherd_config() -> dict[str, Any]:
+    return {
+        "version": 2,
+        "brokers": {
+            "pg_notify": {
+                "config": None,
+                "channels": [
+                    "metrics_tasks",
+                    "metrics_cleanup",
+                    "metrics_notifications",
+                    "metrics_collectors",
+                    "metrics_utility",
+                ],
+            },
+        },
+        "service": {
+            "pool_kwargs": {"max_workers": 4},
+        },
+    }
+
+
+def load_dispatcherd_config(path) -> dict[str, Any]:
+    import yaml
+
+    try:
+        with open(path) as f:
+            return yaml.safe_load(f)
+    except Exception:
+        logger.warning(f"Failed to load configuration from {path}, using default")
+        return fallback_dispatcherd_config()
+
+
+def pg_config_from_django_settings() -> dict[str, Any]:
+    """
+    Build dispatcherd .brokers.pg_notify.config configuration fragment from Django database settings.
+    """
+    from django.conf import settings as django_settings
+
+    # Get database configuration
+    db_config = django_settings.DATABASES["default"]
+
+    # Create PostgreSQL connection config
+    return {
+        "dbname": db_config["NAME"],
+        "user": db_config["USER"],
+        "password": db_config["PASSWORD"],
+        "host": db_config["HOST"],
+        "port": db_config["PORT"],
+    }
+
+
 def setup_dispatcherd_config() -> None:
     """
     Setup dispatcherd configuration from file or Django settings.
@@ -46,13 +97,30 @@ def setup_dispatcherd_config() -> None:
         if config_file.exists():
             # Use configuration file
             logger.info(f"Configuring dispatcherd from file: {config_file}")
-            os.environ["DISPATCHERD_CONFIG_FILE"] = str(config_file)
-            dispatcherd.config.setup()
+            config = load_dispatcherd_config(config_file)
         else:
             # Fallback to Django settings-based configuration
-            logger.info("Configuration file not found, using Django settings")
-            config = build_config_from_django_settings()
-            dispatcherd.config.setup(config)
+            logger.info("Configuration file not found, using fallback")
+            config = fallback_dispatcherd_config()
+
+        # Update database connection in config
+        if "brokers" not in config:
+            config["brokers"] = {}
+        if "pg_notify" not in config["brokers"]:
+            config["brokers"]["pg_notify"] = {}
+        if "config" not in config["brokers"]["pg_notify"]:
+            config["brokers"]["pg_notify"]["config"] = None
+
+        # Update from Django settings
+        if config["brokers"]["pg_notify"]["config"] is None:
+            pg_config = pg_config_from_django_settings()
+            config["brokers"]["pg_notify"]["config"] = pg_config
+            logger.info(
+                f"Updated dispatcherd config for database: {pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
+            )
+
+        # Setup dispatcherd
+        dispatcherd.config.setup(config)
 
         # Mark as configured
         dispatcherd.config._configured = True
@@ -66,58 +134,7 @@ def setup_dispatcherd_config() -> None:
         raise
 
 
-def build_config_from_django_settings() -> dict[str, Any]:
-    """
-    Build dispatcherd configuration from Django database settings.
-
-    Returns:
-        Dictionary containing dispatcherd configuration
-    """
-    try:
-        from django.conf import settings as django_settings
-
-        # Get database configuration
-        db_config = django_settings.DATABASES["default"]
-
-        # Create PostgreSQL connection config
-        pg_config = {
-            "dbname": db_config["NAME"],
-            "user": db_config["USER"],
-            "password": db_config["PASSWORD"],
-            "host": db_config["HOST"],
-            "port": db_config["PORT"],
-        }
-
-        # Build dispatcherd configuration
-        config = {
-            "version": 2,
-            "brokers": {
-                "pg_notify": {
-                    "config": pg_config,
-                    "channels": [
-                        "metrics_tasks",
-                        "metrics_cleanup",
-                        "metrics_notifications",
-                        "metrics_collectors",
-                        "metrics_utility",
-                    ],
-                },
-            },
-            "service": {
-                "pool_kwargs": {"max_workers": 4},
-            },
-        }
-
-        logger.info(
-            f"Built dispatcherd config for database: {pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
-        )
-        return config
-
-    except Exception as e:
-        logger.error(f"Failed to build config from Django settings: {e}")
-        raise
-
-
+# FIXME: duplicate of setup_dispatcherd_config - merge
 def ensure_dispatcherd_configured() -> None:
     """
     Ensure dispatcherd is configured before attempting to submit tasks.
@@ -138,60 +155,6 @@ def ensure_dispatcherd_configured() -> None:
         raise
     except Exception as e:
         logger.error(f"Failed to ensure dispatcherd configuration: {e}")
-        raise
-
-
-def update_config_with_database_settings() -> None:
-    """
-    Update the dispatcherd YAML config file with current Django database settings.
-
-    This function reads the current Django database configuration and updates
-    the dispatcherd.yaml file with the correct database connection parameters.
-    """
-    try:
-        import yaml
-        from django.conf import settings as django_settings
-
-        config_file = get_config_file_path()
-
-        # Read existing config
-        if config_file.exists():
-            with open(config_file) as f:
-                config = yaml.safe_load(f)
-        else:
-            config = {}
-
-        # Get Django database settings
-        db_config = django_settings.DATABASES["default"]
-
-        # Update database connection in config
-        if "brokers" not in config:
-            config["brokers"] = {}
-        if "pg_notify" not in config["brokers"]:
-            config["brokers"]["pg_notify"] = {}
-
-        config["brokers"]["pg_notify"]["config"] = {
-            "dbname": db_config["NAME"],
-            "user": db_config["USER"],
-            "password": db_config["PASSWORD"],
-            "host": db_config["HOST"],
-            "port": db_config["PORT"],
-        }
-
-        # Ensure config directory exists
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write updated config
-        with open(config_file, "w") as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-
-        logger.info(f"Updated dispatcherd config file: {config_file}")
-
-    except ImportError:
-        logger.error("PyYAML not available for config file updates")
-        raise
-    except Exception as e:
-        logger.error(f"Failed to update config file: {e}")
         raise
 
 
