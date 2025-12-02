@@ -397,7 +397,6 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         # For recurring tasks, reset status to pending for next execution
         if task.is_recurring:
             task.status = "pending"
-            task._skip_signals = True
             task.save()
             logger.info(f"Reset recurring task {task.name} (ID: {task.id}) status to pending for next execution")
         log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
@@ -442,7 +441,6 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
         # Update task status to indicate it's been submitted
         task.status = "pending"
-        task._skip_signals = True  # Prevent signal recursion
         task.save()
 
         logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
@@ -451,7 +449,6 @@ def submit_task_to_dispatcher(task: Any) -> None:
         logger.error(f"Error submitting task to dispatcher: {str(e)}")
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
-        task._skip_signals = True  # Prevent signal recursion
         task.save()
 
 

@@ -113,7 +113,6 @@ class ExecuteDbTaskTestCase(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -195,7 +194,6 @@ class SubmitTaskTestCase(TestCase):
         self.user = User.objects.create_user(username="submituser")
         # Create task without triggering signals to prevent recursion during test setup
         self.task = Task(name="Submit Task", function_name="cleanup_old_data", created_by=self.user)
-        self.task._skip_signals = True
         self.task.save()
 
     @patch("apps.tasks.models.TaskExecution.objects.create")

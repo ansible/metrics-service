@@ -29,7 +29,6 @@ class TestTaskViewSet(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -91,7 +90,6 @@ class TestTaskSerializer(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -174,7 +172,6 @@ class TestTaskExecutionSerializer(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -268,7 +265,6 @@ class TestTaskViewSetActions(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -320,7 +316,6 @@ class TestSerializerFieldCoverage(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 

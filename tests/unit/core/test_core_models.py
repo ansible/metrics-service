@@ -73,7 +73,6 @@ class TaskModelTestCase(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -81,7 +80,6 @@ class TaskModelTestCase(TestCase):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser", email="task@example.com")
 
-        # Create task without triggering signals by setting _skip_signals first
         self.task = self._create_task_safely(
             name="Test Task",
             function_name="test_function",
@@ -108,20 +106,17 @@ class TaskModelTestCase(TestCase):
         # Task with future scheduled time should not be ready
         future_time = timezone.now() + timedelta(hours=1)
         self.task.scheduled_time = future_time
-        self.task._skip_signals = True
         self.task.save()
         self.assertFalse(self.task.is_ready_to_run())
 
         # Task with past scheduled time should be ready
         past_time = timezone.now() - timedelta(hours=1)
         self.task.scheduled_time = past_time
-        self.task._skip_signals = True
         self.task.save()
         self.assertTrue(self.task.is_ready_to_run())
 
         # Running task should not be ready
         self.task.status = "running"
-        self.task._skip_signals = True
         self.task.save()
         self.assertFalse(self.task.is_ready_to_run())
 
@@ -133,13 +128,11 @@ class TaskModelTestCase(TestCase):
         # Failed task with attempts < max_attempts can be retried
         self.task.status = "failed"
         self.task.attempts = 1
-        self.task._skip_signals = True
         self.task.save()
         self.assertTrue(self.task.can_retry())
 
         # Failed task with attempts >= max_attempts cannot be retried
         self.task.attempts = 3
-        self.task._skip_signals = True
         self.task.save()
         self.assertFalse(self.task.can_retry())
 
@@ -161,7 +154,6 @@ class TaskModelTestCase(TestCase):
 
         # Test that dependent task is ready when prerequisite is completed
         self.task.status = "completed"
-        self.task._skip_signals = True
         self.task.save()
         self.assertTrue(task2.is_ready_to_run())
 
@@ -215,7 +207,6 @@ class ModelValidationTestCase(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 
@@ -265,7 +256,6 @@ class ModelMethodsTestCase(TestCase):
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
         task = Task(**kwargs)
-        task._skip_signals = True
         task.save()
         return task
 

@@ -522,7 +522,6 @@ class Command(BaseCommand):
 
         if task.status in ["pending", "running"]:
             task.status = "cancelled"
-            task._skip_signals = True  # Prevent signal handler from changing status
             task.save()
             self.output.success(f"✅ Cancelled task: {task.name}")
         else:
@@ -538,7 +537,6 @@ class Command(BaseCommand):
 
         if task.status == "failed":
             task.status = "pending"
-            task._skip_signals = True  # Prevent signal handler from interfering
             task.save()
             self.output.success(f"✅ Retrying task: {task.name}")
         else:

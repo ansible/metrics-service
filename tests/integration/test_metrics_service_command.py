@@ -84,7 +84,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
         task1 = Task.objects.create(
             name="Task 1", function_name="cleanup_old_data", status="pending", created_by=self.user
         )
-        task1._skip_signals = True
         task1.save()
         Task.objects.create(
             name="Task 2", function_name="send_notification_email", status="completed", created_by=self.user
@@ -100,7 +99,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
         pending_task = Task.objects.create(
             name="Pending Task", function_name="cleanup_old_data", status="pending", created_by=self.user
         )
-        pending_task._skip_signals = True
         pending_task.save()
         Task.objects.create(
             name="Completed Task", function_name="send_notification_email", status="completed", created_by=self.user
@@ -133,7 +131,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
             name="Cancel Task", function_name="cleanup_old_data", status="completed", created_by=self.user
         )
         task.status = "pending"
-        task._skip_signals = True
         task.save()
 
         with patch("sys.stdout.write"):
@@ -262,7 +259,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
         pending_task = Task.objects.create(
             name="Pending Task", function_name="cleanup_old_data", status="pending", created_by=self.user
         )
-        pending_task._skip_signals = True
         pending_task.save()
 
         with patch("sys.stdout.write"):
