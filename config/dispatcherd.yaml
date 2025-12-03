@@ -1,18 +1,18 @@
 ---
 # Dispatcherd Configuration for Metrics Service
 # This configuration enables task scheduling and execution across processes
+#
+# NOTE: Database connection settings are automatically loaded from Django's
+# DATABASES["default"] configuration at runtime. This allows proper support
+# for METRICS_SERVICE_DATABASES__default__* environment variables.
+# Do NOT add hardcoded database credentials here.
 
 version: 2
 
 brokers:
   pg_notify:
-    config:
-      # Database connection - configured for current Django settings
-      dbname: 'metrics_service'
-      user: 'metrics_service'
-      password: 'metrics_service'
-      host: '127.0.0.1'
-      port: '5432'
+    # Database config is injected at runtime from Django settings
+    # See apps/tasks/dispatcherd_config.py::_load_config_with_django_db()
 
     channels:
       - 'metrics_tasks' # Main task execution channel

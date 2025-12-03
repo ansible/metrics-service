@@ -32,6 +32,11 @@ def setup_dispatcherd_config() -> None:
     This function configures dispatcherd to work with the metrics service
     database and task queues. It can be called from any process that needs
     to submit tasks to dispatcherd.
+
+    Database connection settings always come from Django's DATABASES["default"]
+    which properly respects METRICS_SERVICE_DATABASES__default__* environment
+    variables. The YAML config file is used for other settings (channels,
+    queue routing, logging, etc.).
     """
     try:
         import dispatcherd.config
@@ -44,15 +49,16 @@ def setup_dispatcherd_config() -> None:
         config_file = get_config_file_path()
 
         if config_file.exists():
-            # Use configuration file
-            logger.info(f"Configuring dispatcherd from file: {config_file}")
-            os.environ["DISPATCHERD_CONFIG_FILE"] = str(config_file)
-            dispatcherd.config.setup()
+            # Load config file and merge with Django database settings
+            logger.info(f"Loading dispatcherd config from file: {config_file}")
+            config = _load_config_with_django_db(config_file)
         else:
-            # Fallback to Django settings-based configuration
+            # Build config entirely from Django settings
             logger.info("Configuration file not found, using Django settings")
             config = build_config_from_django_settings()
-            dispatcherd.config.setup(config)
+
+        # Configure dispatcherd with the merged config
+        dispatcherd.config.setup(config)
 
         # Mark as configured
         dispatcherd.config._configured = True
@@ -64,6 +70,57 @@ def setup_dispatcherd_config() -> None:
     except Exception as e:
         logger.error(f"Failed to configure dispatcherd: {e}")
         raise
+
+
+def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
+    """
+    Load dispatcherd config from YAML file but override database settings
+    with Django's DATABASES["default"] configuration.
+
+    This ensures database connection settings always come from Django settings
+    which properly respects METRICS_SERVICE_DATABASES__default__* environment
+    variables via Dynaconf.
+
+    Args:
+        config_file: Path to the dispatcherd YAML configuration file
+
+    Returns:
+        Configuration dictionary with database settings from Django
+    """
+    import yaml
+    from django.conf import settings as django_settings
+
+    # Load the YAML config file
+    with open(config_file) as f:
+        config = yaml.safe_load(f) or {}
+
+    # Get database configuration from Django settings
+    db_config = django_settings.DATABASES["default"]
+
+    # Build PostgreSQL connection config from Django settings
+    pg_config = {
+        "dbname": db_config["NAME"],
+        "user": db_config["USER"],
+        "password": db_config["PASSWORD"],
+        "host": db_config["HOST"],
+        "port": db_config["PORT"],
+    }
+
+    # Ensure brokers section exists
+    if "brokers" not in config:
+        config["brokers"] = {}
+    if "pg_notify" not in config["brokers"]:
+        config["brokers"]["pg_notify"] = {}
+
+    # Override database config with Django settings
+    config["brokers"]["pg_notify"]["config"] = pg_config
+
+    logger.info(
+        f"Configured dispatcherd with Django database settings: "
+        f"{pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
+    )
+
+    return config
 
 
 def build_config_from_django_settings() -> dict[str, Any]:
