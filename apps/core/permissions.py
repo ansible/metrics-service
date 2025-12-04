@@ -40,9 +40,8 @@ Usage:
 """
 
 from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
+from django.conf import settings
 from rest_framework.permissions import SAFE_METHODS, BasePermission
-
-from metrics_service.settings import DYNACONF
 
 
 class SystemAuditorAwarePermissions(AnsibleBaseObjectPermissions):
@@ -118,8 +117,8 @@ class DeveloperModeRequired(BasePermission):
     message = "This endpoint is only available when developer mode is enabled."
 
     def has_permission(self, request, view):
-        """Check if developer mode is enabled via DYNACONF."""
-        developer_mode = DYNACONF.get("DEVELOPER_MODE_ENABLED", False)
+        """Check if developer mode is enabled via Django settings."""
+        developer_mode = getattr(settings, "DEVELOPER_MODE_ENABLED", False)
         return bool(developer_mode)
 
     def has_object_permission(self, request, view, obj):

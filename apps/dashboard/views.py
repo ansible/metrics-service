@@ -6,11 +6,10 @@ NOTE: The dashboard is only accessible when DEVELOPER_MODE_ENABLED is True.
 
 from functools import wraps
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import render
 from django.views.decorators.http import require_safe
-
-from metrics_service.settings import DYNACONF
 
 
 def require_developer_mode(view_func):
@@ -22,7 +21,7 @@ def require_developer_mode(view_func):
 
     @wraps(view_func)
     def wrapper(request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        developer_mode = DYNACONF.get("DEVELOPER_MODE_ENABLED", False)
+        developer_mode = getattr(settings, "DEVELOPER_MODE_ENABLED", False)
         if not developer_mode:
             return HttpResponseForbidden(
                 "The dashboard is only available when developer mode is enabled. "
