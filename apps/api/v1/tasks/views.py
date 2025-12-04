@@ -34,8 +34,7 @@ Task Functions:
     - execute_db_task: Database operations
 
 Security:
-    - Authentication required for all operations
-    - RBAC permissions via DAB integration
+    - Developer mode must be enabled (DEVELOPER_MODE_ENABLED=True)
     - Input validation for all task parameters
     - Safe task function execution with proper isolation
     - Audit logging for all task operations
@@ -49,9 +48,9 @@ from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from apps.core.permissions import DeveloperModeRequired
 from apps.core.utils import build_error_response
 from apps.tasks.models import Task, TaskExecution
 
@@ -72,11 +71,13 @@ class TaskViewSet(BaseViewSet):
     This ViewSet provides all the functionality from the manage_tasks.py command
     converted to REST API endpoints including creation, listing, monitoring,
     and control.
+
+    NOTE: This ViewSet is only accessible when DEVELOPER_MODE_ENABLED is True.
     """
 
     queryset = Task.objects.select_related("created_by").all()
     serializer_class = TaskSerializer
-    permission_classes = [AllowAny]  # Temporary for dashboard access
+    permission_classes = [DeveloperModeRequired]
     ordering_fields = ["id", "name", "status", "priority", "scheduled_time", "created", "started_at", "completed_at"]
     ordering = ["-id"]
 
@@ -577,11 +578,13 @@ class TaskViewSet(BaseViewSet):
 class TaskExecutionViewSet(BaseViewSet):
     """
     ViewSet for TaskExecution model to monitor task execution history.
+
+    NOTE: This ViewSet is only accessible when DEVELOPER_MODE_ENABLED is True.
     """
 
     queryset = TaskExecution.objects.select_related("task").all()
     serializer_class = TaskExecutionSerializer
-    permission_classes = [AllowAny]  # Temporary for dashboard access
+    permission_classes = [DeveloperModeRequired]
     ordering_fields = ["started_at", "completed_at", "execution_time_seconds", "status"]
     ordering = ["-started_at"]
 
