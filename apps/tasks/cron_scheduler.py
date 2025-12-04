@@ -271,6 +271,8 @@ class UnifiedTaskScheduler:
             for task in immediate_tasks:
                 if task.id not in self._db_task_jobs and task.is_ready_to_run():
                     logger.info(f"Found new immediate task: {task.name} (ID: {task.id}) - executing now")
+                    # Track immediate task to prevent duplicate submissions
+                    self._db_task_jobs[task.id] = f"db_immediate_{task.id}"
                     self._execute_database_task(task.id)
                     new_immediate += 1
 
