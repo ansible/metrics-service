@@ -792,6 +792,244 @@ def collect_metrics(**kwargs) -> dict[str, Any]:
 
 
 @task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_and_store_metrics")
+def collect_and_store_metrics(**kwargs) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
+    """
+    NEW: Collect metrics and store them in SQLite database.
+
+    This is a new task that combines metrics collection with persistent storage.
+    It calls the existing collection logic and saves results to the metricsStorage.sqlite database.
+
+    Args:
+        **kwargs: Task data containing collection parameters:
+            - database (str): Database name from Django settings (default: 'awx')
+            - since (str): Start date for collection (optional)
+            - until (str): End date for collection (optional)
+            - collectors (list): List of specific collectors to run (default: all available)
+
+    Returns:
+        dict: Task result with collection data and storage confirmation
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    log_task_execution("collect_and_store_metrics", "processing", "Collecting and storing metrics to SQLite")
+
+    # Import metrics_storage models
+    from apps.metrics_storage.models import CollectionRun, MetricData, MetricType
+
+    # Get parameters from kwargs
+    db_name = kwargs.get("database", "awx")
+    since = kwargs.get("since")
+    until = kwargs.get("until")
+    collectors_list = kwargs.get(
+        "collectors", ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"]
+    )
+
+    # Create a collection run record
+    collection_run = CollectionRun.objects.using("metrics_storage").create(
+        status="running",
+        collectors_run=collectors_list,
+        parameters_used={
+            "database": db_name,
+            "since": since,
+            "until": until,
+            "collectors": collectors_list,
+        },
+    )
+
+    try:
+        from django.db import connections
+
+        # Get database connection
+        db_connection = connections[db_name]
+
+        # Collect data from all specified collectors
+        all_results = _collect_all_metrics(collectors_list, db_connection, since, until, "default-salt")
+
+        # Ensure ALL requested collectors have entries (even if collection failed/skipped)
+        for collector_name in collectors_list:
+            if collector_name not in all_results:
+                all_results[collector_name] = {
+                    "error": "Collector not found or failed to execute",
+                    "collector_skipped": True,
+                }
+
+        # Save collected metrics to SQLite database
+        metrics_saved = 0
+        for collector_name, collector_result in all_results.items():
+            try:
+                # Get or create MetricType for this collector
+                metric_type, _ = MetricType.objects.using("metrics_storage").get_or_create(
+                    name=collector_name,
+                    defaults={
+                        "description": f"Metrics from {collector_name} collector",
+                        "category": "controller" if collector_name != "anonymized_rollups" else "anonymized",
+                    },
+                )
+
+                # Determine if collection was successful
+                was_successful = "error" not in collector_result
+                error_message = ""
+
+                # Convert CSV files to JSON if needed
+                data_to_store = collector_result
+                csv_files_missing = []
+
+                if isinstance(collector_result, dict) and "csv_files" in collector_result:
+                    # If result contains CSV file paths, convert them to JSON
+                    import csv
+                    import os
+
+                    csv_data = []
+                    csv_files_found = 0
+                    for csv_file_path in collector_result.get("csv_files", []):
+                        if os.path.exists(csv_file_path):
+                            try:
+                                with open(csv_file_path, encoding="utf-8") as csvfile:
+                                    reader = csv.DictReader(csvfile)
+                                    rows = list(reader)
+                                    csv_data.extend(rows)
+                                    csv_files_found += 1
+                                logger.info(f"Converted CSV file to JSON: {csv_file_path} ({len(rows)} rows)")
+                            except Exception as csv_error:
+                                logger.warning(f"Could not read CSV file {csv_file_path}: {csv_error}")
+                                csv_files_missing.append(csv_file_path)
+                        else:
+                            logger.warning(f"CSV file not found: {csv_file_path}")
+                            csv_files_missing.append(csv_file_path)
+
+                    # Always store data with metadata about CSV processing
+                    data_to_store = {
+                        "collector": collector_name,
+                        "original_format": "csv",
+                        "csv_files_expected": len(collector_result.get("csv_files", [])),
+                        "csv_files_processed": csv_files_found,
+                        "csv_files_missing": csv_files_missing,
+                        "rows_converted": len(csv_data),
+                        "data": csv_data,
+                        "metadata": {k: v for k, v in collector_result.items() if k != "csv_files"},
+                    }
+
+                    # Mark as unsuccessful if CSV files were missing
+                    if csv_files_missing:
+                        was_successful = False
+                        error_message = f"CSV files not accessible: {len(csv_files_missing)} of {len(collector_result.get('csv_files', []))} missing"
+
+                elif isinstance(collector_result, list):
+                    # If result is a list of CSV file paths (legacy format)
+                    import csv
+                    import os
+
+                    csv_data = []
+                    csv_files_processed = 0
+                    csv_files_expected = len([p for p in collector_result if isinstance(p, str) and p.endswith(".csv")])
+
+                    for csv_file_path in collector_result:
+                        if isinstance(csv_file_path, str) and csv_file_path.endswith(".csv"):
+                            if os.path.exists(csv_file_path):
+                                try:
+                                    with open(csv_file_path, encoding="utf-8") as csvfile:
+                                        reader = csv.DictReader(csvfile)
+                                        rows = list(reader)
+                                        csv_data.extend(rows)
+                                        csv_files_processed += 1
+                                    logger.info(f"Converted CSV file to JSON: {csv_file_path} ({len(rows)} rows)")
+                                except Exception as csv_error:
+                                    logger.warning(f"Could not read CSV file {csv_file_path}: {csv_error}")
+                                    csv_files_missing.append(csv_file_path)
+                            else:
+                                logger.warning(f"CSV file not found: {csv_file_path}")
+                                csv_files_missing.append(csv_file_path)
+
+                    # ALWAYS store data, even if no CSV files were successfully processed
+                    data_to_store = {
+                        "collector": collector_name,
+                        "original_format": "csv",
+                        "csv_files_expected": csv_files_expected,
+                        "csv_files_processed": csv_files_processed,
+                        "csv_files_missing": csv_files_missing,
+                        "rows_converted": len(csv_data),
+                        "data": csv_data,
+                        "original_paths": collector_result,  # Keep original paths for debugging
+                    }
+
+                    # Mark as unsuccessful if no CSV files were processed
+                    if csv_files_processed == 0 and csv_files_expected > 0:
+                        was_successful = False
+                        error_message = f"No CSV files accessible: {csv_files_expected} expected, 0 processed"
+
+                # Extract error message from collector result if present
+                if isinstance(collector_result, dict) and "error" in collector_result:
+                    error_message = collector_result.get("error", "")
+
+                # ALWAYS save the metric data (even if empty/failed)
+                MetricData.objects.using("metrics_storage").create(
+                    collection_run=collection_run,
+                    metric_type=metric_type,
+                    data=data_to_store,
+                    was_successful=was_successful,
+                    error_message=error_message,
+                )
+                metrics_saved += 1
+
+                # Log the result
+                if was_successful:
+                    logger.info(f"Saved metric data for {collector_name}: {len(str(data_to_store))} bytes")
+                else:
+                    logger.warning(f"Saved metric data for {collector_name} with errors: {error_message}")
+
+            except Exception as e:
+                logger.error(f"Error saving metric data for {collector_name}: {str(e)}")
+                # Even if there's an error, try to save a minimal entry
+                try:
+                    MetricData.objects.using("metrics_storage").create(
+                        collection_run=collection_run,
+                        metric_type=metric_type,
+                        data={"collector": collector_name, "collection_error": str(e)},
+                        was_successful=False,
+                        error_message=f"Failed to save: {str(e)}",
+                    )
+                    metrics_saved += 1
+                except Exception as save_error:
+                    logger.error(f"Could not create fallback entry for {collector_name}: {str(save_error)}")
+
+        # Mark collection run as completed
+        collection_run.mark_completed(metrics_count=metrics_saved)
+
+        logger.info(f"Saved {metrics_saved} metrics to SQLite database (collection_run_id={collection_run.id})")
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_and_store_metrics",
+                "collection_run_id": collection_run.id,
+                "metrics_saved_to_sqlite": metrics_saved,
+                "sqlite_db_path": "metricsStorage.sqlite",
+                "collection_results": {
+                    "collectors_run": collectors_list,
+                    "successful_collections": len([k for k, v in all_results.items() if "error" not in v]),
+                    "failed_collections": len([k for k, v in all_results.items() if "error" in v]),
+                    "collection_errors": {k: v.get("error") for k, v in all_results.items() if "error" in v},
+                    "collected_data": all_results,
+                },
+                "parameters_used": {
+                    "database": db_name,
+                    "since": since,
+                    "until": until,
+                    "collectors": collectors_list,
+                },
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_and_store_metrics: {str(e)}")
+        # Mark collection run as failed
+        collection_run.mark_failed(error_message=str(e))
+        return create_task_result("error", error=f"Metrics collection and storage failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
 @task_execution_wrapper("anonymize_data")
 def anonymize_data(**kwargs) -> dict[str, Any]:
     """

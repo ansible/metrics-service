@@ -9,11 +9,17 @@ specialized modules for backward compatibility:
 
 import logging
 
+# Import automation reports tasks
+from .tasks_automation_reports import (
+    collect_automation_reports,
+)
+
 # Import all collector tasks
 from .tasks_collector import (
     METRICS_UTILITY_AVAILABLE,
     anonymize_data,
     collect_all_metrics,
+    collect_and_store_metrics,
     collect_anonymous_metrics,
     collect_config_metrics,
     collect_host_metrics,
@@ -67,6 +73,7 @@ TASK_FUNCTIONS = {
     "sleep": sleep,
     # Metrics Collection Tasks (unified + individual collectors)
     "collect_metrics": collect_metrics,
+    "collect_and_store_metrics": collect_and_store_metrics,  # NEW: Collect and store in SQLite
     "collect_all_metrics": collect_all_metrics,
     "collect_anonymous_metrics": collect_anonymous_metrics,
     "collect_config_metrics": collect_config_metrics,
@@ -78,6 +85,8 @@ TASK_FUNCTIONS = {
     "full_process_anonymize": full_process_anonymize,
     "test_segment_track": test_segment_track,
     "debug_segment_messages": debug_segment_messages,
+    # Automation Reports Tasks
+    "collect_automation_reports": collect_automation_reports,
 }
 
 # Enhanced task metadata for dashboard display
@@ -238,6 +247,26 @@ TASK_METADATA = {
             {"name": "Date range collection", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"}},
         ],
     },
+    "collect_and_store_metrics": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "NEW: Collect metrics and store them in SQLite database (metricsStorage.sqlite)",
+        "parameters": {
+            "database": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "collectors": {
+                "type": "array",
+                "default": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
+                "description": "List of specific collectors to run",
+                "items": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
+            },
+        },
+        "examples": [
+            {"name": "All collectors (store in SQLite)", "data": {}},
+            {"name": "Specific collectors", "data": {"collectors": ["config", "job_host_summary"]}},
+            {"name": "Date range collection", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"}},
+        ],
+    },
     "anonymize_data": {
         "category": LABEL_METRICS_COLLECTION,
         "description": "Dedicated task to anonymize collected metrics data",
@@ -382,6 +411,43 @@ TASK_METADATA = {
             {"name": "Custom user", "data": {"user_id": "my-debug-test"}},
         ],
     },
+    "collect_automation_reports": {
+        "category": "Automation Reports",
+        "description": "Collect AWX/Controller job execution data for automation ROI reporting",
+        "parameters": {
+            "database": {"type": "string", "default": "awx", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "collectors": {
+                "type": "array",
+                "default": ["organizations", "job_templates", "jobs", "job_host_summaries"],
+                "description": "List of collectors to run",
+                "items": [
+                    "organizations",
+                    "job_templates",
+                    "jobs",
+                    "job_host_summaries",
+                    "inventories",
+                    "projects",
+                    "hosts",
+                    "users",
+                ],
+            },
+            "collect_all_entities": {
+                "type": "boolean",
+                "default": False,
+                "description": "Collect all supporting entities (inventories, projects, hosts, users, etc.)",
+            },
+        },
+        "examples": [
+            {"name": "All default collectors", "data": {}},
+            {
+                "name": "Jobs only (last 30 days)",
+                "data": {"collectors": ["jobs"], "since": "2024-11-01T00:00:00Z", "until": "2024-12-01T00:00:00Z"},
+            },
+            {"name": "Full collection with entities", "data": {"collect_all_entities": True}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -400,6 +466,7 @@ __all__ = [
     "SYSTEM_TASKS",
     # Metrics Collection tasks
     "collect_metrics",
+    "collect_and_store_metrics",  # NEW: Collect and store in SQLite
     "collect_all_metrics",
     "collect_anonymous_metrics",
     "collect_config_metrics",
@@ -412,6 +479,8 @@ __all__ = [
     "test_segment_track",
     "debug_segment_messages",
     "METRICS_UTILITY_AVAILABLE",
+    # Automation Reports
+    "collect_automation_reports",
     # Configuration
     "TASK_FUNCTIONS",
     "TASK_METADATA",

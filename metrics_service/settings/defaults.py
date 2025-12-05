@@ -74,6 +74,8 @@ LOCAL_APPS = [
     "apps.tasks",
     "apps.api",
     "apps.dashboard",
+    "apps.metrics_storage",  # SQLite-based metrics storage
+    "apps.automation_reports",  # Automation reports data (AWX/Controller jobs)
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
@@ -143,7 +145,19 @@ DATABASES = {
             "sslmode": "prefer",
         },
     },
+    # SQLite database for metrics storage (shared by metrics_storage and automation_reports apps)
+    # Override path with METRICS_SERVICE_METRICS_STORAGE_DB_PATH environment variable
+    "metrics_storage": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "metricsStorage.sqlite",
+    },
 }
+
+# Database routers for multi-database setup
+DATABASE_ROUTERS = [
+    "apps.metrics_storage.database_router.MetricsStorageRouter",
+    "apps.automation_reports.database_router.AutomationReportsRouter",
+]
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

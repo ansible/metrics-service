@@ -34,6 +34,8 @@ urlpatterns = [
     ),
     # Nested API endpoints
     path("tasks/", include("apps.api.v1.tasks.urls", namespace="tasks")),
+    # NEW: Metrics data endpoints (SQLite-backed)
+    path("metrics-data/", include("apps.api.v1.metrics_data.urls")),
     # Include router URLs for other endpoints
     path("", include(router.urls)),
 ]
