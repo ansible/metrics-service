@@ -410,10 +410,6 @@ docker run -p 8000:8000 \
   metrics-service
 ```
 
-### Kubernetes
-
-For Kubernetes deployment, see the manifests in the `manifests/base/apps/metrics-service/` directory.
-
 ## Contributing
 
 1. Fork the repository
