@@ -4,6 +4,7 @@ Dashboard views for task management and monitoring.
 NOTE: The dashboard is only accessible when DEVELOPER_MODE_ENABLED is True.
 """
 
+import os
 from functools import wraps
 
 from django.conf import settings
@@ -52,9 +53,14 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     """
     from apps.tasks.tasks import TASK_FUNCTIONS
 
+    prefix = os.getenv("METRICS_URL_PREFIX")
+
+    root_url = "/api/v1/"
+    if prefix:
+        root_url = f"/{prefix}{root_url}"
     context = {
         "page_title": "Task Dashboard",
-        "api_base_url": "/api/v1/",
+        "api_base_url": root_url,
         "user": request.user,
         "available_functions": list(TASK_FUNCTIONS.keys()),
         "database_driven": True,  # Flag to indicate this uses database tasks
