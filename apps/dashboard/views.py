@@ -53,7 +53,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     """
     from apps.tasks.tasks import TASK_FUNCTIONS
 
-    prefix = os.getenv("METRICS_URL_PREFIX")
+    prefix = os.getenv("METRICS_SERVICE_URL_PREFIX")
 
     root_url = "/api/v1/"
     if prefix:
