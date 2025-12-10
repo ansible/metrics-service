@@ -1,0 +1,51 @@
+"""Top level settings file for all apps.
+The settings here overrides any setting previously loaded
+from the metrics_service.settings
+In order to merge wit previously defined setting
+use Dynaconf merging markers such as:
+@merge, @merge_unique, @insert on string values and
+`dynaconf_merge` or `dynaconf_merge_unique` on data structures.
+The settings defined here can be overridden from
+each app own settings.py, environment local override files and
+environment variables.
+"""
+
+extra_applications = []
+"""Extra applications added after PSF templating."""
+
+dab_applications = [
+    "ansible_base.rest_filters",
+    "ansible_base.jwt_consumer",
+    "ansible_base.resource_registry",
+    "ansible_base.rbac",
+    "ansible_base.feature_flags",
+    "ansible_base.api_documentation",
+]
+"""Default DAB applications layd out from PSF, add/remove according to the project needs,
+adjust `pyproject` dab extra dependencies acording to apps added/removed here.
+"""
+
+project_applications = [
+    "apps.core",
+    "apps.core",
+    "apps.api",
+    "apps.tasks",
+    "apps.dashboard",
+]
+"""List of applications from the apps/ folder."""
+
+
+INSTALLED_APPS = [
+    "dynaconf_merge_unique",  # DO NOT REMOVE THIS
+    *dab_applications,
+    *project_applications,
+    *extra_applications,
+]
+"""Final state of the INSTALLED_APPS that will merge with the rest of the settings."""
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.BasicAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+}

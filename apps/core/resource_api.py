@@ -1,90 +1,46 @@
-"""
-Resource API configuration for Django-Ansible-Base resource registry.
-"""
+"""Resource Registry configuration for DAB."""
 
 from ansible_base.resource_registry.registry import (
+    ParentResource,
     ResourceConfig,
     ServiceAPIConfig,
     SharedResource,
 )
-from ansible_base.resource_registry.shared_types import (
-    OrganizationType,
-    TeamType,
-    UserType,
-)
-from django.conf import settings
-from django.contrib.auth import get_user_model
+from ansible_base.resource_registry.shared_types import UserType
 
-from .models import Organization, Team
+from apps.core.models import Organization, Team, User
 
 
 class APIConfig(ServiceAPIConfig):
+    """API configuration for the resource registry."""
+
     service_type = "metrics_service"
 
 
-# Service resource configuration for AAP resource sharing
 RESOURCE_LIST = [
     ResourceConfig(
-        get_user_model(),
-        shared_resource=SharedResource(serializer=UserType, is_provider=True),
-        name_field="username",
+        Organization,
+        shared_resource=SharedResource(
+            serializer=None,
+            is_provider=True,
+        ),
     ),
     ResourceConfig(
         Team,
-        shared_resource=SharedResource(serializer=TeamType, is_provider=False),
+        shared_resource=SharedResource(
+            serializer=None,
+            is_provider=True,
+        ),
+        parent_resources=[
+            ParentResource(model=Organization, field_name="organization"),
+        ],
     ),
     ResourceConfig(
-        Organization,
-        shared_resource=SharedResource(serializer=OrganizationType, is_provider=False),
+        User,
+        shared_resource=SharedResource(
+            serializer=UserType,
+            is_provider=False,
+        ),
+        name_field="username",
     ),
 ]
-
-# Register authentication models as non-shared resources
-try:
-    from ansible_base.authentication.models import Authenticator
-
-    RESOURCE_LIST.append(
-        ResourceConfig(
-            Authenticator,
-            # Don't share authenticator models across services
-        )
-    )
-except ImportError:
-    pass
-
-# # Register other ansible_base models as needed
-# try:
-#     from ansible_base.oauth2_provider.models import OAuth2Application, OAuth2AccessToken
-
-#     RESOURCE_LIST.extend(
-#         [
-#             ResourceConfig(OAuth2Application),
-#             ResourceConfig(OAuth2AccessToken),
-#         ]
-#     )
-# except ImportError:
-#     pass
-
-try:
-    from ansible_base.rbac.models import RoleDefinition
-
-    RESOURCE_LIST.append(ResourceConfig(RoleDefinition))
-except ImportError:
-    pass
-
-
-def service_metadata() -> dict:
-    """
-    Get service metadata for resource registry.
-
-    Returns:
-        dict: Service metadata
-    """
-    try:
-        return {
-            "service_type": "metrics_service",
-            "system_uuid": getattr(settings, "SYSTEM_UUID", "unknown"),
-            "version": "1.0.0",
-        }
-    except Exception:
-        return {"service_type": "metrics_service", "system_uuid": "unknown", "version": "1.0.0"}

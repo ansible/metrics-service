@@ -1,286 +1,116 @@
-[build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "metrics-service"
-description = "AAP Metrics Service"
+name = "metrics_service"
+version = "0.1.0"
+description = "description here"
 readme = "README.md"
-requires-python = "==3.12.*"
-license = "MIT"
-authors = [
-    {name = "AAP Emerging Services", email = "aap-emerging-services@redhat.com"},
-]
-keywords = ["ansible", "metrics", "service"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.12",
-    "Framework :: Django",
-    "Framework :: Django :: 5.2.7",
-]
-dynamic = ["version"]
-
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "Django==5.2.7",
-    "djangorestframework>=3.15",
-    "django-ansible-base[jwt_consumer,api_documentation,rbac,rest_filters]==2025.10.20",
-    "django-split-settings>=1.2",
-    "drf-spectacular>=0.26.5",
-    "django-cors-headers>=4.0",
-    "psycopg[binary]>=3.1",
-    "psycopg2-binary>=2.9.0",  # Required for dispatcherd PostgreSQL LISTEN/NOTIFY
-    "channels>=4.0",
-    "dynaconf>=3.1.0",
-    "social-auth-app-django>=5.0.0,<5.5",
-    "django-oauth-toolkit>=2.2.0",
-    "dispatcherd>=2025.5.21",
-    "croniter>=1.3.0",
-    "apscheduler>=3.10.0",
-    "metrics-utility==0.7.20251112",
-    "django-prometheus>=2.3.1",
-    "pip>=25.2",
+    "django>=5.2.7",
+    "psycopg[binary]>=3.3.1",
+    "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]",
 ]
-
-[project.optional-dependencies]
-dev = [
-    "black>=23.0",
-    "ruff>=0.1.0",
-    "isort>=5.12",
-    "mypy>=1.5",
-    "django-stubs[compatible-mypy]>=4.2",
-    "djangorestframework-stubs[compatible-mypy]>=3.14",
-    "pytest>=7.4",
-    "pytest-django>=4.5",
-    "pytest-cov>=4.1",
-    "pytest-asyncio>=0.21",
-    "coverage>=7.3",
-    "factory-boy>=3.3",
-    "django-debug-toolbar>=4.2",
-    "pre-commit>=3.4",
-]
-
-ldap = [
-    "python-ldap>=3.4.0",
-    "django-auth-ldap>=5.2.0",
-    "ldap-filter>=1.0.1",
-]
-
-test = [
-    "pytest>=7.4",
-    "pytest-django>=4.5",
-    "pytest-cov>=4.1",
-    "pytest-asyncio>=0.21",
-    "coverage>=7.3",
-    "factory-boy>=3.3",
-]
-
-docs = [
-    "sphinx>=7.1",
-    "sphinx-rtd-theme>=1.3",
-    "sphinx-autodoc-typehints>=1.24",
-]
-
-[project.urls]
-Homepage = "https://github.com/ansible/platform-service-template"
-Documentation = "https://platform-service-template.readthedocs.io/"
-Repository = "https://github.com/ansible/platform-service-template"
-"Bug Tracker" = "https://github.com/ansible/platform-service-template/issues"
-
-[tool.setuptools]
-packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.tasks", "apps.dashboard"]
-
 
 [dependency-groups]
-dev=[
-    "black>=23.0",
-    "ruff>=0.1.0",
-    "isort>=5.12",
-    "mypy>=1.5",
-    "django-stubs[compatible-mypy]>=4.2",
-    "djangorestframework-stubs[compatible-mypy]>=3.14",
-    "pytest>=7.4",
-    "pytest-django>=4.5",
-    "pytest-cov>=4.1",
-    "pytest-asyncio>=0.21",
-    "coverage>=7.3",
-    "factory-boy>=3.3",
-    "django-debug-toolbar>=4.2",
-    "pre-commit>=3.4",
+dev = [
+    "pytest>=8.4.2",
+    "pytest-django>=4.10.0",
+    "poethepoet>=0.37.0",
+    "ruff>=0.14.3",
+    "ty>=0.0.1a25",
+    "pdoc>=16.0.0",
+    "django-extensions>=4.1",
+    "ipython>=9.7.0",
+    "ipdb>=0.13.13",
+    "django-extensions>=4.1",
+    "ipython>=9.7.0",
+    "ipdb>=0.13.13",
+    "django-debug-toolbar>=6.1.0",
 ]
-
-[tool.black]
-line-length = 120
-target-version = ['py312']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-  | migrations
-)/
-'''
+doc = [
+    "pdoc>=16.0.0",
+]
+test = [
+    "pytest>=8.4.2",
+    "poethepoet>=0.37.0",
+    "ruff>=0.14.3",
+    "ty>=0.0.1a25",
+]
 
 [tool.ruff]
-line-length = 120
-target-version = "py312"
+line-length = 100
 exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "migrations",
+  "__pycache__",
+  ".venv",
+  "build",
+  "dist",
+  ".git",
+  "migrations",
+  "tests",
 ]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "N",   # pep8-naming
-    "B",   # flake8-bugbear
-    "C90", # mccabe complexity
-    "UP",  # pyupgrade
-    "S",   # flake8-bandit
-    "T20", # flake8-print
-    "SIM", # flake8-simplify
-    "PLR", # pylint refactoring (complexity, code smells)
-    "PIE", # flake8-pie (misc linting)
-]
-ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-    "S101",  # use of assert detected
-    "S311",  # pseudo-random generators not suitable for security/cryptographic purposes
-    "PLR0913",  # too many arguments (we have some complex functions)
-    "PLR2004",  # magic value comparison (common in tests)
-]
-
-[tool.ruff.lint.per-file-ignores]
-"**/tests/**/*.py" = [
-    "S101",     # Allow assert in tests
-    "S106",     # Allow hardcoded passwords in tests
-    "S603",     # Allow subprocess in tests
-    "PLR0915",  # Allow too many statements in tests
-    "PLR0912",  # Allow too many branches in tests
-    "PLR2004",  # Allow magic values in tests
-    "F632",     # Allow is comparison in tests (common pattern)
-]
-"**/conftest.py" = ["S101"]
-"**/settings/**/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
-"manage.py" = ["T20"]
+select = ["E", "F", "W", "C90", "N", "I"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 15  # Increased to match Sonar's threshold
-
-[tool.ruff.lint.pylint]
-max-branches = 15      # Maximum number of branches (matches Sonar S3776)
-max-statements = 50    # Maximum number of statements in function
-max-returns = 6        # Maximum number of return statements
-max-args = 8           # Maximum function arguments (relaxed for complex functions)
-
-[tool.isort]
-profile = "black"
-line_length = 120
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-known_django = "django"
-known_first_party = ["metrics_service", "apps"]
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "DJANGO", "FIRSTPARTY", "LOCALFOLDER"]
-
-[tool.mypy]
-python = "3.12"
-plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false  # Start with false, gradually enable
-disallow_incomplete_defs = false
-check_untyped_defs = true
-disallow_untyped_decorators = false
-strict_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-ignore_missing_imports = true
-
-[tool.django-stubs]
-django_settings_module = "metrics_service.settings.test"
+max-complexity = 15
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "metrics_service.settings.test"
-python_files = ["tests.py", "test_*.py", "*_tests.py"]
-testpaths = ["tests"]
-addopts = [
-    "--verbose",
-    "--tb=short",
-    "--strict-markers",
-    "--strict-config",
-    "--cov=metrics_service",
-    "--cov=apps",
-    "--reuse-db",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-    "--cov-report=xml",
-    "--cov-fail-under=80",
-]
-markers = [
-    "unit: Unit tests",
-    "integration: Integration tests",
-    "functional: Functional tests",
-    "slow: Slow running tests",
-]
-filterwarnings = [
-    "ignore::django.utils.deprecation.RemovedInDjango60Warning",
-    "ignore::DeprecationWarning",
-    "ignore::pytest.PytestUnraisableExceptionWarning",
-    "ignore:Overriding setting DATABASES:UserWarning",
-    "ignore::pytest.PytestCollectionWarning",
-]
+minversion = "6.0"
+addopts = "-vs -ra -q"
+testpaths = ["metrics_service/tests", "apps/**/tests"]
+DJANGO_SETTINGS_MODULE = "metrics_service.settings"
 
-[tool.coverage.run]
-source = ["metrics_service", "apps"]
-omit = [
-    "*/migrations/*",
-    "*/tests/*",
-    "*/venv/*",
-    "manage.py",
-    "*/settings/*",
-    "*/__pycache__/*",
-]
+[tool.poe]
+executor.type  = "uv"
 
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-] 
+[tool.poe.tasks]
+lint = "ruff check ."
+type_check = "ty check"
+format = "ruff format ."
+unit-test = "manage.py test -v 2"
+check = ["format", "lint","type_check", "unit-test"]
+render-docs = "pdoc -t docs/templates --mermaid --docformat markdown --docformat google metrics_service apps -o html"
+serve-docs = "pdoc -t docs/templates --mermaid --docformat markdown --docformat google metrics_service apps"
+
+[tool.poe.tasks.clean]
+help = "Clean local caches for mypy, pytest, python"
+script = "poethepoet.scripts:rm('.mypy_cache', '.pytest_cache', './**/__pycache__', './**/*.pyc')"
+
+[tool.poe.tasks.validate]
+shell = """
+python -c "
+import yaml
+with open('.copier-answers.yml') as f:
+    d = yaml.safe_load(f)
+    branch = d.get('src_branch', '')
+    src = d.get('_src_path', '')
+    from pathlib import Path
+    if Path(src).is_dir():
+        print(f'uvx --refresh --from {src} platform-service-framework validate')
+    else:
+        print(f'uvx --refresh git+{src}@{branch} validate')
+" | sh
+"""
+
+[tool.poe.tasks.update]
+shell = """
+python -c "
+import yaml
+with open('.copier-answers.yml') as f:
+    d = yaml.safe_load(f)
+    branch = d.get('src_branch', '')
+    src = d.get('_src_path', '')
+    from pathlib import Path
+    if Path(src).is_dir():
+        print(f'uvx --refresh --from {src} platform-service-framework update')
+    else:
+        print(f'uvx --refresh git+{src}@{branch} update')
+" | sh
+"""
+
+[tool.uv.sources]
+django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "devel" }

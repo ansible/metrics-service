@@ -1,9 +1,10 @@
+---
 repos:
-  # Sync requirements files when pyproject.toml or uv.lock changes
   - repo: local
     hooks:
-      - id: sync-requirements
-        name: Sync requirements files
-        entry: bash -c './sync-requirements.sh && git add requirements*.txt dev-requirements.txt'
+      - id: framework-validation
+        name: Platform Service Framework Validation
+        entry: bash -c 'BRANCH=$(grep "^src_branch:" .copier-answers.yml | awk "{print \$2}") && SRC_PATH=$(grep "^_src_path:" .copier-answers.yml | awk "{print \$2}") && if [ -d "${SRC_PATH}" ]; then uvx --refresh --from "${SRC_PATH}" platform-service-framework validate; else uvx --refresh git+${SRC_PATH}@${BRANCH} validate; fi'
         language: system
-        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+        always_run: true

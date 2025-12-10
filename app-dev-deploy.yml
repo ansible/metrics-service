@@ -1,0 +1,67 @@
+# =============================================================================
+# DEVELOPMENT ONLY - DO NOT USE IN PRODUCTION
+# =============================================================================
+# This manifest is for local development and testing only.
+# It uses DEBUG=true, emptyDir volumes, and is not suitable for production.
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics_service
+  labels:
+    app: metrics_service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metrics_service
+  template:
+    metadata:
+      labels:
+        app: metrics_service
+    spec:
+      containers:
+        - name: metrics_service
+          image: localhost:5001/metrics_service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: METRICS_SERVICE_ALLOWED_HOSTS
+              value: '["*"]'
+            - name: METRICS_SERVICE_DEBUG
+              value: "true"
+            - name: METRICS_SERVICE_DATABASES__default__NAME
+              value: "/app/data/db.sqlite3"
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /app/data
+          readinessProbe:
+            httpGet:
+              path: /ping/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ping/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: sqlite-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics_service
+spec:
+  selector:
+    app: metrics_service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
