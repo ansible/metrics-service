@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: e560ec6
-_src_path: https://github.com/ansible/platform-service-framework.git
+_commit: 577af49
+_src_path: /Volumes/case-sensitive-volume/projects/src/github.com/TheRealHaoLiu/platform-service-framework
 app_name: ''
 apps:
 - core
