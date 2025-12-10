@@ -138,6 +138,13 @@ class APIRootView(APIView):
 
                 # Use a clean name for the endpoint (strip namespace prefix and suffixes)
                 name = pattern.name.removesuffix("-list").removesuffix("-root")
+
+                # Skip if this endpoint name (or its plural/singular variant) already exists
+                # This handles cases where a section entry exists alongside its list view
+                section_name = relative_path.strip("/")
+                if section_name in endpoints or section_name.rstrip("s") in endpoints:
+                    continue
+
                 try:
                     endpoints[name] = reverse(url_name, request=request)
                 except Exception:
