@@ -567,6 +567,36 @@
 				const API_BASE_URL = '{{ api_base_url }}';
 				let refreshInterval;
 
+				// Get CSRF token from cookie for POST requests
+				function getCookie(name) {
+					let cookieValue = null;
+					if (document.cookie && document.cookie !== '') {
+						const cookies = document.cookie.split(';');
+						for (let i = 0; i < cookies.length; i++) {
+							const cookie = cookies[i].trim();
+							if (cookie.substring(0, name.length + 1) === (name + '=')) {
+								cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+								break;
+							}
+						}
+					}
+					return cookieValue;
+				}
+				const csrftoken = getCookie('csrftoken');
+
+				// Fetch wrapper that includes credentials
+				async function apiFetch(url, options = {}) {
+					const defaultOptions = {
+						credentials: 'include',
+						headers: {
+							'Content-Type': 'application/json',
+							...(options.method && options.method !== 'GET' ? {'X-CSRFToken': csrftoken} : {}),
+							...options.headers,
+						},
+					};
+					return fetch(url, {...defaultOptions, ...options, headers: {...defaultOptions.headers, ...options.headers}});
+				}
+
 				// Initialize dashboard
 				document.addEventListener('DOMContentLoaded', function() {
 				    loadAvailableFunctions();
@@ -617,7 +647,7 @@
 
 				async function loadAvailableFunctions() {
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/available_functions/`);
+				        const response = await apiFetch(`${API_BASE_URL}tasks/available_functions/`);
 				        const data = await response.json();
 				        availableFunctions = data.functions;
 
@@ -795,7 +825,7 @@
 			    try {
 			        const taskData = buildTaskData(formData, isRecurring);
 
-			        const response = await fetch(`${API_BASE_URL}tasks/`, {
+			        const response = await apiFetch(`${API_BASE_URL}tasks/`, {
 			            method: 'POST',
 			            headers: {
 			                'Content-Type': 'application/json',
@@ -832,10 +862,10 @@
 				    try {
 				        // Use efficient approach: get counts by status using separate API calls
 				        const [runningResp, pendingResp, completedResp, failedResp] = await Promise.all([
-				            fetch(`${API_BASE_URL}tasks/?status=running&limit=1`),
-				            fetch(`${API_BASE_URL}tasks/?status=pending&limit=1`),
-				            fetch(`${API_BASE_URL}tasks/?status=completed&limit=1`),
-				            fetch(`${API_BASE_URL}tasks/?status=failed&limit=1`)
+				            apiFetch(`${API_BASE_URL}tasks/?status=running&limit=1`),
+				            apiFetch(`${API_BASE_URL}tasks/?status=pending&limit=1`),
+				            apiFetch(`${API_BASE_URL}tasks/?status=completed&limit=1`),
+				            apiFetch(`${API_BASE_URL}tasks/?status=failed&limit=1`)
 				        ]);
 
 				        const [runningData, pendingData, completedData, failedData] = await Promise.all([
@@ -858,7 +888,7 @@
 				        console.error('Error loading task stats:', error);
 				        // Fallback to loading a limited set and counting
 				        try {
-				            const response = await fetch(`${API_BASE_URL}tasks/list/?limit=1000`);
+				            const response = await apiFetch(`${API_BASE_URL}tasks/list/?limit=1000`);
 				            const tasks = await response.json();
 				            const stats = countTasksByStatus(tasks);
 				            updateStatsDisplay(stats);
@@ -895,7 +925,7 @@
 
 				async function loadRunningTasks() {
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/running/`);
+				        const response = await apiFetch(`${API_BASE_URL}tasks/running/`);
 				        if (!response.ok) {
 				            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 				        }
@@ -909,7 +939,7 @@
 
 				async function loadPendingTasks() {
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/pending/`);
+				        const response = await apiFetch(`${API_BASE_URL}tasks/pending/`);
 				        if (!response.ok) {
 				            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 				        }
@@ -923,7 +953,7 @@
 
 				                     async function loadAllTasks() {
 				                         try {
-				                             const response = await fetch(`${API_BASE_URL}tasks/?limit=50`);
+				                             const response = await apiFetch(`${API_BASE_URL}tasks/?limit=50`);
 				                             if (!response.ok) {
 				                                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 				                             }
@@ -938,7 +968,7 @@
 				async function loadRecentExecutions() {
 				    // Executions endpoint not implemented yet - use task data instead
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/?limit=10`);
+				        const response = await apiFetch(`${API_BASE_URL}tasks/?limit=10`);
 				        if (!response.ok) {
 				            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 				        }
@@ -1054,11 +1084,8 @@
 
 				async function retryTask(taskId) {
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/${taskId}/retry/`, {
+				        const response = await apiFetch(`${API_BASE_URL}tasks/${taskId}/retry/`, {
 				            method: 'POST',
-				            headers: {
-				                'X-CSRFToken': getCookie('csrftoken'),
-				            }
 				        });
 
 				        if (response.ok) {
@@ -1092,11 +1119,8 @@
 				    }
 
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/${taskId}/cancel/`, {
+				        const response = await apiFetch(`${API_BASE_URL}tasks/${taskId}/cancel/`, {
 				            method: 'POST',
-				            headers: {
-				                'X-CSRFToken': getCookie('csrftoken'),
-				            }
 				        });
 
 				        if (response.ok) {
@@ -1130,11 +1154,8 @@
 				    }
 
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/${taskId}/`, {
+				        const response = await apiFetch(`${API_BASE_URL}tasks/${taskId}/`, {
 				            method: 'DELETE',
-				            headers: {
-				                'X-CSRFToken': getCookie('csrftoken'),
-				            }
 				        });
 
 				        if (response.ok) {
@@ -1152,7 +1173,7 @@
 
 				async function viewTaskDetails(taskId) {
 				    try {
-				        const response = await fetch(`${API_BASE_URL}tasks/${taskId}/`);
+				        const response = await apiFetch(`${API_BASE_URL}tasks/${taskId}/`);
 				        const task = await response.json();
 
 				        // Update modal title
