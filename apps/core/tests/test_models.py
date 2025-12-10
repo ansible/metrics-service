@@ -30,7 +30,7 @@ class TestTeamModel(TestCase):
     def test_create_team(self):
         org = Organization.objects.create(name="Test Org")
         team = Team.objects.create(name="Test Team", organization=org)
-        self.assertEqual(str(team), "Test Team")
+        self.assertEqual(str(team), "Test Org - Test Team")
         self.assertEqual(team.organization, org)
 
     def test_team_organization_relationship(self):

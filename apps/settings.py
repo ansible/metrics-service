@@ -20,13 +20,13 @@ dab_applications = [
     "ansible_base.rbac",
     "ansible_base.feature_flags",
     "ansible_base.api_documentation",
+    "ansible_base.activitystream",
 ]
 """Default DAB applications layd out from PSF, add/remove according to the project needs,
 adjust `pyproject` dab extra dependencies acording to apps added/removed here.
 """
 
 project_applications = [
-    "apps.core",
     "apps.core",
     "apps.api",
     "apps.tasks",
@@ -49,3 +49,12 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
 }
+
+# Feature flags configuration
+FEATURE_ENABLED = {
+    "ANONYMIZED_DATA_COLLECTION": True,
+    "METRICS_COLLECTION_ENABLED": False,
+}
+
+# Dispatcherd always enabled
+DISPATCHERD_ENABLED = True
