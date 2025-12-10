@@ -1,8 +1,26 @@
+import re
+
 from django.urls import get_resolver
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
+
+
+def _normalize_path(path):
+    """
+    Normalize URL pattern path by stripping regex anchors and format suffixes.
+
+    DRF routers use regex patterns like '^organizations/$' or '^organizations\\.(?P<format>...)$'
+    This normalizes them to simple paths like 'organizations/'.
+    """
+    # Strip regex anchors
+    path = path.lstrip("^").rstrip("$")
+    # Remove format suffix patterns like '\.(?P<format>[a-z0-9]+)/?'
+    path = re.sub(r"\\\.\(\?P<format>[^)]+\)/?\$?", "/", path)
+    # Clean up any remaining regex escapes
+    path = path.replace("\\.", ".")
+    return path
 
 
 class APIRootView(APIView):
@@ -43,7 +61,10 @@ class APIRootView(APIView):
     ):
         """Recursively extract endpoints from URL patterns."""
         for pattern in patterns:
-            full_path = current_path + str(pattern.pattern)
+            # Get raw pattern string and normalize it
+            raw_pattern = str(pattern.pattern)
+            normalized_pattern = _normalize_path(raw_pattern)
+            full_path = current_path + normalized_pattern
 
             # Handle nested includes (URLResolver)
             if hasattr(pattern, "url_patterns"):
@@ -56,11 +77,12 @@ class APIRootView(APIView):
                     relative_path = full_path[len(prefix) :]
                     if relative_path and relative_path != "/":
                         path_parts = relative_path.strip("/").split("/")
-                        # Skip paths with special regex characters (like ^__debug__/)
+                        # Skip paths with parameters or debug patterns
                         if (
                             len(path_parts) == 1
                             and "<" not in relative_path
-                            and "^" not in relative_path
+                            and "(?P<" not in raw_pattern
+                            and "__debug__" not in relative_path
                         ):
                             # This is a direct child section (like v1/)
                             section_name = path_parts[0]
@@ -69,9 +91,9 @@ class APIRootView(APIView):
                             section_url = request.build_absolute_uri(script_name + "/" + full_path)
                             endpoints[section_name] = section_url
 
-                # Always recurse to find named patterns
+                # Always recurse to find named patterns (use raw path for recursion)
                 self._extract_patterns(
-                    pattern.url_patterns, full_path, endpoints, request, prefix, exclude_name, child_namespace
+                    pattern.url_patterns, current_path + normalized_pattern, endpoints, request, prefix, exclude_name, child_namespace
                 )
 
             # Handle leaf patterns (URLPattern)
@@ -98,8 +120,12 @@ class APIRootView(APIView):
                 if len(path_parts) > 1:
                     continue
 
-                # Skip detail views (paths with parameters like <pk>)
-                if "<" in relative_path:
+                # Skip detail views (paths with parameters like <pk> or regex named groups)
+                if "<" in relative_path or "(?P<" in raw_pattern:
+                    continue
+
+                # Skip format suffix patterns (like organizations.json)
+                if "\\." in raw_pattern or ".(?P<format>" in raw_pattern:
                     continue
 
                 # Skip index views (they're redundant with section links)
