@@ -118,4 +118,3 @@ class BasicURLConfigurationTestCase(TestCase):
         logout_view = auth_views.LogoutView()
         self.assertTrue(hasattr(logout_view, "get"))
         self.assertTrue(hasattr(logout_view, "post"))
-

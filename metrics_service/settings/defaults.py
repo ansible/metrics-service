@@ -216,8 +216,30 @@ ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = True
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
-ANSIBLE_BASE_RBAC_MODEL_REGISTRY: dict[str, str] = {}
-ANSIBLE_BASE_MANAGED_ROLE_REGISTRY: dict[str, str] = {}
+# Models to register with DAB RBAC - these are registered automatically by DAB
+ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {
+    "core.Organization": {"parent_field_name": None},
+    "core.Team": {"parent_field_name": "organization"},
+    "core.User": {"parent_field_name": None},
+}
+
+# Default RBAC roles - created automatically on `python manage.py migrate`
+ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {
+    "sys_auditor": {"name": "Platform Auditor"},  # View-only, system-wide
+    "org_admin": {},  # Organization Admin - all perms on org + children
+    "org_member": {},  # Organization Member - member perm on org
+    "team_admin": {},  # Team Admin - all perms on team
+    "team_member": {},  # Team Member - member perm on team
+}
+
+# Configure which roles can be synced via JWT from gateway
+ANSIBLE_BASE_JWT_MANAGED_ROLES = [
+    "Platform Auditor",
+    "Organization Admin",
+    "Organization Member",
+    "Team Admin",
+    "Team Member",
+]
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [

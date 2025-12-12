@@ -46,15 +46,6 @@ class TestTaskScheduler(BaseTaskSchedulerTest):
 class TestUtilities(BaseUtilitiesTest):
     """Test utility functions."""
 
-    def test_password_validation(self):
-        """Test password validation if available."""
-        try:
-            from apps.core.models import password_is_hashed, password_is_usable
-
-            # Test with mock password
-            self.assertFalse(password_is_hashed("plaintext"))
-            self.assertTrue(password_is_usable("password"))
-
-        except ImportError:
-            # DAB not available, skip test
-            pass
+    def test_placeholder(self):
+        """Placeholder test for utilities."""
+        # Password validation functions were removed with simplified User model

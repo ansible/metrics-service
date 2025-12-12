@@ -60,4 +60,5 @@ class TestTeamModel:
     def test_team_string_representation(self, organization):
         """Test team string representation."""
         team = Team.objects.create(name="Test Team", organization=organization)
-        assert str(team) == f"{organization.name} - Test Team"
+        # AbstractTeam's __str__ returns just the team name
+        assert str(team) == "Test Team"

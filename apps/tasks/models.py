@@ -13,7 +13,7 @@ from django.db import models
 from django.utils import timezone
 
 # Import base classes and mixins from core
-from apps.core.mixins import AccessControlMixin, StatusTrackingMixin
+from apps.core.mixins import StatusTrackingMixin
 
 # Import base classes, handling both DAB and simple fallbacks
 try:
@@ -48,7 +48,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class Task(NamedCommonModel, AuditableModel, AccessControlMixin, StatusTrackingMixin):
+class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
     """
     Database model for scheduled tasks with enhanced tracking capabilities.
 
@@ -354,7 +354,7 @@ class TaskExecution(CommonModel, AuditableModel):
         super().save(*args, **kwargs)
 
 
-class TaskChain(NamedCommonModel, AuditableModel, AccessControlMixin):
+class TaskChain(NamedCommonModel, AuditableModel):
     """
     Model to define named task chains for complex workflows.
 

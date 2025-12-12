@@ -123,24 +123,6 @@ def get_system_uuid() -> str:
         return str(uuid.uuid4())
 
 
-def is_system_auditor_user(user: Any) -> bool:
-    """
-    Check if user is a system auditor.
-
-    Args:
-        user: User instance to check
-
-    Returns:
-        bool: True if user is system auditor
-    """
-    try:
-        if hasattr(user, "is_system_auditor_user") and callable(user.is_system_auditor_user):
-            return user.is_system_auditor_user()
-        return False
-    except Exception:
-        return False
-
-
 def format_task_data(data: Any) -> str:
     """
     Format task data for display.

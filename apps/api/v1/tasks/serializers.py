@@ -29,6 +29,8 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
     needed for task management.
     """
 
+    # Use PrimaryKeyRelatedField instead of HyperlinkedRelatedField since user views were removed
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
     created_by_username = serializers.CharField(source="created_by.username", read_only=True)
     executions_count = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
@@ -91,7 +93,6 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
         extra_kwargs = BaseModelSerializer.build_extra_kwargs(
             "api:v1:tasks:task-detail",
             {
-                "created_by": {"view_name": "api:v1:user-detail"},
                 "scheduled_time": {"help_text": "ISO 8601 format datetime when task should run"},
                 "task_data": {"help_text": "JSON data to pass to the task function"},
             },

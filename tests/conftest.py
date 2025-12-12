@@ -84,7 +84,6 @@ def admin_user():
         username="admin",
         email="admin@example.com",
         password="adminpassword123",
-        is_system_auditor=False,
         is_superuser=True,
     )
 

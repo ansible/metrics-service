@@ -134,6 +134,7 @@ class TestMainURLResolution(TestCase):
         with contextlib.suppress(Exception):
             resolve("/api/")
 
+
 @pytest.mark.unit
 class TestMainURLsWithMocks(TestCase):
     """Test main URLs with mocked dependencies."""

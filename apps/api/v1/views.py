@@ -3,115 +3,20 @@ API v1 views for metrics_service following AAP standards.
 """
 
 from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
-from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
+from ansible_base.rbac import permission_registry
+from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions, AnsibleBaseUserPermissions
+from ansible_base.rbac.policies import visible_users
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
-from apps.core.models import Organization, User
-from apps.core.permissions import SystemAuditorAwarePermissions
+from apps.core.models import Organization, Team, User
 from apps.core.utils import log_setting_change
 from metrics_service.settings import DYNACONF
 
-from .serializers import OrganizationSerializer, UserSerializer
-
-
-class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
-    """ViewSet for User model following AAP patterns."""
-
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [SystemAuditorAwarePermissions]
-    search_fields = ["username", "first_name", "last_name", "email"]
-    filterset_fields = {
-        "username": ["exact", "icontains"],
-        "email": ["exact", "icontains"],
-        "is_active": ["exact"],
-        "is_superuser": ["exact"],
-        "is_system_auditor": ["exact"],
-        "created": ["gte", "lte"],
-    }
-    ordering_fields = ["username", "email", "first_name", "last_name", "created"]
-    ordering = ["username"]
-
-    def get_queryset(self):
-        """Filter queryset based on user permissions using DAB patterns."""
-        # Use DAB's access_qs method - when DAB is fully configured, this will handle all RBAC
-        return User.access_qs(self.request.user, queryset=self.queryset)
-
-    @action(detail=False, methods=["get"])
-    def me(self, request):
-        """Return current user information."""
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=["post"])
-    def set_password(self, request, pk=None):
-        """Set password for a user."""
-        user = self.get_object()
-        password = request.data.get("password")
-
-        if not password:
-            return Response({"error": "Password is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        user.set_password(password)
-        user.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
-    """ViewSet for Organization model following AAP patterns."""
-
-    queryset = Organization.objects.all()
-    serializer_class = OrganizationSerializer
-    permission_classes = [SystemAuditorAwarePermissions]
-    search_fields = ["name", "description"]
-    filterset_fields = {
-        "name": ["exact", "icontains"],
-        "description": ["icontains"],
-        "extra_field": ["exact", "icontains", "isnull"],
-        "created": ["gte", "lte"],
-        "modified": ["gte", "lte"],
-    }
-    ordering_fields = ["name", "created", "modified"]
-    ordering = ["name"]
-
-    def get_queryset(self):
-        """Filter queryset based on user permissions using DAB patterns."""
-        user = self.request.user
-        return Organization.access_qs(user, queryset=self.queryset)
-
-    @action(detail=True, methods=["get", "post"])
-    def users(self, request, pk=None):
-        """Get users in organization OR add user to organization."""
-        organization = self.get_object()
-
-        if request.method == "GET":
-            # Return list of users (current behavior)
-            users = organization.users.all()
-            serializer = UserSerializer(users, many=True, context={"request": request})
-            return Response(serializer.data)
-
-        elif request.method == "POST":
-            # Add/remove user to/from organization
-            user_id = request.data.get("id")
-            disassociate = request.data.get("disassociate", False)
-
-            if not user_id:
-                return Response({"error": "User id is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-            try:
-                user = User.objects.get(id=user_id)
-
-                if disassociate:
-                    organization.users.remove(user)
-                else:
-                    organization.users.add(user)
-
-                return Response(status=status.HTTP_204_NO_CONTENT)
-            except User.DoesNotExist:
-                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+from .serializers import OrganizationSerializer, TeamSerializer, UserSerializer
 
 
 class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
@@ -223,3 +128,42 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         else:
             status_code = status.HTTP_404_NOT_FOUND if "not found" in result["error"] else status.HTTP_400_BAD_REQUEST
             return Response({"error": result["error"]}, status=status_code)
+
+
+class BaseViewSet(ModelViewSet, AnsibleBaseDjangoAppApiView):
+    """Base viewset with RBAC filtering."""
+
+    permission_classes = [AnsibleBaseObjectPermissions]
+
+    def filter_queryset(self, qs):
+        cls = qs.model
+        if hasattr(cls, "access_qs"):
+            qs = cls.access_qs(self.request.user, queryset=qs)
+        return super().filter_queryset(qs)
+
+
+class OrganizationViewSet(BaseViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
+
+
+class TeamViewSet(BaseViewSet):
+    queryset = Team.objects.all()
+    serializer_class = TeamSerializer
+
+
+class UserViewSet(BaseViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [AnsibleBaseUserPermissions]
+
+    def filter_queryset(self, qs):
+        # Only use visible_users if RBAC is properly set up (Organization registered)
+        if permission_registry.is_registered(Organization):
+            qs = visible_users(self.request.user, queryset=qs)
+        return super(BaseViewSet, self).filter_queryset(qs)
+
+    @action(detail=False, methods=["get"])
+    def me(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)

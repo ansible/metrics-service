@@ -252,25 +252,6 @@ class TestCoreUtilsCoverage(TestCase):
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_is_system_auditor_user_true(self):
-        """Test is_system_auditor_user returns True."""
-        from apps.core.utils import is_system_auditor_user
-
-        user = User.objects.create_user(username="auditor", email="auditor@example.com")
-        user.is_system_auditor_user = lambda: True
-
-        result = is_system_auditor_user(user)
-        assert result is True
-
-    def test_is_system_auditor_user_false(self):
-        """Test is_system_auditor_user returns False."""
-        from apps.core.utils import is_system_auditor_user
-
-        user = User.objects.create_user(username="regular", email="regular@example.com")
-
-        result = is_system_auditor_user(user)
-        assert result is False
-
     def test_format_task_data_dict(self):
         """Test format_task_data with dictionary."""
         from apps.core.utils import format_task_data

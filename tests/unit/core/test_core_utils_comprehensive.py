@@ -11,14 +11,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import TestCase
 
-from apps.core.models import Organization, User
+from apps.core.models import User
 from apps.core.utils import (
     build_error_response,
     format_task_data,
     get_count_safely,
     get_related_object_safely,
     get_system_uuid,
-    is_system_auditor_user,
     log_setting_change,
 )
 from tests.test_utils import get_test_password
@@ -200,55 +199,6 @@ class TestGetSystemUuid(TestCase):
         # Should be a standard UUID format
         assert len(result) == 36  # Standard UUID length
         assert result.count("-") == 4  # Standard UUID has 4 dashes
-
-
-@pytest.mark.unit
-class TestIsSystemAuditorUser(TestCase):
-    """Test is_system_auditor_user utility function."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.regular_user = User.objects.create_user(
-            username="regular", email="regular@example.com", password=get_test_password()
-        )
-        self.auditor_user = User.objects.create_user(
-            username="auditor", email="auditor@example.com", password=get_test_password(), is_system_auditor=True
-        )
-
-    def test_is_system_auditor_user_true(self):
-        """Test identifying system auditor user."""
-        result = is_system_auditor_user(self.auditor_user)
-        assert result is True
-
-    def test_is_system_auditor_user_false(self):
-        """Test identifying regular user."""
-        result = is_system_auditor_user(self.regular_user)
-        assert result is False
-
-    def test_is_system_auditor_user_none(self):
-        """Test handling None user."""
-        result = is_system_auditor_user(None)
-        assert result is False
-
-    def test_is_system_auditor_user_anonymous_user(self):
-        """Test handling anonymous user."""
-        from django.contrib.auth.models import AnonymousUser
-
-        result = is_system_auditor_user(AnonymousUser())
-        assert result is False
-
-    def test_is_system_auditor_user_with_mock_user(self):
-        """Test with mock user object."""
-        mock_user = MagicMock()
-        mock_user.is_system_auditor_user.return_value = True
-        result = is_system_auditor_user(mock_user)
-        assert result is True
-
-    def test_is_system_auditor_user_missing_attribute(self):
-        """Test with user object missing is_system_auditor_user method."""
-        mock_user = MagicMock(spec=[])  # Create mock without any attributes
-        result = is_system_auditor_user(mock_user)
-        assert result is False
 
 
 @pytest.mark.unit
@@ -489,13 +439,9 @@ class TestUtilityIntegrationWithModels(TestCase):
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com", password=get_test_password()
         )
-        self.org = Organization.objects.create(name="Test Org", description="Test")
 
     def test_get_related_object_with_real_relationships(self):
         """Test get_related_object_safely with real model relationships."""
-        # Add user to organization
-        self.org.users.add(self.user)
-
         # Test accessing related field
         result = get_related_object_safely(self.user, "username")
         assert result == "testuser"
@@ -506,21 +452,6 @@ class TestUtilityIntegrationWithModels(TestCase):
         user_count = get_count_safely(User.objects.all())
         assert user_count >= 1  # At least our test user
 
-        # Test with Organization manager
-        org_count = get_count_safely(Organization.objects.all())
-        assert org_count >= 1  # At least our test org
-
-    def test_system_auditor_check_with_real_users(self):
-        """Test system auditor check with real user instances."""
-        # Test regular user
-        assert is_system_auditor_user(self.user) is False
-
-        # Create system auditor
-        auditor = User.objects.create_user(
-            username="auditor", email="auditor@example.com", password=get_test_password(), is_system_auditor=True
-        )
-        assert is_system_auditor_user(auditor) is True
-
     def test_format_task_data_with_model_instances(self):
         """Test format_task_data with Django model instances."""
         # Test with user instance
@@ -528,7 +459,7 @@ class TestUtilityIntegrationWithModels(TestCase):
         assert isinstance(result, str)
 
         # Test with dict containing user data
-        user_data = {"user_id": self.user.id, "username": self.user.username, "org_name": self.org.name}
+        user_data = {"user_id": self.user.id, "username": self.user.username}
         result = format_task_data(user_data)
         assert isinstance(result, str)
         assert self.user.username in result or str(self.user.id) in result

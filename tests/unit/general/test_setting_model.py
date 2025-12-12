@@ -43,24 +43,3 @@ class TestSettingModel:
         result = str(setting)
         assert "testuser" in result
         assert "TEST_KEY" in result
-
-    def test_setting_access_qs_regular_user(self, user):
-        """Test regular users can't see settings."""
-        # Create setting
-        Setting.objects.create(setting_key="SECRET", current_value="secret", last_modified_by=user)
-
-        # Make a regular (not admin) user
-        from django.contrib.auth import get_user_model
-
-        user = get_user_model()
-        regular_user = user.objects.create_user(
-            username="regular",
-            email="regular@example.com",
-            password="password",
-            is_superuser=False,
-            is_system_auditor=False,
-        )
-
-        # Check they can't see it
-        queryset = Setting.access_qs(regular_user)
-        assert queryset.count() == 0  # Regular users see nothing.
