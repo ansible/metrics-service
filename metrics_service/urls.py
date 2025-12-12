@@ -7,6 +7,8 @@ from ansible_base.resource_registry.urls import urlpatterns as resource_api_urls
 from django.urls import include, path
 
 urlpatterns = [
+    # DRF browsable API authentication
+    path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
     # Core app (authentication, etc.)
     path("", include("apps.core.urls")),
     # Health and system endpoints
