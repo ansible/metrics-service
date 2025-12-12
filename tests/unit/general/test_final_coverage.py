@@ -230,51 +230,12 @@ class TestResourceAPICoverage(TestCase):
         assert isinstance(result, dict)
 
 
-class TestCoreUtilsCoverage(TestCase):
-    """Test core utils coverage."""
-
-    @patch("django.conf.settings")
-    def test_get_system_uuid_with_setting(self, mock_settings):
-        """Test get_system_uuid with SYSTEM_UUID setting."""
-        from tests.test_utils import get_system_uuid
-
-        mock_settings.SYSTEM_UUID = "test-system-uuid"
-        result = get_system_uuid()
-        assert result == "test-system-uuid"
-
-    @patch("django.conf.settings")
-    def test_get_system_uuid_without_setting(self, mock_settings):
-        """Test get_system_uuid without SYSTEM_UUID setting."""
-        from tests.test_utils import get_system_uuid
-
-        del mock_settings.SYSTEM_UUID
-        result = get_system_uuid()
-        assert isinstance(result, str)
-        assert len(result) > 0
-
-    def test_format_task_data_dict(self):
-        """Test format_task_data with dictionary."""
-        from tests.test_utils import format_task_data
-
-        data = {"key": "value", "number": 42}
-        result = format_task_data(data)
-
-        assert isinstance(result, str)
-        assert "key" in result
-        assert "value" in result
-
-    def test_format_task_data_string(self):
-        """Test format_task_data with string."""
-        from tests.test_utils import format_task_data
-
-        data = "simple string"
-        result = format_task_data(data)
-
-        assert result == "simple string"
+class TestApiUtilsCoverage(TestCase):
+    """Test API utils coverage."""
 
     def test_get_count_safely_with_manager(self):
         """Test get_count_safely with manager that has count."""
-        from apps.core.utils import get_count_safely
+        from apps.api.utils import get_count_safely
 
         mock_manager = MagicMock()
         mock_manager.count.return_value = 42
@@ -284,14 +245,14 @@ class TestCoreUtilsCoverage(TestCase):
 
     def test_get_count_safely_with_none(self):
         """Test get_count_safely with None."""
-        from apps.core.utils import get_count_safely
+        from apps.api.utils import get_count_safely
 
         result = get_count_safely(None)
         assert result == 0
 
     def test_get_count_safely_with_exception(self):
         """Test get_count_safely when count raises exception."""
-        from apps.core.utils import get_count_safely
+        from apps.api.utils import get_count_safely
 
         mock_manager = MagicMock()
         mock_manager.count.side_effect = Exception("Test error")

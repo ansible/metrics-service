@@ -10,7 +10,6 @@ from django.utils import timezone
 
 from apps.tasks.mixins import StatusTrackingMixin, TimestampMixin
 
-
 # ============================================================================
 # TimestampMixin Tests
 # ============================================================================

@@ -1,12 +1,7 @@
 """
-Core utility functions and helpers for the metrics service.
+API utility functions for the metrics service.
 
-This module provides reusable utility functions that reduce code duplication
-across the application.
-
-Functions:
-    get_count_safely: Safe count operations on querysets
-    build_error_response: Standardized error response format
+This module provides reusable utility functions for API operations.
 """
 
 import logging

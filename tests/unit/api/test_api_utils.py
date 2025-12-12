@@ -1,5 +1,5 @@
 """
-Tests for core utility functions to achieve 100% code coverage.
+Tests for API utility functions.
 """
 
 import logging
@@ -8,74 +8,15 @@ from unittest.mock import Mock, patch
 import pytest
 from django.test import TestCase
 
-from apps.core.utils import (
+from apps.api.utils import (
     build_error_response,
     get_count_safely,
 )
-from tests.test_utils import get_related_object_safely
 
 
 @pytest.mark.unit
-class CoreUtilsTestCase(TestCase):
-    """Test cases for core utility functions."""
-
-    def test_get_related_object_safely_success(self):
-        """Test successful retrieval of related object."""
-        # Create a mock instance with a related field
-        mock_instance = Mock()
-        mock_related_object = Mock()
-        mock_instance.related_field = mock_related_object
-
-        result = get_related_object_safely(mock_instance, "related_field")
-
-        self.assertEqual(result, mock_related_object)
-
-    def test_get_related_object_safely_attribute_error(self):
-        """Test handling of AttributeError."""
-        mock_instance = Mock()
-        # Configure mock to raise AttributeError when accessing the field
-        mock_instance.configure_mock(nonexistent_field=Mock(side_effect=AttributeError))
-        del mock_instance.nonexistent_field  # Remove the attribute completely
-
-        result = get_related_object_safely(mock_instance, "nonexistent_field", default="default_value")
-
-        self.assertEqual(result, "default_value")
-
-    def test_get_related_object_safely_does_not_exist_exception(self):
-        """Test handling of DoesNotExist exception."""
-        # Create a mock instance with a DoesNotExist exception class
-        mock_instance = Mock()
-        mock_instance.DoesNotExist = type("DoesNotExist", (Exception,), {})
-
-        # Create a property that raises DoesNotExist when accessed
-        def raise_does_not_exist():
-            raise mock_instance.DoesNotExist("Related object does not exist")
-
-        # Use property to simulate the field access raising DoesNotExist
-        type(mock_instance).related_field = property(lambda self: raise_does_not_exist())
-
-        result = get_related_object_safely(mock_instance, "related_field", default="fallback")
-
-        self.assertEqual(result, "fallback")
-
-    def test_get_related_object_safely_default_none(self):
-        """Test default value when none provided."""
-        mock_instance = Mock()
-        del mock_instance.nonexistent_field
-
-        result = get_related_object_safely(mock_instance, "nonexistent_field")
-
-        self.assertIsNone(result)
-
-    def test_get_related_object_safely_with_custom_default(self):
-        """Test with custom default value."""
-        mock_instance = Mock()
-        del mock_instance.missing_field
-        custom_default = {"custom": "default"}
-
-        result = get_related_object_safely(mock_instance, "missing_field", default=custom_default)
-
-        self.assertEqual(result, custom_default)
+class ApiUtilsTestCase(TestCase):
+    """Test cases for API utility functions."""
 
     def test_get_count_safely_success(self):
         """Test successful count retrieval."""
@@ -92,7 +33,7 @@ class CoreUtilsTestCase(TestCase):
         mock_queryset = Mock()
         mock_queryset.count.side_effect = Exception("Database error")
 
-        with patch("apps.core.utils.logger") as mock_logger:
+        with patch("apps.api.utils.logger") as mock_logger:
             result = get_count_safely(mock_queryset)
 
         self.assertEqual(result, 0)
@@ -129,7 +70,7 @@ class CoreUtilsTestCase(TestCase):
         self.assertEqual(result, 999999)
         self.assertIsInstance(result, int)
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_basic(self, mock_timezone):
         """Test basic error response building."""
         mock_now = Mock()
@@ -147,7 +88,7 @@ class CoreUtilsTestCase(TestCase):
         mock_timezone.now.assert_called_once()
         mock_now.isoformat.assert_called_once()
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_with_details(self, mock_timezone):
         """Test error response building with details."""
         mock_now = Mock()
@@ -165,7 +106,7 @@ class CoreUtilsTestCase(TestCase):
         }
         self.assertEqual(result, expected)
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_custom_status_code(self, mock_timezone):
         """Test error response with custom status code."""
         mock_now = Mock()
@@ -178,7 +119,7 @@ class CoreUtilsTestCase(TestCase):
         self.assertEqual(result["error"], "Server error")
         self.assertEqual(result["timestamp"], "2023-01-01T12:00:00")
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_empty_details(self, mock_timezone):
         """Test error response with empty details dictionary."""
         mock_now = Mock()
@@ -190,7 +131,7 @@ class CoreUtilsTestCase(TestCase):
         # Empty details dictionary is falsy, so it should not be included
         self.assertNotIn("details", result)
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_truthy_details(self, mock_timezone):
         """Test error response with truthy details to ensure 'if details' branch."""
         mock_now = Mock()
@@ -204,7 +145,7 @@ class CoreUtilsTestCase(TestCase):
         self.assertIn("details", result)
         self.assertEqual(result["details"], {"key": "value"})
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_none_details(self, mock_timezone):
         """Test error response with None details."""
         mock_now = Mock()
@@ -218,7 +159,7 @@ class CoreUtilsTestCase(TestCase):
         expected_keys = {"error", "status_code", "timestamp"}
         self.assertEqual(set(result.keys()), expected_keys)
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_complex_details(self, mock_timezone):
         """Test error response with complex details structure."""
         mock_now = Mock()
@@ -233,7 +174,7 @@ class CoreUtilsTestCase(TestCase):
 
         self.assertEqual(result["details"], complex_details)
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_default_parameters(self, mock_timezone):
         """Test error response with only required parameters."""
         mock_now = Mock()
@@ -251,7 +192,7 @@ class CoreUtilsTestCase(TestCase):
         # Should not have details key when None
         self.assertNotIn("details", result)
 
-    @patch("apps.core.utils.timezone")
+    @patch("apps.api.utils.timezone")
     def test_build_error_response_different_status_codes(self, mock_timezone):
         """Test error response with various status codes."""
         mock_now = Mock()
@@ -267,30 +208,10 @@ class CoreUtilsTestCase(TestCase):
 
     def test_logger_configuration(self):
         """Test that logger is properly configured."""
-        from apps.core.utils import logger
+        from apps.api.utils import logger
 
         self.assertIsInstance(logger, logging.Logger)
-        self.assertEqual(logger.name, "apps.core.utils")
-
-    def test_get_related_object_safely_various_exception_types(self):
-        """Test handling of various exception types that might occur."""
-        # Test with an instance that has a DoesNotExist exception different from the typical pattern
-        mock_instance = Mock()
-
-        # Create a custom exception class that follows Django's pattern
-        class CustomDoesNotExistError(Exception):
-            pass
-
-        mock_instance.DoesNotExist = CustomDoesNotExistError
-
-        # Create a property that raises the custom exception
-        def raise_custom_exception():
-            raise CustomDoesNotExistError("Custom does not exist")
-
-        type(mock_instance).custom_field = property(lambda self: raise_custom_exception())
-
-        result = get_related_object_safely(mock_instance, "custom_field", default="custom_default")
-        self.assertEqual(result, "custom_default")
+        self.assertEqual(logger.name, "apps.api.utils")
 
     def test_get_count_safely_with_different_exception_types(self):
         """Test get_count_safely with various exception types."""
@@ -306,7 +227,7 @@ class CoreUtilsTestCase(TestCase):
                 mock_queryset = Mock()
                 mock_queryset.count.side_effect = exception
 
-                with patch("apps.core.utils.logger") as mock_logger:
+                with patch("apps.api.utils.logger") as mock_logger:
                     result = get_count_safely(mock_queryset)
 
                 self.assertEqual(result, 0)

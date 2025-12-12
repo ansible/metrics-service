@@ -12,7 +12,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.core.utils import build_error_response
+from apps.api.utils import build_error_response
 from apps.tasks.utils import log_task_execution
 
 
