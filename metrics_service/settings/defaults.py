@@ -50,6 +50,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "oauth2_provider",
     "social_django",
+    "django_extensions",
 ]
 
 # DAB apps - For immediate setup without complex dependencies
