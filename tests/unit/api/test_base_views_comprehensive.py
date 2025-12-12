@@ -69,7 +69,7 @@ class TestBaseViewSetComprehensive(TestCase):
 
         # Test permission classes
         self.assertIsNotNone(viewset.permission_classes)
-        self.assertEqual(len(viewset.permission_classes), 2)
+        self.assertEqual(len(viewset.permission_classes), 1)
 
         # Test ordering configuration
         self.assertEqual(viewset.ordering_fields, ["id", "created", "modified"])

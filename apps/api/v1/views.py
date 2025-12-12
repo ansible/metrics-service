@@ -3,7 +3,6 @@ API v1 views for metrics_service following AAP standards.
 """
 
 from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
-from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
 from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -23,7 +22,7 @@ class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [OAuth2ScopePermission, SystemAuditorAwarePermissions]
+    permission_classes = [SystemAuditorAwarePermissions]
     search_fields = ["username", "first_name", "last_name", "email"]
     filterset_fields = {
         "username": ["exact", "icontains"],
@@ -66,7 +65,7 @@ class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
 
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
-    permission_classes = [OAuth2ScopePermission, SystemAuditorAwarePermissions]
+    permission_classes = [SystemAuditorAwarePermissions]
     search_fields = ["name", "description"]
     filterset_fields = {
         "name": ["exact", "icontains"],

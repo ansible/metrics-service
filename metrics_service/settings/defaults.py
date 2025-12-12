@@ -48,8 +48,6 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
-    "oauth2_provider",
-    "social_django",
     "django_extensions",
 ]
 
@@ -60,7 +58,6 @@ DAB_APPS = [
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
-    # "ansible_base.oauth2_provider",  # Temporarily disabled due to conflicts
     "ansible_base.activitystream",
     "ansible_base.jwt_consumer",
     "ansible_base.resource_registry",
@@ -233,20 +230,6 @@ AUTHENTICATION_BACKENDS = [
 # JWT Consumer Configuration
 JWT_CONSUMER_ENABLED = True
 JWT_CONSUMER_ALGORITHM = "HS256"
-
-# OAuth2 Provider Configuration
-OAUTH2_PROVIDER = {
-    "SCOPES": {
-        "read": "Read scope",
-        "write": "Write scope",
-    },
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
-    "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
-    "APPLICATION_MODEL": "oauth2_provider.Application",
-}
-
-# OAuth2 Provider Application Model - required by ansible_base
-OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
 
 # Resource Server Configuration
 RESOURCE_SERVER: dict[str, str | bool | None] = {
