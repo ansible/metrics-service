@@ -410,6 +410,18 @@ wheels = [
 ]
 
 [[package]]
+name = "django-extensions"
+version = "4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/b3/ed0f54ed706ec0b54fd251cc0364a249c6cd6c6ec97f04dc34be5e929eac/django_extensions-4.1.tar.gz", hash = "sha256:7b70a4d28e9b840f44694e3f7feb54f55d495f8b3fa6c5c0e5e12bcb2aa3cdeb", size = 283078, upload-time = "2025-04-11T01:15:39.617Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/96/d967ca440d6a8e3861120f51985d8e5aec79b9a8bdda16041206adfe7adc/django_extensions-4.1-py3-none-any.whl", hash = "sha256:0699a7af28f2523bf8db309a80278519362cd4b6e1fd0a8cd4bf063e1e023336", size = 232980, upload-time = "2025-04-11T01:15:37.701Z" },
+]
+
+[[package]]
 name = "django-oauth-toolkit"
 version = "3.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -805,6 +817,7 @@ dev = [
     { name = "black" },
     { name = "coverage" },
     { name = "django-debug-toolbar" },
+    { name = "django-extensions" },
     { name = "django-stubs", extra = ["compatible-mypy"] },
     { name = "djangorestframework-stubs", extra = ["compatible-mypy"] },
     { name = "factory-boy" },
@@ -841,6 +854,7 @@ dev = [
     { name = "black" },
     { name = "coverage" },
     { name = "django-debug-toolbar" },
+    { name = "django-extensions" },
     { name = "django-stubs", extra = ["compatible-mypy"] },
     { name = "djangorestframework-stubs", extra = ["compatible-mypy"] },
     { name = "factory-boy" },
@@ -868,6 +882,7 @@ requires-dist = [
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-cors-headers", specifier = ">=4.0" },
     { name = "django-debug-toolbar", marker = "extra == 'dev'", specifier = ">=4.2" },
+    { name = "django-extensions", marker = "extra == 'dev'", specifier = ">=3.2" },
     { name = "django-oauth-toolkit", specifier = ">=2.2.0" },
     { name = "django-prometheus", specifier = ">=2.3.1" },
     { name = "django-split-settings", specifier = ">=1.2" },
@@ -908,6 +923,7 @@ dev = [
     { name = "black", specifier = ">=23.0" },
     { name = "coverage", specifier = ">=7.3" },
     { name = "django-debug-toolbar", specifier = ">=4.2" },
+    { name = "django-extensions", specifier = ">=3.2" },
     { name = "django-stubs", extras = ["compatible-mypy"], specifier = ">=4.2" },
     { name = "djangorestframework-stubs", extras = ["compatible-mypy"], specifier = ">=3.14" },
     { name = "factory-boy", specifier = ">=3.3" },

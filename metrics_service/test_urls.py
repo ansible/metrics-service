@@ -2,7 +2,6 @@
 Simplified URL configuration for testing that avoids oauth2 provider conflicts.
 """
 
-from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
@@ -10,8 +9,6 @@ urlpatterns = [
     path("", include("apps.core.urls")),
     # Health and system endpoints
     path("", include("apps.health.urls")),
-    # Admin interface
-    path("admin/", admin.site.urls),
     # Dashboard interface
     path("dashboard/", include("apps.dashboard.urls")),
     # API endpoints

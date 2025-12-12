@@ -37,7 +37,6 @@ SERVICE_ID = "generated-uuid"
 # Application definition
 DJANGO_APPS = [
     "django_prometheus",
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

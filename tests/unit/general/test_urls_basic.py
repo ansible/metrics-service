@@ -14,11 +14,9 @@ class BasicURLConfigurationTestCase(TestCase):
 
     def test_django_imports_successful(self):
         """Test that basic Django imports work."""
-        from django.contrib import admin
         from django.contrib.auth import views as auth_views
         from django.urls import include, path
 
-        self.assertIsNotNone(admin)
         self.assertIsNotNone(auth_views)
         self.assertIsNotNone(include)
         self.assertIsNotNone(path)
@@ -37,16 +35,6 @@ class BasicURLConfigurationTestCase(TestCase):
             self.assertIsNotNone(SpectacularSwaggerView)
         except ImportError as e:
             self.fail(f"Failed to import DRF Spectacular views: {e}")
-
-    def test_admin_site_availability(self):
-        """Test that admin site is available."""
-        try:
-            from django.contrib.admin import site as admin_site
-
-            admin_urls = admin_site.urls
-            self.assertIsNotNone(admin_urls)
-        except Exception as e:
-            self.fail(f"Admin site not properly configured: {e}")
 
     def test_auth_views_classes(self):
         """Test that auth view classes can be imported."""
@@ -149,12 +137,10 @@ class BasicURLConfigurationTestCase(TestCase):
     def test_url_configuration_structure(self):
         """Test that URL configuration has expected structure."""
         # Test the individual components that should be in the URL config
-        from django.contrib import admin
         from django.urls import include, path
 
         # Test that we can create the same patterns as in the actual config
         patterns = [
-            path("admin/", admin.site.urls),
             path("dashboard/", include("apps.dashboard.urls")),
             path("api/", include("apps.api.urls")),
         ]
