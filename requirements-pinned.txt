@@ -9,7 +9,6 @@ asgiref==3.9.1 \
     --hash=sha256:a5ab6582236218e5ef1648f242fd9f10626cfd4de8dc377db215d5d5098e3142 \
     --hash=sha256:f3bba7092a48005b5f5bacd747d36ee4a5a61f4a269a6df590b43144355ebd2c
     # via
-    #   channels
     #   django
     #   django-cors-headers
 backoff==2.2.1 \
@@ -51,10 +50,6 @@ cffi==1.17.1 ; platform_python_implementation != 'PyPy' \
     --hash=sha256:da95af8214998d77a98cc14e3a3bd00aa191526343078b530ceb0bd710fb48a5 \
     --hash=sha256:f79fc4fc25f1c8698ff97788206bb3c2598949bfe0fef03d299eb1b5356ada99
     # via cryptography
-channels==4.3.1 \
-    --hash=sha256:97413ffd674542db08e16a9ef09cd86ec0113e5f8125fbd33cf0854adcf27cdb \
-    --hash=sha256:b091d4b26f91d807de3e84aead7ba785314f27eaf5bac31dd51b1c956b883859
-    # via metrics-service
 charset-normalizer==3.4.3 \
     --hash=sha256:027b776c26d38b7f15b26a5da1044f376455fb3766df8fc38563b4efbc515154 \
     --hash=sha256:0cacf8f7297b0c4fcb74227692ca46b4a5852f8f4f24b3c766dd94a1075c4884 \
@@ -100,16 +95,7 @@ cryptography==45.0.6 \
     --hash=sha256:eccddbd986e43014263eda489abbddfbc287af5cddfd690477993dbb31e31016 \
     --hash=sha256:ee411a1b977f40bd075392c80c10b58025ee5c6b47a822a33c1198598a7a5f05 \
     --hash=sha256:f4028f29a9f38a2025abedb2e409973709c660d44319c61762202206ed577c42
-    # via
-    #   django-ansible-base
-    #   jwcrypto
-    #   social-auth-core
-defusedxml==0.7.1 \
-    --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
-    --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
-    # via
-    #   python3-openid
-    #   social-auth-core
+    # via django-ansible-base
 dispatcherd==2025.5.21 \
     --hash=sha256:4a7f0e85da1691c85491275f2b7333f31dcd44f1bc47077a9653551bdc704bad \
     --hash=sha256:6869a7639317252c9b4bb5fc421bc9e6f19c3fb3f4544c844d5368129755408d
@@ -122,16 +108,14 @@ django==5.2.7 \
     --hash=sha256:59a13a6515f787dec9d97a0438cd2efac78c8aca1c80025244b0fe507fe0754b \
     --hash=sha256:e0f6f12e2551b1716a95a63a1366ca91bbcd7be059862c1b18f989b1da356cdd
     # via
-    #   channels
     #   django-ansible-base
     #   django-cors-headers
     #   django-crum
-    #   django-oauth-toolkit
+    #   django-extensions
     #   django-prometheus
     #   djangorestframework
     #   metrics-service
     #   metrics-utility
-    #   social-auth-app-django
 django-ansible-base==2025.10.20 \
     --hash=sha256:11562985d3c62989afb60065be5fb3b89b35f01ce5844132b2bb82f361f476e2 \
     --hash=sha256:7c4383aaf9fd798d6c894a6546048158de451232c88f1750bbdd55a6fc23c3ee
@@ -144,17 +128,13 @@ django-crum==0.7.9 \
     --hash=sha256:037cc8b822975bb1d41cd24269b59a512cc77448fadc3f34ab9a17b229b4b471 \
     --hash=sha256:65e9bc0f070a663fafc4d9e357f45fd4e6f01838b20a9e2fb7670f5706754288
     # via django-ansible-base
-django-oauth-toolkit==3.0.1 \
-    --hash=sha256:3ef00b062a284f2031b0732b32dc899e3bbf0eac221bbb1cffcb50b8932e55ed \
-    --hash=sha256:7200e4a9fb229b145a6d808cbf0423b6d69a87f68557437733eec3c0cf71db02
+django-extensions==4.1 \
+    --hash=sha256:0699a7af28f2523bf8db309a80278519362cd4b6e1fd0a8cd4bf063e1e023336 \
+    --hash=sha256:7b70a4d28e9b840f44694e3f7feb54f55d495f8b3fa6c5c0e5e12bcb2aa3cdeb
     # via metrics-service
 django-prometheus==2.4.1 \
     --hash=sha256:073628243d2a6de6a8a8c20e5b512872dfb85d66e1b60b28bcf1eca0155dad95 \
     --hash=sha256:7fe5af7f7c9ad9cd8a429fe0f3f1bf651f0e244f77162147869eab7ec09cc5e7
-    # via metrics-service
-django-split-settings==1.3.2 \
-    --hash=sha256:72bd7dd9f12602585681074d1f859643fb4f6b196b584688fab86bdd73a57dff \
-    --hash=sha256:d3975aa3601e37f65c59b9977b6bcb1de8bc27496930054078589c7d56998a9d
     # via metrics-service
 djangorestframework==3.16.1 \
     --hash=sha256:166809528b1aced0a17dc66c24492af18049f2c9420dbd0be29422029cfc3ff7 \
@@ -194,10 +174,6 @@ jmespath==1.0.1 \
     # via
     #   boto3
     #   botocore
-jwcrypto==1.5.6 \
-    --hash=sha256:150d2b0ebbdb8f40b77f543fb44ffd2baeff48788be71f67f03566692fd55789 \
-    --hash=sha256:771a87762a0c081ae6166958a954f80848820b2ab066937dc8b8379d65b1b039
-    # via django-oauth-toolkit
 kubernetes==34.1.0 \
     --hash=sha256:8fe8edb0b5d290a2f3ac06596b23f87c658977d46b5f8df9d0f4ea83d0003912 \
     --hash=sha256:bffba2272534e224e6a7a74d582deb0b545b7c9879d2cd9e4aae9481d1f2cc2a
@@ -223,10 +199,7 @@ numpy==2.3.3 \
 oauthlib==3.3.1 \
     --hash=sha256:0f0f8aa759826a193cf66c12ea1af1637f87b9b4622d46e866952bb022e538c9 \
     --hash=sha256:88119c938d2b8fb88561af5f6ee0eec8cc8d552b7bb1f712743136eb7523b7a1
-    # via
-    #   django-oauth-toolkit
-    #   requests-oauthlib
-    #   social-auth-core
+    # via requests-oauthlib
 openpyxl==3.1.2 \
     --hash=sha256:a6f5977418eff3b2d5500d54d9db50c8277a368436f4e4f8ddb1be3422870184 \
     --hash=sha256:f91456ead12ab3c6c2e9491cf33ba6d08357d802192379bb482f1033ade496f5
@@ -301,7 +274,6 @@ pyjwt==2.10.1 \
     # via
     #   django-ansible-base
     #   segment-analytics-python
-    #   social-auth-core
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
@@ -311,10 +283,6 @@ python-dateutil==2.9.0.post0 \
     #   kubernetes
     #   pandas
     #   segment-analytics-python
-python3-openid==3.2.0 \
-    --hash=sha256:33fbf6928f401e0b790151ed2b5290b02545e8775f982485205a066f874aaeaf \
-    --hash=sha256:6626f771e0417486701e0b4daff762e7212e820ca5b29fcc0d05f6f8736dfa6b
-    # via social-auth-core
 pytz==2025.2 \
     --hash=sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3 \
     --hash=sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00
@@ -340,18 +308,14 @@ requests==2.32.5 \
     --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
     # via
     #   django-ansible-base
-    #   django-oauth-toolkit
     #   kubernetes
     #   metrics-utility
     #   requests-oauthlib
     #   segment-analytics-python
-    #   social-auth-core
 requests-oauthlib==2.0.0 \
     --hash=sha256:7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36 \
     --hash=sha256:b3dffaebd884d8cd778494369603a9e7b58d29111bf6b41bdc2dcd87203af4e9
-    # via
-    #   kubernetes
-    #   social-auth-core
+    # via kubernetes
 rsa==4.9.1 \
     --hash=sha256:68635866661c6836b8d39430f97a996acbd61bfa49406748ea243539fe239762 \
     --hash=sha256:e7bdbfdb5497da4c07dfd35530e1a902659db6ff241e39d9953cad06ebd0ae75
@@ -374,14 +338,6 @@ six==1.17.0 \
     # via
     #   kubernetes
     #   python-dateutil
-social-auth-app-django==5.4.3 \
-    --hash=sha256:d1f4286d5ca1e512c9b2f686e7ecb2a0128148f1a33d853b69dc07b58508362e \
-    --hash=sha256:db70b972faeb10ee1ec83d0dc7dbd0558d5f5830417bba317b712b10ff58d031
-    # via metrics-service
-social-auth-core==4.7.0 \
-    --hash=sha256:2bba127c7b7166a81085ddb0c248d93751b3bc3cdab8569f62d9f70c6bc4ed40 \
-    --hash=sha256:9eef9b49c332d1a3265b37dcc698a7ace97c3fc59df2d874b51576d11d31f6a6
-    # via social-auth-app-django
 sqlparse==0.5.3 \
     --hash=sha256:09f67787f56a0b16ecdbde1bfc7f5d9c3371ca683cfeaa8e6ff60b4807ec9272 \
     --hash=sha256:cf2196ed3418f3ba5de6af7e82c694a9fbdbfecccdfc72e281548517081f16ca
@@ -391,9 +347,7 @@ sqlparse==0.5.3 \
 typing-extensions==4.15.0 \
     --hash=sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466 \
     --hash=sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548
-    # via
-    #   jwcrypto
-    #   psycopg
+    # via psycopg
 tzdata==2025.2 \
     --hash=sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8 \
     --hash=sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9

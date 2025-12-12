@@ -148,19 +148,6 @@ wheels = [
 ]
 
 [[package]]
-name = "channels"
-version = "4.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "asgiref" },
-    { name = "django" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/12/a0/46450fcf9e56af18a6b0440ba49db6635419bb7bc84142c35f4143b1a66c/channels-4.3.1.tar.gz", hash = "sha256:97413ffd674542db08e16a9ef09cd86ec0113e5f8125fbd33cf0854adcf27cdb", size = 26896, upload-time = "2025-08-01T13:25:19.952Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/1c/eae1c2a8c195760376e7f65d0bdcc3e966695d29cfbe5c54841ce5c71408/channels-4.3.1-py3-none-any.whl", hash = "sha256:b091d4b26f91d807de3e84aead7ba785314f27eaf5bac31dd51b1c956b883859", size = 31286, upload-time = "2025-08-01T13:25:18.845Z" },
-]
-
-[[package]]
 name = "charset-normalizer"
 version = "3.4.3"
 source = { registry = "https://pypi.org/simple" }
@@ -267,15 +254,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/82/27/092d311af22095d288f4db89fcaebadfb2f28944f3d790a4cf51fe5ddaeb/cryptography-45.0.6-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:5b64e668fc3528e77efa51ca70fadcd6610e8ab231e3e06ae2bab3b31c2b8ed9", size = 4554815, upload-time = "2025-08-05T23:59:00.283Z" },
     { url = "https://files.pythonhosted.org/packages/7e/01/aa2f4940262d588a8fdf4edabe4cda45854d00ebc6eaac12568b3a491a16/cryptography-45.0.6-cp37-abi3-win32.whl", hash = "sha256:780c40fb751c7d2b0c6786ceee6b6f871e86e8718a8ff4bc35073ac353c7cd02", size = 2912147, upload-time = "2025-08-05T23:59:01.716Z" },
     { url = "https://files.pythonhosted.org/packages/0a/bc/16e0276078c2de3ceef6b5a34b965f4436215efac45313df90d55f0ba2d2/cryptography-45.0.6-cp37-abi3-win_amd64.whl", hash = "sha256:20d15aed3ee522faac1a39fbfdfee25d17b1284bafd808e1640a74846d7c4d1b", size = 3390459, upload-time = "2025-08-05T23:59:03.358Z" },
-]
-
-[[package]]
-name = "defusedxml"
-version = "0.7.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69", size = 75520, upload-time = "2021-03-08T10:59:26.269Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
 ]
 
 [[package]]
@@ -410,21 +388,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-oauth-toolkit"
-version = "3.0.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "jwcrypto" },
-    { name = "oauthlib" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/d3/d7628a7a4899bf5aafc9c1ec121c507470b37a247f7628acae6e0f78e0d6/django_oauth_toolkit-3.0.1.tar.gz", hash = "sha256:7200e4a9fb229b145a6d808cbf0423b6d69a87f68557437733eec3c0cf71db02", size = 99816, upload-time = "2024-09-07T14:07:57.124Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7d/40/e556bc19ba65356fe5f0e48ca01c50e81f7c630042fa7411b6ab428ecf68/django_oauth_toolkit-3.0.1-py3-none-any.whl", hash = "sha256:3ef00b062a284f2031b0732b32dc899e3bbf0eac221bbb1cffcb50b8932e55ed", size = 77299, upload-time = "2024-09-07T14:08:43.225Z" },
-]
-
-[[package]]
 name = "django-prometheus"
 version = "2.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -435,15 +398,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/98/f4/cb39ddd2a41e07a274c4e162c076e906ae232d63b66bbabdea0300878877/django_prometheus-2.4.1.tar.gz", hash = "sha256:073628243d2a6de6a8a8c20e5b512872dfb85d66e1b60b28bcf1eca0155dad95", size = 24464, upload-time = "2025-06-25T15:45:37.149Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/01/50/9c5e022fa92574e5d20606687f15a2aa255e10512a17d11a8216fa117f72/django_prometheus-2.4.1-py2.py3-none-any.whl", hash = "sha256:7fe5af7f7c9ad9cd8a429fe0f3f1bf651f0e244f77162147869eab7ec09cc5e7", size = 29541, upload-time = "2025-06-25T15:45:35.433Z" },
-]
-
-[[package]]
-name = "django-split-settings"
-version = "1.3.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/de/b9/1c13089454afd7a42d492b8aa8a0c7e49eeca58c0f2ad331f361a067c876/django_split_settings-1.3.2.tar.gz", hash = "sha256:d3975aa3601e37f65c59b9977b6bcb1de8bc27496930054078589c7d56998a9d", size = 5751, upload-time = "2024-07-05T14:30:05.997Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/69/d94db8dac55bcfb6b3243578a3096cfda6c42ea5da292c36919768152ec6/django_split_settings-1.3.2-py3-none-any.whl", hash = "sha256:72bd7dd9f12602585681074d1f859643fb4f6b196b584688fab86bdd73a57dff", size = 6435, upload-time = "2024-07-05T14:29:59.756Z" },
 ]
 
 [[package]]
@@ -672,19 +626,6 @@ wheels = [
 ]
 
 [[package]]
-name = "jwcrypto"
-version = "1.5.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cryptography" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e1/db/870e5d5fb311b0bcf049630b5ba3abca2d339fd5e13ba175b4c13b456d08/jwcrypto-1.5.6.tar.gz", hash = "sha256:771a87762a0c081ae6166958a954f80848820b2ab066937dc8b8379d65b1b039", size = 87168, upload-time = "2024-03-06T19:58:31.831Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/58/4a1880ea64032185e9ae9f63940c9327c6952d5584ea544a8f66972f2fda/jwcrypto-1.5.6-py3-none-any.whl", hash = "sha256:150d2b0ebbdb8f40b77f543fb44ffd2baeff48788be71f67f03566692fd55789", size = 92520, upload-time = "2024-03-06T19:58:29.765Z" },
-]
-
-[[package]]
 name = "kubernetes"
 version = "34.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -737,23 +678,19 @@ name = "metrics-service"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
-    { name = "channels" },
     { name = "croniter" },
     { name = "dispatcherd" },
     { name = "django" },
     { name = "django-ansible-base", extra = ["jwt-consumer"] },
     { name = "django-cors-headers" },
     { name = "django-extensions" },
-    { name = "django-oauth-toolkit" },
     { name = "django-prometheus" },
-    { name = "django-split-settings" },
     { name = "djangorestframework" },
     { name = "dynaconf" },
     { name = "metrics-utility" },
     { name = "pip" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg2-binary" },
-    { name = "social-auth-app-django" },
 ]
 
 [package.optional-dependencies]
@@ -814,7 +751,6 @@ dev = [
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.10.0" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0" },
-    { name = "channels", specifier = ">=4.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.3" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.3" },
     { name = "croniter", specifier = ">=1.3.0" },
@@ -825,9 +761,7 @@ requires-dist = [
     { name = "django-cors-headers", specifier = ">=4.0" },
     { name = "django-debug-toolbar", marker = "extra == 'dev'", specifier = ">=4.2" },
     { name = "django-extensions", specifier = ">=3.2" },
-    { name = "django-oauth-toolkit", specifier = ">=2.2.0" },
     { name = "django-prometheus", specifier = ">=2.3.1" },
-    { name = "django-split-settings", specifier = ">=1.2" },
     { name = "django-stubs", extras = ["compatible-mypy"], marker = "extra == 'dev'", specifier = ">=4.2" },
     { name = "djangorestframework", specifier = ">=3.15" },
     { name = "djangorestframework-stubs", extras = ["compatible-mypy"], marker = "extra == 'dev'", specifier = ">=3.14" },
@@ -852,7 +786,6 @@ requires-dist = [
     { name = "pytest-django", marker = "extra == 'test'", specifier = ">=4.5" },
     { name = "python-ldap", marker = "extra == 'ldap'", specifier = ">=3.4.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "social-auth-app-django", specifier = ">=5.0.0,<5.5" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.1" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.24" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.3" },
@@ -1247,18 +1180,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fd/8b/1eeb4025dc1d3ac2f16678f38dec9ebdde6271c74955b72db5ce7a4dbfbd/python-ldap-3.4.4.tar.gz", hash = "sha256:7edb0accec4e037797705f3a05cbf36a9fde50d08c8f67f2aef99a2628fab828", size = 377889, upload-time = "2023-11-17T21:14:16.32Z" }
 
 [[package]]
-name = "python3-openid"
-version = "3.2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "defusedxml" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/4a/29feb8da6c44f77007dcd29518fea73a3d5653ee02a587ae1f17f1f5ddb5/python3-openid-3.2.0.tar.gz", hash = "sha256:33fbf6928f401e0b790151ed2b5290b02545e8775f982485205a066f874aaeaf", size = 305600, upload-time = "2020-06-29T12:15:49.026Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/a5/c6ba13860bdf5525f1ab01e01cc667578d6f1efc8a1dba355700fb04c29b/python3_openid-3.2.0-py3-none-any.whl", hash = "sha256:6626f771e0417486701e0b4daff762e7212e820ca5b29fcc0d05f6f8736dfa6b", size = 133681, upload-time = "2020-06-29T12:15:47.502Z" },
-]
-
-[[package]]
 name = "pytz"
 version = "2025.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1411,37 +1332,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/75/a7/9810d872919697c9d01295633f5d574fb416d47e535f258272ca1f01f447/snowballstemmer-3.0.1.tar.gz", hash = "sha256:6d5eeeec8e9f84d4d56b847692bacf79bc2c8e90c7f80ca4444ff8b6f2e52895", size = 105575, upload-time = "2025-05-09T16:34:51.843Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/78/3565d011c61f5a43488987ee32b6f3f656e7f107ac2782dd57bdd7d91d9a/snowballstemmer-3.0.1-py3-none-any.whl", hash = "sha256:6cd7b3897da8d6c9ffb968a6781fa6532dce9c3618a4b127d920dab764a19064", size = 103274, upload-time = "2025-05-09T16:34:50.371Z" },
-]
-
-[[package]]
-name = "social-auth-app-django"
-version = "5.4.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "social-auth-core" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/07/bb2465e4116d4761b028bd07b99087009caa81c1511c886d74c4ccece3a2/social_auth_app_django-5.4.3.tar.gz", hash = "sha256:d1f4286d5ca1e512c9b2f686e7ecb2a0128148f1a33d853b69dc07b58508362e", size = 24860, upload-time = "2025-02-13T13:07:34.557Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/cd/43a25dabdf7689109b01ac866848c984594769ec3cbc5ce4c261b4895237/social_auth_app_django-5.4.3-py3-none-any.whl", hash = "sha256:db70b972faeb10ee1ec83d0dc7dbd0558d5f5830417bba317b712b10ff58d031", size = 26241, upload-time = "2025-02-13T13:07:32.787Z" },
-]
-
-[[package]]
-name = "social-auth-core"
-version = "4.7.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cryptography" },
-    { name = "defusedxml" },
-    { name = "oauthlib" },
-    { name = "pyjwt" },
-    { name = "python3-openid" },
-    { name = "requests" },
-    { name = "requests-oauthlib" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/87/c0/466383c22767604c573f15aff3ea2c37aacf3c10281f31199c02ac0017ef/social_auth_core-4.7.0.tar.gz", hash = "sha256:2bba127c7b7166a81085ddb0c248d93751b3bc3cdab8569f62d9f70c6bc4ed40", size = 230894, upload-time = "2025-06-27T06:34:27.15Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/3e/1b1ed868b840ecf5e7b02fc8ab20718ac24e184b90057815fee2ebbc107d/social_auth_core-4.7.0-py3-none-any.whl", hash = "sha256:9eef9b49c332d1a3265b37dcc698a7ace97c3fc59df2d874b51576d11d31f6a6", size = 427867, upload-time = "2025-06-27T06:34:25.715Z" },
 ]
 
 [[package]]
