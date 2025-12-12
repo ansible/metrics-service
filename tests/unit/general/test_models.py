@@ -17,10 +17,10 @@ class TestUserModel:
 
     def test_user_creation(self):
         """Test user can be created successfully."""
-        user = User.objects.create_user(username="testuser", email="test@example.com", password="testpassword123")
+        user = User.objects.create_user(username="testuser", email="test@example.com", password="testpassword123")  # noqa: S105
         assert user.username == "testuser"
         assert user.email == "test@example.com"
-        assert user.check_password("testpassword123")
+        assert user.check_password("testpassword123")  # noqa: S105
 
     def test_user_string_representation(self):
         """Test user string representation."""

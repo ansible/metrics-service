@@ -74,7 +74,7 @@ def api_client():
 @pytest.fixture
 def user():
     """Create a test user."""
-    return User.objects.create_superuser(username="testuser", email="test@example.com", password="testpassword123")
+    return User.objects.create_superuser(username="testuser", email="test@example.com", password="testpassword123")  # noqa: S105
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def admin_user():
     return User.objects.create_user(
         username="admin",
         email="admin@example.com",
-        password="adminpassword123",
+        password="adminpassword123",  # noqa: S105
         is_superuser=True,
     )
 

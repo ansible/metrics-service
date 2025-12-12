@@ -19,4 +19,4 @@ def user(db):
 @pytest.fixture
 def admin_user(db):
     """Create an admin user."""
-    return User.objects.create_superuser(username="admin", email="admin@example.com", password="admin123")
+    return User.objects.create_superuser(username="admin", email="admin@example.com", password="admin123")  # noqa: S105

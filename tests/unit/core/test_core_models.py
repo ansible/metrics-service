@@ -248,9 +248,9 @@ class ModelMethodsTestCase(TestCase):
     def test_user_password_handling(self):
         """Test User password handling."""
         # Test password setting
-        self.user.set_password("newpassword")
+        self.user.set_password("newpassword")  # noqa: S105
         self.user.save()
-        self.assertTrue(self.user.check_password("newpassword"))
+        self.assertTrue(self.user.check_password("newpassword"))  # noqa: S105
 
         # Test empty password handling in save method
         self.user.password = ""

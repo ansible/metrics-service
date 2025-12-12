@@ -21,7 +21,7 @@ class TestDeveloperModeDisabled(TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")  # noqa: S105
 
     @override_settings(DEVELOPER_MODE_ENABLED=False)
     def test_tasks_api_returns_403_when_developer_mode_disabled(self):

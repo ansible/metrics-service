@@ -20,7 +20,7 @@ class TestSettingViewSet(APITestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
-        self.admin = User.objects.create_superuser(username="admin", email="admin@example.com", password="admin123")
+        self.admin = User.objects.create_superuser(username="admin", email="admin@example.com", password="admin123")  # noqa: S105
 
     def test_update_config(self):
         """Test updating config via API."""
