@@ -9,13 +9,13 @@ from django.urls import include, path
 urlpatterns = [
     # DRF browsable API authentication
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
-    # Core app (authentication, etc.)
-    path("", include("apps.core.urls")),
     # Health and system endpoints
     path("", include("apps.health.urls")),
     # Dashboard interface
     path("dashboard/", include("apps.dashboard.urls")),
-    # API endpoints
+    # Core API endpoints (users, orgs, teams) - includes v1/
+    path("api/", include("apps.core.urls")),
+    # API-specific endpoints (tasks, settings)
     path("api/", include("apps.api.urls")),
     # Django-Ansible-Base URLs (order matters - most specific first)
     path("api/v1/", include(resource_api_urls)),  # More specific DAB resources

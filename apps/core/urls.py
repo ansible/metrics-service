@@ -2,6 +2,10 @@
 Core app URLs.
 """
 
-from django.urls import path
+from django.urls import include, path
 
-urlpatterns: list[path] = []
+from .v1 import urls as v1_urls
+
+urlpatterns = [
+    path("v1/", include(v1_urls)),
+]

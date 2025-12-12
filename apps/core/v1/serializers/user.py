@@ -1,24 +1,7 @@
-"""
-API v1 serializers for metrics_service following AAP standards.
-"""
-
-from ansible_base.lib.serializers.common import CommonUserSerializer, NamedCommonModelSerializer
-from ansible_base.rbac.api.related import RelatedAccessMixin
+from ansible_base.lib.serializers.common import CommonUserSerializer
 from rest_framework import serializers
 
-from apps.core.models import Organization, Team, User
-
-
-class OrganizationSerializer(RelatedAccessMixin, NamedCommonModelSerializer):
-    class Meta:
-        model = Organization
-        fields = "__all__"
-
-
-class TeamSerializer(RelatedAccessMixin, NamedCommonModelSerializer):
-    class Meta:
-        model = Team
-        fields = "__all__"
+from apps.core.models import User
 
 
 class UserSerializer(CommonUserSerializer):
