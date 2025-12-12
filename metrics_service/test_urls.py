@@ -11,6 +11,8 @@ urlpatterns = [
     path("", include("apps.health.urls")),
     # Dashboard interface
     path("dashboard/", include("apps.dashboard.urls")),
+    # Dynamic settings API
+    path("api/", include("apps.dynamic_settings.urls")),
     # API endpoints
     path("api/", include("apps.api.urls")),
     # Prometheus metrics

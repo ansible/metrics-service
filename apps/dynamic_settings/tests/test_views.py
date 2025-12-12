@@ -25,7 +25,7 @@ class TestSettingViewSet(APITestCase):
     def test_update_config(self):
         """Test updating config via API."""
         self.client.force_authenticate(user=self.admin)
-        url = reverse("api:v1:settings-list")
+        url = reverse("dynamic_settings:v1:settings-list")
         # Use an existing setting that's in DYNACONF
         data = {"DEBUG": True}
         response = self.client.put(url, data, format="json")
@@ -46,7 +46,7 @@ class TestSettingViewSet(APITestCase):
         )
 
         self.client.force_authenticate(user=self.admin)
-        url = reverse("api:v1:settings-rollback", kwargs={"change_id": setting.id})
+        url = reverse("dynamic_settings:v1:settings-rollback", kwargs={"change_id": setting.id})
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -55,7 +55,7 @@ class TestSettingViewSet(APITestCase):
     def test_update_nonexistent_setting_rejected(self):
         """Test that updating a non-existent setting is rejected."""
         self.client.force_authenticate(user=self.admin)
-        url = reverse("api:v1:settings-list")
+        url = reverse("dynamic_settings:v1:settings-list")
         # Try to set a setting that doesn't exist in DYNACONF
         data = {"FAKE_NONEXISTENT_SETTING": "some value"}
         response = self.client.put(url, data, format="json")

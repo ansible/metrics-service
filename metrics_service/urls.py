@@ -15,7 +15,9 @@ urlpatterns = [
     path("dashboard/", include("apps.dashboard.urls")),
     # Core API endpoints (users, orgs, teams) - includes v1/
     path("api/", include("apps.core.urls")),
-    # API-specific endpoints (tasks, settings)
+    # Dynamic settings API
+    path("api/", include("apps.dynamic_settings.urls")),
+    # API-specific endpoints (tasks)
     path("api/", include("apps.api.urls")),
     # Django-Ansible-Base URLs (order matters - most specific first)
     path("api/v1/", include(resource_api_urls)),  # More specific DAB resources

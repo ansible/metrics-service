@@ -6,7 +6,9 @@ from django.urls import path
 
 from .viewsets import SettingViewSet
 
-# Note: These URLs are mounted at /api/v1/settings/ for backwards compatibility
+app_name = "dynamic_settings_v1"
+
+# Note: These URLs are mounted at /api/v1/settings/
 urlpatterns = [
     path(
         "",

@@ -388,5 +388,3 @@ class TaskUtilsTestCase(TestCase):
         utils.log_task_execution("test_task", "complete")
 
         mock_logger.info.assert_called_once_with("Task 'test_task' complete")
-
-

@@ -34,5 +34,3 @@ def get_test_user_data(username: str = "testuser", email: str = "test@example.co
         "email": email,
         "password": get_test_password(),
     }
-
-
