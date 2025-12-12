@@ -9,9 +9,9 @@ import pytest
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from apps.core.services.output_formatter import OutputFormatter
-from apps.core.services.system_initializer import SystemInitializer
 from apps.tasks.models import Task
+from apps.tasks.services.output_formatter import OutputFormatter
+from apps.tasks.services.system_initializer import SystemInitializer
 
 
 @pytest.mark.unit
@@ -33,7 +33,7 @@ class SystemInitializerTestCase(TestCase):
         """Test SystemInitializer initialization."""
         self.assertEqual(self.system_initializer.output, self.output_formatter)
 
-    @patch("apps.core.services.system_initializer.ServiceID")
+    @patch("apps.tasks.services.system_initializer.ServiceID")
     def test_init_service_id_creates_new(self, mock_service_id):
         """Test ServiceID creation when none exists."""
         # Mock ServiceID.objects.count() to return 0
@@ -50,7 +50,7 @@ class SystemInitializerTestCase(TestCase):
         mock_service_id.objects.create.assert_called_once()
         self.style.SUCCESS.assert_called_once_with("Created ServiceID: test-service-id-123")
 
-    @patch("apps.core.services.system_initializer.ServiceID")
+    @patch("apps.tasks.services.system_initializer.ServiceID")
     def test_init_service_id_exists(self, mock_service_id):
         """Test ServiceID handling when one already exists."""
         # Mock ServiceID.objects.count() to return 1
@@ -68,7 +68,7 @@ class SystemInitializerTestCase(TestCase):
         mock_service_id.objects.first.assert_called_once()
         self.style.WARNING.assert_called_once_with("ServiceID exists: existing-service-id-456")
 
-    @patch("apps.core.services.system_initializer.ServiceID")
+    @patch("apps.tasks.services.system_initializer.ServiceID")
     def test_init_service_id_exception(self, mock_service_id):
         """Test ServiceID initialization with exception."""
         mock_service_id.objects.count.side_effect = Exception("Database error")
@@ -137,7 +137,7 @@ class SystemInitializerTestCase(TestCase):
             self.assertIn("DRY RUN", output)
             self.assertIn("no changes will be made", output)
 
-    @patch("apps.core.services.system_initializer.time")
+    @patch("apps.tasks.services.system_initializer.time")
     def test_execute_initialization_success(self, mock_time):
         """Test successful initialization execution."""
         mock_time.time.side_effect = [100.0, 105.5]  # Start and end times

@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from apps.core.services.process_manager import ProcessManager
+from apps.tasks.services.process_manager import ProcessManager
 
 
 class ProcessManagerTestCase(TestCase):
@@ -37,17 +37,17 @@ class ProcessManagerTestCase(TestCase):
         self.assertEqual(self.process_manager.threads, [])
         self.assertEqual(self.process_manager.processes, [])
 
-    @patch("apps.core.services.process_manager.ProcessManager._setup_signal_handlers")
+    @patch("apps.tasks.services.process_manager.ProcessManager._setup_signal_handlers")
     def test_init_calls_signal_setup(self, mock_setup_signals):
         """Test initialization calls signal handlers setup."""
         ProcessManager(self.mock_output)
         mock_setup_signals.assert_called_once()
 
-    @patch("apps.core.services.process_manager.ProcessManager._monitor_services")
-    @patch("apps.core.services.process_manager.ProcessManager._process_pending_tasks_on_startup")
-    @patch("apps.core.services.process_manager.ProcessManager._start_task_scheduler_thread")
-    @patch("apps.core.services.process_manager.ProcessManager._start_dispatcher_thread")
-    @patch("apps.core.services.process_manager.ProcessManager._start_django_thread")
+    @patch("apps.tasks.services.process_manager.ProcessManager._monitor_services")
+    @patch("apps.tasks.services.process_manager.ProcessManager._process_pending_tasks_on_startup")
+    @patch("apps.tasks.services.process_manager.ProcessManager._start_task_scheduler_thread")
+    @patch("apps.tasks.services.process_manager.ProcessManager._start_dispatcher_thread")
+    @patch("apps.tasks.services.process_manager.ProcessManager._start_django_thread")
     def test_start_services_success(self, mock_django, mock_dispatcher, mock_scheduler, mock_pending, mock_monitor):
         """Test successful service startup."""
         self.process_manager.start_services(self.config)
@@ -62,7 +62,7 @@ class ProcessManagerTestCase(TestCase):
         # Verify output messages
         self.mock_output.success.assert_called()
 
-    @patch("apps.core.services.process_manager.ProcessManager._start_django_thread")
+    @patch("apps.tasks.services.process_manager.ProcessManager._start_django_thread")
     def test_start_services_failure(self, mock_django):
         """Test service startup failure handling."""
         mock_django.side_effect = Exception("Start failed")

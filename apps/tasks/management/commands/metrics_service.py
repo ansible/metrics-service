@@ -17,11 +17,11 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from apps.core.services import (
+from apps.tasks.models import Task
+from apps.tasks.services import (
     OutputFormatter,
     ProcessManager,
 )
-from apps.tasks.models import Task
 
 User = get_user_model()
 

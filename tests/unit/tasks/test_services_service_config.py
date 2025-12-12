@@ -5,7 +5,7 @@ Unit tests for ServiceConfig service.
 import pytest
 from django.test import TestCase
 
-from apps.core.services.service_config import ServiceConfig
+from apps.tasks.services.service_config import ServiceConfig
 
 
 @pytest.mark.unit

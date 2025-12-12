@@ -9,8 +9,8 @@ import pytest
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from apps.core.services.cron_manager import CronManager
-from apps.core.services.output_formatter import OutputFormatter
+from apps.tasks.services.cron_manager import CronManager
+from apps.tasks.services.output_formatter import OutputFormatter
 
 
 @pytest.mark.unit

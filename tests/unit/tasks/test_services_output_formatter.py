@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from django.test import TestCase
 
-from apps.core.services.output_formatter import OutputFormatter
+from apps.tasks.services.output_formatter import OutputFormatter
 
 
 @pytest.mark.unit

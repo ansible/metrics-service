@@ -12,9 +12,9 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from apps.core.services.output_formatter import OutputFormatter
-from apps.core.services.task_manager import TaskManager
 from apps.tasks.models import Task
+from apps.tasks.services.output_formatter import OutputFormatter
+from apps.tasks.services.task_manager import TaskManager
 
 User = get_user_model()
 
