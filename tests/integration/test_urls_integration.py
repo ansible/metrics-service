@@ -77,21 +77,6 @@ class TestURLResolution(TestCase):
             # API might not have URLs defined
             pass
 
-    def test_core_url_resolution(self):
-        """Test core app URL resolution."""
-        try:
-            # Test login URL
-            url = reverse("login")
-            assert url == "/login/"
-
-            # Test logout URL
-            url = reverse("logout")
-            assert url == "/logout/"
-
-        except NoReverseMatch:
-            # Core URLs might not be available
-            pass
-
     def test_admin_url_resolution(self):
         """Test admin URL resolution."""
         try:
@@ -217,22 +202,6 @@ class TestAuthenticationURLs(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
 
-    def test_login_url(self):
-        """Test login URL functionality."""
-        # Test login page access
-        response = self.client.get("/login/")
-        assert response.status_code in [200, 302, 404]
-
-        # Test login form submission
-        response = self.client.post("/login/", {"username": "testuser", "password": get_test_password()})
-        assert response.status_code in [200, 302, 404]
-
-    def test_logout_url(self):
-        """Test logout URL functionality."""
-        # Test logout URL - LogoutView requires POST by default
-        response = self.client.post("/logout/")
-        assert response.status_code in [200, 302, 404]
-
     def test_authentication_redirects(self):
         """Test authentication redirects."""
         # Test that unauthenticated users are redirected
@@ -325,7 +294,7 @@ class TestURLPerformance(TestCase):
         start_time = time.time()
 
         # Resolve multiple URLs
-        urls_to_test = ["/api/", "/dashboard/", "/admin/", "/login/", "/logout/"]
+        urls_to_test = ["/api/", "/dashboard/", "/admin/"]
 
         for url in urls_to_test:
             with contextlib.suppress(Http404, NoReverseMatch):
@@ -373,7 +342,7 @@ class TestURLIntegrationWithViews(TestCase):
         get_resolver()
 
         # Test that URLs resolve to actual views
-        test_urls = ["/api/schema/", "/dashboard/", "/admin/", "/login/", "/logout/"]
+        test_urls = ["/api/schema/", "/dashboard/", "/admin/"]
 
         for url in test_urls:
             try:

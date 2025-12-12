@@ -134,13 +134,6 @@ class TestMainURLResolution(TestCase):
         with contextlib.suppress(Exception):
             resolve("/api/")
 
-    def test_core_url_resolution(self):
-        """Test that core URLs can be resolved."""
-        # Test that core URLs are accessible
-        with contextlib.suppress(Exception):
-            resolve("/login/")
-
-
 @pytest.mark.unit
 class TestMainURLsWithMocks(TestCase):
     """Test main URLs with mocked dependencies."""

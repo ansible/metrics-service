@@ -177,10 +177,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Custom User Model
 AUTH_USER_MODEL = "core.User"
-# Redirect unauthenticated users to our custom login page
-LOGIN_URL = "/login/"
-LOGIN_REDIRECT_URL = "/api/v1/"
-LOGOUT_REDIRECT_URL = "/login/"
+
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

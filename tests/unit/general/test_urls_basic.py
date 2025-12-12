@@ -80,18 +80,6 @@ class BasicURLConfigurationTestCase(TestCase):
         # Note: include() returns a tuple that becomes a URLResolver when processed
         self.assertIsNotNone(resolver)
 
-    def test_auth_view_configuration(self):
-        """Test that auth views can be configured properly."""
-        from django.contrib.auth import views as auth_views
-
-        # Test LoginView configuration
-        login_view = auth_views.LoginView.as_view(template_name="registration/login.html")
-        self.assertIsNotNone(login_view)
-
-        # Test LogoutView configuration
-        logout_view = auth_views.LogoutView.as_view(next_page="/login/")
-        self.assertIsNotNone(logout_view)
-
     def test_metrics_service_urls_module_exists(self):
         """Test that the metrics_service.urls module exists."""
         try:
