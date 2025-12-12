@@ -1,5 +1,5 @@
 """
-Comprehensive tests for core/mixins.py
+Comprehensive tests for tasks/mixins.py
 """
 
 from datetime import timedelta
@@ -8,10 +8,8 @@ from unittest.mock import Mock
 import pytest
 from django.utils import timezone
 
-from apps.core.mixins import (
-    StatusTrackingMixin,
-    TimestampMixin,
-)
+from apps.tasks.mixins import StatusTrackingMixin, TimestampMixin
+
 
 # ============================================================================
 # TimestampMixin Tests

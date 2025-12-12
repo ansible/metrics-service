@@ -1,5 +1,5 @@
 """
-Common mixins and base classes for reducing code duplication.
+Common mixins for task-related models.
 """
 
 from django.db import models

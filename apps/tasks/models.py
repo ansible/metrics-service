@@ -13,7 +13,7 @@ from django.db import models
 from django.utils import timezone
 
 # Import base classes and mixins from core
-from apps.core.mixins import StatusTrackingMixin
+from apps.tasks.mixins import StatusTrackingMixin
 
 # Import base classes, handling both DAB and simple fallbacks
 try:
