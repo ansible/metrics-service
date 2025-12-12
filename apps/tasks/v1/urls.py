@@ -13,7 +13,7 @@ from .views import (
     TaskViewSet,
 )
 
-app_name = "tasks"
+app_name = "tasks_v1"
 
 # Create DRF router for task endpoints
 router = DefaultRouter()

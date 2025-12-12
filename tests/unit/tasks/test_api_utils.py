@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from django.test import TestCase
 
-from apps.api.utils import (
+from apps.tasks.api_utils import (
     build_error_response,
     get_count_safely,
 )
@@ -33,7 +33,7 @@ class ApiUtilsTestCase(TestCase):
         mock_queryset = Mock()
         mock_queryset.count.side_effect = Exception("Database error")
 
-        with patch("apps.api.utils.logger") as mock_logger:
+        with patch("apps.tasks.api_utils.logger") as mock_logger:
             result = get_count_safely(mock_queryset)
 
         self.assertEqual(result, 0)
@@ -70,7 +70,7 @@ class ApiUtilsTestCase(TestCase):
         self.assertEqual(result, 999999)
         self.assertIsInstance(result, int)
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_basic(self, mock_timezone):
         """Test basic error response building."""
         mock_now = Mock()
@@ -88,7 +88,7 @@ class ApiUtilsTestCase(TestCase):
         mock_timezone.now.assert_called_once()
         mock_now.isoformat.assert_called_once()
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_with_details(self, mock_timezone):
         """Test error response building with details."""
         mock_now = Mock()
@@ -106,7 +106,7 @@ class ApiUtilsTestCase(TestCase):
         }
         self.assertEqual(result, expected)
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_custom_status_code(self, mock_timezone):
         """Test error response with custom status code."""
         mock_now = Mock()
@@ -119,7 +119,7 @@ class ApiUtilsTestCase(TestCase):
         self.assertEqual(result["error"], "Server error")
         self.assertEqual(result["timestamp"], "2023-01-01T12:00:00")
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_empty_details(self, mock_timezone):
         """Test error response with empty details dictionary."""
         mock_now = Mock()
@@ -131,7 +131,7 @@ class ApiUtilsTestCase(TestCase):
         # Empty details dictionary is falsy, so it should not be included
         self.assertNotIn("details", result)
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_truthy_details(self, mock_timezone):
         """Test error response with truthy details to ensure 'if details' branch."""
         mock_now = Mock()
@@ -145,7 +145,7 @@ class ApiUtilsTestCase(TestCase):
         self.assertIn("details", result)
         self.assertEqual(result["details"], {"key": "value"})
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_none_details(self, mock_timezone):
         """Test error response with None details."""
         mock_now = Mock()
@@ -159,7 +159,7 @@ class ApiUtilsTestCase(TestCase):
         expected_keys = {"error", "status_code", "timestamp"}
         self.assertEqual(set(result.keys()), expected_keys)
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_complex_details(self, mock_timezone):
         """Test error response with complex details structure."""
         mock_now = Mock()
@@ -174,7 +174,7 @@ class ApiUtilsTestCase(TestCase):
 
         self.assertEqual(result["details"], complex_details)
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_default_parameters(self, mock_timezone):
         """Test error response with only required parameters."""
         mock_now = Mock()
@@ -192,7 +192,7 @@ class ApiUtilsTestCase(TestCase):
         # Should not have details key when None
         self.assertNotIn("details", result)
 
-    @patch("apps.api.utils.timezone")
+    @patch("apps.tasks.api_utils.timezone")
     def test_build_error_response_different_status_codes(self, mock_timezone):
         """Test error response with various status codes."""
         mock_now = Mock()
@@ -208,10 +208,10 @@ class ApiUtilsTestCase(TestCase):
 
     def test_logger_configuration(self):
         """Test that logger is properly configured."""
-        from apps.api.utils import logger
+        from apps.tasks.api_utils import logger
 
         self.assertIsInstance(logger, logging.Logger)
-        self.assertEqual(logger.name, "apps.api.utils")
+        self.assertEqual(logger.name, "apps.tasks.api_utils")
 
     def test_get_count_safely_with_different_exception_types(self):
         """Test get_count_safely with various exception types."""
@@ -227,7 +227,7 @@ class ApiUtilsTestCase(TestCase):
                 mock_queryset = Mock()
                 mock_queryset.count.side_effect = exception
 
-                with patch("apps.api.utils.logger") as mock_logger:
+                with patch("apps.tasks.api_utils.logger") as mock_logger:
                     result = get_count_safely(mock_queryset)
 
                 self.assertEqual(result, 0)

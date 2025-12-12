@@ -49,11 +49,11 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.api.utils import build_error_response
 from apps.core.permissions import DeveloperModeRequired
+from apps.tasks.api_utils import build_error_response
 from apps.tasks.models import Task, TaskExecution
 
-from ..base_views import BaseViewSet
+from .base_views import BaseViewSet
 from .serializers import (
     TaskCleanupSerializer,
     TaskCreateSerializer,

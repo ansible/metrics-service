@@ -50,7 +50,7 @@ class TestTaskViewSetAPI(APITestCase):
             name="Task 2", function_name="send_notification_email", created_by=self.user, status="completed"
         )
 
-        url = reverse("api:v1:tasks:task-list")
+        url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -64,7 +64,7 @@ class TestTaskViewSetAPI(APITestCase):
             name="Detail Task", function_name="cleanup_old_data", created_by=self.user, task_data={"days_old": 30}
         )
 
-        url = reverse("api:v1:tasks:task-detail", kwargs={"pk": task.pk})
+        url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -76,7 +76,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test GET /api/v1/tasks/{invalid_id}/ returns 404."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("api:v1:tasks:task-detail", kwargs={"pk": 99999})
+        url = reverse("tasks:v1:task-detail", kwargs={"pk": 99999})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -85,7 +85,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test POST /api/v1/tasks/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("api:v1:tasks:task-list")
+        url = reverse("tasks:v1:task-list")
         data = {"name": "New Task", "function_name": "cleanup_old_data", "task_data": {"days_old": 45}}
         response = self.client.post(url, data, format="json")
 
@@ -100,7 +100,7 @@ class TestTaskViewSetAPI(APITestCase):
 
         future_time = timezone.now() + timedelta(hours=1)
 
-        url = reverse("api:v1:tasks:task-list")
+        url = reverse("tasks:v1:task-list")
         data = {
             "name": "Scheduled Task",
             "function_name": "cleanup_old_data",
@@ -115,7 +115,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test POST /api/v1/tasks/ with invalid data."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("api:v1:tasks:task-list")
+        url = reverse("tasks:v1:task-list")
         data = {
             "name": "",  # Invalid empty name
             "function_name": "nonexistent_function",  # Invalid function
@@ -128,7 +128,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test POST /api/v1/tasks/ with missing required fields."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("api:v1:tasks:task-list")
+        url = reverse("tasks:v1:task-list")
         data = {
             "name": "Incomplete Task"
             # Missing function_name
@@ -143,7 +143,7 @@ class TestTaskViewSetAPI(APITestCase):
 
         task = self._create_task_safely(name="Original Task", function_name="cleanup_old_data", created_by=self.user)
 
-        url = reverse("api:v1:tasks:task-detail", kwargs={"pk": task.pk})
+        url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Updated Task", "function_name": "cleanup_old_data", "task_data": {"days_old": 60}}
         response = self.client.put(url, data, format="json")
 
@@ -157,7 +157,7 @@ class TestTaskViewSetAPI(APITestCase):
 
         task = self._create_task_safely(name="Patch Task", function_name="cleanup_old_data", created_by=self.user)
 
-        url = reverse("api:v1:tasks:task-detail", kwargs={"pk": task.pk})
+        url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Patched Task"}
         response = self.client.patch(url, data, format="json")
 
@@ -173,7 +173,7 @@ class TestTaskViewSetAPI(APITestCase):
         task = self._create_task_safely(name="Delete Task", function_name="cleanup_old_data", created_by=self.user)
         task_id = task.pk
 
-        url = reverse("api:v1:tasks:task-detail", kwargs={"pk": task_id})
+        url = reverse("tasks:v1:task-detail", kwargs={"pk": task_id})
         response = self.client.delete(url)
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -191,7 +191,7 @@ class TestTaskViewSetAPI(APITestCase):
             name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
         )
 
-        url = reverse("api:v1:tasks:task-running")
+        url = reverse("tasks:v1:task-running")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -207,7 +207,7 @@ class TestTaskViewSetAPI(APITestCase):
             name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
         )
 
-        url = reverse("api:v1:tasks:task-pending")
+        url = reverse("tasks:v1:task-pending")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -219,7 +219,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test retry endpoint with invalid task ID."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("api:v1:tasks:task-retry", kwargs={"pk": 99999})
+        url = reverse("tasks:v1:task-retry", kwargs={"pk": 99999})
         response = self.client.post(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -228,7 +228,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test cancel endpoint with invalid task ID."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("api:v1:tasks:task-cancel", kwargs={"pk": 99999})
+        url = reverse("tasks:v1:task-cancel", kwargs={"pk": 99999})
         response = self.client.post(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND

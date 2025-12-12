@@ -3,7 +3,7 @@ Comprehensive unit tests for tasks utils module.
 """
 
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.test import TestCase
 

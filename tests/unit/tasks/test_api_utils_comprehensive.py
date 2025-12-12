@@ -10,11 +10,11 @@ from unittest.mock import MagicMock
 import pytest
 from django.test import TestCase
 
-from apps.api.utils import (
+from apps.core.models import User
+from apps.tasks.api_utils import (
     build_error_response,
     get_count_safely,
 )
-from apps.core.models import User
 from tests.test_utils import get_test_password
 
 

@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import TestCase
 
-from apps.api.v1.base_serializers import CountFieldMixin, PasswordHandlingMixin, StatusFieldMixin, TimestampFieldMixin
 from apps.core.models import Organization, User
+from apps.tasks.v1.base_serializers import CountFieldMixin, PasswordHandlingMixin, StatusFieldMixin, TimestampFieldMixin
 
 
 @pytest.mark.django_db
@@ -149,7 +149,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_common_fields_basic(self):
         """Test build_common_fields with basic fields."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         base_fields = ["name", "description"]
         result = BaseModelSerializer.build_common_fields(base_fields)
@@ -159,7 +159,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_common_fields_with_extra(self):
         """Test build_common_fields with extra fields."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         base_fields = ["name", "description"]
         extra_fields = ["status", "priority"]
@@ -170,7 +170,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_extra_kwargs_basic(self):
         """Test build_extra_kwargs with basic view name."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         result = BaseModelSerializer.build_extra_kwargs("test-view")
         expected = {"url": {"view_name": "test-view"}}
@@ -178,7 +178,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_extra_kwargs_with_additional(self):
         """Test build_extra_kwargs with additional kwargs."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         additional = {"name": {"read_only": True}}
         result = BaseModelSerializer.build_extra_kwargs("test-view", additional)
@@ -235,7 +235,7 @@ class TestApiUtilsCoverage(TestCase):
 
     def test_get_count_safely_with_manager(self):
         """Test get_count_safely with manager that has count."""
-        from apps.api.utils import get_count_safely
+        from apps.tasks.api_utils import get_count_safely
 
         mock_manager = MagicMock()
         mock_manager.count.return_value = 42
@@ -245,14 +245,14 @@ class TestApiUtilsCoverage(TestCase):
 
     def test_get_count_safely_with_none(self):
         """Test get_count_safely with None."""
-        from apps.api.utils import get_count_safely
+        from apps.tasks.api_utils import get_count_safely
 
         result = get_count_safely(None)
         assert result == 0
 
     def test_get_count_safely_with_exception(self):
         """Test get_count_safely when count raises exception."""
-        from apps.api.utils import get_count_safely
+        from apps.tasks.api_utils import get_count_safely
 
         mock_manager = MagicMock()
         mock_manager.count.side_effect = Exception("Test error")

@@ -37,7 +37,7 @@ class TestMainURLsFileContent(TestCase):
         assert 'path("api/", include("apps.core.urls"))' in content
         assert 'path("", include("apps.health.urls"))' in content
         assert 'path("dashboard/", include("apps.dashboard.urls"))' in content
-        assert 'path("api/", include("apps.api.urls"))' in content
+        assert 'path("api/", include("apps.tasks.urls"))' in content
         assert 'path("api/v1/", include(resource_api_urls))' in content
         assert 'path("api/v1/", include(api_version_urls))' in content
         assert 'path("", include(root_urls))' in content

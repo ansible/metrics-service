@@ -68,7 +68,6 @@ LOCAL_APPS = [
     "apps.core",
     "apps.dynamic_settings",
     "apps.tasks",
-    "apps.api",
     "apps.dashboard",
 ]
 
@@ -210,7 +209,7 @@ CORS_ALLOWED_ORIGINS: list[str] = []  # Set in production
 ANSIBLE_BASE_TEAM_MODEL = "core.Team"
 ANSIBLE_BASE_ORGANIZATION_MODEL = "core.Organization"
 ANSIBLE_BASE_RESOURCE_CONFIG_MODULE = "apps.core.resource_api"
-ANSIBLE_BASE_USER_VIEWSET = "apps.api.v1.views.UserViewSet"
+ANSIBLE_BASE_USER_VIEWSET = "apps.core.v1.viewsets.user.UserViewSet"
 
 # RBAC Configuration
 ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True

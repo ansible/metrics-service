@@ -12,8 +12,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 
-from apps.api.v1.base_views import BaseViewSet
 from apps.core.models import User
+from apps.tasks.v1.base_views import BaseViewSet
 
 
 # Mock serializer for testing BaseViewSet

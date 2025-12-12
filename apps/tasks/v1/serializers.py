@@ -15,7 +15,7 @@ from apps.tasks.models import (
     TaskExecution,
 )
 
-from ..base_serializers import BaseModelSerializer, StatusFieldMixin
+from .base_serializers import BaseModelSerializer, StatusFieldMixin
 
 User = get_user_model()
 
@@ -91,7 +91,7 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
             "error_message",
         ]
         extra_kwargs = BaseModelSerializer.build_extra_kwargs(
-            "api:v1:tasks:task-detail",
+            "tasks:v1:task-detail",
             {
                 "scheduled_time": {"help_text": "ISO 8601 format datetime when task should run"},
                 "task_data": {"help_text": "JSON data to pass to the task function"},
@@ -294,9 +294,9 @@ class TaskExecutionSerializer(BaseModelSerializer):
             "execution_time_seconds",
         ]
         extra_kwargs = BaseModelSerializer.build_extra_kwargs(
-            "api:v1:tasks:taskexecution-detail",
+            "tasks:v1:taskexecution-detail",
             {
-                "task": {"view_name": "api:v1:tasks:task-detail"},
+                "task": {"view_name": "tasks:v1:task-detail"},
             },
         )
 

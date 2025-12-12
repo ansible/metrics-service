@@ -83,8 +83,10 @@ Documentation = "https://platform-service-template.readthedocs.io/"
 Repository = "https://github.com/ansible/platform-service-template"
 "Bug Tracker" = "https://github.com/ansible/platform-service-template/issues"
 
-[tool.setuptools]
-packages = ["metrics_service", "apps", "apps.api", "apps.core", "apps.tasks", "apps.dashboard"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["metrics_service*", "apps*"]
+exclude = ["tests*"]
 
 
 [dependency-groups]

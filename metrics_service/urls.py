@@ -17,8 +17,8 @@ urlpatterns = [
     path("api/", include("apps.core.urls")),
     # Dynamic settings API
     path("api/", include("apps.dynamic_settings.urls")),
-    # API-specific endpoints (tasks)
-    path("api/", include("apps.api.urls")),
+    # Tasks API
+    path("api/", include("apps.tasks.urls")),
     # Django-Ansible-Base URLs (order matters - most specific first)
     path("api/v1/", include(resource_api_urls)),  # More specific DAB resources
     path("api/v1/", include(api_version_urls)),  # General DAB v1 endpoints

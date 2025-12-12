@@ -13,8 +13,8 @@ urlpatterns = [
     path("dashboard/", include("apps.dashboard.urls")),
     # Dynamic settings API
     path("api/", include("apps.dynamic_settings.urls")),
-    # API endpoints
-    path("api/", include("apps.api.urls")),
+    # Tasks API
+    path("api/", include("apps.tasks.urls")),
     # Prometheus metrics
     path("", include("django_prometheus.urls")),
 ]

@@ -6,7 +6,7 @@ from typing import Any
 
 from rest_framework import serializers
 
-from apps.api.utils import get_count_safely
+from apps.tasks.api_utils import get_count_safely
 
 
 class CountFieldMixin:

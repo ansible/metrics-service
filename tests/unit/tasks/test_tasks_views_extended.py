@@ -9,10 +9,10 @@ import pytest
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
-from apps.api.v1.tasks.serializers import TaskExecutionSerializer, TaskSerializer
-from apps.api.v1.tasks.views import TaskViewSet
 from apps.core.models import User
 from apps.tasks.models import Task, TaskChain, TaskExecution
+from apps.tasks.v1.serializers import TaskExecutionSerializer, TaskSerializer
+from apps.tasks.v1.views import TaskViewSet
 
 
 @pytest.mark.django_db
@@ -231,13 +231,13 @@ class TestTaskImports(TestCase):
 
     def test_task_view_imports(self):
         """Test task view imports work."""
-        from apps.api.v1.tasks.views import TaskViewSet
+        from apps.tasks.v1.views import TaskViewSet
 
         assert TaskViewSet
 
     def test_task_serializer_imports(self):
         """Test task serializer imports work."""
-        from apps.api.v1.tasks.serializers import TaskExecutionSerializer, TaskSerializer
+        from apps.tasks.v1.serializers import TaskExecutionSerializer, TaskSerializer
 
         assert TaskSerializer
         assert TaskExecutionSerializer

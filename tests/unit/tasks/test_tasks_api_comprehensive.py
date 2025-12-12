@@ -11,15 +11,15 @@ from django.utils import timezone as django_timezone
 from rest_framework.serializers import ValidationError
 from rest_framework.test import APIClient, APIRequestFactory
 
-from apps.api.v1.tasks.serializers import (
+from apps.core.models import User
+from apps.tasks.models import Task, TaskExecution
+from apps.tasks.v1.serializers import (
     TaskCreateSerializer,
     TaskExecutionSerializer,
     TaskListSerializer,
     TaskSerializer,
 )
-from apps.api.v1.tasks.views import TaskExecutionViewSet, TaskViewSet
-from apps.core.models import User
-from apps.tasks.models import Task, TaskExecution
+from apps.tasks.v1.views import TaskExecutionViewSet, TaskViewSet
 
 
 @pytest.mark.django_db
