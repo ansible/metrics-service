@@ -42,7 +42,6 @@ DAB_APPS = [
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
-    "ansible_base.authentication",
     # "ansible_base.oauth2_provider",  # Disabled to match defaults.py
     "ansible_base.activitystream",
     "ansible_base.jwt_consumer",

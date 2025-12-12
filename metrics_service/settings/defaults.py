@@ -59,7 +59,6 @@ DAB_APPS = [
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
-    "ansible_base.authentication",
     # "ansible_base.oauth2_provider",  # Temporarily disabled due to conflicts
     "ansible_base.activitystream",
     "ansible_base.jwt_consumer",
@@ -83,7 +82,6 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "ansible_base.authentication.middleware.AuthenticatorBackendMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -229,7 +227,6 @@ ANSIBLE_BASE_MANAGED_ROLE_REGISTRY: dict[str, str] = {}
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",  # Default Django auth
-    "ansible_base.authentication.backend.AnsibleBaseAuth",
 ]
 
 # JWT Consumer Configuration

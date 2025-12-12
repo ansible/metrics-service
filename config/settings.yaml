@@ -71,15 +71,10 @@ development:
   CORS_ALLOW_ALL_ORIGINS: true
   # Inherits SECRET_KEY and database settings from default - safe for local dev
   
-  # Suppress noisy DAB authentication plugin warnings in development
   LOGGING:
     version: 1
     disable_existing_loggers: false
     loggers:
-      ansible_base.authentication.authenticator_plugins.utils:
-        handlers: []
-        level: CRITICAL
-        propagate: false
       apps.core.apps:
         handlers: []
         level: CRITICAL
