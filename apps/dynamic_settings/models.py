@@ -6,7 +6,7 @@ from ansible_base.activitystream.models import AuditableModel
 from ansible_base.lib.abstract_models import CommonModel
 from django.db import models
 
-from .user import User
+from apps.core.models import User
 
 
 class Setting(CommonModel, AuditableModel):
@@ -15,7 +15,7 @@ class Setting(CommonModel, AuditableModel):
     """
 
     class Meta:
-        app_label = "core"
+        app_label = "dynamic_settings"
         ordering = ["-modified"]  # Show newest changes first
         indexes = [
             models.Index(fields=["setting_key", "-modified"]),  # Fast lookup by setting

@@ -6,9 +6,7 @@ from ansible_base.lib.serializers.common import CommonUserSerializer, NamedCommo
 from ansible_base.rbac.api.related import RelatedAccessMixin
 from rest_framework import serializers
 
-from apps.core.models import Organization, Setting, Team, User
-
-from .base_serializers import BaseModelSerializer
+from apps.core.models import Organization, Team, User
 
 
 class OrganizationSerializer(RelatedAccessMixin, NamedCommonModelSerializer):
@@ -48,37 +46,3 @@ class UserSerializer(CommonUserSerializer):
             user.set_password(password)
             user.save()
         return user
-
-
-class SettingSerializer(BaseModelSerializer):
-    """
-    Serializer for Setting model following AAP and Controller patterns.
-
-    Supports RESTful PUT/PATCH operations on individual settings by key.
-    """
-
-    class Meta:
-        model = Setting
-        fields = [
-            "id",
-            "url",
-            "setting_key",
-            "current_value",
-            "previous_value",
-            "last_modified_by",
-            "created",
-            "modified",
-        ]
-        read_only_fields = [
-            "id",
-            "url",
-            "previous_value",
-            "last_modified_by",
-            "created",
-            "modified",
-        ]
-        extra_kwargs = {
-            "url": {"view_name": "api:v1:settings-detail"},
-            "setting_key": {"help_text": "The unique key for this setting (e.g., 'DEBUG', 'SECRET_KEY')"},
-            "current_value": {"help_text": "The current value of this setting (JSON serialized)"},
-        }

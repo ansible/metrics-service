@@ -49,7 +49,7 @@ class TestFeatureEnabledDB(TestCase):
 
     def test_get_feature_enabled_from_db_json_value(self):
         """Test getting feature enabled from database with JSON value."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create a setting with JSON boolean value
         Setting.objects.create(
@@ -67,7 +67,7 @@ class TestFeatureEnabledDB(TestCase):
 
     def test_get_feature_enabled_from_db_string_value(self):
         """Test getting feature enabled from database with string boolean value."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Test various string representations of True
         for true_value in ["true", "True", "TRUE", "1", "yes", "YES", "on", "ON"]:
@@ -90,7 +90,7 @@ class TestFeatureEnabledDB(TestCase):
 
     def test_get_feature_enabled_from_db_invalid_json(self):
         """Test getting feature enabled when database has invalid JSON."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create setting with invalid JSON
         Setting.objects.create(
@@ -104,7 +104,7 @@ class TestFeatureEnabledDB(TestCase):
     @patch("apps.tasks.task_groups.logger")
     def test_get_feature_enabled_from_db_exception(self, mock_logger):
         """Test getting feature enabled when database query raises exception."""
-        with patch("apps.core.models.Setting.objects.filter", side_effect=Exception("DB Error")):
+        with patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB Error")):
             result = get_feature_enabled_from_db("ERROR_SETTING", default=True)
             assert result is True
             mock_logger.warning.assert_called_once()
@@ -115,7 +115,7 @@ class TestFeatureEnabledDB(TestCase):
         assert result is True
 
         # Verify it was saved correctly
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         setting = Setting.objects.get(setting_key="NEW_SETTING")
         assert json.loads(setting.current_value) is True
@@ -123,7 +123,7 @@ class TestFeatureEnabledDB(TestCase):
 
     def test_set_feature_enabled_update_existing(self):
         """Test updating an existing feature enabled value."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create initial setting
         Setting.objects.create(
@@ -143,7 +143,7 @@ class TestFeatureEnabledDB(TestCase):
     @patch("apps.tasks.task_groups.logger")
     def test_set_feature_enabled_exception(self, mock_logger):
         """Test setting feature enabled when database operation fails."""
-        with patch("apps.core.models.Setting.objects.get_or_create", side_effect=Exception("DB Error")):
+        with patch("apps.dynamic_settings.models.Setting.objects.get_or_create", side_effect=Exception("DB Error")):
             result = set_feature_enabled("ERROR_SETTING", True, self.user)
             assert result is False
             mock_logger.error.assert_called_once()
@@ -154,7 +154,7 @@ class TestFeatureEnabledDB(TestCase):
         assert result is True
 
         # Verify the setting was created
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         setting = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
         assert json.loads(setting.current_value) is True
@@ -177,7 +177,7 @@ class TestFeatureEnabledDB(TestCase):
         assert result is True
 
         # Verify the setting was created
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         setting = Setting.objects.get(setting_key="METRICS_COLLECTION_ENABLED")
         assert json.loads(setting.current_value) is False
@@ -196,7 +196,7 @@ class TestFeatureEnabledDB(TestCase):
     @patch("apps.tasks.task_groups.logger")
     def test_enable_task_group_exception(self, mock_logger):
         """Test enabling task group when database operation fails."""
-        with patch("apps.core.models.Setting.objects.get_or_create", side_effect=Exception("DB Error")):
+        with patch("apps.dynamic_settings.models.Setting.objects.get_or_create", side_effect=Exception("DB Error")):
             result = enable_task_group("anonymized_data", self.user)
             assert result is False
             mock_logger.error.assert_called_once()
@@ -225,7 +225,7 @@ class TestFeatureEnabledDB(TestCase):
 
     def test_get_feature_enabled_status_database(self):
         """Test getting feature enabled status from database."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create a database setting
         Setting.objects.create(
@@ -242,7 +242,7 @@ class TestFeatureEnabledDB(TestCase):
 
     def test_get_feature_enabled_status_invalid_json(self):
         """Test getting feature enabled status with invalid JSON in database."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create setting with invalid JSON
         Setting.objects.create(
@@ -257,7 +257,7 @@ class TestFeatureEnabledDB(TestCase):
     @patch("apps.tasks.task_groups.logger")
     def test_get_feature_enabled_status_exception(self, mock_logger):
         """Test getting feature enabled status when database query fails."""
-        with patch("apps.core.models.Setting.objects.filter", side_effect=Exception("DB Error")):
+        with patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB Error")):
             status = get_feature_enabled_status()
 
             # Should still return status with error fallback
@@ -279,7 +279,7 @@ class TestFeatureEnabledIntegration(TestCase):
 
     def test_task_group_uses_database_setting(self):
         """Test that task groups use database settings when available."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
         from apps.tasks.task_groups import ANONYMIZED_DATA_GROUP
 
         # Create database setting that overrides default
@@ -318,7 +318,7 @@ class TestFeatureEnabledIntegration(TestCase):
 
     def test_feature_enabled_status_with_mixed_sources(self):
         """Test feature enabled status with settings from different sources."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create one setting in database
         Setting.objects.create(
@@ -351,7 +351,7 @@ class TestTaskGroupsCoverageCompleteness(TestCase):
 
     def test_get_task_group_status_with_database_metadata(self):
         """Test get_task_group_status includes database metadata when available."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
         from apps.tasks.task_groups import get_task_group_status
 
         # Create a database setting with metadata
@@ -371,7 +371,7 @@ class TestTaskGroupsCoverageCompleteness(TestCase):
 
     def test_enable_task_group_update_existing_setting(self):
         """Test enable_task_group updates existing setting instead of creating new one."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create an existing setting
         Setting.objects.create(
@@ -399,7 +399,7 @@ class TestTaskGroupsCoverageCompleteness(TestCase):
         assert result is False
 
         # Verify no setting was created for system tasks
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         assert not Setting.objects.filter(setting_key="SYSTEM_TASKS").exists()
 
@@ -436,7 +436,7 @@ class TestTaskGroupsCoverageCompleteness(TestCase):
 
     def test_disable_task_group_update_existing_setting(self):
         """Test disable_task_group updates existing setting."""
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Create an existing setting
         Setting.objects.create(
@@ -459,7 +459,7 @@ class TestTaskGroupsCoverageCompleteness(TestCase):
     @patch("apps.tasks.task_groups.logger")
     def test_disable_task_group_exception_handling(self, mock_logger):
         """Test disable_task_group exception handling."""
-        with patch("apps.core.models.Setting.objects.get_or_create", side_effect=Exception("DB Error")):
+        with patch("apps.dynamic_settings.models.Setting.objects.get_or_create", side_effect=Exception("DB Error")):
             result = disable_task_group("metrics_collection", self.user)
             assert result is False
             mock_logger.error.assert_called_once()

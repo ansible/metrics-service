@@ -18,7 +18,6 @@ from apps.core.utils import (
     get_count_safely,
     get_related_object_safely,
     get_system_uuid,
-    log_setting_change,
 )
 from tests.test_utils import get_test_password
 
@@ -273,80 +272,6 @@ class TestFormatTaskData(TestCase):
         result = format_task_data([])
 
         assert isinstance(result, str)
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-class TestLogSettingChange(TestCase):
-    """Test log_setting_change utility function."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password=get_test_password()
-        )
-
-    def test_log_setting_change_basic(self):
-        """Test basic setting change logging."""
-        with patch("apps.core.utils.logger") as mock_logger:
-            log_setting_change(self.user, "TEST_SETTING", {"new": "value"})
-
-            # Should log the change
-            mock_logger.info.assert_called_once()
-
-    def test_log_setting_change_with_old_value(self):
-        """Test logging setting change with old value."""
-        old_value = {"old": "value"}
-        new_value = {"new": "value"}
-
-        with patch("apps.core.utils.logger") as mock_logger:
-            log_setting_change(self.user, "TEST_SETTING", new_value, old_value)
-
-            # Should log the change with old and new values
-            mock_logger.info.assert_called_once()
-            call_args = mock_logger.info.call_args[0][0]
-            assert "TEST_SETTING" in call_args
-
-    def test_log_setting_change_none_user(self):
-        """Test logging setting change with None user."""
-        with patch("apps.core.utils.logger") as mock_logger:
-            log_setting_change(None, "TEST_SETTING", {"value": "test"})
-
-            # Should handle None user gracefully
-            mock_logger.info.assert_called_once()
-
-    def test_log_setting_change_complex_values(self):
-        """Test logging with complex nested values."""
-        old_value = {"database": {"host": "old.example.com", "port": 5432}, "features": ["feature1", "feature2"]}
-        new_value = {
-            "database": {"host": "new.example.com", "port": 5433},
-            "features": ["feature1", "feature2", "feature3"],
-        }
-
-        with patch("apps.core.utils.logger") as mock_logger:
-            log_setting_change(self.user, "DATABASE_CONFIG", new_value, old_value)
-
-            # Should handle complex structures without error
-            mock_logger.info.assert_called_once()
-
-    def test_log_setting_change_same_values(self):
-        """Test logging when old and new values are the same."""
-        value = {"same": "value"}
-
-        with patch("apps.core.utils.logger"):
-            log_setting_change(self.user, "UNCHANGED_SETTING", value, value)
-
-            # Should still log (or handle gracefully)
-            # Implementation may choose to log or not log unchanged values
-
-    @patch("apps.core.utils.logger")
-    def test_log_setting_change_handles_logging_error(self, mock_logger):
-        """Test that logging errors are handled gracefully."""
-        # Make logger raise an exception
-        mock_logger.info.side_effect = Exception("Logging failed")
-
-        # Should not raise exception
-        log_setting_change(self.user, "TEST_SETTING", {"value": "test"})
 
 
 @pytest.mark.unit

@@ -1,11 +1,8 @@
 """Unit tests for Setting model."""
 
 import pytest
-from django.contrib.auth import get_user_model
 
-from apps.core.models import Setting
-
-User = get_user_model()
+from apps.dynamic_settings.models import Setting
 
 
 @pytest.mark.unit

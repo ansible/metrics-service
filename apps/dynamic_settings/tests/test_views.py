@@ -8,14 +8,14 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.core.models import Setting
+from apps.dynamic_settings.models import Setting
 
 User = get_user_model()
 
 
 @pytest.mark.unit
 class TestSettingViewSet(APITestCase):
-    """Test cases for SettingView."""
+    """Test cases for SettingViewSet."""
 
     def setUp(self):
         """Set up test data."""
