@@ -45,7 +45,6 @@ from typing import Any
 
 from django.http import HttpRequest
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -114,25 +113,6 @@ class TaskViewSet(BaseViewSet):
         # This eliminates cross-process communication issues and provides unified task submission
         return super().create(request, *args, **kwargs)
 
-    @extend_schema(
-        operation_id="tasks_list_filtered",
-        description="List tasks with filtering similar to manage_tasks list command",
-        parameters=[
-            OpenApiParameter(
-                name="status",
-                type=str,
-                description="Filter by task status",
-                required=False,
-            ),
-            OpenApiParameter(
-                name="limit",
-                type=int,
-                description="Limit number of results (default: 20)",
-                required=False,
-            ),
-        ],
-        responses={200: TaskListSerializer(many=True)},
-    )
     @action(detail=False, methods=["get"], url_path="list")
     def list_filtered(self, request: HttpRequest) -> Response:
         """
@@ -158,11 +138,6 @@ class TaskViewSet(BaseViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-    @extend_schema(
-        operation_id="tasks_running",
-        description="Get currently running tasks",
-        responses={200: TaskSerializer(many=True)},
-    )
     @action(detail=False, methods=["get"])
     def running(self, request: HttpRequest) -> Response:
         """
@@ -175,11 +150,6 @@ class TaskViewSet(BaseViewSet):
         serializer = self.get_serializer(running_tasks, many=True)
         return Response(serializer.data)
 
-    @extend_schema(
-        operation_id="tasks_pending",
-        description="Get pending tasks waiting to run",
-        responses={200: TaskSerializer(many=True)},
-    )
     @action(detail=False, methods=["get"])
     def pending(self, request: HttpRequest) -> Response:
         """
@@ -192,12 +162,6 @@ class TaskViewSet(BaseViewSet):
         serializer = self.get_serializer(pending_tasks, many=True)
         return Response(serializer.data)
 
-    @extend_schema(
-        operation_id="tasks_retry",
-        description="Retry a failed task",
-        request=None,
-        responses={200: {"message": "string"}},
-    )
     @action(detail=True, methods=["post"])
     def retry(self, request: HttpRequest, pk: Any = None) -> Response:
         """
@@ -231,12 +195,6 @@ class TaskViewSet(BaseViewSet):
 
         return Response({"message": f"Task '{task.name}' queued for retry"})
 
-    @extend_schema(
-        operation_id="tasks_cancel",
-        description="Cancel a pending or running task",
-        request=None,
-        responses={200: {"message": "string"}},
-    )
     @action(detail=True, methods=["post"])
     def cancel(self, request: HttpRequest, pk: Any = None) -> Response:
         """
@@ -263,12 +221,6 @@ class TaskViewSet(BaseViewSet):
 
         return Response({"message": f"Task '{task.name}' cancelled"})
 
-    @extend_schema(
-        operation_id="tasks_cleanup",
-        description="Clean up old completed tasks",
-        request=TaskCleanupSerializer,
-        responses={200: {"message": "string", "count": "integer"}},
-    )
     @action(detail=False, methods=["post"])
     def cleanup(self, request: HttpRequest) -> Response:
         """
@@ -319,11 +271,6 @@ class TaskViewSet(BaseViewSet):
             old_tasks.delete()
             return Response({"message": f"Deleted {count} old tasks", "count": count})
 
-    @extend_schema(
-        operation_id="tasks_available_functions",
-        description="Get list of available task functions with detailed metadata",
-        responses={200: {"functions": "array"}},
-    )
     @action(detail=False, methods=["get"])
     def available_functions(self, request: HttpRequest) -> Response:
         """
@@ -355,11 +302,6 @@ class TaskViewSet(BaseViewSet):
 
         return Response({"functions": functions})
 
-    @extend_schema(
-        operation_id="tasks_system_tasks_info",
-        description="Get information about system-defined tasks",
-        responses={200: {"system_tasks": "array"}},
-    )
     @action(detail=False, methods=["get"])
     def system_tasks_info(self, request: HttpRequest) -> Response:
         """
@@ -459,11 +401,6 @@ class TaskViewSet(BaseViewSet):
             task.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @extend_schema(
-        operation_id="tasks_scheduler_status",
-        description="Get simple scheduler status and scheduled tasks",
-        responses={200: {"scheduler": "object", "tasks": "array"}},
-    )
     @action(detail=False, methods=["get"])
     def scheduler_status(self, request: HttpRequest) -> Response:
         """
@@ -500,12 +437,6 @@ class TaskViewSet(BaseViewSet):
             error_response = build_error_response(f"Failed to get scheduler status: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @extend_schema(
-        operation_id="tasks_schedule_immediate",
-        description="Schedule a task to run immediately",
-        request=TaskCreateSerializer,
-        responses={200: {"message": "string", "task_id": "string"}},
-    )
     @action(detail=False, methods=["post"])
     def schedule_immediate(self, request: HttpRequest) -> Response:
         """
@@ -534,12 +465,6 @@ class TaskViewSet(BaseViewSet):
             error_response = build_error_response(f"Failed to schedule task: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @extend_schema(
-        operation_id="tasks_schedule_recurring",
-        description="Schedule a recurring task",
-        request=TaskCreateSerializer,
-        responses={200: {"message": "string", "task_id": "string"}},
-    )
     @action(detail=False, methods=["post"])
     def schedule_recurring(self, request: HttpRequest) -> Response:
         """

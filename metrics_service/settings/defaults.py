@@ -47,7 +47,6 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
-    "drf_spectacular",
     "corsheaders",
     "oauth2_provider",
     "social_django",
@@ -207,21 +206,6 @@ REST_FRAMEWORK = {
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-}
-
-# OpenAPI/Swagger Documentation
-SPECTACULAR_SETTINGS = {
-    "TITLE": "Metrics Service API",
-    "DESCRIPTION": "API documentation for Metrics Service",
-    "VERSION": "1.0.0",
-    "SERVE_INCLUDE_SCHEMA": False,
-    "SCHEMA_PATH_PREFIX": "/api/v[0-9]",
-    "SCHEMA_PATH_PREFIX_TRIM": True,
-    "SWAGGER_UI_SETTINGS": {
-        "deepLinking": True,
-        "persistAuthorization": True,
-    },
 }
 
 # CORS Configuration

@@ -9,7 +9,6 @@ from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
 from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
 from django.db.models import QuerySet
 from django.http import HttpRequest
-from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -179,12 +178,6 @@ class UserManagementMixin:
             error_response = build_error_response(f"Failed to remove user: {str(e)}")
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
-    @extend_schema(
-        operation_id="add_user",
-        description="Add user to this object",
-        request={"user_id": "integer"},
-        responses={200: {"message": "string", "user_id": "integer"}},
-    )
     @action(detail=True, methods=["post"])
     def add_user(self, request: HttpRequest, pk: Any = None) -> Response:
         """
@@ -199,12 +192,6 @@ class UserManagementMixin:
         """
         return self._add_user_to_field(request, "users", "User added successfully")
 
-    @extend_schema(
-        operation_id="remove_user",
-        description="Remove user from this object",
-        request={"user_id": "integer"},
-        responses={200: {"message": "string", "user_id": "integer"}},
-    )
     @action(detail=True, methods=["post"])
     def remove_user(self, request: HttpRequest, pk: Any = None) -> Response:
         """
@@ -219,12 +206,6 @@ class UserManagementMixin:
         """
         return self._remove_user_from_field(request, "users", "User removed successfully")
 
-    @extend_schema(
-        operation_id="add_admin",
-        description="Add admin to this object",
-        request={"user_id": "integer"},
-        responses={200: {"message": "string", "user_id": "integer"}},
-    )
     @action(detail=True, methods=["post"])
     def add_admin(self, request: HttpRequest, pk: Any = None) -> Response:
         """
@@ -239,12 +220,6 @@ class UserManagementMixin:
         """
         return self._add_user_to_field(request, "admins", "Admin added successfully")
 
-    @extend_schema(
-        operation_id="remove_admin",
-        description="Remove admin from this object",
-        request={"user_id": "integer"},
-        responses={200: {"message": "string", "user_id": "integer"}},
-    )
     @action(detail=True, methods=["post"])
     def remove_admin(self, request: HttpRequest, pk: Any = None) -> Response:
         """

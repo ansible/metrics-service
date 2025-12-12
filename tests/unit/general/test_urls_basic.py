@@ -21,21 +21,6 @@ class BasicURLConfigurationTestCase(TestCase):
         self.assertIsNotNone(include)
         self.assertIsNotNone(path)
 
-    def test_drf_spectacular_imports(self):
-        """Test that DRF Spectacular imports work correctly."""
-        try:
-            from drf_spectacular.views import (
-                SpectacularAPIView,
-                SpectacularRedocView,
-                SpectacularSwaggerView,
-            )
-
-            self.assertIsNotNone(SpectacularAPIView)
-            self.assertIsNotNone(SpectacularRedocView)
-            self.assertIsNotNone(SpectacularSwaggerView)
-        except ImportError as e:
-            self.fail(f"Failed to import DRF Spectacular views: {e}")
-
     def test_auth_views_classes(self):
         """Test that auth view classes can be imported."""
         from django.contrib.auth import views as auth_views
@@ -80,23 +65,6 @@ class BasicURLConfigurationTestCase(TestCase):
         self.assertIsNotNone(test_pattern)
         self.assertEqual(test_pattern.name, "login")
         self.assertIsNotNone(test_pattern.callback)
-
-    def test_spectacular_view_classes(self):
-        """Test that Spectacular view classes work correctly."""
-        from drf_spectacular.views import (
-            SpectacularAPIView,
-            SpectacularRedocView,
-            SpectacularSwaggerView,
-        )
-
-        # Test that view classes can be instantiated
-        schema_view = SpectacularAPIView()
-        swagger_view = SpectacularSwaggerView()
-        redoc_view = SpectacularRedocView()
-
-        self.assertIsNotNone(schema_view)
-        self.assertIsNotNone(swagger_view)
-        self.assertIsNotNone(redoc_view)
 
     def test_url_resolver_types(self):
         """Test that URL resolver types are correct."""
@@ -163,10 +131,3 @@ class BasicURLConfigurationTestCase(TestCase):
         self.assertTrue(hasattr(logout_view, "get"))
         self.assertTrue(hasattr(logout_view, "post"))
 
-    def test_spectacular_view_methods(self):
-        """Test that Spectacular views have expected methods."""
-        from drf_spectacular.views import SpectacularAPIView
-
-        schema_view = SpectacularAPIView()
-        self.assertTrue(hasattr(schema_view, "get"))
-        self.assertTrue(callable(schema_view.get))

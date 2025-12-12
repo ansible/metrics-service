@@ -12,11 +12,6 @@ asgiref==3.9.1
     #   channels
     #   django
     #   django-cors-headers
-attrs==25.3.0
-    # via
-    #   -r requirements-pinned.txt
-    #   jsonschema
-    #   referencing
 backoff==2.2.1
     # via
     #   -r requirements-pinned.txt
@@ -85,7 +80,6 @@ django==5.2.7
     #   django-oauth-toolkit
     #   django-prometheus
     #   djangorestframework
-    #   drf-spectacular
     #   metrics-service
     #   metrics-utility
     #   social-auth-app-django
@@ -117,12 +111,6 @@ djangorestframework==3.16.1
     # via
     #   -r requirements-pinned.txt
     #   django-ansible-base
-    #   drf-spectacular
-    #   metrics-service
-drf-spectacular==0.26.5
-    # via
-    #   -r requirements-pinned.txt
-    #   django-ansible-base
     #   metrics-service
 durationpy==0.10
     # via
@@ -149,20 +137,11 @@ inflection==0.5.1
     # via
     #   -r requirements-pinned.txt
     #   django-ansible-base
-    #   drf-spectacular
 jmespath==1.0.1
     # via
     #   -r requirements-pinned.txt
     #   boto3
     #   botocore
-jsonschema==4.25.1
-    # via
-    #   -r requirements-pinned.txt
-    #   drf-spectacular
-jsonschema-specifications==2025.4.1
-    # via
-    #   -r requirements-pinned.txt
-    #   jsonschema
 jwcrypto==1.5.6
     # via
     #   -r requirements-pinned.txt
@@ -254,13 +233,7 @@ pyyaml==6.0.2
     # via
     #   -r requirements-pinned.txt
     #   dispatcherd
-    #   drf-spectacular
     #   kubernetes
-referencing==0.36.2
-    # via
-    #   -r requirements-pinned.txt
-    #   jsonschema
-    #   jsonschema-specifications
 requests==2.32.5
     # via
     #   -r requirements-pinned.txt
@@ -276,11 +249,6 @@ requests-oauthlib==2.0.0
     #   -r requirements-pinned.txt
     #   kubernetes
     #   social-auth-core
-rpds-py==0.27.1
-    # via
-    #   -r requirements-pinned.txt
-    #   jsonschema
-    #   referencing
 rsa==4.9.1
     # via
     #   -r requirements-pinned.txt
@@ -320,7 +288,6 @@ typing-extensions==4.15.0
     #   -r requirements-pinned.txt
     #   jwcrypto
     #   psycopg
-    #   referencing
 tzdata==2025.2
     # via
     #   -r requirements-pinned.txt
@@ -329,10 +296,6 @@ tzlocal==5.3.1
     # via
     #   -r requirements-pinned.txt
     #   apscheduler
-uritemplate==4.2.0
-    # via
-    #   -r requirements-pinned.txt
-    #   drf-spectacular
 urllib3==2.3.0
     # via
     #   -r requirements-pinned.txt

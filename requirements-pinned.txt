@@ -12,12 +12,6 @@ asgiref==3.9.1 \
     #   channels
     #   django
     #   django-cors-headers
-attrs==25.3.0 \
-    --hash=sha256:427318ce031701fea540783410126f03899a97ffc6f61596ad581ac2e40e3bc3 \
-    --hash=sha256:75d7cefc7fb576747b2c81b4442d4d4a1ce0900973527c011d1030fd3bf4af1b
-    # via
-    #   jsonschema
-    #   referencing
 backoff==2.2.1 \
     --hash=sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba \
     --hash=sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8
@@ -135,7 +129,6 @@ django==5.2.7 \
     #   django-oauth-toolkit
     #   django-prometheus
     #   djangorestframework
-    #   drf-spectacular
     #   metrics-service
     #   metrics-utility
     #   social-auth-app-django
@@ -168,13 +161,6 @@ djangorestframework==3.16.1 \
     --hash=sha256:33a59f47fb9c85ede792cbf88bde71893bcda0667bc573f784649521f1102cec
     # via
     #   django-ansible-base
-    #   drf-spectacular
-    #   metrics-service
-drf-spectacular==0.26.5 \
-    --hash=sha256:aee55330a774ba8a9cbdb125714d1c9ee05a8aafd3ce3be8bfd26527649aeb44 \
-    --hash=sha256:c0002a820b11771fdbf37853deb371947caf0159d1afeeffe7598e964bc1db94
-    # via
-    #   django-ansible-base
     #   metrics-service
 durationpy==0.10 \
     --hash=sha256:1fa6893409a6e739c9c72334fc65cca1f355dbdd93405d30f726deb5bde42fba \
@@ -201,23 +187,13 @@ idna==3.10 \
 inflection==0.5.1 \
     --hash=sha256:1a29730d366e996aaacffb2f1f1cb9593dc38e2ddd30c91250c6dde09ea9b417 \
     --hash=sha256:f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2
-    # via
-    #   django-ansible-base
-    #   drf-spectacular
+    # via django-ansible-base
 jmespath==1.0.1 \
     --hash=sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980 \
     --hash=sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe
     # via
     #   boto3
     #   botocore
-jsonschema==4.25.1 \
-    --hash=sha256:3fba0169e345c7175110351d456342c364814cfcf3b964ba4587f22915230a63 \
-    --hash=sha256:e4a9655ce0da0c0b67a085847e00a3a51449e1157f4f75e9fb5aa545e122eb85
-    # via drf-spectacular
-jsonschema-specifications==2025.4.1 \
-    --hash=sha256:4653bffbd6584f7de83a67e0d620ef16900b390ddc7939d56684d6c81e33f1af \
-    --hash=sha256:630159c9f4dbea161a6a2205c3011cc4f18ff381b189fff48bb39b9bf26ae608
-    # via jsonschema
 jwcrypto==1.5.6 \
     --hash=sha256:150d2b0ebbdb8f40b77f543fb44ffd2baeff48788be71f67f03566692fd55789 \
     --hash=sha256:771a87762a0c081ae6166958a954f80848820b2ab066937dc8b8379d65b1b039
@@ -358,14 +334,7 @@ pyyaml==6.0.2 \
     --hash=sha256:ef6107725bd54b262d6dedcc2af448a266975032bc85ef0172c5f059da6325b4
     # via
     #   dispatcherd
-    #   drf-spectacular
     #   kubernetes
-referencing==0.36.2 \
-    --hash=sha256:df2e89862cd09deabbdba16944cc3f10feb6b3e6f18e902f7cc25609a34775aa \
-    --hash=sha256:e8699adbbf8b5c7de96d8ffa0eb5c158b3beafce084968e2ea8bb08c6794dcd0
-    # via
-    #   jsonschema
-    #   jsonschema-specifications
 requests==2.32.5 \
     --hash=sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6 \
     --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
@@ -383,26 +352,6 @@ requests-oauthlib==2.0.0 \
     # via
     #   kubernetes
     #   social-auth-core
-rpds-py==0.27.1 \
-    --hash=sha256:16323f674c089b0360674a4abd28d5042947d54ba620f72514d69be4ff64845e \
-    --hash=sha256:2643400120f55c8a96f7c9d858f7be0c88d383cd4653ae2cf0d0c88f668073e5 \
-    --hash=sha256:26a1c73171d10b7acccbded82bf6a586ab8203601e565badc74bbbf8bc5a10f8 \
-    --hash=sha256:33aa65b97826a0e885ef6e278fbd934e98cdcfed80b63946025f01e2f5b29502 \
-    --hash=sha256:41e532bbdcb57c92ba3be62c42e9f096431b4cf478da9bc3bc6ce5c38ab7ba7a \
-    --hash=sha256:466bfe65bd932da36ff279ddd92de56b042f2266d752719beb97b08526268ec5 \
-    --hash=sha256:7ba32c16b064267b22f1850a34051121d423b6f7338a12b9459550eb2096e7ec \
-    --hash=sha256:7ee6521b9baf06085f62ba9c7a3e5becffbc32480d2f1b351559c001c38ce4c1 \
-    --hash=sha256:80c60cfb5310677bd67cb1e85a1e8eb52e12529545441b43e6f14d90b878775a \
-    --hash=sha256:819064fa048ba01b6dadc5116f3ac48610435ac9a0058bbde98e569f9e785c39 \
-    --hash=sha256:9a1f4814b65eacac94a00fc9a526e3fdafd78e439469644032032d0d63de4881 \
-    --hash=sha256:a512c8263249a9d68cac08b05dd59d2b3f2061d99b322813cbcc14c3c7421998 \
-    --hash=sha256:ae2775c1973e3c30316892737b91f9283f9908e3cc7625b9331271eaaed7dc90 \
-    --hash=sha256:d9199717881f13c32c4046a15f024971a3b78ad4ea029e8da6b86e5aa9cf4594 \
-    --hash=sha256:e5c20f33fd10485b80f65e800bbe5f6785af510b9f4056c5a3c612ebc83ba6cb \
-    --hash=sha256:f149826d742b406579466283769a8ea448eed82a789af0ed17b0cd5770433444
-    # via
-    #   jsonschema
-    #   referencing
 rsa==4.9.1 \
     --hash=sha256:68635866661c6836b8d39430f97a996acbd61bfa49406748ea243539fe239762 \
     --hash=sha256:e7bdbfdb5497da4c07dfd35530e1a902659db6ff241e39d9953cad06ebd0ae75
@@ -445,7 +394,6 @@ typing-extensions==4.15.0 \
     # via
     #   jwcrypto
     #   psycopg
-    #   referencing
 tzdata==2025.2 \
     --hash=sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8 \
     --hash=sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9
@@ -458,10 +406,6 @@ tzlocal==5.3.1 \
     --hash=sha256:cceffc7edecefea1f595541dbd6e990cb1ea3d19bf01b2809f362a03dd7921fd \
     --hash=sha256:eb1a66c3ef5847adf7a834f1be0800581b683b5608e74f86ecbcef8ab91bb85d
     # via apscheduler
-uritemplate==4.2.0 \
-    --hash=sha256:480c2ed180878955863323eea31b0ede668795de182617fef9c6ca09e6ec9d0e \
-    --hash=sha256:962201ba1c4edcab02e60f9a0d3821e82dfc5d2d6662a21abd533879bdb8a686
-    # via drf-spectacular
 urllib3==2.3.0 \
     --hash=sha256:1cee9ad369867bfdbbb48b7dd50374c0967a0bb7710050facf0dd6911440e3df \
     --hash=sha256:f8c5449b3cf0861679ce7e0503c7b44b5ec981bec0d1d3795a07f1ba96f0204d

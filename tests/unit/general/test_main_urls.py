@@ -5,12 +5,10 @@ Tests all URL patterns and imports to achieve 100% code coverage.
 
 import contextlib
 import os
-from unittest.mock import MagicMock, patch
 
 import pytest
 from django.test import TestCase, override_settings
-from django.urls import resolve, reverse
-from django.urls.exceptions import NoReverseMatch
+from django.urls import resolve
 
 
 @pytest.mark.unit
@@ -31,7 +29,6 @@ class TestMainURLsFileContent(TestCase):
 
         # Test that the file contains expected imports
         assert "from django.urls import include, path" in content
-        assert "from drf_spectacular.views import SpectacularAPIView" in content
         assert "from ansible_base.lib.dynamic_config.dynamic_urls import" in content
         assert "from ansible_base.resource_registry.urls import" in content
 
@@ -40,7 +37,6 @@ class TestMainURLsFileContent(TestCase):
         assert 'path("", include("apps.core.urls"))' in content
         assert 'path("", include("apps.health.urls"))' in content
         assert 'path("dashboard/", include("apps.dashboard.urls"))' in content
-        assert 'path("api/schema/", SpectacularAPIView.as_view(), name="schema")' in content
         assert 'path("api/", include("apps.api.urls"))' in content
         assert 'path("api/v1/", include(resource_api_urls))' in content
         assert 'path("api/v1/", include(api_version_urls))' in content
@@ -66,7 +62,7 @@ class TestMainURLsFileContent(TestCase):
             lines = f.readlines()
 
         # Test that the file has expected number of lines
-        assert len(lines) >= 25  # Should have at least 25 lines
+        assert len(lines) >= 20  # Should have at least 20 lines
 
         # Test that the file has proper indentation
         urlpatterns_line = None
@@ -88,12 +84,10 @@ class TestMainURLsImports(TestCase):
     def test_django_imports(self):
         """Test Django URL imports work correctly."""
         from django.urls import include, path
-        from drf_spectacular.views import SpectacularAPIView
 
         # Verify imports are available
         assert include is not None
         assert path is not None
-        assert SpectacularAPIView is not None
 
     def test_import_statements_syntax(self):
         """Test that import statements in urls.py are syntactically correct."""
@@ -110,7 +104,7 @@ class TestMainURLsImports(TestCase):
         ]
 
         # Should have multiple import statements
-        assert len(import_lines) >= 4
+        assert len(import_lines) >= 3
 
         # Test that each import line is properly formatted
         for line in import_lines:
@@ -126,15 +120,6 @@ class TestMainURLsImports(TestCase):
 @pytest.mark.unit
 class TestMainURLResolution(TestCase):
     """Test URL resolution for main URL patterns."""
-
-    def test_schema_url_resolution(self):
-        """Test that schema URL can be resolved."""
-        try:
-            url = reverse("schema")
-            assert url == "/api/schema/"
-        except NoReverseMatch:
-            # Schema might not be available in test environment
-            pytest.skip("Schema URL not available in test environment")
 
     def test_dashboard_url_resolution(self):
         """Test that dashboard URLs can be resolved."""
@@ -159,18 +144,6 @@ class TestMainURLResolution(TestCase):
 @pytest.mark.unit
 class TestMainURLsWithMocks(TestCase):
     """Test main URLs with mocked dependencies."""
-
-    @patch("drf_spectacular.views.SpectacularAPIView")
-    def test_schema_view_import(self, mock_spectacular_view):
-        """Test that SpectacularAPIView can be imported."""
-        # Mock the SpectacularAPIView
-        mock_view = MagicMock()
-        mock_spectacular_view.as_view.return_value = mock_view
-
-        # Test that the import works
-        from drf_spectacular.views import SpectacularAPIView
-
-        assert SpectacularAPIView is not None
 
     def test_django_url_imports(self):
         """Test that Django URL imports work."""

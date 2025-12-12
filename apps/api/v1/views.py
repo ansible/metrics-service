@@ -5,7 +5,6 @@ API v1 views for metrics_service following AAP standards.
 from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
 from ansible_base.oauth2_provider.permissions import OAuth2ScopePermission
 from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
-from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
@@ -42,23 +41,12 @@ class UserViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
         # Use DAB's access_qs method - when DAB is fully configured, this will handle all RBAC
         return User.access_qs(self.request.user, queryset=self.queryset)
 
-    @extend_schema(
-        operation_id="users_me_retrieve",
-        description="Get current user information",
-        responses={200: UserSerializer},
-    )
     @action(detail=False, methods=["get"])
     def me(self, request):
         """Return current user information."""
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
-    @extend_schema(
-        operation_id="users_set_password",
-        description="Set user password",
-        request={"password": "string"},
-        responses={204: None},
-    )
     @action(detail=True, methods=["post"])
     def set_password(self, request, pk=None):
         """Set password for a user."""
@@ -95,18 +83,6 @@ class OrganizationViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
         user = self.request.user
         return Organization.access_qs(user, queryset=self.queryset)
 
-    @extend_schema(
-        operation_id="organizations_users",
-        description="Get users in organization OR add user to organization",
-        request={
-            "GET": None,  # No request body for GET
-            "POST": {"id": "integer", "disassociate": "boolean"},
-        },
-        responses={
-            200: UserSerializer(many=True),  # GET response
-            204: None,  # POST response
-        },
-    )
     @action(detail=True, methods=["get", "post"])
     def users(self, request, pk=None):
         """Get users in organization OR add user to organization."""
@@ -160,20 +136,10 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
 
         return serialize_value(setting_dict)
 
-    @extend_schema(operation_id="settings_list", description="Get all configuration settings", responses={200: dict})
     def list(self, request):
         """Get all current configuration settings from DYNACONF."""
         return Response(self._get_current_settings())
 
-    @extend_schema(
-        operation_id="settings_update",
-        description="Replace all configuration settings (full update)",
-        request=dict,
-        responses={
-            204: None,
-            400: {"error": "string"},
-        },
-    )
     def update(self, request):
         """
         Update configuration settings (PUT).
@@ -206,15 +172,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @extend_schema(
-        operation_id="settings_partial_update",
-        description="Update specific configuration settings (partial update)",
-        request=dict,
-        responses={
-            204: None,
-            400: {"error": "string"},
-        },
-    )
     def partial_update(self, request):
         """
         Update configuration settings (PATCH).
@@ -225,11 +182,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         # (No difference between PUT and PATCH for a singleton resource)
         return self.update(request)
 
-    @extend_schema(
-        operation_id="settings_reload",
-        description="Reload configuration from files and environment variables",
-        responses={204: {"message": "Configuration reloaded successfully"}},
-    )
     @action(detail=False, methods=["post"])
     def reload(self, request):
         """Reload configuration from files and log changes."""
@@ -258,15 +210,6 @@ class SettingView(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @extend_schema(
-        operation_id="settings_rollback",
-        description="Rollback (undo) a configuration change",
-        responses={
-            200: {"message": "string", "setting_key": "string", "rolled_back_to": "any"},
-            400: {"error": "string"},
-            404: {"error": "string"},
-        },
-    )
     @action(detail=False, methods=["post"], url_path="rollback/(?P<change_id>[0-9]+)")
     def rollback(self, request, change_id=None):
         """
