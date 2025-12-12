@@ -14,12 +14,9 @@ from django.test import TestCase
 from apps.core.models import User
 from apps.core.utils import (
     build_error_response,
-    format_task_data,
     get_count_safely,
-    get_related_object_safely,
-    get_system_uuid,
 )
-from tests.test_utils import get_test_password
+from tests.test_utils import format_task_data, get_related_object_safely, get_system_uuid, get_test_password
 
 
 @pytest.mark.unit
@@ -179,7 +176,7 @@ class TestGetSystemUuid(TestCase):
         # Should be parseable as UUID
         uuid.UUID(result)
 
-    @patch("apps.core.utils.settings")
+    @patch("django.conf.settings")
     def test_get_system_uuid_consistent(self, mock_settings):
         """Test that get_system_uuid returns consistent value."""
         # Mock settings to return a consistent UUID

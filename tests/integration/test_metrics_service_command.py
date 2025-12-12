@@ -337,7 +337,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         self.manage_py = Path(__file__).parent.parent.parent / "manage.py"
         assert self.manage_py.exists(), f"manage.py not found at {self.manage_py}"
 
-    @patch("apps.core.management.commands.metrics_service.Command._start_services")
+    @patch("apps.tasks.management.commands.metrics_service.Command._start_services")
     def test_service_run_command_validation(self, mock_start_services):
         """Test that the run command validates and processes arguments correctly."""
         # Mock the actual service startup to avoid conflicts
@@ -377,7 +377,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         """Test that signal handlers are properly configured."""
         import signal
 
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         command = Command()
         command.shutdown_requested = False
@@ -393,7 +393,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
     def test_configuration_extraction(self):
         """Test configuration extraction from command options."""
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         command = Command()
         options = {
@@ -419,7 +419,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         import sys
         from pathlib import Path
 
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         Command()
 
@@ -454,7 +454,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
     def test_dispatcher_command_building(self):
         """Test dispatcher command building and validation."""
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         command = Command()
 
@@ -470,7 +470,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
     def test_input_validation(self):
         """Test input validation for security."""
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         command = Command()
 

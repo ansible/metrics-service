@@ -2,62 +2,19 @@
 Core utility functions and helpers for the metrics service.
 
 This module provides reusable utility functions that reduce code duplication
-across the application. These utilities handle common patterns such as safe
-object access, JSON processing, timestamp generation, and configuration
-management.
+across the application.
 
 Functions:
-    get_related_object_safely: Safe access to related model objects
-    parse_json_safely: Safe JSON parsing with error handling
-    generate_unique_id: Generate unique identifiers for objects
-    get_current_timestamp: Get standardized timestamps
-    format_duration: Format time durations for display
-    validate_json_data: Validate JSON data structure
-
-Security Features:
-    - Safe JSON parsing prevents injection attacks
-    - Input validation on all utility functions
-    - Logging of security-relevant operations
-    - Error handling that doesn't expose internal details
-
-Performance Considerations:
-    - Efficient related object access patterns
-    - Minimal database queries in utility functions
-    - Cached timestamp operations where appropriate
+    get_count_safely: Safe count operations on querysets
+    build_error_response: Standardized error response format
 """
 
-import json
 import logging
-import uuid
 from typing import Any
 
-from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
-
-
-def get_related_object_safely(instance: Any, field_name: str, default: Any = None) -> Any:
-    """
-    Safely get a related object from an instance.
-
-    This function provides a safe way to access related objects that might
-    not exist, reducing try/except duplication across the codebase.
-
-    Args:
-        instance: The model instance
-        field_name (str): Name of the related field
-        default: Default value to return if the relation doesn't exist
-
-    Returns:
-        The related object or the default value
-    """
-    try:
-        return getattr(instance, field_name)
-    except AttributeError:
-        return default
-    except instance.DoesNotExist:
-        return default
 
 
 def get_count_safely(queryset_or_manager: Any) -> int:
@@ -106,34 +63,3 @@ def build_error_response(message: str, details: dict[str, Any] | None = None, st
         error_response["details"] = details
 
     return error_response
-
-
-def get_system_uuid() -> str:
-    """
-    Get system UUID from settings or generate a default one.
-
-    Returns:
-        str: System UUID
-    """
-    try:
-        return getattr(settings, "SYSTEM_UUID", str(uuid.uuid4()))
-    except Exception:
-        return str(uuid.uuid4())
-
-
-def format_task_data(data: Any) -> str:
-    """
-    Format task data for display.
-
-    Args:
-        data: Task data to format
-
-    Returns:
-        str: Formatted task data
-    """
-    try:
-        if isinstance(data, str):
-            return data
-        return json.dumps(data, indent=2)
-    except Exception:
-        return str(data)

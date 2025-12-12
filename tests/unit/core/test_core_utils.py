@@ -11,8 +11,8 @@ from django.test import TestCase
 from apps.core.utils import (
     build_error_response,
     get_count_safely,
-    get_related_object_safely,
 )
+from tests.test_utils import get_related_object_safely
 
 
 @pytest.mark.unit

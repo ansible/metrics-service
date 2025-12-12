@@ -233,19 +233,19 @@ class TestResourceAPICoverage(TestCase):
 class TestCoreUtilsCoverage(TestCase):
     """Test core utils coverage."""
 
-    @patch("apps.core.utils.settings")
+    @patch("django.conf.settings")
     def test_get_system_uuid_with_setting(self, mock_settings):
         """Test get_system_uuid with SYSTEM_UUID setting."""
-        from apps.core.utils import get_system_uuid
+        from tests.test_utils import get_system_uuid
 
         mock_settings.SYSTEM_UUID = "test-system-uuid"
         result = get_system_uuid()
         assert result == "test-system-uuid"
 
-    @patch("apps.core.utils.settings")
+    @patch("django.conf.settings")
     def test_get_system_uuid_without_setting(self, mock_settings):
         """Test get_system_uuid without SYSTEM_UUID setting."""
-        from apps.core.utils import get_system_uuid
+        from tests.test_utils import get_system_uuid
 
         del mock_settings.SYSTEM_UUID
         result = get_system_uuid()
@@ -254,7 +254,7 @@ class TestCoreUtilsCoverage(TestCase):
 
     def test_format_task_data_dict(self):
         """Test format_task_data with dictionary."""
-        from apps.core.utils import format_task_data
+        from tests.test_utils import format_task_data
 
         data = {"key": "value", "number": 42}
         result = format_task_data(data)
@@ -265,7 +265,7 @@ class TestCoreUtilsCoverage(TestCase):
 
     def test_format_task_data_string(self):
         """Test format_task_data with string."""
-        from apps.core.utils import format_task_data
+        from tests.test_utils import format_task_data
 
         data = "simple string"
         result = format_task_data(data)
@@ -305,7 +305,7 @@ class TestMetricsServiceCommand(TestCase):
 
     def test_command_help_exists(self):
         """Test command has help text."""
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         cmd = Command()
         assert hasattr(cmd, "help")
@@ -313,7 +313,7 @@ class TestMetricsServiceCommand(TestCase):
 
     def test_command_has_handle_method(self):
         """Test command has handle method."""
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         cmd = Command()
         assert hasattr(cmd, "handle")
