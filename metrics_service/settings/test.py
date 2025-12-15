@@ -21,7 +21,6 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 
 # Application definition - simplified for testing
 DJANGO_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -32,10 +31,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
-    "drf_spectacular",
     "corsheaders",
-    "oauth2_provider",
-    "social_django",
 ]
 
 # DAB apps - matching production configuration
@@ -44,8 +40,6 @@ DAB_APPS = [
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
-    "ansible_base.authentication",
-    # "ansible_base.oauth2_provider",  # Disabled to match defaults.py
     "ansible_base.activitystream",
     "ansible_base.jwt_consumer",
     "ansible_base.resource_registry",
@@ -53,9 +47,9 @@ DAB_APPS = [
 
 LOCAL_APPS = [
     "apps.core",
+    "apps.dynamic_settings",
     "apps.tasks",
     "apps.dashboard",
-    "apps.api",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
@@ -189,21 +183,6 @@ STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 # Media files settings for tests
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-
-# OAuth2 Provider Configuration for testing
-OAUTH2_PROVIDER = {
-    "SCOPES": {
-        "read": "Read scope",
-        "write": "Write scope",
-    },
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
-    "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
-}
-OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
-OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
-OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = "oauth2_provider.RefreshToken"
-OAUTH2_PROVIDER_ID_TOKEN_MODEL = "oauth2_provider.IDToken"
-OAUTH2_PROVIDER_GRANT_MODEL = "oauth2_provider.Grant"
 
 # REST Framework settings for tests
 REST_FRAMEWORK = {

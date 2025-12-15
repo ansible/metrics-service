@@ -37,7 +37,6 @@ SERVICE_ID = "generated-uuid"
 # Application definition
 DJANGO_APPS = [
     "django_prometheus",
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -48,10 +47,8 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
-    "drf_spectacular",
     "corsheaders",
-    "oauth2_provider",
-    "social_django",
+    "django_extensions",
 ]
 
 # DAB apps - For immediate setup without complex dependencies
@@ -61,8 +58,6 @@ DAB_APPS = [
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
     "ansible_base.rbac",
-    "ansible_base.authentication",
-    # "ansible_base.oauth2_provider",  # Temporarily disabled due to conflicts
     "ansible_base.activitystream",
     "ansible_base.jwt_consumer",
     "ansible_base.resource_registry",
@@ -71,8 +66,8 @@ DAB_APPS = [
 
 LOCAL_APPS = [
     "apps.core",
+    "apps.dynamic_settings",
     "apps.tasks",
-    "apps.api",
     "apps.dashboard",
 ]
 
@@ -85,7 +80,6 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "ansible_base.authentication.middleware.AuthenticatorBackendMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -183,10 +177,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Custom User Model
 AUTH_USER_MODEL = "core.User"
-# Redirect unauthenticated users to our custom login page
-LOGIN_URL = "/login/"
-LOGIN_REDIRECT_URL = "/api/v1/"
-LOGOUT_REDIRECT_URL = "/login/"
+
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -208,21 +199,6 @@ REST_FRAMEWORK = {
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-}
-
-# OpenAPI/Swagger Documentation
-SPECTACULAR_SETTINGS = {
-    "TITLE": "Metrics Service API",
-    "DESCRIPTION": "API documentation for Metrics Service",
-    "VERSION": "1.0.0",
-    "SERVE_INCLUDE_SCHEMA": False,
-    "SCHEMA_PATH_PREFIX": "/api/v[0-9]",
-    "SCHEMA_PATH_PREFIX_TRIM": True,
-    "SWAGGER_UI_SETTINGS": {
-        "deepLinking": True,
-        "persistAuthorization": True,
-    },
 }
 
 # CORS Configuration
@@ -233,39 +209,46 @@ CORS_ALLOWED_ORIGINS: list[str] = []  # Set in production
 ANSIBLE_BASE_TEAM_MODEL = "core.Team"
 ANSIBLE_BASE_ORGANIZATION_MODEL = "core.Organization"
 ANSIBLE_BASE_RESOURCE_CONFIG_MODULE = "apps.core.resource_api"
-ANSIBLE_BASE_USER_VIEWSET = "apps.api.v1.views.UserViewSet"
+ANSIBLE_BASE_USER_VIEWSET = "apps.core.v1.viewsets.user.UserViewSet"
 
 # RBAC Configuration
 ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = True
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
-ANSIBLE_BASE_RBAC_MODEL_REGISTRY: dict[str, str] = {}
-ANSIBLE_BASE_MANAGED_ROLE_REGISTRY: dict[str, str] = {}
+# Models to register with DAB RBAC - these are registered automatically by DAB
+ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {
+    "core.Organization": {"parent_field_name": None},
+    "core.Team": {"parent_field_name": "organization"},
+    "core.User": {"parent_field_name": None},
+}
+
+# Default RBAC roles - created automatically on `python manage.py migrate`
+ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {
+    "sys_auditor": {"name": "Platform Auditor"},  # View-only, system-wide
+    "org_admin": {},  # Organization Admin - all perms on org + children
+    "org_member": {},  # Organization Member - member perm on org
+    "team_admin": {},  # Team Admin - all perms on team
+    "team_member": {},  # Team Member - member perm on team
+}
+
+# Configure which roles can be synced via JWT from gateway
+ANSIBLE_BASE_JWT_MANAGED_ROLES = [
+    "Platform Auditor",
+    "Organization Admin",
+    "Organization Member",
+    "Team Admin",
+    "Team Member",
+]
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",  # Default Django auth
-    "ansible_base.authentication.backend.AnsibleBaseAuth",
 ]
 
 # JWT Consumer Configuration
 JWT_CONSUMER_ENABLED = True
 JWT_CONSUMER_ALGORITHM = "HS256"
-
-# OAuth2 Provider Configuration
-OAUTH2_PROVIDER = {
-    "SCOPES": {
-        "read": "Read scope",
-        "write": "Write scope",
-    },
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 3600,
-    "REFRESH_TOKEN_EXPIRE_SECONDS": 3600 * 24,
-    "APPLICATION_MODEL": "oauth2_provider.Application",
-}
-
-# OAuth2 Provider Application Model - required by ansible_base
-OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
 
 # Resource Server Configuration
 RESOURCE_SERVER: dict[str, str | bool | None] = {

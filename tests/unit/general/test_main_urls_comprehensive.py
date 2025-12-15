@@ -19,33 +19,6 @@ User = get_user_model()
 
 
 @pytest.mark.unit
-class TestCoreURLsIntegration(TestCase):
-    """Test core URLs integration."""
-
-    def setUp(self):
-        """Set up test environment."""
-        super().setUp()
-        self.client = Client()
-
-    def test_core_urls_inclusion(self):
-        """Test that core URLs are properly included."""
-        with contextlib.suppress(Exception):
-            # Test core URL pattern exists
-            resolve("/login/")
-            resolve("/logout/")
-
-    def test_core_urls_response(self):
-        """Test that core URLs respond appropriately."""
-        core_urls = ["/login/", "/logout/"]
-
-        for url in core_urls:
-            with contextlib.suppress(Exception):
-                response = self.client.get(url)
-                # Should get a valid HTTP response
-                assert response.status_code in [200, 302, 403, 404, 405]
-
-
-@pytest.mark.unit
 class TestHealthURLsIntegration(TestCase):
     """Test health URLs integration."""
 

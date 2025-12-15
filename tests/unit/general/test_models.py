@@ -17,10 +17,10 @@ class TestUserModel:
 
     def test_user_creation(self):
         """Test user can be created successfully."""
-        user = User.objects.create_user(username="testuser", email="test@example.com", password="testpassword123")
+        user = User.objects.create_user(username="testuser", email="test@example.com", password="testpassword123")  # noqa: S105
         assert user.username == "testuser"
         assert user.email == "test@example.com"
-        assert user.check_password("testpassword123")
+        assert user.check_password("testpassword123")  # noqa: S105
 
     def test_user_string_representation(self):
         """Test user string representation."""
@@ -60,4 +60,5 @@ class TestTeamModel:
     def test_team_string_representation(self, organization):
         """Test team string representation."""
         team = Team.objects.create(name="Test Team", organization=organization)
-        assert str(team) == f"{organization.name} - Test Team"
+        # AbstractTeam's __str__ returns just the team name
+        assert str(team) == "Test Team"

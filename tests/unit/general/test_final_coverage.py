@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import TestCase
 
-from apps.api.v1.base_serializers import CountFieldMixin, PasswordHandlingMixin, StatusFieldMixin, TimestampFieldMixin
 from apps.core.models import Organization, User
+from apps.tasks.v1.base_serializers import CountFieldMixin, PasswordHandlingMixin, StatusFieldMixin, TimestampFieldMixin
 
 
 @pytest.mark.django_db
@@ -149,7 +149,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_common_fields_basic(self):
         """Test build_common_fields with basic fields."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         base_fields = ["name", "description"]
         result = BaseModelSerializer.build_common_fields(base_fields)
@@ -159,7 +159,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_common_fields_with_extra(self):
         """Test build_common_fields with extra fields."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         base_fields = ["name", "description"]
         extra_fields = ["status", "priority"]
@@ -170,7 +170,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_extra_kwargs_basic(self):
         """Test build_extra_kwargs with basic view name."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         result = BaseModelSerializer.build_extra_kwargs("test-view")
         expected = {"url": {"view_name": "test-view"}}
@@ -178,7 +178,7 @@ class TestBaseSerializerUtils(TestCase):
 
     def test_build_extra_kwargs_with_additional(self):
         """Test build_extra_kwargs with additional kwargs."""
-        from apps.api.v1.base_serializers import BaseModelSerializer
+        from apps.tasks.v1.base_serializers import BaseModelSerializer
 
         additional = {"name": {"read_only": True}}
         result = BaseModelSerializer.build_extra_kwargs("test-view", additional)
@@ -230,70 +230,12 @@ class TestResourceAPICoverage(TestCase):
         assert isinstance(result, dict)
 
 
-class TestCoreUtilsCoverage(TestCase):
-    """Test core utils coverage."""
-
-    @patch("apps.core.utils.settings")
-    def test_get_system_uuid_with_setting(self, mock_settings):
-        """Test get_system_uuid with SYSTEM_UUID setting."""
-        from apps.core.utils import get_system_uuid
-
-        mock_settings.SYSTEM_UUID = "test-system-uuid"
-        result = get_system_uuid()
-        assert result == "test-system-uuid"
-
-    @patch("apps.core.utils.settings")
-    def test_get_system_uuid_without_setting(self, mock_settings):
-        """Test get_system_uuid without SYSTEM_UUID setting."""
-        from apps.core.utils import get_system_uuid
-
-        del mock_settings.SYSTEM_UUID
-        result = get_system_uuid()
-        assert isinstance(result, str)
-        assert len(result) > 0
-
-    def test_is_system_auditor_user_true(self):
-        """Test is_system_auditor_user returns True."""
-        from apps.core.utils import is_system_auditor_user
-
-        user = User.objects.create_user(username="auditor", email="auditor@example.com")
-        user.is_system_auditor_user = lambda: True
-
-        result = is_system_auditor_user(user)
-        assert result is True
-
-    def test_is_system_auditor_user_false(self):
-        """Test is_system_auditor_user returns False."""
-        from apps.core.utils import is_system_auditor_user
-
-        user = User.objects.create_user(username="regular", email="regular@example.com")
-
-        result = is_system_auditor_user(user)
-        assert result is False
-
-    def test_format_task_data_dict(self):
-        """Test format_task_data with dictionary."""
-        from apps.core.utils import format_task_data
-
-        data = {"key": "value", "number": 42}
-        result = format_task_data(data)
-
-        assert isinstance(result, str)
-        assert "key" in result
-        assert "value" in result
-
-    def test_format_task_data_string(self):
-        """Test format_task_data with string."""
-        from apps.core.utils import format_task_data
-
-        data = "simple string"
-        result = format_task_data(data)
-
-        assert result == "simple string"
+class TestApiUtilsCoverage(TestCase):
+    """Test API utils coverage."""
 
     def test_get_count_safely_with_manager(self):
         """Test get_count_safely with manager that has count."""
-        from apps.core.utils import get_count_safely
+        from apps.tasks.api_utils import get_count_safely
 
         mock_manager = MagicMock()
         mock_manager.count.return_value = 42
@@ -303,14 +245,14 @@ class TestCoreUtilsCoverage(TestCase):
 
     def test_get_count_safely_with_none(self):
         """Test get_count_safely with None."""
-        from apps.core.utils import get_count_safely
+        from apps.tasks.api_utils import get_count_safely
 
         result = get_count_safely(None)
         assert result == 0
 
     def test_get_count_safely_with_exception(self):
         """Test get_count_safely when count raises exception."""
-        from apps.core.utils import get_count_safely
+        from apps.tasks.api_utils import get_count_safely
 
         mock_manager = MagicMock()
         mock_manager.count.side_effect = Exception("Test error")
@@ -324,7 +266,7 @@ class TestMetricsServiceCommand(TestCase):
 
     def test_command_help_exists(self):
         """Test command has help text."""
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         cmd = Command()
         assert hasattr(cmd, "help")
@@ -332,7 +274,7 @@ class TestMetricsServiceCommand(TestCase):
 
     def test_command_has_handle_method(self):
         """Test command has handle method."""
-        from apps.core.management.commands.metrics_service import Command
+        from apps.tasks.management.commands.metrics_service import Command
 
         cmd = Command()
         assert hasattr(cmd, "handle")

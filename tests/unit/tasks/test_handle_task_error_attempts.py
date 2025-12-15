@@ -20,7 +20,7 @@ class TestHandleTaskErrorAttempts(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")
+        self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")  # noqa: S105
 
     def test_handle_task_error_increments_attempts_for_pending_task(self):
         """

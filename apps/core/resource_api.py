@@ -39,32 +39,6 @@ RESOURCE_LIST = [
     ),
 ]
 
-# Register authentication models as non-shared resources
-try:
-    from ansible_base.authentication.models import Authenticator
-
-    RESOURCE_LIST.append(
-        ResourceConfig(
-            Authenticator,
-            # Don't share authenticator models across services
-        )
-    )
-except ImportError:
-    pass
-
-# # Register other ansible_base models as needed
-# try:
-#     from ansible_base.oauth2_provider.models import OAuth2Application, OAuth2AccessToken
-
-#     RESOURCE_LIST.extend(
-#         [
-#             ResourceConfig(OAuth2Application),
-#             ResourceConfig(OAuth2AccessToken),
-#         ]
-#     )
-# except ImportError:
-#     pass
-
 try:
     from ansible_base.rbac.models import RoleDefinition
 

@@ -66,22 +66,6 @@ class TestResourceAPIConfiguration(TestCase):
         org_config = org_configs[0]
         assert org_config.model == Organization
 
-    def test_authenticator_import_success(self):
-        """Test that Authenticator is added to RESOURCE_LIST when import succeeds."""
-        # This test verifies the try/except block at lines 43-53
-        # If ansible_base.authentication is available, Authenticator should be in the list
-        try:
-            from ansible_base.authentication.models import Authenticator
-
-            from apps.core.resource_api import RESOURCE_LIST
-
-            auth_configs = [rc for rc in RESOURCE_LIST if rc.model == Authenticator]
-            # Should have at least one if import succeeded
-            assert len(auth_configs) > 0  # May or may not be present depending on environment
-        except ImportError:
-            # If import fails, that's expected and covered by the except block
-            pass
-
     def test_roledefinition_import_success(self):
         """Test that RoleDefinition is added to RESOURCE_LIST when import succeeds."""
         # This test verifies the try/except block at lines 68-73
@@ -171,16 +155,6 @@ class TestResourceAPIConfiguration(TestCase):
 @pytest.mark.unit
 class TestResourceAPIImportHandling(TestCase):
     """Test cases for import error handling in resource_api."""
-
-    def test_authenticator_import_error_handling(self):
-        """Test that ImportError for Authenticator is handled gracefully."""
-        # The try/except block should handle ImportError without raising
-        # This is implicitly tested by the module loading successfully
-        # even if ansible_base.authentication is not available
-        from apps.core import resource_api
-
-        # Module should load without errors
-        assert hasattr(resource_api, "RESOURCE_LIST")
 
     def test_roledefinition_import_error_handling(self):
         """Test that ImportError for RoleDefinition is handled gracefully."""

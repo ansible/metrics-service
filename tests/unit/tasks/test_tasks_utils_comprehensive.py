@@ -3,7 +3,7 @@ Comprehensive unit tests for tasks utils module.
 """
 
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -388,74 +388,3 @@ class TaskUtilsTestCase(TestCase):
         utils.log_task_execution("test_task", "complete")
 
         mock_logger.info.assert_called_once_with("Task 'test_task' complete")
-
-    def test_get_related_object_safely_success(self):
-        """Test safely getting related object successfully."""
-        # Create a mock object with a related field
-        mock_instance = Mock()
-        mock_instance.related_field = "related_value"
-
-        result = utils.get_related_object_safely(mock_instance, "related_field")
-
-        self.assertEqual(result, "related_value")
-
-    def test_get_related_object_safely_attribute_error(self):
-        """Test safely getting related object with AttributeError."""
-        mock_instance = Mock()
-        del mock_instance.related_field  # Simulate missing attribute
-
-        result = utils.get_related_object_safely(mock_instance, "related_field", "default")
-
-        self.assertEqual(result, "default")
-
-    def test_get_related_object_safely_does_not_exist(self):
-        """Test safely getting related object with DoesNotExist."""
-        mock_instance = Mock()
-        mock_instance.DoesNotExist = Exception  # Mock exception class
-
-        # Make getattr raise DoesNotExist
-        def mock_getattr(obj, attr):
-            raise mock_instance.DoesNotExist()
-
-        with patch("builtins.getattr", side_effect=mock_getattr):
-            result = utils.get_related_object_safely(mock_instance, "related_field", "default")
-
-        self.assertEqual(result, "default")
-
-    def test_get_count_safely_success(self):
-        """Test safely getting count successfully."""
-        mock_queryset = Mock()
-        mock_queryset.count.return_value = 5
-
-        result = utils.get_count_safely(mock_queryset)
-
-        self.assertEqual(result, 5)
-
-    def test_get_count_safely_error(self):
-        """Test safely getting count with error."""
-        mock_queryset = Mock()
-        mock_queryset.count.side_effect = Exception("Database error")
-
-        with patch("apps.tasks.utils.logger") as mock_logger:
-            result = utils.get_count_safely(mock_queryset)
-
-        self.assertEqual(result, 0)
-        mock_logger.warning.assert_called_once()
-
-    def test_build_error_response_basic(self):
-        """Test building basic error response."""
-        result = utils.build_error_response("Test error")
-
-        self.assertEqual(result["error"], "Test error")
-        self.assertEqual(result["status_code"], 400)
-        self.assertIn("timestamp", result)
-
-    def test_build_error_response_with_details(self):
-        """Test building error response with details."""
-        details = {"field": "value"}
-        result = utils.build_error_response("Test error", details, 500)
-
-        self.assertEqual(result["error"], "Test error")
-        self.assertEqual(result["status_code"], 500)
-        self.assertEqual(result["details"], details)
-        self.assertIn("timestamp", result)

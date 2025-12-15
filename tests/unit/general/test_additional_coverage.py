@@ -2,87 +2,13 @@
 Additional tests to cover miscellaneous functionality.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
-from django.contrib.admin.sites import AdminSite
 from django.test import TestCase
 
-from apps.core.admin import OrganizationAdmin, TeamAdmin, UserAdmin
-from apps.core.models import Organization, Team, User
+from apps.core.models import Organization, User
 from apps.core.signals import organization_post_save, user_post_save, user_pre_delete
-from apps.tasks.admin import TaskAdmin
-from apps.tasks.models import Task
-
-
-@pytest.mark.unit
-class AdminCoverageTestCase(TestCase):
-    """Test cases for admin functionality."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.site = AdminSite()
-        self.user = User.objects.create_superuser(username="admin", email="admin@example.com", password="adminpass")
-
-    def test_user_admin_configuration(self):
-        """Test UserAdmin configuration."""
-        admin = UserAdmin(User, self.site)
-
-        # Test list display includes expected fields
-        self.assertIn("username", admin.list_display)
-        self.assertIn("email", admin.list_display)
-        self.assertIn("is_active", admin.list_display)
-
-        # Test search fields
-        self.assertIn("username", admin.search_fields)
-        self.assertIn("email", admin.search_fields)
-
-    def test_user_admin_methods(self):
-        """Test UserAdmin custom methods."""
-        admin = UserAdmin(User, self.site)
-
-        user = User.objects.create_user(username="testuser", email="test@example.com")
-
-        # Test any custom methods that might exist
-        if hasattr(admin, "get_full_name"):
-            result = admin.get_full_name(user)
-            self.assertIsInstance(result, str)
-
-    def test_organization_admin_configuration(self):
-        """Test OrganizationAdmin configuration."""
-        admin = OrganizationAdmin(Organization, self.site)
-
-        self.assertIn("name", admin.list_display)
-        self.assertIn("created", admin.list_display)
-
-    def test_team_admin_configuration(self):
-        """Test TeamAdmin configuration."""
-        admin = TeamAdmin(Team, self.site)
-
-        self.assertIn("name", admin.list_display)
-        self.assertIn("organization", admin.list_display)
-
-    def test_task_admin_configuration(self):
-        """Test TaskAdmin configuration."""
-        admin = TaskAdmin(Task, self.site)
-
-        self.assertIn("name", admin.list_display)
-        self.assertIn("status_colored", admin.list_display)
-        self.assertIn("priority", admin.list_display)
-
-        # Test list filters
-        self.assertIn("status", admin.list_filter)
-        self.assertIn("priority", admin.list_filter)
-
-    def test_admin_permissions(self):
-        """Test admin permission methods."""
-        admin = UserAdmin(User, self.site)
-
-        # Test has_add_permission
-        self.assertTrue(admin.has_add_permission(Mock()))
-
-        # Test has_change_permission
-        self.assertTrue(admin.has_change_permission(Mock()))
 
 
 @pytest.mark.unit

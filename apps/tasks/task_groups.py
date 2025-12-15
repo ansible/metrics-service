@@ -31,7 +31,7 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
     """
     try:
         # Avoid circular import by importing here
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         setting = Setting.objects.filter(setting_key=setting_name).first()
         if setting and setting.current_value:
@@ -307,7 +307,7 @@ def enable_task_group(group_name: str, user=None) -> bool:
         return False
 
     try:
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Get current value for logging
         old_value = get_feature_enabled_from_db(group.enabled_setting, group.default_enabled)
@@ -357,7 +357,7 @@ def disable_task_group(group_name: str, user=None) -> bool:
         return False
 
     try:
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Get current value for logging
         old_value = get_feature_enabled_from_db(group.enabled_setting, group.default_enabled)
@@ -399,7 +399,7 @@ def set_feature_enabled(setting_name: str, value: bool, user=None) -> bool:
         bool: True if successfully set, False otherwise
     """
     try:
-        from apps.core.models import Setting
+        from apps.dynamic_settings.models import Setting
 
         # Get current value for logging
         old_value = get_feature_enabled_from_db(setting_name, False)
@@ -440,7 +440,7 @@ def get_feature_enabled_status() -> dict[str, Any]:
     for group in TASK_GROUPS:
         if group.enabled_setting:
             try:
-                from apps.core.models import Setting
+                from apps.dynamic_settings.models import Setting
 
                 # Check if setting exists in database
                 db_setting = Setting.objects.filter(setting_key=group.enabled_setting).first()

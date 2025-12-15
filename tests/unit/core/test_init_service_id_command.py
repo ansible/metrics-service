@@ -7,7 +7,7 @@ from io import StringIO
 import pytest
 from django.test import TestCase
 
-from apps.core.management.commands.metrics_service import Command
+from apps.tasks.management.commands.metrics_service import Command
 
 
 @pytest.mark.django_db

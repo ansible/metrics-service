@@ -14,39 +14,12 @@ class BasicURLConfigurationTestCase(TestCase):
 
     def test_django_imports_successful(self):
         """Test that basic Django imports work."""
-        from django.contrib import admin
         from django.contrib.auth import views as auth_views
         from django.urls import include, path
 
-        self.assertIsNotNone(admin)
         self.assertIsNotNone(auth_views)
         self.assertIsNotNone(include)
         self.assertIsNotNone(path)
-
-    def test_drf_spectacular_imports(self):
-        """Test that DRF Spectacular imports work correctly."""
-        try:
-            from drf_spectacular.views import (
-                SpectacularAPIView,
-                SpectacularRedocView,
-                SpectacularSwaggerView,
-            )
-
-            self.assertIsNotNone(SpectacularAPIView)
-            self.assertIsNotNone(SpectacularRedocView)
-            self.assertIsNotNone(SpectacularSwaggerView)
-        except ImportError as e:
-            self.fail(f"Failed to import DRF Spectacular views: {e}")
-
-    def test_admin_site_availability(self):
-        """Test that admin site is available."""
-        try:
-            from django.contrib.admin import site as admin_site
-
-            admin_urls = admin_site.urls
-            self.assertIsNotNone(admin_urls)
-        except Exception as e:
-            self.fail(f"Admin site not properly configured: {e}")
 
     def test_auth_views_classes(self):
         """Test that auth view classes can be imported."""
@@ -64,7 +37,7 @@ class BasicURLConfigurationTestCase(TestCase):
             import apps.dashboard.urls  # noqa: F401
 
         with contextlib.suppress(ImportError):
-            import apps.api.urls  # noqa: F401
+            import apps.tasks.urls  # noqa: F401
 
     def test_django_url_functions(self):
         """Test that Django URL functions work correctly."""
@@ -93,23 +66,6 @@ class BasicURLConfigurationTestCase(TestCase):
         self.assertEqual(test_pattern.name, "login")
         self.assertIsNotNone(test_pattern.callback)
 
-    def test_spectacular_view_classes(self):
-        """Test that Spectacular view classes work correctly."""
-        from drf_spectacular.views import (
-            SpectacularAPIView,
-            SpectacularRedocView,
-            SpectacularSwaggerView,
-        )
-
-        # Test that view classes can be instantiated
-        schema_view = SpectacularAPIView()
-        swagger_view = SpectacularSwaggerView()
-        redoc_view = SpectacularRedocView()
-
-        self.assertIsNotNone(schema_view)
-        self.assertIsNotNone(swagger_view)
-        self.assertIsNotNone(redoc_view)
-
     def test_url_resolver_types(self):
         """Test that URL resolver types are correct."""
         from django.urls import include, path
@@ -124,18 +80,6 @@ class BasicURLConfigurationTestCase(TestCase):
         # Note: include() returns a tuple that becomes a URLResolver when processed
         self.assertIsNotNone(resolver)
 
-    def test_auth_view_configuration(self):
-        """Test that auth views can be configured properly."""
-        from django.contrib.auth import views as auth_views
-
-        # Test LoginView configuration
-        login_view = auth_views.LoginView.as_view(template_name="registration/login.html")
-        self.assertIsNotNone(login_view)
-
-        # Test LogoutView configuration
-        logout_view = auth_views.LogoutView.as_view(next_page="/login/")
-        self.assertIsNotNone(logout_view)
-
     def test_metrics_service_urls_module_exists(self):
         """Test that the metrics_service.urls module exists."""
         try:
@@ -149,14 +93,12 @@ class BasicURLConfigurationTestCase(TestCase):
     def test_url_configuration_structure(self):
         """Test that URL configuration has expected structure."""
         # Test the individual components that should be in the URL config
-        from django.contrib import admin
         from django.urls import include, path
 
         # Test that we can create the same patterns as in the actual config
         patterns = [
-            path("admin/", admin.site.urls),
             path("dashboard/", include("apps.dashboard.urls")),
-            path("api/", include("apps.api.urls")),
+            path("api/", include("apps.tasks.urls")),
         ]
 
         # All patterns should be valid
@@ -176,11 +118,3 @@ class BasicURLConfigurationTestCase(TestCase):
         logout_view = auth_views.LogoutView()
         self.assertTrue(hasattr(logout_view, "get"))
         self.assertTrue(hasattr(logout_view, "post"))
-
-    def test_spectacular_view_methods(self):
-        """Test that Spectacular views have expected methods."""
-        from drf_spectacular.views import SpectacularAPIView
-
-        schema_view = SpectacularAPIView()
-        self.assertTrue(hasattr(schema_view, "get"))
-        self.assertTrue(callable(schema_view.get))
