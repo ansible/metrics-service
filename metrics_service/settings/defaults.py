@@ -71,9 +71,11 @@ LOCAL_APPS = [
     "apps.dashboard",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
+# LOCAL_APPS before THIRD_PARTY_APPS so our templates override DRF's
+INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS + DAB_APPS
 
 MIDDLEWARE = [
+    "apps.core.middleware.ServicePrefixMiddleware",  # Handle /api/<service-name>/ prefix
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -86,6 +88,7 @@ MIDDLEWARE = [
     "ansible_base.lib.middleware.logging.LogRequestMiddleware",
     "ansible_base.lib.middleware.logging.LogTracebackMiddleware",
     "django_prometheus.middleware.PrometheusAfterMiddleware",
+    "apps.core.middleware.APIRootViewMiddleware",  # Auto-generate endpoint index for 404 paths
 ]
 
 ROOT_URLCONF = "metrics_service.urls"
@@ -178,9 +181,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Custom User Model
 AUTH_USER_MODEL = "core.User"
 
+# Login/Logout URLs for DRF browsable API
+LOGIN_URL = "/api-auth/login/"
+LOGOUT_URL = "/api-auth/logout/"
+
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.core.authentication.ServiceJWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.BasicAuthentication",
@@ -193,6 +201,10 @@ REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": [
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
+    ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "apps.core.renderers.ServiceBrowsableAPIRenderer",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,

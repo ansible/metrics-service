@@ -14,25 +14,28 @@ class TestHealthEndpoint:
 
     def test_health_check_returns_200_when_database_is_healthy(self, client, db):
         """Test that health endpoint returns 200 when database is accessible."""
-        response = client.get("/health")
+        response = client.get("/health/")
         assert response.status_code == status.HTTP_200_OK
 
     def test_health_check_returns_correct_json_structure(self, client, db):
-        """Test that health endpoint returns {"status": "ok"} when healthy."""
-        response = client.get("/health")
-        assert response.json() == {"status": "ok"}
+        """Test that health endpoint returns correct JSON structure when healthy."""
+        response = client.get("/health/")
+        json_response = response.json()
+        assert json_response["status"] == "healthy"
+        assert json_response["checks"]["database"] == "ok"
 
     def test_health_check_returns_503_when_database_fails(self, client, db):
         """Test that health endpoint returns 503 when database connection fails."""
 
         with patch("django.db.connection.ensure_connection", side_effect=Exception("DB Error")):
-            response = client.get("/health")
+            response = client.get("/health/")
             assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
     def test_health_check_works_without_authentication(self, client, db):
         """Test that health endpoint doesn't require authentication."""
-        response = client.get("/health")
-        assert response.json() == {"status": "ok"}
+        response = client.get("/health/")
+        json_response = response.json()
+        assert json_response["status"] == "healthy"
         assert response.status_code == status.HTTP_200_OK
 
 
