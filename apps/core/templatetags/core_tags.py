@@ -1,5 +1,7 @@
 """Custom template tags for the core app."""
 
+from urllib.parse import quote
+
 from django import template
 from django.conf import settings
 from django.utils.html import escape, format_html
@@ -34,7 +36,8 @@ def login_link(request):
     login_url = getattr(settings, "LOGIN_URL", "/api-auth/login/")
     full_path = _get_full_path(request)
     snippet = "<li><a href='{href}?next={next}'>Log in</a></li>"
-    return format_html(snippet, href=login_url, next=escape(full_path))
+    # URL-encode the path so ? and & don't break the query string
+    return format_html(snippet, href=login_url, next=quote(full_path, safe=""))
 
 
 @register.simple_tag
@@ -60,6 +63,7 @@ def logout_link(request, user, csrf_token):
             </li>
         </ul>
     </li>"""
+    # URL-encode the path so ? and & don't break the query string
     return format_html(
-        snippet, user=escape(user), href=logout_url, next=escape(full_path), csrf_token=csrf_token
+        snippet, user=escape(user), href=logout_url, next=quote(full_path, safe=""), csrf_token=csrf_token
     )

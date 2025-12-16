@@ -1,5 +1,7 @@
 """Tests for core template tags."""
 
+from urllib.parse import quote
+
 import pytest
 from django.test import RequestFactory, TestCase
 
@@ -64,7 +66,8 @@ class TestLoginLogoutLinks(TestCase):
         result = login_link(request)
         self.assertIn("Log in", result)
         self.assertIn("/api-auth/login/", result)
-        self.assertIn("next=/some/path/", result)
+        # Path is URL-encoded
+        self.assertIn(f"next={quote('/some/path/', safe='')}", result)
 
     def test_logout_link_generates_correct_html(self):
         request = self.factory.get("/")
@@ -135,14 +138,65 @@ class TestFullPathGeneration:
 
     @pytest.mark.parametrize("request_path,prefix,expected", FULL_PATH_PATTERNS)
     def test_login_link_path(self, request_path, prefix, expected):
-        """Login link includes correct path."""
+        """Login link includes correct path (URL-encoded)."""
         request = self._create_request(request_path, prefix)
         result = login_link(request)
-        assert f"next={expected}" in result, f"Expected 'next={expected}' in {result}"
+        encoded_expected = quote(expected, safe="")
+        assert f"next={encoded_expected}" in result, f"Expected 'next={encoded_expected}' in {result}"
 
     @pytest.mark.parametrize("request_path,prefix,expected", FULL_PATH_PATTERNS)
     def test_logout_link_path(self, request_path, prefix, expected):
-        """Logout link includes correct path."""
+        """Logout link includes correct path (URL-encoded)."""
         request = self._create_request(request_path, prefix)
         result = logout_link(request, "user", "token")
-        assert f"next={expected}" in result, f"Expected 'next={expected}' in {result}"
+        encoded_expected = quote(expected, safe="")
+        assert f"next={encoded_expected}" in result, f"Expected 'next={encoded_expected}' in {result}"
+
+
+class TestQueryStringURLEncoding(TestCase):
+    """Test that query strings in paths are properly URL-encoded in next parameter.
+
+    This prevents the browser from interpreting query string characters (? and &)
+    as part of the login/logout URL instead of the redirect target.
+    """
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_login_link_encodes_query_string(self):
+        """Login link properly encodes ? and & in the path."""
+        request = self.factory.get("/api/v1/?page=2&search=foo")
+        request.META["SCRIPT_NAME"] = ""
+        result = login_link(request)
+        # ? should be encoded as %3F, & as %26
+        assert "%3F" in result, f"Expected encoded ? (%3F) in {result}"
+        assert "%26" in result, f"Expected encoded & (%26) in {result}"
+        # Should NOT contain unencoded query string chars after next=
+        assert "next=/api/v1/?page" not in result, "Query string should be encoded"
+
+    def test_logout_link_encodes_query_string(self):
+        """Logout link properly encodes ? and & in the path."""
+        request = self.factory.get("/api/v1/?page=2&search=foo")
+        request.META["SCRIPT_NAME"] = ""
+        result = logout_link(request, "user", "token")
+        # ? should be encoded as %3F, & as %26
+        assert "%3F" in result, f"Expected encoded ? (%3F) in {result}"
+        assert "%26" in result, f"Expected encoded & (%26) in {result}"
+        # Should NOT contain unencoded query string chars after next=
+        assert "next=/api/v1/?page" not in result, "Query string should be encoded"
+
+    def test_login_link_full_path_encoding(self):
+        """Login link encodes the complete path correctly."""
+        request = self.factory.get("/api/v1/?page=2&search=test")
+        request.META["SCRIPT_NAME"] = ""
+        result = login_link(request)
+        expected_encoded = quote("/api/v1/?page=2&search=test", safe="")
+        assert f"next={expected_encoded}" in result
+
+    def test_logout_link_full_path_encoding(self):
+        """Logout link encodes the complete path correctly."""
+        request = self.factory.get("/api/v1/?page=2&search=test")
+        request.META["SCRIPT_NAME"] = ""
+        result = logout_link(request, "user", "token")
+        expected_encoded = quote("/api/v1/?page=2&search=test", safe="")
+        assert f"next={expected_encoded}" in result

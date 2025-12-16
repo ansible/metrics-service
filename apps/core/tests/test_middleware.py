@@ -265,3 +265,13 @@ class TestBrowsableAPIURLs:
         request_path = self._extract_request_info_path(content)
         assert request_path is not None, "Request info path not found"
         self._assert_urls_have_correct_prefix([request_path], expected_prefix)
+
+    @pytest.mark.parametrize("path,expected_prefix", URL_PATTERNS)
+    def test_no_double_slashes_in_breadcrumbs(self, path, expected_prefix):
+        """Breadcrumb URLs should not contain double slashes."""
+        content = self._get_html_content(path)
+        breadcrumbs = self._extract_breadcrumbs(content)
+        for url in breadcrumbs:
+            # Check for double slashes (but not in http://)
+            url_without_protocol = url.replace("http://", "").replace("https://", "")
+            assert "//" not in url_without_protocol, f"Double slash found in URL: {url}"
