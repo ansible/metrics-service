@@ -24,7 +24,7 @@ def _patch_get_full_path_api_prefix(request, api_prefix):
 
     def patched_get_full_path(force_append_slash=False):
         canonical = original_get_full_path(force_append_slash)
-        if canonical.startswith("/api/") or canonical.startswith("/api?"):
+        if canonical.startswith(("/api/", "/api?")):
             return api_prefix + canonical[4:]
         return canonical
 
@@ -142,7 +142,7 @@ class TestFullPathGeneration:
         request = self._create_request(request_path, prefix)
         result = login_link(request)
         encoded_expected = quote(expected, safe="")
-        assert f"next={encoded_expected}" in result, f"Expected 'next={encoded_expected}' in {result}"
+        assert f"next={encoded_expected}" in result
 
     @pytest.mark.parametrize("request_path,prefix,expected", FULL_PATH_PATTERNS)
     def test_logout_link_path(self, request_path, prefix, expected):
@@ -150,7 +150,7 @@ class TestFullPathGeneration:
         request = self._create_request(request_path, prefix)
         result = logout_link(request, "user", "token")
         encoded_expected = quote(expected, safe="")
-        assert f"next={encoded_expected}" in result, f"Expected 'next={encoded_expected}' in {result}"
+        assert f"next={encoded_expected}" in result
 
 
 class TestQueryStringURLEncoding(TestCase):

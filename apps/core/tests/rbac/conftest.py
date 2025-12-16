@@ -1,12 +1,12 @@
 import uuid
 
 import pytest
+from ansible_base.rbac import permission_registry
+from ansible_base.rbac.models import RoleDefinition
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from ansible_base.rbac import permission_registry
-from ansible_base.rbac.models import RoleDefinition
 from apps.core.models import Organization, Team
 
 User = get_user_model()

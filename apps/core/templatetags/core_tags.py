@@ -65,5 +65,9 @@ def logout_link(request, user, csrf_token):
     </li>"""
     # URL-encode the path so ? and & don't break the query string
     return format_html(
-        snippet, user=escape(user), href=logout_url, next=quote(full_path, safe=""), csrf_token=csrf_token
+        snippet,
+        user=escape(user),
+        href=logout_url,
+        next=quote(full_path, safe=""),
+        csrf_token=csrf_token,
     )
