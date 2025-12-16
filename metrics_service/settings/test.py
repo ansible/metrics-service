@@ -52,7 +52,8 @@ LOCAL_APPS = [
     "apps.dashboard",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
+# LOCAL_APPS before THIRD_PARTY_APPS so custom templates override DRF defaults
+INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS + DAB_APPS
 
 # Django ansible-base settings for testing
 ANSIBLE_BASE_ORGANIZATION_MODEL = "core.Organization"
