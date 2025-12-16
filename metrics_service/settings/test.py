@@ -87,11 +87,11 @@ ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 
 # Additional DAB RBAC settings required for tests
-ANSIBLE_BASE_CHECK_RELATED_PERMISSIONS = ['use', 'change', 'view']
+ANSIBLE_BASE_CHECK_RELATED_PERMISSIONS = ["use", "change", "view"]
 ANSIBLE_BASE_CACHE_PARENT_PERMISSIONS = False
 ANSIBLE_BASE_EVALUATIONS_IGNORE_CONFLICTS = False
 ANSIBLE_BASE_DELETE_REQUIRE_CHANGE = False
-ANSIBLE_BASE_CREATOR_DEFAULTS = ['add', 'change', 'delete', 'view']
+ANSIBLE_BASE_CREATOR_DEFAULTS = ["add", "change", "delete", "view"]
 
 # Configure which roles can be synced via JWT from gateway
 ANSIBLE_BASE_JWT_MANAGED_ROLES = [

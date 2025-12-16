@@ -193,9 +193,7 @@ class TestBrowsableAPIURLs:
         """Extract breadcrumb URLs from HTML content."""
         import re
 
-        breadcrumb_match = re.search(
-            r'<ul class="breadcrumb"[^>]*>(.*?)</ul>', content, re.DOTALL
-        )
+        breadcrumb_match = re.search(r'<ul class="breadcrumb"[^>]*>(.*?)</ul>', content, re.DOTALL)
         if breadcrumb_match:
             breadcrumb_html = breadcrumb_match.group(1)
             return re.findall(r'href="([^"]+)"', breadcrumb_html)

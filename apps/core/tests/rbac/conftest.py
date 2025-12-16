@@ -20,46 +20,46 @@ def create_managed_roles(db):
 
 @pytest.fixture
 def rando(db):
-    return User.objects.create(username=f'rando-{uuid.uuid4().hex[:8]}')
+    return User.objects.create(username=f"rando-{uuid.uuid4().hex[:8]}")
 
 
 @pytest.fixture
 def organization(db):
-    return Organization.objects.create(name='Test Org')
+    return Organization.objects.create(name="Test Org")
 
 
 @pytest.fixture
 def team(db, organization):
-    return Team.objects.create(name='Test Team', organization=organization)
+    return Team.objects.create(name="Test Team", organization=organization)
 
 
 @pytest.fixture
 def org_admin_rd(db):
-    return RoleDefinition.objects.get(name='Organization Admin')
+    return RoleDefinition.objects.get(name="Organization Admin")
 
 
 @pytest.fixture
 def org_member_rd(db):
-    return RoleDefinition.objects.get(name='Organization Member')
+    return RoleDefinition.objects.get(name="Organization Member")
 
 
 @pytest.fixture
 def team_admin_rd(db):
-    return RoleDefinition.objects.get(name='Team Admin')
+    return RoleDefinition.objects.get(name="Team Admin")
 
 
 @pytest.fixture
 def team_member_rd(db):
-    return RoleDefinition.objects.get(name='Team Member')
+    return RoleDefinition.objects.get(name="Team Member")
 
 
 @pytest.fixture
 def admin_user(db):
     unique_id = uuid.uuid4().hex[:8]
     return User.objects.create_superuser(
-        username=f'admin-{unique_id}',
-        password=f'password-{unique_id}',
-        email=f'admin-{unique_id}@test.com',
+        username=f"admin-{unique_id}",
+        password=f"password-{unique_id}",
+        email=f"admin-{unique_id}@test.com",
     )
 
 
