@@ -5,7 +5,6 @@ This module provides complete test coverage for the resource_api configuration,
 testing all code paths including import error handling and service metadata.
 """
 
-
 import pytest
 from django.test import TestCase
 
