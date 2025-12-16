@@ -202,34 +202,6 @@ class TestTimestampFieldMixin(TestCase):
         assert mixin.modified.read_only is True
 
 
-class TestResourceAPICoverage(TestCase):
-    """Test resource_api module coverage."""
-
-    @patch("apps.core.resource_api.settings")
-    def test_service_metadata_with_uuid(self, mock_settings):
-        """Test service_metadata with SYSTEM_UUID."""
-        from apps.core.resource_api import service_metadata
-
-        mock_settings.SYSTEM_UUID = "test-uuid-123"
-        result = service_metadata()
-
-        assert isinstance(result, dict)
-        assert "system_uuid" in result
-        assert result["system_uuid"] == "test-uuid-123"
-
-    @patch("apps.core.resource_api.settings")
-    def test_service_metadata_error_handling(self, mock_settings):
-        """Test service_metadata error handling."""
-        from apps.core.resource_api import service_metadata
-
-        # Mock settings to raise an exception
-        mock_settings.SYSTEM_UUID = None
-        del mock_settings.SYSTEM_UUID
-
-        result = service_metadata()
-        assert isinstance(result, dict)
-
-
 class TestApiUtilsCoverage(TestCase):
     """Test API utils coverage."""
 

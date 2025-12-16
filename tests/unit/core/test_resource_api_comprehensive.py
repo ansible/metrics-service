@@ -5,8 +5,6 @@ This module provides complete test coverage for the resource_api configuration,
 testing all code paths including import error handling and service metadata.
 """
 
-from unittest.mock import patch
-
 import pytest
 from django.test import TestCase
 
@@ -66,73 +64,20 @@ class TestResourceAPIConfiguration(TestCase):
         org_config = org_configs[0]
         assert org_config.model == Organization
 
-    def test_roledefinition_import_success(self):
-        """Test that RoleDefinition is added to RESOURCE_LIST when import succeeds."""
-        # This test verifies the try/except block at lines 68-73
+    def test_resource_list_does_not_include_roledefinition(self):
+        """Test that RoleDefinition is not included in RESOURCE_LIST (matching platform-service-example pattern)."""
+        from apps.core.resource_api import RESOURCE_LIST
+
+        # RoleDefinition is not included in the resource list for this service
         try:
             from ansible_base.rbac.models import RoleDefinition
 
-            from apps.core.resource_api import RESOURCE_LIST
-
             role_configs = [rc for rc in RESOURCE_LIST if rc.model == RoleDefinition]
-            # Should have at least one if import succeeded
-            assert len(role_configs) > 0  # May or may not be present depending on environment
+            # RoleDefinition should NOT be in RESOURCE_LIST (platform-service-example pattern)
+            assert len(role_configs) == 0
         except ImportError:
-            # If import fails, that's expected and covered by the except block
+            # If import fails, that's fine - RoleDefinition wouldn't be there anyway
             pass
-
-    def test_service_metadata_basic(self):
-        """Test service_metadata returns correct basic structure."""
-        from apps.core.resource_api import service_metadata
-
-        metadata = service_metadata()
-
-        assert isinstance(metadata, dict)
-        assert "service_type" in metadata
-        assert metadata["service_type"] == "metrics_service"
-        assert "system_uuid" in metadata
-        assert "version" in metadata
-        assert metadata["version"] == "1.0.0"
-
-    def test_service_metadata_with_settings_uuid(self):
-        """Test service_metadata uses SYSTEM_UUID from settings if available."""
-        from apps.core.resource_api import service_metadata
-
-        with patch("apps.core.resource_api.settings") as mock_settings:
-            mock_settings.SYSTEM_UUID = "test-uuid-123"
-
-            metadata = service_metadata()
-
-            assert metadata["system_uuid"] == "test-uuid-123"
-
-    def test_service_metadata_without_settings_uuid(self):
-        """Test service_metadata handles missing SYSTEM_UUID gracefully."""
-        from apps.core.resource_api import service_metadata
-
-        with patch("apps.core.resource_api.settings") as mock_settings:
-            # Remove SYSTEM_UUID attribute to trigger getattr default
-            del mock_settings.SYSTEM_UUID
-
-            metadata = service_metadata()
-
-            assert metadata["system_uuid"] == "unknown"
-
-    def test_service_metadata_exception_handling(self):
-        """Test service_metadata handles exceptions gracefully."""
-        # This test covers lines 89-90 by making the dict creation raise an exception
-        from apps.core.resource_api import service_metadata
-
-        # Mock getattr to raise an exception, which will cause the try block to fail
-        def getattr_side_effect(obj, attr, default=None):
-            raise RuntimeError("Forced exception")
-
-        with patch("builtins.getattr", side_effect=getattr_side_effect):
-            metadata = service_metadata()
-
-            # Should return default values from except block
-            assert metadata["service_type"] == "metrics_service"
-            assert metadata["system_uuid"] == "unknown"
-            assert metadata["version"] == "1.0.0"
 
     def test_module_imports(self):
         """Test that all required modules can be imported."""
@@ -140,7 +85,6 @@ class TestResourceAPIConfiguration(TestCase):
 
         assert hasattr(resource_api, "APIConfig")
         assert hasattr(resource_api, "RESOURCE_LIST")
-        assert hasattr(resource_api, "service_metadata")
 
     def test_resource_config_structure(self):
         """Test that ResourceConfig objects have expected structure."""
@@ -171,6 +115,6 @@ class TestResourceAPIImportHandling(TestCase):
         # This test ensures the module is robust to missing optional dependencies
         import apps.core.resource_api
 
-        # Should be able to call service_metadata
-        metadata = apps.core.resource_api.service_metadata()
-        assert isinstance(metadata, dict)
+        # Module should load without errors and have expected attributes
+        assert hasattr(apps.core.resource_api, "RESOURCE_LIST")
+        assert hasattr(apps.core.resource_api, "APIConfig")

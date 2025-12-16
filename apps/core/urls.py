@@ -1,11 +1,10 @@
-"""
-Core app URLs.
-"""
-
 from django.urls import include, path
 
 from .v1 import urls as v1_urls
+from .views import HealthView, PingView
 
 urlpatterns = [
-    path("v1/", include(v1_urls)),
+    path("ping/", PingView.as_view(), name="ping"),
+    path("health/", HealthView.as_view(), name="health"),
+    path("api/v1/", include(v1_urls)),
 ]

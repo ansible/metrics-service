@@ -21,7 +21,7 @@ class TestReloadConfigCommand(TestCase):
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create instance and mock its dynaconf attribute
         command = Command()
@@ -37,14 +37,14 @@ class TestReloadConfigCommand(TestCase):
 
         # Check output
         output = out.getvalue()
-        assert "✅ Configuration reloaded successfully" in output
+        assert "Configuration reloaded successfully" in output
 
     def test_command_verbose_mode(self):
         """Test command execution with verbose mode enabled."""
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create mock dynaconf with proper attributes
         mock_dynaconf = MagicMock()
@@ -59,7 +59,7 @@ class TestReloadConfigCommand(TestCase):
 
         # Mock both the initial DYNACONF and the one imported inside verbose block
         with (
-            patch("apps.core.management.commands.reload_config_command.DYNACONF", mock_dynaconf),
+            patch("apps.dynamic_settings.management.commands.reload_config.DYNACONF", mock_dynaconf),
             patch("metrics_service.settings.DYNACONF", mock_dynaconf),
         ):
             # Execute the command in verbose mode
@@ -71,7 +71,7 @@ class TestReloadConfigCommand(TestCase):
         # Check verbose output
         output = out.getvalue()
         assert "Reloading dynaconf configuration..." in output
-        assert "✅ Configuration reloaded successfully" in output
+        assert "Configuration reloaded successfully" in output
         assert "Current environment: test" in output
         assert "Loaded settings files: ['config/settings.yaml']" in output
 
@@ -80,7 +80,7 @@ class TestReloadConfigCommand(TestCase):
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create instance and mock its dynaconf attribute
         command = Command()
@@ -97,14 +97,14 @@ class TestReloadConfigCommand(TestCase):
 
         # Check error output
         output = out.getvalue()
-        assert "❌ Failed to reload configuration: Reload failed" in output
+        assert "Failed to reload configuration: Reload failed" in output
 
     def test_command_error_handling_verbose(self):
         """Test command error handling in verbose mode."""
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create instance and mock its dynaconf attribute
         command = Command()
@@ -119,14 +119,14 @@ class TestReloadConfigCommand(TestCase):
         # Check that verbose message was shown before error
         output = out.getvalue()
         assert "Reloading dynaconf configuration..." in output
-        assert "❌ Failed to reload configuration: Config error" in output
+        assert "Failed to reload configuration: Config error" in output
 
     def test_command_logging(self):
         """Test that command properly logs success and errors."""
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create instance and mock its dynaconf attribute
         command = Command()
@@ -134,7 +134,7 @@ class TestReloadConfigCommand(TestCase):
         command.dynaconf = MagicMock()
         command.dynaconf.reload = MagicMock()
 
-        with patch("apps.core.management.commands.reload_config_command.logger") as mock_logger:
+        with patch("apps.dynamic_settings.management.commands.reload_config.logger") as mock_logger:
             command.handle(verbose=False)
 
             # Verify logging
@@ -145,7 +145,7 @@ class TestReloadConfigCommand(TestCase):
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create instance and mock its dynaconf attribute
         command = Command()
@@ -153,7 +153,7 @@ class TestReloadConfigCommand(TestCase):
         command.dynaconf = MagicMock()
         command.dynaconf.reload = MagicMock(side_effect=ValueError("Invalid config"))
 
-        with patch("apps.core.management.commands.reload_config_command.logger") as mock_logger:
+        with patch("apps.dynamic_settings.management.commands.reload_config.logger") as mock_logger:
             with pytest.raises(ValueError):
                 command.handle(verbose=False)
 
@@ -162,7 +162,7 @@ class TestReloadConfigCommand(TestCase):
 
     def test_add_arguments_method(self):
         """Test that add_arguments properly configures the verbose flag."""
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         command = Command()
         parser = MagicMock()
@@ -178,14 +178,14 @@ class TestReloadConfigCommand(TestCase):
 
     def test_command_help_text(self):
         """Test that command has proper help text."""
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         command = Command()
         assert command.help == "Reload dynaconf configuration from files and environment variables"
 
     def test_command_dynaconf_attribute(self):
         """Test that command has dynaconf attribute."""
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         command = Command()
         assert hasattr(command, "dynaconf")
@@ -196,7 +196,7 @@ class TestReloadConfigCommand(TestCase):
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create instance and mock its dynaconf attribute
         command = Command()
@@ -216,7 +216,7 @@ class TestReloadConfigCommand(TestCase):
         out = StringIO()
 
         # Import the command class
-        from apps.core.management.commands.reload_config_command import Command
+        from apps.dynamic_settings.management.commands.reload_config import Command
 
         # Create instance and mock its dynaconf attribute
         command = Command()

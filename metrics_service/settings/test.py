@@ -52,7 +52,8 @@ LOCAL_APPS = [
     "apps.dashboard",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + DAB_APPS + LOCAL_APPS
+# LOCAL_APPS before THIRD_PARTY_APPS so custom templates override DRF defaults
+INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS + DAB_APPS
 
 # Django ansible-base settings for testing
 ANSIBLE_BASE_ORGANIZATION_MODEL = "core.Organization"
@@ -60,9 +61,22 @@ ANSIBLE_BASE_TEAM_MODEL = "core.Team"
 ANSIBLE_BASE_USER_MODEL = "core.User"
 AUTH_USER_MODEL = "core.User"
 
-# RBAC settings
-ANSIBLE_BASE_RBAC_MODEL_REGISTRY: dict[str, str] = {}
-ANSIBLE_BASE_MANAGED_ROLE_REGISTRY: dict[str, str] = {}
+# RBAC settings - register models for permission tracking
+ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {
+    "core.Organization": {"parent_field_name": None},
+    "core.Team": {"parent_field_name": "organization"},
+    "core.User": {"parent_field_name": None},
+}
+
+# Default RBAC roles - created automatically on migrate
+ANSIBLE_BASE_MANAGED_ROLE_REGISTRY = {
+    "sys_auditor": {"name": "Platform Auditor"},  # View-only, system-wide
+    "org_admin": {},  # Organization Admin - all perms on org + children
+    "org_member": {},  # Organization Member - member perm on org
+    "team_admin": {},  # Team Admin - all perms on team
+    "team_member": {},  # Team Member - member perm on team
+}
+
 ANSIBLE_BASE_BYPASS_SUPERUSER_FLAGS = ["is_superuser"]
 ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {
     "create": "is_superuser",
@@ -73,12 +87,33 @@ ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {
 ANSIBLE_BASE_ALLOW_SINGLETON_USER_ROLES = True
 ANSIBLE_BASE_ALLOW_SINGLETON_TEAM_ROLES = True
 
+# Additional DAB RBAC settings required for tests
+ANSIBLE_BASE_CHECK_RELATED_PERMISSIONS = ["use", "change", "view"]
+ANSIBLE_BASE_CACHE_PARENT_PERMISSIONS = False
+ANSIBLE_BASE_EVALUATIONS_IGNORE_CONFLICTS = False
+ANSIBLE_BASE_DELETE_REQUIRE_CHANGE = False
+ANSIBLE_BASE_CREATOR_DEFAULTS = ["add", "change", "delete", "view"]
+
+# Configure which roles can be synced via JWT from gateway
+ANSIBLE_BASE_JWT_MANAGED_ROLES = [
+    "Platform Auditor",
+    "Organization Admin",
+    "Organization Member",
+    "Team Admin",
+    "Team Member",
+]
+
 # Service identification
 SERVICE_TYPE = "metrics-service"
 SERVICE_ID = "test-service-id"
 
-# Middleware
+# Login/Logout URLs for DRF browsable API
+LOGIN_URL = "/api-auth/login/"
+LOGOUT_URL = "/api-auth/logout/"
+
+# Middleware - ServicePrefix at start, APIRootView at end
 MIDDLEWARE = [
+    "apps.core.middleware.ServicePrefixMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -86,6 +121,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.APIRootViewMiddleware",
 ]
 
 # URLs - simplified for testing to avoid oauth2 provider conflicts
