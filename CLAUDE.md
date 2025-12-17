@@ -141,7 +141,7 @@ python manage.py metrics_service run --workers 2
 python manage.py shell
 ```
 
-### Docker
+### Docker (Development)
 
 ```bash
 # Start full stack with PostgreSQL and task dispatcher
@@ -154,6 +154,37 @@ docker-compose up -d
 docker-compose logs -f metrics-service
 docker-compose logs -f metrics-dispatcher
 ```
+
+### Production Deployment (Containers)
+
+**⚠️ Production deployments use containers, NOT `python manage.py metrics_service run`**
+
+The service is deployed as three separate containerized components:
+
+```bash
+# Build container images
+./deployment/scripts/build-containers.sh
+
+# Test locally with Podman
+./deployment/scripts/run-containers-local.sh
+
+# For production deployment:
+# - RHEL/Fedora: See deployment/README.md for systemd + Podman setup
+# - OpenShift: Deployed via custom operator (managed automatically)
+```
+
+**Container Components**:
+- `metrics-service-web` - Django app (uWSGI) on port 8000
+- `metrics-service-dispatcher` - Background task worker (dispatcherd)
+- `metrics-service-scheduler` - Cron task scheduler (APScheduler)
+
+**Container Images**:
+- `Containerfile.base` - Base image with dependencies
+- `Containerfile.web` - Web/API service
+- `Containerfile.dispatcher` - Task dispatcher
+- `Containerfile.scheduler` - Task scheduler
+
+See `deployment/README.md` for complete deployment documentation.
 
 ### Quick Start with Task Dashboard
 
@@ -549,3 +580,40 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 - **Apps Structure**: `core/` (models, business logic), `api/v1/` (REST endpoints), `tasks/` (background tasks), `dashboard/` (web UI)
 - **Mixins**: Extensive use of mixins (`AccessControlMixin`, `StatusTrackingMixin`) to reduce code duplication
 - **Type Safety**: All new code requires type hints and return type annotations
+
+### Deployment Architecture
+
+**Development vs Production**:
+
+- **Development**: Use `python manage.py metrics_service run` for local development (all-in-one process)
+- **Production**: Deploy as three separate containers managed by systemd (Podman) or OpenShift operator
+
+**Production Components**:
+
+1. **Web Service** (`metrics-service-web`): Django app via uWSGI on port 8000
+2. **Dispatcher Service** (`metrics-service-dispatcher`): Background task processing with dispatcherd
+3. **Scheduler Service** (`metrics-service-scheduler`): Cron-based recurring tasks with APScheduler
+
+**Container Build System**:
+
+- Base image (`Containerfile.base`): UBI9 Python 3.12 with all dependencies
+- Service images: Built from base, minimal additional layers
+- Build script: `./deployment/scripts/build-containers.sh`
+- Local testing: `./deployment/scripts/run-containers-local.sh`
+
+**Deployment Targets**:
+
+- **RHEL/Fedora Servers**: Podman containers managed by systemd units
+- **OpenShift/Kubernetes**: Deployed via custom operator (no manual manifests needed)
+
+**Key Files**:
+
+- `deployment/containers/` - Containerfiles for all images
+- `deployment/systemd/` - Systemd units for Podman deployment
+- `deployment/uwsgi/` - uWSGI configuration for web service
+- `deployment/scripts/` - Build and deployment automation
+- `deployment/README.md` - Complete deployment guide
+
+**Important**: When modifying the application startup or component architecture, ensure changes work in both:
+1. Development mode (`metrics_service run` command)
+2. Production containers (separate processes)

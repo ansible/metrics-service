@@ -1,0 +1,35 @@
+# All-in-one container with all three services (Simple version - no supervisor)
+# Uses a bash entrypoint script to manage processes
+FROM localhost/metrics-service-base:latest
+
+# Metadata
+LABEL name="metrics-service-all-in-one-simple" \
+      version="1.0" \
+      description="Metrics Service All-in-One Container (Simple - no supervisor)" \
+      component="all-in-one-simple"
+
+USER 0
+
+# Install uwsgi only
+RUN pip install --no-cache-dir uwsgi
+
+USER 1001
+
+# Copy entrypoint and uWSGI config
+COPY --chown=1001:0 deployment/scripts/container-entrypoint.sh /opt/app-root/bin/entrypoint.sh
+COPY --chown=1001:0 deployment/uwsgi/metrics-service-container.ini /opt/app-root/etc/uwsgi.ini
+
+# Make entrypoint executable
+USER 0
+RUN chmod +x /opt/app-root/bin/entrypoint.sh
+USER 1001
+
+# Expose web port
+EXPOSE 8000
+
+# Health check (checks if processes are running)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pgrep -f "uwsgi\|run_dispatcherd\|run_task_scheduler" > /dev/null || exit 1
+
+# Run entrypoint script
+ENTRYPOINT ["/opt/app-root/bin/entrypoint.sh"]

@@ -1,0 +1,19 @@
+# Task Scheduler service container (APScheduler)
+FROM localhost/metrics-service-base:latest
+
+# Metadata
+LABEL name="metrics-service-scheduler" \
+      version="1.0" \
+      description="Metrics Service Task Scheduler (APScheduler)" \
+      component="scheduler"
+
+USER 1001
+
+# Health check for scheduler (checks if process is running)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pgrep -f "run_task_scheduler" || exit 1
+
+# Run scheduler
+CMD ["python", "manage.py", "run_task_scheduler", \
+     "--log-level=INFO", \
+     "--check-interval=60"]

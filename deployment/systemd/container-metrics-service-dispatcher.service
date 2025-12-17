@@ -1,0 +1,52 @@
+[Unit]
+Description=Metrics Service Dispatcher Container (Podman)
+After=network-online.target postgresql.service container-metrics-service-web.service
+Wants=network-online.target
+PartOf=metrics-service.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=metrics-service
+Group=metrics-service
+
+# Environment
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=-/etc/metrics-service/environment
+
+# Container configuration
+ExecStartPre=/usr/bin/podman pull localhost/metrics-service-dispatcher:latest || /bin/true
+ExecStart=/usr/bin/podman run \
+    --name=metrics-service-dispatcher \
+    --rm \
+    --network=host \
+    --env-file=/etc/metrics-service/environment \
+    --volume=/opt/metrics-service/metricsStorage.sqlite:/opt/app-root/src/metricsStorage.sqlite:Z \
+    --volume=/var/log/metrics-service:/opt/app-root/src/logs:Z \
+    --health-cmd="pgrep -f run_dispatcherd || exit 1" \
+    --health-interval=30s \
+    --health-timeout=10s \
+    --health-retries=3 \
+    --label=io.containers.autoupdate=registry \
+    localhost/metrics-service-dispatcher:latest
+
+ExecStop=/usr/bin/podman stop -t 300 metrics-service-dispatcher
+ExecStopPost=/usr/bin/podman rm -f metrics-service-dispatcher || /bin/true
+
+# Restart policy
+Restart=always
+RestartSec=10
+TimeoutStartSec=300
+TimeoutStopSec=300
+
+# Security
+NoNewPrivileges=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=metrics-service-dispatcher-container
+
+[Install]
+WantedBy=metrics-service.target
+WantedBy=multi-user.target

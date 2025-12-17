@@ -1,0 +1,52 @@
+# Base image for Metrics Service
+# This contains the shared dependencies and application code
+FROM registry.access.redhat.com/ubi9/python-312:latest
+
+# Metadata
+LABEL name="metrics-service-base" \
+      version="1.0" \
+      description="Metrics Service Base Container Image" \
+      maintainer="aap-emerging-services@redhat.com"
+
+# Set working directory
+WORKDIR /opt/app-root/src
+
+# Switch to root for system packages
+USER 0
+
+# Install system dependencies
+RUN dnf install -y --nodocs \
+        postgresql-devel \
+        gcc \
+        python3-devel \
+        && dnf clean all \
+        && rm -rf /var/cache/dnf
+
+# Switch back to default user
+USER 1001
+
+# Copy application code (needed for editable install)
+COPY --chown=1001:0 . .
+
+# Install Python dependencies using the correct Python
+# Note: UBI9 python-312 image has Python 3.12 as default pip in app-root
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir uv && \
+    uv pip install --python $(which python) --no-cache -e ".[dev]"
+
+# Create necessary directories
+RUN mkdir -p /opt/app-root/src/staticfiles \
+             /opt/app-root/src/logs && \
+    chmod -R g+w /opt/app-root/src
+
+# Collect static files (if needed)
+RUN python manage.py collectstatic --noinput || true
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=metrics_service.settings \
+    METRICS_SERVICE_MODE=production
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python manage.py check --deploy || exit 1

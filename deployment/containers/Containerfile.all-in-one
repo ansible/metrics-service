@@ -1,0 +1,30 @@
+# All-in-one container with all three services
+# Uses supervisord to manage multiple processes
+FROM localhost/metrics-service-base:latest
+
+# Metadata
+LABEL name="metrics-service-all-in-one" \
+      version="1.0" \
+      description="Metrics Service All-in-One Container (Web + Dispatcher + Scheduler)" \
+      component="all-in-one"
+
+USER 0
+
+# Install uwsgi
+RUN pip install --no-cache-dir uwsgi supervisor
+
+USER 1001
+
+# Copy supervisord configuration
+COPY --chown=1001:0 deployment/supervisor/supervisord.conf /opt/app-root/etc/supervisord.conf
+COPY --chown=1001:0 deployment/uwsgi/metrics-service-container.ini /opt/app-root/etc/uwsgi.ini
+
+# Expose web port
+EXPOSE 8000
+
+# Health check (checks if supervisord is running all processes)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD supervisorctl -c /opt/app-root/etc/supervisord.conf status | grep -q "RUNNING" || exit 1
+
+# Run supervisord
+CMD ["supervisord", "-c", "/opt/app-root/etc/supervisord.conf", "-n"]

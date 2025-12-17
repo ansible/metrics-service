@@ -1,0 +1,49 @@
+[Unit]
+Description=Metrics Service uWSGI Application
+After=network.target postgresql.service
+Wants=postgresql.service
+PartOf=metrics-service.target
+
+[Service]
+Type=notify
+User=metrics-service
+Group=metrics-service
+WorkingDirectory=/opt/metrics-service
+
+# Environment files
+EnvironmentFile=-/etc/metrics-service/environment
+Environment="DJANGO_SETTINGS_MODULE=metrics_service.settings"
+Environment="METRICS_SERVICE_MODE=production"
+
+# uWSGI with proper notify support
+ExecStart=/opt/metrics-service/.venv/bin/uwsgi \
+    --ini /opt/metrics-service/deployment/uwsgi/metrics-service.ini \
+    --need-app \
+    --die-on-term \
+    --master
+
+# Restart policy
+Restart=always
+RestartSec=10
+KillSignal=SIGQUIT
+TimeoutStopSec=60
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/metrics-service /run/metrics-service /opt/metrics-service/metricsStorage.sqlite
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=metrics-service-web
+
+[Install]
+WantedBy=metrics-service.target
+WantedBy=multi-user.target

@@ -1,0 +1,53 @@
+[Unit]
+Description=Metrics Service Web Container (Podman)
+After=network-online.target postgresql.service
+Wants=network-online.target
+PartOf=metrics-service.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=metrics-service
+Group=metrics-service
+
+# Environment
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=-/etc/metrics-service/environment
+
+# Container configuration
+ExecStartPre=/usr/bin/podman pull localhost/metrics-service-web:latest || /bin/true
+ExecStart=/usr/bin/podman run \
+    --name=metrics-service-web \
+    --rm \
+    --network=host \
+    --env-file=/etc/metrics-service/environment \
+    --volume=/opt/metrics-service/metricsStorage.sqlite:/opt/app-root/src/metricsStorage.sqlite:Z \
+    --volume=/opt/metrics-service/staticfiles:/opt/app-root/src/staticfiles:Z \
+    --volume=/var/log/metrics-service:/opt/app-root/src/logs:Z \
+    --health-cmd="curl -f http://localhost:8000/api/health/ || exit 1" \
+    --health-interval=30s \
+    --health-timeout=10s \
+    --health-retries=3 \
+    --label=io.containers.autoupdate=registry \
+    localhost/metrics-service-web:latest
+
+ExecStop=/usr/bin/podman stop -t 60 metrics-service-web
+ExecStopPost=/usr/bin/podman rm -f metrics-service-web || /bin/true
+
+# Restart policy
+Restart=always
+RestartSec=10
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+# Security
+NoNewPrivileges=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=metrics-service-web-container
+
+[Install]
+WantedBy=metrics-service.target
+WantedBy=multi-user.target

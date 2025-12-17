@@ -1,0 +1,21 @@
+# Task Dispatcher service container (Dispatcherd)
+FROM localhost/metrics-service-base:latest
+
+# Metadata
+LABEL name="metrics-service-dispatcher" \
+      version="1.0" \
+      description="Metrics Service Task Dispatcher (Dispatcherd)" \
+      component="dispatcher"
+
+USER 1001
+
+# Health check for dispatcher (checks if process is running)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pgrep -f "run_dispatcherd" || exit 1
+
+# Run dispatcherd
+CMD ["python", "manage.py", "run_dispatcherd", \
+     "--workers=4", \
+     "--timeout=3600", \
+     "--max-tasks=100", \
+     "--log-level=INFO"]
