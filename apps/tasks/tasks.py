@@ -17,11 +17,17 @@ from .tasks_collector import (
     collect_anonymous_metrics,
     collect_config_metrics,
     collect_host_metrics,
+    collect_host_metrics_hourly,
     collect_job_host_summary,
+    collect_job_host_summary_hourly,
+    collect_main_host_hourly,
     collect_metrics,
+    daily_anonymize_and_prepare,
+    daily_metrics_rollup,
     debug_segment_messages,
     full_process,
     full_process_anonymize,
+    send_anonymized_to_segment,
     send_to_segment,
     test_segment_track,
 )
@@ -29,6 +35,7 @@ from .tasks_collector import (
 # Import all system tasks
 from .tasks_system import (
     SYSTEM_TASKS,
+    cleanup_metrics_data,
     cleanup_old_data,
     cleanup_old_tasks,
     create_system_tasks,
@@ -61,10 +68,19 @@ TASK_FUNCTIONS = {
     "hello_world": hello_world,
     "cleanup_old_data": cleanup_old_data,
     "cleanup_old_tasks": cleanup_old_tasks,
+    "cleanup_metrics_data": cleanup_metrics_data,
     "send_notification_email": send_notification_email,
     "process_user_data": process_user_data,
     "execute_db_task": execute_db_task,
     "sleep": sleep,
+    # Hourly Metrics Collection Tasks
+    "collect_job_host_summary_hourly": collect_job_host_summary_hourly,
+    "collect_host_metrics_hourly": collect_host_metrics_hourly,
+    "collect_main_host_hourly": collect_main_host_hourly,
+    # Daily Rollup and Anonymization Tasks
+    "daily_metrics_rollup": daily_metrics_rollup,
+    "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
+    "send_anonymized_to_segment": send_anonymized_to_segment,
     # Metrics Collection Tasks (unified + individual collectors)
     "collect_metrics": collect_metrics,
     "collect_all_metrics": collect_all_metrics,

@@ -583,3 +583,103 @@ def get_system_task_info() -> dict[str, Any]:
         "total_count": len(task_info),
         "categories": list({task["category"] for task in task_info}),
     }
+
+
+@task(queue="metrics_cleanup", decorate=False)
+@task_execution_wrapper("cleanup_metrics_data")
+def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
+    """
+    Clean up old metrics data based on retention policies.
+
+    Retention policies:
+    - Hourly collections: 7 days
+    - Daily summaries: 30 days
+    - Anonymized payloads: 30 days (or 7 days after sent)
+
+    Args:
+        **kwargs: Task data containing:
+            - hourly_retention_days (int): Days to keep hourly data (default: 7)
+            - daily_retention_days (int): Days to keep daily summaries (default: 30)
+            - payload_retention_days (int): Days to keep sent payloads (default: 7)
+            - dry_run (bool): If true, only count without deleting (default: False)
+
+    Returns:
+        dict: Task result with cleanup statistics
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary, HourlyMetricsCollection
+
+    hourly_retention_days = kwargs.get("hourly_retention_days", 7)
+    daily_retention_days = kwargs.get("daily_retention_days", 30)
+    payload_retention_days = kwargs.get("payload_retention_days", 7)
+    dry_run = kwargs.get("dry_run", False)
+
+    log_task_execution("cleanup_metrics_data", "processing", f"Cleaning up metrics data (dry_run={dry_run})")
+
+    results = {
+        "hourly_collections": {"found": 0, "deleted": 0},
+        "daily_summaries": {"found": 0, "deleted": 0},
+        "anonymized_payloads": {"found": 0, "deleted": 0},
+    }
+
+    try:
+        now = timezone.now()
+
+        # Cleanup hourly collections older than retention period
+        hourly_cutoff = now - timedelta(days=hourly_retention_days)
+        old_hourly = HourlyMetricsCollection.objects.filter(collection_timestamp__lt=hourly_cutoff)
+        results["hourly_collections"]["found"] = old_hourly.count()
+
+        if not dry_run and results["hourly_collections"]["found"] > 0:
+            deleted_count, _ = old_hourly.delete()
+            results["hourly_collections"]["deleted"] = deleted_count
+
+        # Cleanup daily summaries older than retention period
+        daily_cutoff_date = (now.date() - timedelta(days=daily_retention_days))
+        old_daily = DailyMetricsSummary.objects.filter(summary_date__lt=daily_cutoff_date)
+        results["daily_summaries"]["found"] = old_daily.count()
+
+        if not dry_run and results["daily_summaries"]["found"] > 0:
+            deleted_count, _ = old_daily.delete()
+            results["daily_summaries"]["deleted"] = deleted_count
+
+        # Cleanup sent payloads older than retention period
+        # Keep unsent/failed payloads longer (30 days) for retry/debugging
+        sent_payload_cutoff = now - timedelta(days=payload_retention_days)
+        unsent_payload_cutoff = now - timedelta(days=30)
+
+        old_sent_payloads = AnonymizedMetricsPayload.objects.filter(status="sent", sent_at__lt=sent_payload_cutoff)
+        old_unsent_payloads = AnonymizedMetricsPayload.objects.filter(
+            status__in=["failed"], created__lt=unsent_payload_cutoff
+        )
+
+        total_old_payloads = old_sent_payloads.count() + old_unsent_payloads.count()
+        results["anonymized_payloads"]["found"] = total_old_payloads
+
+        if not dry_run and total_old_payloads > 0:
+            sent_deleted, _ = old_sent_payloads.delete()
+            unsent_deleted, _ = old_unsent_payloads.delete()
+            results["anonymized_payloads"]["deleted"] = sent_deleted + unsent_deleted
+
+        log_task_execution("cleanup_metrics_data", "completed", f"Cleanup complete: {results}")
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "cleanup_metrics_data",
+                "dry_run": dry_run,
+                "retention_policies": {
+                    "hourly_days": hourly_retention_days,
+                    "daily_days": daily_retention_days,
+                    "payload_days": payload_retention_days,
+                },
+                "results": results,
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in cleanup_metrics_data: {str(e)}")
+        return create_task_result("error", error=f"Cleanup failed: {str(e)}")

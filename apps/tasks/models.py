@@ -412,3 +412,292 @@ class TaskChainMembership(CommonModel):
             str: Chain name, task name, and order
         """
         return f"{self.chain.name} - {self.task.name} (order: {self.order})"
+
+
+class HourlyMetricsCollection(CommonModel, AuditableModel):
+    """
+    Store raw hourly metrics collection data.
+
+    This model persists raw metrics data collected every hour for later
+    daily aggregation and anonymization. Provides hourly granularity
+    for trend analysis while maintaining data retention policies.
+    """
+
+    class Meta:
+        app_label = "tasks"
+        ordering = ["-collection_timestamp"]
+        indexes = [
+            models.Index(fields=["collector_type", "collection_timestamp"]),
+            models.Index(fields=["collection_timestamp"]),
+            models.Index(fields=["status"]),
+        ]
+        unique_together = ["collector_type", "collection_timestamp"]
+        verbose_name = "Hourly Metrics Collection"
+        verbose_name_plural = "Hourly Metrics Collections"
+
+    COLLECTOR_TYPE_CHOICES = [
+        ("job_host_summary", "Job Host Summary"),
+        ("main_host", "Main Host"),
+        ("main_jobevent", "Main Job Event"),
+        ("config", "Configuration"),  # Daily only, included for completeness
+    ]
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("collected", "Collected"),
+        ("failed", "Failed"),
+        ("processed", "Processed"),  # Included in daily rollup
+    ]
+
+    # Identification
+    collector_type = models.CharField(
+        max_length=50, choices=COLLECTOR_TYPE_CHOICES, help_text="Type of metrics collector"
+    )
+
+    collection_timestamp = models.DateTimeField(
+        db_index=True, help_text="When this collection occurred (rounded to hour)"
+    )
+
+    # Data
+    raw_data = models.JSONField(default=dict, help_text="Raw metrics data from collector")
+
+    # Metadata
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="collected")
+
+    collection_parameters = models.JSONField(
+        default=dict, help_text="Parameters used for collection (database, since, until, etc.)"
+    )
+
+    data_size_bytes = models.BigIntegerField(default=0, help_text="Size of raw_data in bytes")
+
+    error_message = models.TextField(blank=True, help_text="Error message if collection failed")
+
+    # Relationships
+    task_execution = models.ForeignKey(
+        "TaskExecution",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="hourly_collections",
+        help_text="TaskExecution that created this collection",
+    )
+
+    def __str__(self):
+        """
+        Return string representation of the hourly collection.
+
+        Returns:
+            str: Collector type and collection timestamp
+        """
+        return f"{self.get_collector_type_display()} - {self.collection_timestamp}"
+
+    def save(self, *args, **kwargs):
+        """
+        Auto-calculate data size on save.
+
+        Args:
+            *args: Positional arguments
+            *kwargs: Keyword arguments
+
+        Returns:
+            None
+        """
+        import json
+
+        self.data_size_bytes = len(json.dumps(self.raw_data).encode("utf-8"))
+        super().save(*args, **kwargs)
+
+
+class DailyMetricsSummary(CommonModel, AuditableModel):
+    """
+    Store aggregated daily metrics with references to hourly snapshots.
+
+    This model aggregates hourly collections into daily summaries while
+    preserving references to individual hourly snapshots for trend analysis.
+    """
+
+    class Meta:
+        app_label = "tasks"
+        ordering = ["-summary_date"]
+        indexes = [
+            models.Index(fields=["summary_date"]),
+            models.Index(fields=["status"]),
+        ]
+        unique_together = ["summary_date"]
+        verbose_name = "Daily Metrics Summary"
+        verbose_name_plural = "Daily Metrics Summaries"
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("aggregated", "Aggregated"),
+        ("anonymized", "Anonymized"),
+        ("sent", "Sent to Segment"),
+        ("failed", "Failed"),
+    ]
+
+    # Identification
+    summary_date = models.DateField(unique=True, db_index=True, help_text="Date this summary covers (YYYY-MM-DD)")
+
+    # Aggregated Data
+    aggregated_metrics = models.JSONField(
+        default=dict, help_text="Aggregated metrics for the day (sums, averages, counts)"
+    )
+
+    # References to hourly snapshots (stored as list of IDs for efficient lookup)
+    hourly_collection_ids = models.JSONField(
+        default=dict, help_text="Map of collector_type -> list of HourlyMetricsCollection IDs"
+    )
+
+    # Config data (collected once daily, not hourly)
+    config_data = models.JSONField(default=dict, help_text="Configuration data collected once per day")
+
+    # Metadata
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+
+    hourly_collections_count = models.IntegerField(default=0, help_text="Total number of hourly collections included")
+
+    missing_hours = models.JSONField(default=list, help_text="List of hours that were missing collections")
+
+    aggregation_completed_at = models.DateTimeField(null=True, blank=True, help_text="When aggregation was completed")
+
+    error_message = models.TextField(blank=True, help_text="Error message if aggregation failed")
+
+    # Relationships
+    rollup_task_execution = models.ForeignKey(
+        "TaskExecution",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_summaries",
+        help_text="TaskExecution that created this summary",
+    )
+
+    def __str__(self):
+        """
+        Return string representation of the daily summary.
+
+        Returns:
+            str: Summary date and status
+        """
+        return f"Daily Summary - {self.summary_date} ({self.get_status_display()})"
+
+    def get_hourly_collections(self):
+        """
+        Retrieve all hourly collections for this summary.
+
+        Returns:
+            QuerySet: HourlyMetricsCollection objects for this summary
+        """
+        from django.db.models import Q
+
+        query = Q()
+        for collector_type, ids in self.hourly_collection_ids.items():
+            query |= Q(id__in=ids, collector_type=collector_type)
+
+        return HourlyMetricsCollection.objects.filter(query)
+
+
+class AnonymizedMetricsPayload(CommonModel, AuditableModel):
+    """
+    Store anonymized metrics payloads before sending to Segment.
+
+    This model stores anonymized metrics ready for transmission to Segment.com,
+    including retry logic and transmission status tracking.
+    """
+
+    class Meta:
+        app_label = "tasks"
+        ordering = ["-created"]
+        indexes = [
+            models.Index(fields=["status", "created"]),
+            models.Index(fields=["summary_date"]),
+        ]
+        verbose_name = "Anonymized Metrics Payload"
+        verbose_name_plural = "Anonymized Metrics Payloads"
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("sending", "Sending"),
+        ("sent", "Sent"),
+        ("failed", "Failed"),
+        ("retry", "Retry"),
+    ]
+
+    # Identification
+    summary_date = models.DateField(db_index=True, help_text="Date this payload covers")
+
+    # Anonymized Data
+    anonymized_data = models.JSONField(help_text="Anonymized metrics payload ready for Segment")
+
+    # Metadata
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+
+    retry_count = models.PositiveIntegerField(default=0, help_text="Number of send attempts")
+
+    max_retries = models.PositiveIntegerField(default=3, help_text="Maximum number of retry attempts")
+
+    # Segment metadata
+    segment_event_name = models.CharField(
+        max_length=255, default="daily_metrics_rollup", help_text="Segment event name"
+    )
+
+    segment_user_id = models.CharField(max_length=255, blank=True, help_text="Segment user ID")
+
+    segment_message_id = models.CharField(max_length=255, blank=True, help_text="Segment message ID for tracking")
+
+    sent_at = models.DateTimeField(null=True, blank=True, help_text="When payload was successfully sent")
+
+    error_message = models.TextField(blank=True, help_text="Error message if send failed")
+
+    payload_size_bytes = models.BigIntegerField(default=0, help_text="Size of anonymized_data in bytes")
+
+    # Relationships
+    daily_summary = models.ForeignKey(
+        "DailyMetricsSummary",
+        on_delete=models.CASCADE,
+        related_name="anonymized_payloads",
+        help_text="Daily summary this payload was created from",
+    )
+
+    anonymization_task_execution = models.ForeignKey(
+        "TaskExecution",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="anonymized_payloads",
+        help_text="TaskExecution that created this payload",
+    )
+
+    def __str__(self):
+        """
+        Return string representation of the anonymized payload.
+
+        Returns:
+            str: Summary date and status
+        """
+        return f"Anonymized Payload - {self.summary_date} ({self.get_status_display()})"
+
+    def can_retry(self):
+        """
+        Check if payload can be retried.
+
+        Returns:
+            bool: True if retry is allowed, False otherwise
+        """
+        return self.retry_count < self.max_retries and self.status in ["failed", "retry"]
+
+    def save(self, *args, **kwargs):
+        """
+        Auto-calculate payload size on save.
+
+        Args:
+            *args: Positional arguments
+            *kwargs: Keyword arguments
+
+        Returns:
+            None
+        """
+        import json
+
+        self.payload_size_bytes = len(json.dumps(self.anonymized_data).encode("utf-8"))
+        super().save(*args, **kwargs)

@@ -621,7 +621,8 @@ def _send_to_segment(segment_write_key: str, user_id: str, event_name: str, segm
         analytics.flush()
 
         logger.info(
-            f"Successfully sent anonymized metrics to Segment.com using direct analytics.track() (ID: {message_id}, Size: {data_size} bytes)"
+            f"Successfully sent anonymized metrics to Segment.com using direct analytics.track() "
+            f"(ID: {message_id}, Size: {data_size} bytes)"
         )
         return "success"
 
@@ -1141,3 +1142,902 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in send_to_segment: {str(e)}")
         return create_task_result("error", error=f"Segment transmission failed: {str(e)}")
+
+
+# Hourly Collection Tasks
+
+
+def _csv_to_json(csv_file_paths: list[str]) -> dict[str, Any]:
+    """
+    Convert CSV files returned by metrics-utility collectors to JSON format.
+
+    The metrics-utility collectors return CSV file paths. This function reads
+    those CSV files and converts them to JSON for storage in the database.
+
+    Args:
+        csv_file_paths: List of CSV file paths returned by collector.gather()
+
+    Returns:
+        dict: JSON representation of the CSV data with metadata
+    """
+    import csv
+    import os
+
+    if not csv_file_paths:
+        return {"records": [], "file_count": 0, "total_records": 0}
+
+    all_records = []
+    file_count = 0
+
+    for csv_path in csv_file_paths:
+        if not os.path.exists(csv_path):
+            logger.warning(f"CSV file not found: {csv_path}")
+            continue
+
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                records = list(reader)
+                all_records.extend(records)
+                file_count += 1
+
+            # Clean up CSV file after reading
+            try:
+                os.remove(csv_path)
+            except Exception as e:
+                logger.warning(f"Could not remove CSV file {csv_path}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error reading CSV file {csv_path}: {e}")
+            continue
+
+    return {
+        "records": all_records,
+        "file_count": file_count,
+        "total_records": len(all_records),
+    }
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_job_host_summary_hourly")
+def collect_job_host_summary_hourly(**kwargs) -> dict[str, Any]:
+    """
+    Collect job host summary metrics hourly and store in HourlyMetricsCollection.
+
+    This task collects metrics for the previous hour and persists raw data
+    for later daily aggregation and anonymization.
+
+    Args:
+        **kwargs: Task data containing:
+            - hour_timestamp (str): ISO timestamp for the hour to collect (optional, defaults to previous hour)
+            - database (str): Database name (default: 'awx')
+
+    Returns:
+        dict: Task result with collection status and record ID
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    from datetime import datetime, timedelta
+
+    from django.db import connections
+    from django.utils import timezone
+
+    from apps.tasks.models import HourlyMetricsCollection
+
+    # Determine collection hour (default to previous hour)
+    hour_timestamp_str = kwargs.get("hour_timestamp")
+    if hour_timestamp_str:
+        collection_hour = datetime.fromisoformat(hour_timestamp_str.replace("Z", "+00:00"))
+    else:
+        now = timezone.now()
+        collection_hour = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+    # Calculate time range for this hour
+    since = collection_hour
+    until = collection_hour + timedelta(hours=1)
+
+    collection_hour_str = collection_hour.isoformat()
+    log_task_execution(
+        "collect_job_host_summary_hourly", "processing", f"Collecting job host summary for hour: {collection_hour_str}"
+    )
+
+    try:
+        db_name = kwargs.get("database", "awx")
+        db_connection = connections[db_name]
+
+        # Call metrics-utility collector (returns CSV file paths)
+        collector = job_host_summary(db=db_connection, since=since, until=until)
+        csv_file_paths = collector.gather()
+
+        # Convert CSV to JSON for database storage
+        summary_data = _csv_to_json(csv_file_paths)
+
+        # Store in HourlyMetricsCollection
+        hourly_collection = HourlyMetricsCollection.objects.create(
+            collector_type="job_host_summary",
+            collection_timestamp=collection_hour,
+            raw_data=summary_data,
+            status="collected",
+            collection_parameters={
+                "database": db_name,
+                "since": since.isoformat(),
+                "until": until.isoformat(),
+            },
+            task_execution_id=kwargs.get("execution_id"),  # Link to TaskExecution if available
+        )
+
+        log_task_execution(
+            "collect_job_host_summary_hourly", "completed", f"Stored hourly collection ID: {hourly_collection.id}"
+        )
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_job_host_summary_hourly",
+                "collector_type": "job_host_summary",
+                "collection_id": hourly_collection.id,
+                "collection_timestamp": collection_hour.isoformat(),
+                "data_size_bytes": hourly_collection.data_size_bytes,
+                "records_collected": len(summary_data) if isinstance(summary_data, list) else 1,
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_job_host_summary_hourly: {str(e)}")
+
+        # Store failed collection
+        try:
+            HourlyMetricsCollection.objects.create(
+                collector_type="job_host_summary",
+                collection_timestamp=collection_hour,
+                raw_data={},
+                status="failed",
+                error_message=str(e),
+                collection_parameters={
+                    "database": kwargs.get("database", "awx"),
+                    "since": since.isoformat(),
+                    "until": until.isoformat(),
+                },
+            )
+        except Exception:
+            # If even creating the failed record fails, just log it
+            pass
+
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_host_metrics_hourly")
+def collect_host_metrics_hourly(**kwargs) -> dict[str, Any]:
+    """
+    Collect host metrics (main_jobevent) hourly and store in HourlyMetricsCollection.
+
+    This task collects job event metrics for the previous hour and persists raw data
+    for later daily aggregation and anonymization.
+
+    Args:
+        **kwargs: Task data containing:
+            - hour_timestamp (str): ISO timestamp for the hour to collect (optional, defaults to previous hour)
+            - database (str): Database name (default: 'awx')
+
+    Returns:
+        dict: Task result with collection status and record ID
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    from datetime import datetime, timedelta
+
+    from django.db import connections
+    from django.utils import timezone
+
+    from apps.tasks.models import HourlyMetricsCollection
+
+    # Determine collection hour (default to previous hour)
+    hour_timestamp_str = kwargs.get("hour_timestamp")
+    if hour_timestamp_str:
+        collection_hour = datetime.fromisoformat(hour_timestamp_str.replace("Z", "+00:00"))
+    else:
+        now = timezone.now()
+        collection_hour = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+    # Calculate time range for this hour
+    since = collection_hour
+    until = collection_hour + timedelta(hours=1)
+
+    collection_hour_str = collection_hour.isoformat()
+    log_task_execution(
+        "collect_host_metrics_hourly", "processing", f"Collecting host metrics for hour: {collection_hour_str}"
+    )
+
+    try:
+        db_name = kwargs.get("database", "awx")
+        db_connection = connections[db_name]
+
+        # Call metrics-utility collector (main_jobevent) - returns CSV file paths
+        collector = main_jobevent(db=db_connection, since=since, until=until)
+        csv_file_paths = collector.gather()
+
+        # Convert CSV to JSON for database storage
+        host_data = _csv_to_json(csv_file_paths)
+
+        # Store in HourlyMetricsCollection
+        hourly_collection = HourlyMetricsCollection.objects.create(
+            collector_type="main_jobevent",
+            collection_timestamp=collection_hour,
+            raw_data=host_data,
+            status="collected",
+            collection_parameters={
+                "database": db_name,
+                "since": since.isoformat(),
+                "until": until.isoformat(),
+            },
+            task_execution_id=kwargs.get("execution_id"),
+        )
+
+        log_task_execution(
+            "collect_host_metrics_hourly", "completed", f"Stored hourly collection ID: {hourly_collection.id}"
+        )
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_host_metrics_hourly",
+                "collector_type": "main_jobevent",
+                "collection_id": hourly_collection.id,
+                "collection_timestamp": collection_hour.isoformat(),
+                "data_size_bytes": hourly_collection.data_size_bytes,
+                "records_collected": len(host_data) if isinstance(host_data, list) else 1,
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_host_metrics_hourly: {str(e)}")
+
+        # Store failed collection
+        try:
+            HourlyMetricsCollection.objects.create(
+                collector_type="main_jobevent",
+                collection_timestamp=collection_hour,
+                raw_data={},
+                status="failed",
+                error_message=str(e),
+                collection_parameters={
+                    "database": kwargs.get("database", "awx"),
+                    "since": since.isoformat(),
+                    "until": until.isoformat(),
+                },
+            )
+        except Exception:
+            pass
+
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("collect_main_host_hourly")
+def collect_main_host_hourly(**kwargs) -> dict[str, Any]:
+    """
+    Collect main_host metrics hourly and store in HourlyMetricsCollection.
+
+    This task collects host inventory metrics for the previous hour and persists raw data
+    for later daily aggregation and anonymization.
+
+    Args:
+        **kwargs: Task data containing:
+            - hour_timestamp (str): ISO timestamp for the hour to collect (optional, defaults to previous hour)
+            - database (str): Database name (default: 'awx')
+
+    Returns:
+        dict: Task result with collection status and record ID
+    """
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
+    from datetime import datetime, timedelta
+
+    from django.db import connections
+    from django.utils import timezone
+
+    from apps.tasks.models import HourlyMetricsCollection
+
+    # Determine collection hour (default to previous hour)
+    hour_timestamp_str = kwargs.get("hour_timestamp")
+    if hour_timestamp_str:
+        collection_hour = datetime.fromisoformat(hour_timestamp_str.replace("Z", "+00:00"))
+    else:
+        now = timezone.now()
+        collection_hour = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+    collection_hour_str = collection_hour.isoformat()
+    log_task_execution(
+        "collect_main_host_hourly", "processing", f"Collecting main_host metrics for hour: {collection_hour_str}"
+    )
+
+    try:
+        db_name = kwargs.get("database", "awx")
+        db_connection = connections[db_name]
+
+        # Call metrics-utility collector (main_host) - returns CSV file paths
+        # Note: main_host doesn't accept since/until parameters
+        collector = main_host(db=db_connection)
+        csv_file_paths = collector.gather()
+
+        # Convert CSV to JSON for database storage
+        host_data = _csv_to_json(csv_file_paths)
+
+        # Store in HourlyMetricsCollection
+        hourly_collection = HourlyMetricsCollection.objects.create(
+            collector_type="main_host",
+            collection_timestamp=collection_hour,
+            raw_data=host_data,
+            status="collected",
+            collection_parameters={
+                "database": db_name,
+                "collection_time": collection_hour.isoformat(),
+            },
+            task_execution_id=kwargs.get("execution_id"),
+        )
+
+        log_task_execution(
+            "collect_main_host_hourly", "completed", f"Stored hourly collection ID: {hourly_collection.id}"
+        )
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "collect_main_host_hourly",
+                "collector_type": "main_host",
+                "collection_id": hourly_collection.id,
+                "collection_timestamp": collection_hour.isoformat(),
+                "data_size_bytes": hourly_collection.data_size_bytes,
+                "records_collected": len(host_data) if isinstance(host_data, list) else 1,
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in collect_main_host_hourly: {str(e)}")
+
+        # Store failed collection
+        try:
+            HourlyMetricsCollection.objects.create(
+                collector_type="main_host",
+                collection_timestamp=collection_hour,
+                raw_data={},
+                status="failed",
+                error_message=str(e),
+                collection_parameters={
+                    "database": kwargs.get("database", "awx"),
+                    "collection_time": collection_hour.isoformat(),
+                },
+            )
+        except Exception:
+            pass
+
+        return create_task_result("error", error=f"Collection failed: {str(e)}")
+
+
+# Daily Rollup Task
+
+
+def _aggregate_job_host_summary(collections: list) -> dict:
+    """
+    Aggregate job_host_summary metrics from hourly collections.
+
+    Args:
+        collections: List of HourlyMetricsCollection objects
+
+    Returns:
+        dict: Aggregated metrics with hourly snapshots
+    """
+    aggregated = {
+        "total_records": 0,
+        "hourly_snapshots": [],
+    }
+
+    for collection in collections:
+        data = collection.raw_data
+
+        # Count total records
+        if isinstance(data, list):
+            aggregated["total_records"] += len(data)
+        elif isinstance(data, dict):
+            aggregated["total_records"] += 1
+
+        # Store hourly snapshot reference
+        aggregated["hourly_snapshots"].append(
+            {
+                "hour": collection.collection_timestamp.hour,
+                "collection_id": collection.id,
+                "record_count": len(data) if isinstance(data, list) else 1,
+                "timestamp": collection.collection_timestamp.isoformat(),
+            }
+        )
+
+    return aggregated
+
+
+def _aggregate_main_jobevent(collections: list) -> dict:
+    """
+    Aggregate main_jobevent metrics from hourly collections.
+
+    Args:
+        collections: List of HourlyMetricsCollection objects
+
+    Returns:
+        dict: Aggregated metrics with hourly snapshots
+    """
+    aggregated = {
+        "total_records": 0,
+        "hourly_snapshots": [],
+    }
+
+    for collection in collections:
+        data = collection.raw_data
+
+        # Count total records
+        if isinstance(data, list):
+            aggregated["total_records"] += len(data)
+        elif isinstance(data, dict):
+            aggregated["total_records"] += 1
+
+        # Store hourly snapshot reference
+        aggregated["hourly_snapshots"].append(
+            {
+                "hour": collection.collection_timestamp.hour,
+                "collection_id": collection.id,
+                "record_count": len(data) if isinstance(data, list) else 1,
+                "timestamp": collection.collection_timestamp.isoformat(),
+            }
+        )
+
+    return aggregated
+
+
+def _aggregate_main_host(collections: list) -> dict:
+    """
+    Aggregate main_host metrics from hourly collections.
+
+    Args:
+        collections: List of HourlyMetricsCollection objects
+
+    Returns:
+        dict: Aggregated metrics with hourly snapshots
+    """
+    aggregated = {
+        "total_records": 0,
+        "hourly_snapshots": [],
+    }
+
+    for collection in collections:
+        data = collection.raw_data
+
+        # Count total records
+        if isinstance(data, list):
+            aggregated["total_records"] += len(data)
+        elif isinstance(data, dict):
+            aggregated["total_records"] += 1
+
+        # Store hourly snapshot reference
+        aggregated["hourly_snapshots"].append(
+            {
+                "hour": collection.collection_timestamp.hour,
+                "collection_id": collection.id,
+                "record_count": len(data) if isinstance(data, list) else 1,
+                "timestamp": collection.collection_timestamp.isoformat(),
+            }
+        )
+
+    return aggregated
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("daily_metrics_rollup")
+def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
+    """
+    Create daily summary from hourly collections.
+
+    This task:
+    1. Queries all hourly collections for the previous day
+    2. Aggregates metrics (sums, averages, counts)
+    3. Stores references to all 24 hourly snapshots
+    4. Collects config data (once per day)
+    5. Creates DailyMetricsSummary record
+
+    Args:
+        **kwargs: Task data containing:
+            - summary_date (str): Date to summarize (YYYY-MM-DD, defaults to yesterday)
+            - database (str): Database name (default: 'awx')
+
+    Returns:
+        dict: Task result with summary ID and statistics
+    """
+    from datetime import date, datetime, timedelta
+
+    from django.db import connections
+    from django.utils import timezone
+
+    from apps.tasks.models import DailyMetricsSummary, HourlyMetricsCollection
+
+    # Determine summary date (default to yesterday)
+    summary_date_str = kwargs.get("summary_date")
+    if summary_date_str:
+        summary_date = date.fromisoformat(summary_date_str)
+    else:
+        summary_date = (timezone.now().date() - timedelta(days=1))
+
+    log_task_execution("daily_metrics_rollup", "processing", f"Creating daily summary for: {summary_date}")
+
+    try:
+        # Query all hourly collections for this date
+        start_datetime = timezone.make_aware(datetime.combine(summary_date, datetime.min.time()))
+        end_datetime = start_datetime + timedelta(days=1)
+
+        hourly_collections = HourlyMetricsCollection.objects.filter(
+            collection_timestamp__gte=start_datetime, collection_timestamp__lt=end_datetime, status="collected"
+        ).order_by("collector_type", "collection_timestamp")
+
+        # Group by collector type
+        collections_by_type = {}
+        for collection in hourly_collections:
+            if collection.collector_type not in collections_by_type:
+                collections_by_type[collection.collector_type] = []
+            collections_by_type[collection.collector_type].append(collection)
+
+        # Build hourly collection IDs map
+        hourly_collection_ids = {}
+        for collector_type, collections in collections_by_type.items():
+            hourly_collection_ids[collector_type] = [c.id for c in collections]
+
+        # Aggregate metrics for each collector type
+        aggregated_metrics = {}
+        missing_hours = []
+
+        for collector_type in ["job_host_summary", "main_host", "main_jobevent"]:
+            collections = collections_by_type.get(collector_type, [])
+
+            # Check for missing hours (should have 24 collections)
+            if len(collections) < 24:
+                collected_hours = {c.collection_timestamp.hour for c in collections}
+                missing_hours.extend([f"{collector_type}:{hour}" for hour in range(24) if hour not in collected_hours])
+
+            # Aggregate metrics based on collector type
+            if collector_type == "job_host_summary":
+                aggregated_metrics[collector_type] = _aggregate_job_host_summary(collections)
+            elif collector_type == "main_jobevent":
+                aggregated_metrics[collector_type] = _aggregate_main_jobevent(collections)
+            elif collector_type == "main_host":
+                aggregated_metrics[collector_type] = _aggregate_main_host(collections)
+
+        # Collect config data (once per day)
+        config_data = {}
+        if METRICS_UTILITY_AVAILABLE:
+            try:
+                db_name = kwargs.get("database", "awx")
+                db_connection = connections[db_name]
+                config_collector = config(db=db_connection)
+                config_data = config_collector.gather()
+            except Exception as e:
+                logger.error(f"Failed to collect config data: {str(e)}")
+                config_data = {"error": str(e)}
+
+        # Create DailyMetricsSummary
+        daily_summary = DailyMetricsSummary.objects.create(
+            summary_date=summary_date,
+            aggregated_metrics=aggregated_metrics,
+            hourly_collection_ids=hourly_collection_ids,
+            config_data=config_data,
+            status="aggregated",
+            hourly_collections_count=hourly_collections.count(),
+            missing_hours=missing_hours,
+            aggregation_completed_at=timezone.now(),
+            rollup_task_execution_id=kwargs.get("execution_id"),
+        )
+
+        # Mark hourly collections as processed
+        hourly_collections.update(status="processed")
+
+        log_task_execution(
+            "daily_metrics_rollup",
+            "completed",
+            f"Created daily summary ID: {daily_summary.id} with {hourly_collections.count()} hourly collections",
+        )
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "daily_metrics_rollup",
+                "summary_id": daily_summary.id,
+                "summary_date": str(summary_date),
+                "hourly_collections_count": hourly_collections.count(),
+                "missing_hours": missing_hours,
+                "aggregated_collectors": list(aggregated_metrics.keys()),
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in daily_metrics_rollup: {str(e)}")
+        return create_task_result("error", error=f"Rollup failed: {str(e)}")
+
+
+# Anonymization and Sending Tasks
+
+
+def _is_sensitive_field(field_name: str) -> bool:
+    """
+    Check if field contains sensitive data that should be hashed.
+
+    Args:
+        field_name: Field name to check
+
+    Returns:
+        bool: True if field is sensitive, False otherwise
+    """
+    sensitive_fields = ["name", "hostname", "username", "email", "ip_address", "host", "user"]
+    return any(sensitive in field_name.lower() for sensitive in sensitive_fields)
+
+
+def _anonymize_dict(data: dict, salt: str) -> dict:
+    """
+    Apply anonymization to dictionary values.
+
+    Args:
+        data: Dictionary to anonymize
+        salt: Salt for hashing
+
+    Returns:
+        dict: Anonymized dictionary
+    """
+    import hashlib
+
+    anonymized = {}
+
+    for key, value in data.items():
+        if key in ["hourly_snapshots", "collection_id", "hour", "timestamp", "record_count", "total_records"]:
+            # Don't anonymize structural/metadata fields
+            anonymized[key] = value
+        elif isinstance(value, str) and _is_sensitive_field(key):
+            # Hash sensitive string fields
+            anonymized[key] = hashlib.sha256(f"{value}{salt}".encode()).hexdigest()[:16]
+        elif isinstance(value, dict):
+            # Recursively anonymize nested dicts
+            anonymized[key] = _anonymize_dict(value, salt)
+        elif isinstance(value, list):
+            # Anonymize list items if they're dicts
+            anonymized[key] = [_anonymize_dict(item, salt) if isinstance(item, dict) else item for item in value]
+        else:
+            # Keep numeric/aggregate values as-is
+            anonymized[key] = value
+
+    return anonymized
+
+
+def _anonymize_daily_summary(aggregated_metrics: dict, config_data: dict, salt: str) -> dict:
+    """
+    Apply anonymization to daily summary using metrics-utility patterns.
+
+    Args:
+        aggregated_metrics: Aggregated metrics from daily rollup
+        config_data: Configuration data
+        salt: Salt for anonymization
+
+    Returns:
+        dict: Anonymized data
+    """
+    anonymized = {
+        "job_host_summary": _anonymize_dict(aggregated_metrics.get("job_host_summary", {}), salt),
+        "main_jobevent": _anonymize_dict(aggregated_metrics.get("main_jobevent", {}), salt),
+        "main_host": _anonymize_dict(aggregated_metrics.get("main_host", {}), salt),
+        "config": _anonymize_dict(config_data, salt),
+    }
+
+    return anonymized
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("daily_anonymize_and_prepare")
+def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
+    """
+    Anonymize daily summary and prepare payload for Segment.
+
+    This task:
+    1. Fetches DailyMetricsSummary for specified date
+    2. Applies anonymization using hash functions
+    3. Creates AnonymizedMetricsPayload record
+    4. Does NOT send (separate task handles sending)
+
+    Args:
+        **kwargs: Task data containing:
+            - summary_date (str): Date to anonymize (YYYY-MM-DD, defaults to yesterday)
+            - salt (str): Anonymization salt (auto-generated if not provided)
+
+    Returns:
+        dict: Task result with payload ID
+    """
+    import uuid
+    from datetime import date, timedelta
+
+    from django.utils import timezone
+
+    from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
+
+    # Determine summary date
+    summary_date_str = kwargs.get("summary_date")
+    if summary_date_str:
+        summary_date = date.fromisoformat(summary_date_str)
+    else:
+        summary_date = (timezone.now().date() - timedelta(days=1))
+
+    log_task_execution("daily_anonymize_and_prepare", "processing", f"Anonymizing daily summary for: {summary_date}")
+
+    try:
+        # Get daily summary
+        daily_summary = DailyMetricsSummary.objects.get(summary_date=summary_date, status="aggregated")
+
+        # Generate or use provided salt
+        salt = kwargs.get("salt", str(uuid.uuid4()))
+
+        # Apply anonymization to aggregated metrics
+        anonymized_data = _anonymize_daily_summary(daily_summary.aggregated_metrics, daily_summary.config_data, salt)
+
+        # Add metadata
+        anonymized_data["summary_metadata"] = {
+            "summary_date": str(summary_date),
+            "hourly_collections_count": daily_summary.hourly_collections_count,
+            "missing_hours": daily_summary.missing_hours,
+            "aggregation_timestamp": daily_summary.aggregation_completed_at.isoformat(),
+        }
+
+        # Create AnonymizedMetricsPayload
+        payload = AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date,
+            anonymized_data=anonymized_data,
+            status="pending",
+            daily_summary=daily_summary,
+            anonymization_task_execution_id=kwargs.get("execution_id"),
+            segment_event_name=kwargs.get("event_name", "daily_metrics_rollup"),
+            segment_user_id=kwargs.get("user_id", str(uuid.uuid4())),
+        )
+
+        # Update daily summary status
+        daily_summary.status = "anonymized"
+        daily_summary.save()
+
+        log_task_execution("daily_anonymize_and_prepare", "completed", f"Created anonymized payload ID: {payload.id}")
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "daily_anonymize_and_prepare",
+                "payload_id": payload.id,
+                "summary_date": str(summary_date),
+                "payload_size_bytes": payload.payload_size_bytes,
+            },
+        )
+
+    except DailyMetricsSummary.DoesNotExist:
+        error_msg = f"No daily summary found for {summary_date} with status=aggregated"
+        logger.error(error_msg)
+        return create_task_result("error", error=error_msg)
+
+    except Exception as e:
+        logger.error(f"Error in daily_anonymize_and_prepare: {str(e)}")
+        return create_task_result("error", error=f"Anonymization failed: {str(e)}")
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("send_anonymized_to_segment")
+def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
+    """
+    Send anonymized payload to Segment.
+
+    This task:
+    1. Fetches AnonymizedMetricsPayload records with status=pending
+    2. Sends to Segment using existing _send_to_segment helper
+    3. Updates payload status based on result
+    4. Handles retries for failed sends
+
+    Args:
+        **kwargs: Task data containing:
+            - payload_id (int): Specific payload ID to send (optional)
+            - segment_write_key (str): Segment write key (required)
+            - max_payloads (int): Maximum number of payloads to send in one run (default: 5)
+
+    Returns:
+        dict: Task result with send statistics
+    """
+    from django.utils import timezone
+
+    from apps.tasks.models import AnonymizedMetricsPayload
+
+    segment_write_key = kwargs.get("segment_write_key", "NA")
+    max_payloads = kwargs.get("max_payloads", 5)
+    payload_id = kwargs.get("payload_id")
+
+    log_task_execution("send_anonymized_to_segment", "processing", "Sending anonymized payloads to Segment")
+
+    try:
+        # Get payloads to send
+        if payload_id:
+            payloads = AnonymizedMetricsPayload.objects.filter(id=payload_id, status__in=["pending", "retry"])
+        else:
+            payloads = AnonymizedMetricsPayload.objects.filter(status__in=["pending", "retry"]).order_by("created")[
+                :max_payloads
+            ]
+
+        results = {
+            "sent": 0,
+            "failed": 0,
+            "skipped": 0,
+        }
+
+        for payload in payloads:
+            # Check retry limit
+            if payload.status == "retry" and not payload.can_retry():
+                payload.status = "failed"
+                payload.error_message = "Max retries exceeded"
+                payload.save()
+                results["skipped"] += 1
+                continue
+
+            # Update status to sending
+            payload.status = "sending"
+            payload.save()
+
+            try:
+                # Send to Segment
+                if SEGMENT_AVAILABLE:
+                    segment_status = _send_to_segment(
+                        segment_write_key=segment_write_key,
+                        user_id=payload.segment_user_id,
+                        event_name=payload.segment_event_name,
+                        segment_data=payload.anonymized_data,
+                    )
+                else:
+                    segment_status = "segment_not_available"
+
+                if segment_status == "success":
+                    payload.status = "sent"
+                    payload.sent_at = timezone.now()
+                    payload.error_message = ""
+                    results["sent"] += 1
+
+                    # Update daily summary status
+                    payload.daily_summary.status = "sent"
+                    payload.daily_summary.save()
+                else:
+                    # Failed, schedule retry
+                    payload.status = "retry"
+                    payload.retry_count += 1
+                    payload.error_message = f"Send failed: {segment_status}"
+                    results["failed"] += 1
+
+                payload.save()
+
+            except Exception as e:
+                logger.error(f"Error sending payload {payload.id}: {str(e)}")
+                payload.status = "retry"
+                payload.retry_count += 1
+                payload.error_message = str(e)
+                payload.save()
+                results["failed"] += 1
+
+        log_task_execution(
+            "send_anonymized_to_segment",
+            "completed",
+            f"Sent: {results['sent']}, Failed: {results['failed']}, Skipped: {results['skipped']}",
+        )
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "send_anonymized_to_segment",
+                "results": results,
+                "total_processed": sum(results.values()),
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in send_anonymized_to_segment: {str(e)}")
+        return create_task_result("error", error=f"Send task failed: {str(e)}")
