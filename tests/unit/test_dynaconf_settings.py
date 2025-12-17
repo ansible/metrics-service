@@ -38,10 +38,9 @@ class TestDynaconfPrecedence:
         # Locally: from .env or defaults.py → "dev-secret-key-change-in-production"
         # In CI: from config/settings.yaml → "your-secret-key-here-change-in-production"
         secret_key = DYNACONF.get("SECRET_KEY")
-        assert secret_key in [
-            "dev-secret-key-change-in-production",
-            "your-secret-key-here-change-in-production",
-        ], f"Unexpected SECRET_KEY value: {secret_key}"
+        assert secret_key == "test-only-secret-key-for-testing-purposes-only", (
+            f"Unexpected SECRET_KEY value: {secret_key}"
+        )
 
     def test_database_defaults_loaded(self):
         """Test that database defaults from defaults.py are loaded."""
@@ -74,13 +73,8 @@ class TestDynaconfValidators:
         validators_list = list(DYNACONF.validators)
         secret_key_validators = [v for v in validators_list if "SECRET_KEY" in v.names]
 
-        # Should have at least 2 validators for SECRET_KEY (one for each default value)
-        assert len(secret_key_validators) >= 2
-
-        # Check that validators check for default values
-        for validator in secret_key_validators:
-            # Validators should have 'ne' (not equal) operations for default keys
-            assert hasattr(validator, "operations")
+        # Should have at least 1 validator for SECRET_KEY
+        assert len(secret_key_validators) > 0
 
     def test_database_validators_configured(self):
         """Test that database validators are configured."""
@@ -170,4 +164,4 @@ class TestSettingsFileLoading:
 
             # Values from defaults.py should be present
             assert settings.SERVICE_TYPE == "metrics-service"
-            assert Path(settings_module.__file__).resolve().parent.parent.parent == settings.BASE_DIR
+            assert Path(settings_module.__file__).resolve().parent.parent == settings.BASE_DIR

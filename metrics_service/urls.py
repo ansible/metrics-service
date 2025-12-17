@@ -71,12 +71,12 @@ need a specific URL to take priority without changing app order.
 
 ## Where to Add URLs
 
-| Use Case | Location |
-|----------|----------|
-| App-specific endpoints | `apps/<app_name>/urls.py` |
-| Service-level customizations | `apps/urls.py` |
-| Priority/override patterns | `apps/urls.py` |
-| Cross-app endpoints | `apps/urls.py` |
+| Use Case                     | Location                  |
+| ----------                   | ----------                |
+| App-specific endpoints       | `apps/<app_name>/urls.py` |
+| Service-level customizations | `apps/urls.py`            |
+| Priority/override patterns   | `apps/urls.py`            |
+| Cross-app endpoints          | `apps/urls.py`            |
 
 """
 
@@ -134,3 +134,12 @@ if not settings.DYNACONF.get("IS_RUNNING_TESTS") and settings.DYNACONF.get("DEBU
 urlpatterns += [
     path("api-auth/", include("rest_framework.urls")),
 ]
+
+# Debug and Development URLS
+if not settings.DYNACONF.get("IS_RUNNING_TESTS") and settings.DYNACONF.get("DEBUG"):
+    try:
+        from debug_toolbar.toolbar import debug_toolbar_urls  # noqa
+
+        urlpatterns.extend(debug_toolbar_urls())
+    except ImportError:
+        pass  # debug_toolbar not installed

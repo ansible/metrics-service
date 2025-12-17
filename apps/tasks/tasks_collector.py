@@ -600,7 +600,7 @@ def _send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
 
         # Use Django settings to access Dynaconf-managed value (not os.getenv which
         # only reads environment variables and ignores settings.yaml defaults)
-        analytics.write_key = getattr(settings, "METRICS_SERVICE_SEGMENT_WRITE_KEY", None)
+        analytics.write_key = getattr(settings, "SEGMENT_WRITE_KEY", None)
         # Send one simple track message
         analytics.track(
             user_id=user_id,
