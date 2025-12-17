@@ -86,6 +86,18 @@ load_standard_settings_files(DYNACONF)
 # 3. Environment variables (METRICS_SERVICE_*) - highest priority
 load_envvars(DYNACONF)
 
+# Populate LOADED_APPS from INSTALLED_APPS (apps starting with "apps.")
+# This enables dynamic URL loading following the Ansible Services Framework pattern
+# Must be done before export() so the value is available in Django settings
+apps_dir = Path(BASE_DIR / "apps")
+if apps_dir.exists():
+    all_apps = [
+        app
+        for app in DYNACONF.INSTALLED_APPS
+        if app.startswith("apps.") and Path(apps_dir / app.removeprefix("apps.").replace(".", "/")).exists()
+    ]
+    DYNACONF.set("LOADED_APPS", all_apps)
+
 # Export Dynaconf settings back to Django settings module
 # In development mode, skip validation to allow defaults
 # In production/other modes, require all settings to be explicitly set

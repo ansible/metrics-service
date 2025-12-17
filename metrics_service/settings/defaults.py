@@ -71,6 +71,9 @@ LOCAL_APPS = [
     "apps.dashboard",
 ]
 
+LOADED_APPS: list[str] = []
+"""List of apps loaded by the Ansible Services Framework dynamically set at runtime."""
+
 # LOCAL_APPS before THIRD_PARTY_APPS so our templates override DRF's
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS + DAB_APPS
 
