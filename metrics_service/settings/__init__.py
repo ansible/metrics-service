@@ -48,6 +48,14 @@ DYNACONF = factory(
                 "operations": "SECRET_KEY must be set in production. Set METRICS_SERVICE_SECRET_KEY environment variable.",
             },
         ),
+        Validator(
+            "METRICS_SERVICE_SEGMENT_WRITE_KEY",
+            must_exist=True,
+            ne="test-segment-write-key-change-in-production",  # Default test key
+            messages={
+                "operations": "METRICS_SERVICE_SEGMENT_WRITE_KEY must not use default value in production.",
+            },
+        ),
         # Database: Ensure critical database settings exist
         Validator("DATABASES.default.NAME", must_exist=True),
         Validator("DATABASES.default.HOST", must_exist=True),

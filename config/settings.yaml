@@ -9,7 +9,7 @@ default:
   ALLOWED_HOSTS:
     - localhost
     - 127.0.0.1
-
+  METRICS_SERVICE_SEGMENT_WRITE_KEY: 'test-segment-write-key-change-in-production'
   # Database Configuration
   DATABASES:
     default:
@@ -70,7 +70,7 @@ development:
   DEBUG: false
   CORS_ALLOW_ALL_ORIGINS: true
   # Inherits SECRET_KEY and database settings from default - safe for local dev
-  
+
   LOGGING:
     version: 1
     disable_existing_loggers: false
