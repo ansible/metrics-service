@@ -9,7 +9,8 @@ from django.conf import settings
 
 # Configure Django settings before any imports
 if not settings.configured:
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings.test")
+    os.environ.setdefault("METRICS_SERVICE_MODE", "test")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings")
     django.setup()
 
 import pytest

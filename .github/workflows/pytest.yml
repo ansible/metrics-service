@@ -43,12 +43,15 @@ jobs:
 
       - name: "Run pytest"
         env:
-          METRICS_SERVICE_DB_HOST: localhost
-          METRICS_SERVICE_DB_PORT: 5432
-          METRICS_SERVICE_DB_USER: metrics_service
-          METRICS_SERVICE_DB_PASSWORD: metrics_service
-          METRICS_SERVICE_TEST_DB_NAME: metrics_service
-          METRICS_SERVICE_DB_SSLMODE: disable
-          DJANGO_SETTINGS_MODULE: metrics_service.settings.test
+          METRICS_SERVICE_DATABASES__default__HOST: localhost
+          METRICS_SERVICE_DATABASES__default__PORT: 5432
+          METRICS_SERVICE_DATABASES__default__USER: metrics_service
+          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
+          METRICS_SERVICE_DATABASES__awx__HOST: "127.0.0.1"
+          METRICS_SERVICE_DATABASES__awx__PASSWORD: mypassword
+          DJANGO_SETTINGS_MODULE: metrics_service.settings
+          METRICS_SERVICE_MODE: test
         run: |
           uv run pytest -s -v --cov=. --cov-report=xml
