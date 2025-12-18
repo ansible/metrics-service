@@ -50,6 +50,10 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # Install dependencies
 pip install -e ".[dev]"
 
+# Configure 
+cp settings.local.py.example settings.local.py
+# Edit the settings.local.py file to configure your local development environment.
+
 # Set up database (configure via environment variables if needed)
 # See Configuration section below for environment variable options
 python manage.py migrate
@@ -61,65 +65,7 @@ python manage.py createsuperuser
 python manage.py metrics_service run
 ```
 
-## Architecture
-
-### Project Structure
-
-```
-metrics-service/
-├── apps/
-│   ├── api/v1/              # REST API endpoints
-│   ├── core/                # Core models and business logic
-│   ├── dashboard/           # Web dashboard interface
-│   └── tasks/               # Background task system
-├── metrics_service/
-│   ├── settings/            # Environment-specific settings
-│   └── urls.py              # URL configuration
-├── tests/                   # Test suite
-├── config/                  # Configuration files
-└── docker-compose.yml       # Container orchestration
-```
-
-### Key Components
-
-**Core Models** (`apps/core/models.py`)
-
-- User management with Django-Ansible-Base
-- Organization and team hierarchy
-- RBAC permissions and roles
-
-**Task System** (`apps/tasks/`)
-
-- Feature-flag controlled task groups (System, Anonymized Data, Metrics Collection)
-- Automatic task routing with Django signals
-- APScheduler integration for cron-based scheduling
-- Dispatcherd background task execution
-- Task execution tracking and monitoring
-- Built-in task functions and metrics collection
-
-**API Layer** (`apps/api/v1/`)
-
-- RESTful endpoints with filtering and pagination
-- OpenAPI/Swagger documentation
-- Authentication and permission controls
-
-**Dashboard** (`apps/dashboard/`)
-
-- Real-time task monitoring
-- Task creation and management interface
-- Live status updates every 5 seconds
-
-## API Usage
-
-### Authentication
-
-The API supports multiple authentication methods:
-
-- Session authentication (for web interface)
-- Token authentication
-- OAuth2 tokens (for third-party integrations)
-
-### Core Endpoints
+### Endpoints
 
 ```bash
 # List all tasks
@@ -278,31 +224,40 @@ python manage.py metrics_service init-system-tasks
 
 ## Configuration
 
-Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings management, following the [AAP Phase 1 standards](https://handbook.eng.ansible.com/proposals/0014-Django-Settings).
+Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings management, following the [Platform Service Framework](https://github.com/ansible/platform-service-framework).
 
 ### Quick Start
 
 **Development Mode** (default):
 
+> [!IMPORTANT]
+> The following example assumes those values exported as environment variables, 
+> to set on the settings.local.py file remove the `METRICS_SERVICE_` prefix.
+
 ```bash
+# Project
+DJANGO_SETTINGS_MODULE=metrics_service.settings
+METRICS_SERVICE_MODE=development
+METRICS_SERVICE_SECRET_KEY=dev-secret-key-change-in-production
+METRICS_SERVICE_DEBUG="true"
+METRICS_SERVICE_DEVELOPER_MODE_ENABLED="true"
+METRICS_SERVICE_ALLOWED_HOSTS='["localhost","127.0.0.1","metrics-service","0.0.0.0"]'
+
 # Database
-METRICS_SERVICE_DB_HOST=localhost
-METRICS_SERVICE_DB_PORT=5432
-METRICS_SERVICE_DB_USER=metrics_service
-METRICS_SERVICE_DB_PASSWORD=metrics_service
-METRICS_SERVICE_DB_NAME=metrics_service
+METRICS_SERVICE_DATABASES__default__ENGINE=django.db.backends.postgresql
+METRICS_SERVICE_DATABASES__default__HOST=postgres
+METRICS_SERVICE_DATABASES__default__PORT=5432
+METRICS_SERVICE_DATABASES__default__USER=metrics_service
+METRICS_SERVICE_DATABASES__default__PASSWORD=metrics_service
+METRICS_SERVICE_DATABASES__default__NAME=metrics_service
+METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode=prefer
 
-# Django
-METRICS_SERVICE_SECRET_KEY=your-secret-key
-METRICS_SERVICE_DEBUG=false
-METRICS_SERVICE_ALLOWED_HOSTS=localhost,yourdomain.com
-
-# Task feature flags
-METRICS_SERVICE_ANONYMIZED_DATA=true
-METRICS_SERVICE_METRICS_COLLECTION=false
+# Task App
+METRICS_SERVICE_ANONYMIZED_DATA="true"
+METRICS_SERVICE_METRICS_COLLECTION="false"
+DISPATCHERD_CONFIG_FILE=/app/apps/settings/dispatcherd.yaml
+DISPATCHERD_ENABLED="true"
 ```
-
-**Note:** Development mode works with default settings - just run the server:
 
 ```bash
 python manage.py runserver
@@ -327,10 +282,19 @@ python manage.py runserver
 
 Settings are loaded in order of precedence (lowest to highest):
 
-1. **`metrics_service/settings/defaults.py`** - Base Django defaults
-2. **`config/settings.yaml`** - Environment-specific configuration
-3. **`/etc/ansible-automation-platform/settings.yaml`** - System-wide AAP settings
-4. **Environment variables** with `METRICS_SERVICE_` prefix - **Highest priority**
+Read Only (overridable)
+
+- `metrics_service/settings.py` - Framework defaults
+
+Editable:
+
+- `apps/settings/defaults.py` - Defaults for the whole project
+- `apps/core/settings.py` - Core settings, DAB related settings
+- `apps/*/settings.py` - Each app settings in the loading order
+- `apps/settings/{mode}.py` - Settings specific to the current `METRICS_SERVICE_MODE`
+- `settings.local.py` - For local settings (git ignored)
+- `/etc/ansible-automation-platoform/metrics-service/settings.yaml` - for prod environment overrides
+- `METRICS_SERVICE_` prefixed environment variables
 
 ### Common Environment Variables
 
