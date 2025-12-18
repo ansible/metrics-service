@@ -1,12 +1,12 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: b86a073
 _src_path: https://github.com/ansible/platform-service-framework.git
-_commit: 877b1e98b8ce4cad5a593eb93ccde3d5544e6a67
 project_name: metrics_service
 template: templates/core
-src_branch: main
+src_branch: devel
 app_name: core
 apps:
-  - core
-  - dynamic_settings
-  - tasks
-  - dashboard
+- core
+- dynamic_settings
+- tasks
+- dashboard
