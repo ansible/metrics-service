@@ -49,9 +49,8 @@ python manage.py metrics_service init-service-id
 echo "📦 Collecting static files..."
 python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection failed (continuing...)"
 
-# Create logs directory with proper permissions
-mkdir -p /app/logs
-chmod 755 /app/logs
+# Create logs directory if it doesn't exist (ignore permission errors for bind mounts)
+mkdir -p /app/logs 2>/dev/null || true
 
 echo "🎉 Initialization complete! Starting application..."
 

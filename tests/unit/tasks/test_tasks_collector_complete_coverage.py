@@ -456,12 +456,12 @@ class TestTasksCollectorFullCoverage(TestCase):
 
         # Test when segment not available
         with patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", False):
-            result = _send_to_segment("key", "user", "event", {"data": "test"})
+            result = _send_to_segment("user", "event", {"data": "test"})
             assert result == "segment_not_available"
 
         # Test successful send
         with patch("segment.analytics") as mock_analytics:
-            result = _send_to_segment("key", "user", "event", {"data": "test"})
+            result = _send_to_segment("user", "event", {"data": "test"})
             mock_analytics.track.assert_called_once()
             mock_analytics.flush.assert_called_once()
             assert result == "success"
@@ -469,7 +469,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         # Test exception during send
         with patch("segment.analytics") as mock_analytics:
             mock_analytics.track.side_effect = Exception("Segment error")
-            result = _send_to_segment("key", "user", "event", {"data": "test"})
+            result = _send_to_segment("user", "event", {"data": "test"})
             assert "error:" in result
             mock_logger.error.assert_called()
 
@@ -500,7 +500,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         full_process(send_to_segment=False)
 
         # Test with segment_write_key validation
-        full_process(send_to_segment=True, segment_write_key="")
+        full_process(send_to_segment=True)
 
         # Test with all parameters
         kwargs = {
@@ -508,7 +508,6 @@ class TestTasksCollectorFullCoverage(TestCase):
             "since": "2024-01-01T00:00:00Z",
             "until": "2024-12-31T23:59:59Z",
             "salt": "custom-salt",
-            "segment_write_key": "test-key",
             "user_id": "test-user",
             "event_name": "test-event",
             "collectors": ["config"],
@@ -617,7 +616,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         debug_segment_messages()
 
         # Test with custom parameters
-        kwargs = {"segment_write_key": "test-key", "user_id": "debug-user", "event_name": "debug-event"}
+        kwargs = {"user_id": "debug-user", "event_name": "debug-event"}
         debug_segment_messages(**kwargs)
 
         # Test exception handling
@@ -640,7 +639,6 @@ class TestTasksCollectorFullCoverage(TestCase):
         # Test with custom parameters
         kwargs = {
             "message": "Custom test message",
-            "segment_write_key": "test-key",
             "user_id": "test-user",
             "event_name": "test-event",
         }
@@ -801,7 +799,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         # Test _send_to_segment error logging
         with patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True), patch("segment.analytics") as mock_analytics:
             mock_analytics.track.side_effect = Exception("Segment error")
-            _send_to_segment("key", "user", "event", {"data": "test"})
+            _send_to_segment("user", "event", {"data": "test"})
             mock_logger.error.assert_called()
 
     def test_segment_import_paths(self):

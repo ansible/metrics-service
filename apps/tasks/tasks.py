@@ -276,12 +276,6 @@ TASK_METADATA = {
         "description": "Dedicated task to send anonymized data to Segment.com",
         "parameters": {
             "data": {"type": "object", "required": True, "description": "Anonymized data to send"},
-            "segment_write_key": {
-                "type": "string",
-                "default": "NA",
-                "description": DESC_SEGMENT_WRITE_KEY,
-                "sensitive": True,
-            },
             "user_id": {"type": "string", "default": "anonymous-user", "description": DESC_USER_ID_TRACKING},
             "event_name": {"type": "string", "default": "metrics_sent", "description": DESC_EVENT_NAME_TRACKING},
         },

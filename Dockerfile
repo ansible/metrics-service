@@ -26,6 +26,7 @@ USER 1001
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements-build.txt
+RUN pip install --no-cache-dir -r dev-requirements.txt
 
 # Copy and set up entrypoint script
 USER root
@@ -44,9 +45,9 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
 
 LABEL com.redhat.component="metrics-utility" \
-      name="metrics-utility" \
-      version="1.0.0" \
-      summary="Metrics Utility" \
-      description="Backend utility for Ansible Automation Platform" \
-      cpe="cpe:/a:redhat:metrics_utility:1.0::rhel9" \
-      org.opencontainers.image.created="${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}"
+    name="metrics-utility" \
+    version="1.0.0" \
+    summary="Metrics Utility" \
+    description="Backend utility for Ansible Automation Platform" \
+    cpe="cpe:/a:redhat:metrics_utility:1.0::rhel9" \
+    org.opencontainers.image.created="${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}"

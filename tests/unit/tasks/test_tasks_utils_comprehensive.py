@@ -44,7 +44,7 @@ class TaskUtilsTestCase(TestCase):
             utils.ensure_django_setup()
 
         mock_setup.assert_called_once()
-        self.assertEqual(os.environ.get("DJANGO_SETTINGS_MODULE"), "metrics_service.settings.test")
+        self.assertEqual(os.environ.get("DJANGO_SETTINGS_MODULE"), "metrics_service.settings")
 
     @patch("django.setup")
     @patch("django.conf.settings")

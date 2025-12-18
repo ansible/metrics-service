@@ -1,0 +1,38 @@
+# Copy this file to settings.local.py and customize for your environment
+# Ensure to have on your shell:
+#
+# DJANGO_SETTINGS_MODULE=metrics_service.settings
+# METRICS_SERVICE_MODE=development
+# METRICS_SERVICE_LOG_LEVEL=DEBUG
+
+SECRET_KEY = "dev-secret-key-change-in-production"
+DEBUG = False
+
+# Database Configuration (PostgreSQL)
+# Using dunder notation for nested settings
+DATABASES__default__ENGINE = "django.db.backends.postgresql"
+DATABASES__default__HOST = "127.0.0.1"
+DATABASES__default__PORT = 5432
+DATABASES__default__USER = "metrics_service"
+DATABASES__default__PASSWORD = "metrics_service"
+DATABASES__default__NAME = "metrics_service"
+DATABASES__default__OPTIONS__sslmode = "prefer"
+
+DATABASES__awx__HOST = "127.0.0.1"
+DATABASES__awx__PASSWORD = "mypassword"
+
+# Test Database Configuration
+TEST_DB_NAME = "test_metrics_service"
+
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+
+# Service Configuration
+ID = "generated-uuid"
+
+# Development Tools
+ENABLE_DEBUG_TOOLBAR = True
+
+# Logging Configuration
+# Controls the verbosity of application logs
+# Valid values: DEBUG, INFO, WARNING, ERROR
+LOG_LEVEL = "INFO"

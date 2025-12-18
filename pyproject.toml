@@ -24,8 +24,7 @@ dynamic = ["version"]
 dependencies = [
     "Django==5.2.7",
     "djangorestframework>=3.15",
-    "django-ansible-base[jwt_consumer,rbac,rest_filters]==2025.10.20",
-    "django-cors-headers>=4.0",
+    "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]==2025.10.20",
     "psycopg[binary]>=3.1",
     "psycopg2-binary>=2.9.0",  # Required for dispatcherd PostgreSQL LISTEN/NOTIFY
     "dynaconf>=3.1.0",
@@ -188,7 +187,8 @@ ignore = [
     "F632",     # Allow is comparison in tests (common pattern)
 ]
 "**/conftest.py" = ["S101"]
-"**/settings/**/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
+"apps/settings/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
+"tests/unit/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in tests
 "manage.py" = ["T20"]
 
 [tool.ruff.lint.mccabe]
@@ -229,10 +229,10 @@ warn_unreachable = true
 ignore_missing_imports = true
 
 [tool.django-stubs]
-django_settings_module = "metrics_service.settings.test"
+django_settings_module = "metrics_service.settings"
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "metrics_service.settings.test"
+DJANGO_SETTINGS_MODULE = "metrics_service.settings"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 testpaths = ["tests", "apps/core/tests"]
 addopts = [

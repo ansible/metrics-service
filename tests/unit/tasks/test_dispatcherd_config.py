@@ -36,9 +36,10 @@ class TestGetConfigFilePath:
         """Test that the function returns default path when env var is not set."""
         with patch.dict(os.environ, {}, clear=True):
             result = get_config_file_path()
-            # Should return config/dispatcherd.yaml relative to project root
+            # Should return apps/settings/dispatcherd.yaml relative to project root
             assert result.name == "dispatcherd.yaml"
-            assert result.parent.name == "config"
+            assert result.parent.name == "settings"
+            assert result.parent.parent.name == "apps"
 
     def test_returns_path_object(self):
         """Test that the function returns a Path object."""

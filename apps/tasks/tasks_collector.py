@@ -573,7 +573,7 @@ def _prepare_segment_data(
     return segment_data
 
 
-def _send_to_segment(segment_write_key: str, user_id: str, event_name: str, segment_data: dict) -> str:
+def _send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
     """Send data to Segment.com using direct analytics.track() for guaranteed single message."""
     try:
         import json
@@ -595,10 +595,12 @@ def _send_to_segment(segment_write_key: str, user_id: str, event_name: str, segm
             return "segment_not_available"
 
         # Import and configure Segment directly
+        from django.conf import settings
         from segment import analytics
 
-        analytics.write_key = segment_write_key
-
+        # Use Django settings to access Dynaconf-managed value (not os.getenv which
+        # only reads environment variables and ignores settings.yaml defaults)
+        analytics.write_key = getattr(settings, "SEGMENT_WRITE_KEY", None)
         # Send one simple track message
         analytics.track(
             user_id=user_id,
@@ -648,7 +650,6 @@ def full_process(**kwargs) -> dict[str, Any]:
             - since (str): Start date for collection (optional)
             - until (str): End date for collection (optional)
             - salt (str): Salt for anonymization (optional, default: 'default-salt')
-            - segment_write_key (str): Segment.com write key for analytics (required)
             - user_id (str): User ID for Segment tracking (optional)
             - event_name (str): Event name for Segment tracking (default: 'metrics_collected')
             - collectors (list): List of specific collectors to run (optional)
@@ -674,15 +675,10 @@ def full_process(**kwargs) -> dict[str, Any]:
         until = kwargs.get("until")
         # Generate a unique UUID4 salt if not provided
         salt = kwargs.get("salt", str(uuid.uuid4()))
-        segment_write_key = kwargs.get("segment_write_key", "NA")
         user_id = kwargs.get("user_id", str(uuid.uuid4()))
         event_name = kwargs.get("event_name", "metrics_collected")
         collectors_list = kwargs.get("collectors", ["anonymized_rollups", "config", "job_host_summary"])
         send_to_segment = kwargs.get("send_to_segment", True)
-
-        # segment_write_key now has a default value, but still validate it's present
-        if send_to_segment and not segment_write_key:
-            return create_task_result("error", error="segment_write_key is required when send_to_segment is True")
 
         # Step 1: Collect metrics using multiple collectors
         log_task_execution("full_process", "processing", "Collecting metrics data")
@@ -695,7 +691,7 @@ def full_process(**kwargs) -> dict[str, Any]:
         # Step 3: Send to Segment.com if enabled
         segment_status = "skipped"
         if send_to_segment and SEGMENT_AVAILABLE:
-            segment_status = _send_to_segment(segment_write_key, user_id, event_name, segment_data)
+            segment_status = _send_to_segment(user_id, event_name, segment_data)
 
         return create_task_result(
             "success",
@@ -871,7 +867,6 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
             - since (str): Start date for collection (optional)
             - until (str): End date for collection (optional)
             - salt (str): Salt for anonymization (optional, auto-generated UUID4)
-            - segment_write_key (str): Segment.com write key for analytics (has default)
             - user_id (str): User ID for Segment tracking (default: 'anonymous-user')
             - event_name (str): Event name for Segment tracking (default: 'anonymized_metrics_collected')
             - send_to_segment (bool): Whether to send data to Segment (default: True)
@@ -898,7 +893,6 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
         until = kwargs.get("until")
         # Generate a unique UUID4 salt if not provided
         salt = kwargs.get("salt", str(uuid.uuid4()))
-        segment_write_key = kwargs.get("segment_write_key", "NA")
         user_id = kwargs.get("user_id", "anonymous-user")
         event_name = kwargs.get("event_name", "anonymized_metrics_collected")
         send_to_segment = kwargs.get("send_to_segment", True)
@@ -951,7 +945,7 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
                 },
             }
             # Send actual anonymized data to Segment
-            segment_status = _send_to_segment(segment_write_key, user_id, event_name, segment_data)
+            segment_status = _send_to_segment(user_id, event_name, segment_data)
 
         return create_task_result(
             "success",
@@ -997,12 +991,11 @@ def debug_segment_messages(**kwargs) -> dict[str, Any]:
             "message": "Debug test - this should be ONE message only",
         }
 
-        segment_write_key = kwargs.get("segment_write_key", "NA")
         user_id = kwargs.get("user_id", "debug-user")
         event_name = kwargs.get("event_name", "debug_segment_test")
 
         # Call _send_to_segment directly with debug data
-        result = _send_to_segment(segment_write_key, user_id, event_name, debug_data)
+        result = _send_to_segment(user_id, event_name, debug_data)
 
         return create_task_result(
             "success",
@@ -1032,7 +1025,6 @@ def test_segment_track(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing test parameters:
             - message (str): Test message content (default: 'Test message from metrics-service')
-            - segment_write_key (str): Segment.com write key (has default)
             - user_id (str): User ID for tracking (default: 'test-user')
             - event_name (str): Event name (default: 'test_track_message')
 
@@ -1044,7 +1036,6 @@ def test_segment_track(**kwargs) -> dict[str, Any]:
     try:
         # Get parameters from kwargs
         test_message = kwargs.get("message", "Test message from metrics-service")
-        segment_write_key = kwargs.get("segment_write_key", "NA")
         user_id = kwargs.get("user_id", "test-user")
         event_name = kwargs.get("event_name", "test_track_message")
 
@@ -1062,7 +1053,7 @@ def test_segment_track(**kwargs) -> dict[str, Any]:
 
         # Send to Segment.com if available
         if SEGMENT_AVAILABLE:
-            segment_status = _send_to_segment(segment_write_key, user_id, event_name, test_data)
+            segment_status = _send_to_segment(user_id, event_name, test_data)
         else:
             segment_status = "segment_not_available"
 
@@ -1100,7 +1091,6 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing transmission parameters:
             - data (dict): Anonymized data to send (required)
-            - segment_write_key (str): Segment.com write key (has default)
             - user_id (str): User ID for tracking (default: 'anonymous-user')
             - event_name (str): Event name (default: 'metrics_sent')
 
@@ -1115,13 +1105,12 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
         if not anonymized_data:
             return create_task_result("error", error="No data provided for transmission")
 
-        segment_write_key = kwargs.get("segment_write_key", "NA")
         user_id = kwargs.get("user_id", "anonymous-user")
         event_name = kwargs.get("event_name", "metrics_sent")
 
         # Send to Segment.com if available
         if SEGMENT_AVAILABLE:
-            segment_status = _send_to_segment(segment_write_key, user_id, event_name, anonymized_data)
+            segment_status = _send_to_segment(user_id, event_name, anonymized_data)
         else:
             segment_status = "segment_not_available"
 

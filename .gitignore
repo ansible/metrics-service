@@ -267,3 +267,6 @@ pyrightconfig.json
 
 # Generated platform setting files
 src/*/aap_settings.py
+
+# Local settings
+settings.local.py

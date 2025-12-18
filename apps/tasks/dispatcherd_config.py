@@ -20,9 +20,9 @@ def get_config_file_path() -> Path:
     if config_file:
         return Path(config_file)
 
-    # Default to config/dispatcherd.yaml in project root
+    # Default to apps/settings/dispatcherd.yaml in project root
     project_root = Path(__file__).parent.parent.parent
-    return project_root / "config" / "dispatcherd.yaml"
+    return project_root / "apps" / "settings" / "dispatcherd.yaml"
 
 
 def setup_dispatcherd_config() -> None:
