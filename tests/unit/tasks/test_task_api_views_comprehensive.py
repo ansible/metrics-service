@@ -15,16 +15,22 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import User
 from apps.tasks.models import Task
+from tests.base.task_test_base import TaskTestBase
 from tests.test_utils import get_test_password
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-class TestTaskViewSetAPI(APITestCase):
+class TestTaskViewSetAPI(TaskTestBase, APITestCase):
     """Test TaskViewSet API endpoints."""
 
     def setUp(self):
         """Set up test data."""
+        # Call both parent setUp methods
+        TaskTestBase.setUp(self)  # Creates self.user as regular user
+        APITestCase.setUp(self)  # Sets up API client
+
+        # Override self.user with superuser for API tests
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
@@ -32,21 +38,13 @@ class TestTaskViewSetAPI(APITestCase):
             username="user", email="user@example.com", password=get_test_password()
         )
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def test_task_list_endpoint(self):
         """Test GET /api/v1/tasks/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
         # Create test tasks
-        self._create_task_safely(
-            name="Task 1", function_name="cleanup_old_data", created_by=self.user, status="pending"
-        )
-        self._create_task_safely(
+        self.create_task(name="Task 1", function_name="cleanup_old_data", created_by=self.user, status="pending")
+        self.create_task(
             name="Task 2", function_name="send_notification_email", created_by=self.user, status="completed"
         )
 
@@ -60,7 +58,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test GET /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = self.create_task(
             name="Detail Task", function_name="cleanup_old_data", created_by=self.user, task_data={"days_old": 30}
         )
 
@@ -141,7 +139,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test PUT /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Original Task", function_name="cleanup_old_data", created_by=self.user)
+        task = self.create_task(name="Original Task", function_name="cleanup_old_data", created_by=self.user)
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Updated Task", "function_name": "cleanup_old_data", "task_data": {"days_old": 60}}
@@ -155,7 +153,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test PATCH /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Patch Task", function_name="cleanup_old_data", created_by=self.user)
+        task = self.create_task(name="Patch Task", function_name="cleanup_old_data", created_by=self.user)
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Patched Task"}
@@ -170,7 +168,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test DELETE /api/v1/tasks/{id}/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Delete Task", function_name="cleanup_old_data", created_by=self.user)
+        task = self.create_task(name="Delete Task", function_name="cleanup_old_data", created_by=self.user)
         task_id = task.pk
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task_id})
@@ -184,12 +182,8 @@ class TestTaskViewSetAPI(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         # Create tasks with different statuses
-        self._create_task_safely(
-            name="Running Task", function_name="cleanup_old_data", created_by=self.user, status="running"
-        )
-        self._create_task_safely(
-            name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
-        )
+        self.create_task(name="Running Task", function_name="cleanup_old_data", created_by=self.user, status="running")
+        self.create_task(name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending")
 
         url = reverse("tasks:v1:task-running")
         response = self.client.get(url)
@@ -203,9 +197,7 @@ class TestTaskViewSetAPI(APITestCase):
         """Test GET /api/v1/tasks/pending/ endpoint."""
         self.client.force_authenticate(user=self.user)
 
-        self._create_task_safely(
-            name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
-        )
+        self.create_task(name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending")
 
         url = reverse("tasks:v1:task-pending")
         response = self.client.get(url)
@@ -236,14 +228,18 @@ class TestTaskViewSetAPI(APITestCase):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-class TestTaskExecutionViewSetAPI(APITestCase):
+class TestTaskExecutionViewSetAPI(TaskTestBase, APITestCase):
     """Test TaskExecutionViewSet API endpoints."""
 
     def setUp(self):
         """Set up test data."""
+        # Call both parent setUp methods
+        TaskTestBase.setUp(self)  # Creates self.user as regular user
+        APITestCase.setUp(self)  # Sets up API client
+
+        # Override self.user with superuser for API tests
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
 
-        self.task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
-        self.task.save()
+        self.task = self.create_task(name="Test Task", function_name="cleanup_old_data")

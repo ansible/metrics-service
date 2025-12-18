@@ -284,3 +284,115 @@ class StatusFieldMixin:
         if hasattr(obj, "get_duration"):
             return obj.get_duration()
         return None
+
+
+class ValidationMixin:
+    """
+    Mixin to provide common validation methods for serializers.
+
+    This mixin reduces duplication of validation logic across serializers
+    that need to validate JSON fields, cron expressions, and other common data types.
+    """
+
+    def validate_json_field(self, value: Any, field_name: str = "task_data") -> Any:
+        """
+        Validate that a field contains valid JSON data.
+
+        Accepts either a dict/list (already parsed JSON) or a string that will be
+        parsed as JSON. This is useful for fields that accept JSON input.
+
+        Args:
+            value: The value to validate (string or dict/list)
+            field_name: Name of the field being validated (for error messages)
+
+        Returns:
+            dict or list: The parsed JSON data
+
+        Raises:
+            serializers.ValidationError: If the JSON is invalid
+        """
+        import json
+
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError as e:
+                raise serializers.ValidationError(f"Invalid JSON data in {field_name}: {e}") from e
+        # Already a dict or list, return as-is
+        return value
+
+    def validate_cron_expression(self, value: str | None) -> str | None:
+        """
+        Validate that a cron expression is syntactically correct.
+
+        Uses the croniter library to validate the cron expression format.
+        Returns None if value is None or empty.
+
+        Args:
+            value: The cron expression to validate
+
+        Returns:
+            str or None: The validated cron expression
+
+        Raises:
+            serializers.ValidationError: If the cron expression is invalid
+        """
+        if value:
+            try:
+                from croniter import croniter
+
+                croniter(value)
+            except (ValueError, TypeError) as e:
+                raise serializers.ValidationError(f"Invalid cron expression: {e}") from e
+        return value
+
+
+class TaskFieldMixin:
+    """
+    Mixin to provide task-related SerializerMethodFields.
+
+    This mixin reduces duplication of task permission and status check methods
+    across task-related serializers.
+    """
+
+    def get_can_retry(self, obj: Any) -> bool:
+        """
+        Check if the task can be retried.
+
+        Args:
+            obj: The task instance being serialized
+
+        Returns:
+            bool: True if task can be retried, False otherwise
+        """
+        if hasattr(obj, "can_retry"):
+            return obj.can_retry()
+        return False
+
+    def get_can_delete(self, obj: Any) -> bool:
+        """
+        Check if the task can be deleted.
+
+        Args:
+            obj: The task instance being serialized
+
+        Returns:
+            bool: True if task can be deleted, False otherwise
+        """
+        if hasattr(obj, "can_delete"):
+            return obj.can_delete()
+        return False
+
+    def get_can_modify(self, obj: Any) -> bool:
+        """
+        Check if the task can be modified.
+
+        Args:
+            obj: The task instance being serialized
+
+        Returns:
+            bool: True if task can be modified, False otherwise
+        """
+        if hasattr(obj, "can_modify"):
+            return obj.can_modify()
+        return False

@@ -5,34 +5,19 @@ Comprehensive unit tests for tasks utils module.
 import os
 from unittest.mock import patch
 
-from django.test import TestCase
-
 from apps.tasks import utils
 from apps.tasks.models import Task, TaskDependency, TaskExecution
+from tests.base.task_test_base import TaskTestBase
 
 
-class TaskUtilsTestCase(TestCase):
+class TaskUtilsTestCase(TaskTestBase):
     """Test cases for task utility functions."""
 
     def setUp(self):
         """Set up test data."""
-        self.user = self._create_test_user()
+        super().setUp()  # Creates self.user
         # Create task with signals disabled to prevent automatic submission to dispatcherd
-        self.task = self._create_task_safely(
-            name="Test Task", function_name="test_function", task_data={"param": "value"}, created_by=self.user
-        )
-
-    def _create_test_user(self):
-        """Create a test user."""
-        from apps.core.models import User
-
-        return User.objects.create_user(username="testuser", email="test@example.com")
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
+        self.task = self.create_task(name="Test Task", function_name="test_function", task_data={"param": "value"})
 
     @patch("django.setup")
     @patch("django.conf.settings")
@@ -114,9 +99,7 @@ class TaskUtilsTestCase(TestCase):
 
     def test_trigger_dependent_tasks_task_not_found(self):
         """Test triggering dependent tasks when dependent task is deleted."""
-        dependent_task = self._create_task_safely(
-            name="Dependent Task", function_name="dependent_function", task_data={}, created_by=self.user
-        )
+        dependent_task = self.create_task(name="Dependent Task", function_name="dependent_function", task_data={})
 
         TaskDependency.objects.create(
             dependent_task=dependent_task, prerequisite_task=self.task, required_status="completed"

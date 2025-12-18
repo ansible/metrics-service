@@ -24,7 +24,7 @@ from apps.tasks.tasks_collector import (
 class TestCollectAnonymousMetrics(TestCase):
     """Test collect_anonymous_metrics function."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     def test_collect_anonymous_metrics_success(self, mock_connections, mock_processor):
@@ -58,7 +58,7 @@ class TestCollectAnonymousMetrics(TestCase):
         assert result["metrics_data"] == mock_metrics_data
         assert result["collector_type"] == "anonymized_rollups"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     def test_collect_anonymous_metrics_with_custom_parameters(self, mock_connections, mock_processor):
@@ -97,7 +97,7 @@ class TestCollectAnonymousMetrics(TestCase):
         assert params["since"] == "2024-01-01T00:00:00Z"
         assert params["salt"] == "custom-salt"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", False)
     def test_collect_anonymous_metrics_utility_not_available(self):
         """Test when metrics-utility is not available."""
         result = collect_anonymous_metrics()
@@ -105,7 +105,7 @@ class TestCollectAnonymousMetrics(TestCase):
         assert result["status"] == "error"
         assert "metrics-utility is not available" in result["error"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     def test_collect_anonymous_metrics_database_error(self, mock_connections, mock_processor):
@@ -118,7 +118,7 @@ class TestCollectAnonymousMetrics(TestCase):
         assert "Collection failed" in result["error"]
         assert "Database not found" in result["error"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     def test_collect_anonymous_metrics_processor_error(self, mock_connections, mock_processor):
@@ -138,7 +138,7 @@ class TestCollectAnonymousMetrics(TestCase):
 class TestCollectConfigMetrics(TestCase):
     """Test collect_config_metrics function."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.config")
     @patch("django.db.connections")
     def test_collect_config_metrics_success(self, mock_connections, mock_config):
@@ -168,7 +168,7 @@ class TestCollectConfigMetrics(TestCase):
         assert result["config_data"] == mock_config_data
         assert result["collector_type"] == "config"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.config")
     @patch("django.db.connections")
     def test_collect_config_metrics_with_custom_database(self, mock_connections, mock_config):
@@ -185,7 +185,7 @@ class TestCollectConfigMetrics(TestCase):
         mock_connections.__getitem__.assert_called_once_with("test_db")
         assert result["parameters_used"]["database"] == "test_db"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", False)
     def test_collect_config_metrics_utility_not_available(self):
         """Test when metrics-utility is not available."""
         result = collect_config_metrics()
@@ -198,7 +198,7 @@ class TestCollectConfigMetrics(TestCase):
 class TestCollectHostMetrics(TestCase):
     """Test collect_host_metrics function."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.main_jobevent")
     @patch("django.db.connections")
     def test_collect_host_metrics_success(self, mock_connections, mock_main_host):
@@ -229,7 +229,7 @@ class TestCollectHostMetrics(TestCase):
         assert result["host_data"] == mock_host_data
         assert result["collector_type"] == "main_jobevent"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", False)
     def test_collect_host_metrics_utility_not_available(self):
         """Test when metrics-utility is not available."""
         result = collect_host_metrics()
@@ -242,7 +242,7 @@ class TestCollectHostMetrics(TestCase):
 class TestCollectJobHostSummary(TestCase):
     """Test collect_job_host_summary function."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.job_host_summary")
     @patch("django.db.connections")
     def test_collect_job_host_summary_success(self, mock_connections, mock_job_host_summary):
@@ -273,7 +273,7 @@ class TestCollectJobHostSummary(TestCase):
         assert result["summary_data"] == mock_summary_data
         assert result["collector_type"] == "job_host_summary"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", False)
     def test_collect_job_host_summary_utility_not_available(self):
         """Test when metrics-utility is not available."""
         result = collect_job_host_summary()
@@ -285,6 +285,63 @@ class TestCollectJobHostSummary(TestCase):
 @pytest.mark.unit
 class TestCollectAllMetrics(TestCase):
     """Test collect_all_metrics function."""
+
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
+    @patch("apps.tasks.tasks_collector.connections")
+    @patch("apps.tasks.tasks_collector.collect_from_multiple_collectors")
+    def test_collect_all_metrics_success(self, mock_collect_multiple, mock_connections):
+        """Test successful collection from all collectors."""
+        from apps.tasks.tasks_collector import collect_all_metrics
+
+        # Mock the return value from collect_from_multiple_collectors
+        mock_collect_multiple.return_value = {
+            "anonymized_rollups": {"data": "test_anonymized"},
+            "config": {"data": "test_config"},
+            "main_jobevent": {"data": "test_jobevent"},
+        }
+
+        # Mock database connection
+        mock_connections.__getitem__.return_value = MagicMock()
+
+        result = collect_all_metrics(database="awx", since="2024-01-01", until="2024-01-31")
+
+        assert result["status"] == "success"
+        assert result["task_type"] == "collect_all_metrics"
+        assert "all_results" in result
+        assert result["collectors_run"] == ["anonymized_rollups", "config", "main_jobevent"]
+
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", False)
+    def test_collect_all_metrics_no_utility(self):
+        """Test behavior when metrics-utility not available."""
+        from apps.tasks.tasks_collector import collect_all_metrics
+
+        result = collect_all_metrics()
+
+        assert result["status"] == "error"
+        assert "metrics-utility is not available" in result["error"]
+
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
+    @patch("apps.tasks.tasks_collector.connections")
+    @patch("apps.tasks.tasks_collector.collect_from_multiple_collectors")
+    def test_collect_all_metrics_with_custom_collectors(self, mock_collect_multiple, mock_connections):
+        """Test collection with custom collector list."""
+        from apps.tasks.tasks_collector import collect_all_metrics
+
+        mock_collect_multiple.return_value = {
+            "config": {"data": "test_config"},
+            "main_jobevent": {"data": "test_jobevent"},
+        }
+
+        mock_connections.__getitem__.return_value = MagicMock()
+
+        result = collect_all_metrics(
+            database="awx",
+            collectors=["config", "main_jobevent"],
+        )
+
+        assert result["status"] == "success"
+        assert result["collectors_run"] == ["config", "main_jobevent"]
+        mock_collect_multiple.assert_called_once()
 
 
 @pytest.mark.unit
@@ -313,8 +370,8 @@ class TestCollectorModuleImports(TestCase):
         """Test that fallback attributes are set when metrics-utility import fails."""
         import apps.tasks.tasks_collector as collector_module
 
-        # Check the current state of METRICS_UTILITY_AVAILABLE
-        if collector_module.METRICS_UTILITY_AVAILABLE:
+        # Check the current state of metrics_utility_available
+        if collector_module.metrics_utility_available:
             # If metrics-utility is available, the imports should be functions/classes
             assert collector_module.anonymized_rollups_processor is not None
             assert collector_module.config is not None

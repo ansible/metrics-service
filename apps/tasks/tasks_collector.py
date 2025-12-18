@@ -37,10 +37,10 @@ try:
         main_jobevent,
     )
 
-    METRICS_UTILITY_AVAILABLE = True
+    metrics_utility_available = True
 except ImportError as e:
     logger.warning(f"metrics-utility not available: {e}")
-    METRICS_UTILITY_AVAILABLE = False
+    metrics_utility_available = False
 
     # Provide fallback attributes for testing when metrics-utility is not available
     anonymized_rollups_processor = None
@@ -52,10 +52,10 @@ except ImportError as e:
 # Import segment.com integration from metrics-utility
 try:
     from metrics_utility.library.storage import StorageSegment
-    from metrics_utility.library.storage.segment import SEGMENT_AVAILABLE
+    from metrics_utility.library.storage.segment import segment_available
 except ImportError as e:
     logger.warning(f"metrics-utility segment integration not available: {e}")
-    SEGMENT_AVAILABLE = False
+    segment_available = False
     StorageSegment = None
 
 try:
@@ -90,7 +90,7 @@ def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with collected metrics data
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_anonymous_metrics", "processing", "Collecting anonymous metrics")
@@ -168,7 +168,7 @@ def collect_config_metrics(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with collected configuration data
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_config_metrics", "processing", "Collecting configuration metrics")
@@ -220,7 +220,7 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with collected job host summary data
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_job_host_summary", "processing", "Collecting job host summary metrics")
@@ -293,7 +293,7 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with collected host metrics data
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_host_metrics", "processing", "Collecting host metrics")
@@ -362,7 +362,7 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with all collected metrics data
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_all_metrics", "processing", "Collecting all metrics")
@@ -380,17 +380,10 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
         save_rollups = kwargs.get("save_rollups", True)
         collectors_list = kwargs.get("collectors", ["anonymized_rollups", "config", "main_jobevent"])
 
-        all_results = {}
+        # Run all requested collectors using the centralized helper function
+        from .collector_helpers import collect_from_multiple_collectors
 
-        # Run each requested collector using the helper function with ISO timestamp support
-        for collector_name in collectors_list:
-            try:
-                collector_data = _run_single_collector(collector_name, db_connection, since, until, salt)
-                all_results[collector_name] = collector_data
-
-            except Exception as e:
-                logger.error(f"Error running collector {collector_name}: {str(e)}")
-                all_results[collector_name] = {"error": str(e)}
+        all_results = collect_from_multiple_collectors(collectors_list, db_connection, since, until, salt)
 
         return create_task_result(
             "success",
@@ -414,140 +407,16 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
         return create_task_result("error", error=f"Collection failed: {str(e)}")
 
 
-def _parse_datetime_string(date_str: str | None) -> datetime | None:
-    """Parse an ISO datetime string, return None if invalid."""
-    from datetime import datetime
-
-    if not date_str:
-        return None
-    try:
-        return datetime.fromisoformat(date_str.replace("Z", UTC_OFFSET_SUFFIX))
-    except (ValueError, AttributeError):
-        return None
-
-
-def _get_date_defaults(
-    collector_name: str, since_dt: datetime | None, until_dt: datetime | None
-) -> tuple[datetime | None, datetime | None]:
-    """Get default date values for collectors that require them."""
-    from datetime import datetime, timedelta
-
-    # For collectors that require date ranges, provide sensible defaults if none given
-    if since_dt is None and collector_name in ["job_host_summary", "main_jobevent", "anonymized_rollups"]:
-        since_dt = datetime.now(UTC) - timedelta(days=30)
-
-    if until_dt is None and collector_name in ["job_host_summary", "main_jobevent", "anonymized_rollups"]:
-        until_dt = datetime.now(UTC)
-
-    return since_dt, until_dt
-
-
-def _run_anonymized_rollups(
-    db_connection, salt: str, since_dt: datetime | None, until_dt: datetime | None
-) -> dict[str, Any]:
-    """Run the anonymized_rollups collector."""
-    return anonymized_rollups_processor(
-        db=db_connection,
-        salt=salt,
-        since=since_dt,
-        until=until_dt,
-        ship_path=None,  # Don't save locally, will send to Segment
-        save_rollups=False,
-    )
-
-
-def _run_config_collector(db_connection) -> dict[str, Any]:
-    """Run the config collector."""
-    collector_instance = config(db=db_connection)
-    return collector_instance.gather()
-
-
-def _run_job_host_summary_collector(
-    db_connection, since_dt: datetime | None, until_dt: datetime | None
-) -> dict[str, Any]:
-    """Run the job_host_summary collector."""
-    if since_dt is not None and until_dt is not None:
-        collector_instance = job_host_summary(db=db_connection, since=since_dt, until=until_dt)
-    else:
-        collector_instance = job_host_summary(db=db_connection)
-    return collector_instance.gather()
-
-
-def _run_main_host_collector(db_connection) -> dict[str, Any]:
-    """Run the main_host collector."""
-    # main_host collector doesn't accept date parameters, only db connection
-    collector_instance = main_host(db=db_connection)
-    return collector_instance.gather()
-
-
-def _run_main_jobevent_collector(
-    db_connection, since_dt: datetime | None, until_dt: datetime | None = None
-) -> dict[str, Any]:
-    """Run the main_jobevent collector."""
-    # main_jobevent requires since and until dates, so ensure we have them
-    if since_dt is None:
-        from datetime import datetime, timedelta
-
-        since_dt = datetime.now(UTC) - timedelta(days=30)
-
-    if until_dt is None:
-        from datetime import datetime
-
-        until_dt = datetime.now(UTC)
-
-    collector_instance = main_jobevent(db=db_connection, since=since_dt, until=until_dt)
-    return collector_instance.gather()
-
-
-def _run_single_collector(collector_name: str, db_connection, since: str, until: str, salt: str) -> dict[str, Any]:
-    """Run a single collector and return its data."""
-    # Convert string dates to datetime objects if provided
-    since_dt = _parse_datetime_string(since)
-    until_dt = _parse_datetime_string(until)
-
-    # Get defaults for date-sensitive collectors
-    since_dt, until_dt = _get_date_defaults(collector_name, since_dt, until_dt)
-
-    # Dispatch to appropriate collector function
-    collector_functions = {
-        "anonymized_rollups": lambda: _run_anonymized_rollups(db_connection, salt, since_dt, until_dt),
-        "config": lambda: _run_config_collector(db_connection),
-        "job_host_summary": lambda: _run_job_host_summary_collector(db_connection, since_dt, until_dt),
-        "main_host": lambda: _run_main_host_collector(db_connection),
-        "main_jobevent": lambda: _run_main_jobevent_collector(db_connection, since_dt, until_dt),
-    }
-
-    collector_func = collector_functions.get(collector_name)
-    if collector_func is None:
-        raise ValueError(f"Unknown collector: {collector_name}")
-
-    return collector_func()
-
-
-def _collect_all_metrics(collectors_list: list, db_connection, since: str, until: str, salt: str) -> dict[str, Any]:
-    """Collect data from all specified collectors."""
-    all_results = {}
-
-    for collector_name in collectors_list:
-        try:
-            collector_data = _run_single_collector(collector_name, db_connection, since, until, salt)
-            all_results[collector_name] = collector_data
-            logger.info(f"Successfully collected data from {collector_name}")
-        except ValueError:
-            logger.warning(f"Unknown collector: {collector_name}")
-            continue
-        except Exception as e:
-            logger.error(f"Error running collector {collector_name}: {str(e)}")
-            all_results[collector_name] = {"error": str(e)}
-
-    return all_results
+# Helper functions removed - now in collector_helpers.py and datetime_utils.py
+# Use the following imports instead:
+# from .collector_helpers import run_single_collector, collect_from_multiple_collectors
+# from .datetime_utils import parse_iso_datetime, get_date_range_defaults
 
 
 def _prepare_segment_data(
     collectors_list: list, all_results: dict, db_name: str, since: str, until: str, salt: str
 ) -> dict[str, Any]:
     """Prepare anonymized data for Segment.com."""
-    from datetime import datetime
 
     segment_data = {
         "collectors_run": collectors_list,
@@ -591,7 +460,7 @@ def _send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
         )
 
         # Create simple direct Segment.com track message (bypassing StorageSegment complexity)
-        if not SEGMENT_AVAILABLE:
+        if not segment_available:
             return "segment_not_available"
 
         # Import and configure Segment directly
@@ -657,7 +526,7 @@ def full_process(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with collection, anonymization, and sending status
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("full_process", "processing", "Starting full metrics collection and Segment.com upload")
@@ -680,8 +549,10 @@ def full_process(**kwargs) -> dict[str, Any]:
         send_to_segment = kwargs.get("send_to_segment", True)
 
         # Step 1: Collect metrics using multiple collectors
+        from .collector_helpers import collect_from_multiple_collectors
+
         log_task_execution("full_process", "processing", "Collecting metrics data")
-        all_results = _collect_all_metrics(collectors_list, db_connection, since, until, salt)
+        all_results = collect_from_multiple_collectors(collectors_list, db_connection, since, until, salt)
 
         # Step 2: Prepare anonymized data for Segment
         log_task_execution("full_process", "processing", "Preparing anonymized data for Segment.com")
@@ -689,7 +560,7 @@ def full_process(**kwargs) -> dict[str, Any]:
 
         # Step 3: Send to Segment.com if enabled
         segment_status = "skipped"
-        if send_to_segment and SEGMENT_AVAILABLE:
+        if send_to_segment and segment_available:
             segment_status = _send_to_segment(user_id, event_name, segment_data)
 
         return create_task_result(
@@ -742,7 +613,7 @@ def collect_metrics(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with collected metrics data from all collectors
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_metrics", "processing", "Collecting metrics from all collectors")
@@ -760,7 +631,9 @@ def collect_metrics(**kwargs) -> dict[str, Any]:
         )
 
         # Collect data from all specified collectors
-        all_results = _collect_all_metrics(collectors_list, db_connection, since, until, "default-salt")
+        from .collector_helpers import collect_from_multiple_collectors
+
+        all_results = collect_from_multiple_collectors(collectors_list, db_connection, since, until, "default-salt")
 
         return create_task_result(
             "success",
@@ -804,7 +677,7 @@ def anonymize_data(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with anonymized data
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("anonymize_data", "processing", "Anonymizing collected metrics data")
@@ -873,7 +746,7 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with collection and transmission status
     """
-    if not METRICS_UTILITY_AVAILABLE:
+    if not metrics_utility_available:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution(
@@ -899,23 +772,12 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
         # Convert string dates to datetime objects if provided
         from datetime import datetime
 
-        since_dt = None
-        until_dt = None
+        # Parse and apply default date ranges using centralized utilities
+        from .datetime_utils import get_date_range_defaults, parse_iso_datetime
 
-        if since:
-            try:
-                since_dt = datetime.fromisoformat(since.replace("Z", UTC_OFFSET_SUFFIX))
-            except (ValueError, AttributeError):
-                since_dt = None
-
-        if until:
-            try:
-                until_dt = datetime.fromisoformat(until.replace("Z", UTC_OFFSET_SUFFIX))
-            except (ValueError, AttributeError):
-                until_dt = None
-
-        # Apply default date ranges if None (required by anonymized_rollups_processor)
-        since_dt, until_dt = _get_date_defaults("anonymized_rollups", since_dt, until_dt)
+        since_dt = parse_iso_datetime(since)
+        until_dt = parse_iso_datetime(until)
+        since_dt, until_dt = get_date_range_defaults("anonymized_rollups", since_dt, until_dt)
 
         # Step 1: Collect anonymized metrics using anonymized_rollups_processor
         log_task_execution("full_process_anonymize", "processing", "Collecting anonymized metrics data")
@@ -931,7 +793,7 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
 
         # Step 2: Send to Segment.com if enabled
         segment_status = "skipped"
-        if send_to_segment and SEGMENT_AVAILABLE:
+        if send_to_segment and segment_available:
             # Prepare anonymized data for Segment transmission
             segment_data = {
                 "anonymized_rollups": anonymized_data,
@@ -1051,7 +913,7 @@ def test_segment_track(**kwargs) -> dict[str, Any]:
         }
 
         # Send to Segment.com if available
-        if SEGMENT_AVAILABLE:
+        if segment_available:
             segment_status = _send_to_segment(user_id, event_name, test_data)
         else:
             segment_status = "segment_not_available"
@@ -1108,7 +970,7 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
         event_name = kwargs.get("event_name", "metrics_sent")
 
         # Send to Segment.com if available
-        if SEGMENT_AVAILABLE:
+        if segment_available:
             segment_status = _send_to_segment(user_id, event_name, anonymized_data)
         else:
             segment_status = "segment_not_available"

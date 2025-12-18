@@ -28,7 +28,7 @@ class UnifiedTaskScheduler:
     without database polling, providing optimal performance for all task types.
     """
 
-    def __init__(self, check_interval: int = 30):
+    def __init__(self, check_interval: int = 60):
         """Initialize the task scheduler."""
         self.scheduler = BackgroundScheduler()
         self.running = False
@@ -105,20 +105,9 @@ class UnifiedTaskScheduler:
                 # Load database tasks into scheduler
                 self._sync_database_tasks()
 
-                # Add periodic task to check for new database tasks
-                self.scheduler.add_job(
-                    func=self._periodic_database_sync,
-                    trigger="interval",
-                    seconds=self.check_interval,  # Check every minute by default
-                    id="periodic_db_sync",
-                    name="Periodic Database Task Sync",
-                    replace_existing=True,
-                )
-
                 logger.info("Task scheduler started")
                 logger.info(f"Registered {len(self.task_registry)} task group tasks")
                 logger.info(f"Loaded {len(self._db_task_jobs)} database tasks")
-                logger.info(f"Periodic database sync will run every {self.check_interval} seconds")
 
             except Exception as e:
                 logger.error(f"Failed to start cron scheduler: {str(e)}")
@@ -189,40 +178,32 @@ class UnifiedTaskScheduler:
                 raise ValueError(f"Unknown task function: {function_name}")
 
             # Determine queue based on function name
-            queue = self._get_queue_for_function(function_name)
+            from .submission_utils import determine_task_queue
+
+            queue = determine_task_queue(function_name)
 
             # Submit to dispatcherd using string reference for consistency
             submit_task(f"apps.tasks.tasks.{function_name}", kwargs=args, queue=queue)
 
-            logger.info(f"Submitted scheduled task {task_id} ({function_name}) to queue {queue}")
+            # Log submission using TaskLogger for consistency
+            from .logging_utils import TaskLogger
+
+            task_logger = TaskLogger(function_name)
+            task_logger.log_submission(queue=queue, task_id=task_id)
 
         except Exception as e:
             logger.error(f"Failed to execute scheduled task {task_id}: {str(e)}")
 
     def _get_queue_for_function(self, function_name: str) -> str:
-        """Determine the appropriate queue for a function."""
-        queue_mapping = {
-            "hello_world": "metrics_tasks",
-            "cleanup_old_data": "metrics_cleanup",
-            "cleanup_old_tasks": "metrics_cleanup",
-            "send_notification_email": "metrics_notifications",
-            "process_user_data": "metrics_tasks",
-            "execute_db_task": "metrics_tasks",
-            "sleep": "metrics_tasks",
-            # Metrics collection tasks
-            "collect_anonymous_metrics": "metrics_collectors",
-            "collect_config_metrics": "metrics_collectors",
-            "collect_job_host_summary": "metrics_collectors",
-            "collect_host_metrics": "metrics_collectors",
-            "collect_all_metrics": "metrics_collectors",
-            # Metrics-utility tasks
-            "gather_automation_controller_billing_data": "metrics_utility",
-            "build_metrics_report": "metrics_utility",
-            "metrics_utility_health_check": "metrics_utility",
-            "metrics_utility_custom_command": "metrics_utility",
-        }
+        """
+        Determine the appropriate queue for a function.
 
-        return queue_mapping.get(function_name, "metrics_tasks")
+        DEPRECATED: This method now delegates to submission_utils.determine_task_queue()
+        to avoid code duplication. Kept for backward compatibility.
+        """
+        from .submission_utils import determine_task_queue
+
+        return determine_task_queue(function_name)
 
     def _sync_database_tasks(self):
         """Synchronize database tasks with the scheduler."""
@@ -251,53 +232,6 @@ class UnifiedTaskScheduler:
         except Exception as e:
             logger.error(f"Error synchronizing database tasks: {e}")
 
-    def _periodic_database_sync(self):
-        """Periodically check for new database tasks and add them to the scheduler."""
-        try:
-            from .models import Task
-
-            # Get all pending database tasks (immediate, scheduled, or recurring)
-            immediate_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=True, is_recurring=False)
-            scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False, is_recurring=False)
-            recurring_tasks = Task.objects.filter(
-                status="pending", is_recurring=True, cron_expression__isnull=False
-            ).exclude(cron_expression="")
-
-            new_immediate = 0
-            new_scheduled = 0
-            new_recurring = 0
-
-            # Handle immediate tasks - execute them right away
-            for task in immediate_tasks:
-                if task.id not in self._db_task_jobs and task.is_ready_to_run():
-                    logger.info(f"Found new immediate task: {task.name} (ID: {task.id}) - executing now")
-                    # Track immediate task to prevent duplicate submissions
-                    self._db_task_jobs[task.id] = f"db_immediate_{task.id}"
-                    self._execute_database_task(task.id)
-                    new_immediate += 1
-
-            # Check for new scheduled tasks
-            for task in scheduled_tasks:
-                if task.id not in self._db_task_jobs:
-                    logger.info(f"Found new scheduled task: {task.name} (ID: {task.id})")
-                    self._add_database_scheduled_task(task)
-                    new_scheduled += 1
-
-            # Check for new recurring tasks
-            for task in recurring_tasks:
-                if task.id not in self._db_task_jobs:
-                    logger.info(f"Found new recurring task: {task.name} (ID: {task.id})")
-                    self._add_database_recurring_task(task)
-                    new_recurring += 1
-
-            if new_immediate > 0 or new_scheduled > 0 or new_recurring > 0:
-                logger.info(
-                    f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
-                )
-
-        except Exception as e:
-            logger.error(f"Error in periodic database sync: {e}")
-
     def _add_database_scheduled_task(self, task):
         """Add a one-time scheduled database task to the scheduler."""
         if task.id in self._db_task_jobs:
@@ -305,16 +239,6 @@ class UnifiedTaskScheduler:
 
         try:
             job_id = f"db_task_{task.id}"
-
-            # Check if the scheduled time is in the past
-            now = timezone.now()
-            if task.scheduled_time <= now:
-                # Execute immediately if past due
-                logger.info(
-                    f"Task {task.name} (ID: {task.id}) is past due (scheduled: {task.scheduled_time}, now: {now}), executing immediately"
-                )
-                self._execute_database_task(task.id)
-                return
 
             # Create date trigger for the scheduled time
             trigger = DateTrigger(run_date=task.scheduled_time)
@@ -369,50 +293,8 @@ class UnifiedTaskScheduler:
         try:
             from .models import Task
 
-            # Get the task (don't filter by status for recurring tasks)
-            try:
-                task = Task.objects.get(id=task_id)
-            except Task.DoesNotExist:
-                logger.warning(f"Database task {task_id} not found")
-                self._remove_database_task(task_id)
-                return
-
-            # Handle recurring tasks by creating a new execution record
-            if task.is_recurring:
-                # Create a new task record for this execution
-                execution_task = Task.objects.create(
-                    name=f"{task.name} (Execution {timezone.now().strftime('%Y-%m-%d %H:%M:%S')})",
-                    function_name=task.function_name,
-                    task_data=task.task_data,
-                    scheduled_time=None,  # Execute immediately
-                    cron_expression=None,  # This is not a recurring task
-                    is_recurring=False,  # This is a one-time execution
-                    priority=task.priority,
-                    max_attempts=task.max_attempts,
-                    timeout_seconds=task.timeout_seconds,
-                    created_by=task.created_by,
-                    is_system_task=task.is_system_task,
-                )
-                execution_task.save()
-
-                logger.info(
-                    f"Created execution record for recurring task: {task.name} → {execution_task.name} (ID: {execution_task.id})"
-                )
-
-                # Submit the execution task (not the original recurring task)
-                from .tasks_system import submit_task_to_dispatcher
-
-                submit_task_to_dispatcher(execution_task)
-
-                # Keep the original recurring task unchanged (it stays as template)
-                logger.info(f"Recurring task {task.name} (ID: {task_id}) remains as template for future executions")
-                return
-
-            # Check if task is ready to run
-            if task.status not in ["pending"]:
-                logger.warning(f"Task {task_id} is not in pending status (current: {task.status})")
-                self._remove_database_task(task_id)
-                return
+            # Get the task
+            task = Task.objects.get(id=task_id, status="pending")
 
             logger.info(f"Executing database task: {task.name} (ID: {task_id})")
 
@@ -422,9 +304,13 @@ class UnifiedTaskScheduler:
             # Submit to dispatcherd
             submit_task_to_dispatcher(task)
 
-            # Remove from tracking after submission (since it's not recurring)
-            self._remove_database_task(task_id)
+            # For non-recurring tasks, remove from tracking
+            if not task.is_recurring:
+                self._remove_database_task(task_id)
 
+        except Task.DoesNotExist:
+            logger.warning(f"Database task {task_id} not found or not pending")
+            self._remove_database_task(task_id)
         except Exception as e:
             logger.error(f"Failed to execute database task {task_id}: {e}")
 

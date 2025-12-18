@@ -9,28 +9,22 @@ import pytest
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
-from apps.core.models import User
 from apps.tasks.models import Task, TaskChain, TaskExecution
 from apps.tasks.v1.serializers import TaskExecutionSerializer, TaskSerializer
 from apps.tasks.v1.views import TaskViewSet
+from tests.base.task_test_base import TaskTestBase
 
 
 @pytest.mark.django_db
-class TestTaskViewSet(TestCase):
+class TestTaskViewSet(TaskTestBase):
     """Test TaskViewSet functionality."""
 
     def setUp(self):
+        super().setUp()  # Creates self.user
         self.factory = APIRequestFactory()
-        self.user = User.objects.create_user(username="test", email="test@example.com")
-        self.task = self._create_task_safely(
+        self.task = self.create_task(
             name="Test Task", function_name="test_function", task_data={"key": "value"}, created_by=self.user
         )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_viewset_initialization(self):
         """Test TaskViewSet can be initialized."""
@@ -78,20 +72,14 @@ class TestTaskViewSet(TestCase):
 
 
 @pytest.mark.django_db
-class TestTaskSerializer(TestCase):
+class TestTaskSerializer(TaskTestBase):
     """Test TaskSerializer functionality."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="test", email="test@example.com")
-        self.task = self._create_task_safely(
+        super().setUp()  # Creates self.user
+        self.task = self.create_task(
             name="Test Task", function_name="test_function", task_data={"key": "value"}, created_by=self.user
         )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_task_serialization(self):
         """Test task serialization."""
@@ -159,21 +147,15 @@ class TestTaskSerializer(TestCase):
 
 
 @pytest.mark.django_db
-class TestTaskExecutionSerializer(TestCase):
+class TestTaskExecutionSerializer(TaskTestBase):
     """Test TaskExecutionSerializer functionality."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="test", email="test@example.com")
-        self.task = self._create_task_safely(
+        super().setUp()  # Creates self.user
+        self.task = self.create_task(
             name="Test Task", function_name="test_function", task_data={"key": "value"}, created_by=self.user
         )
         self.execution = TaskExecution.objects.create(task=self.task, status="running")
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_execution_serialization(self):
         """Test task execution serialization."""
@@ -252,21 +234,15 @@ class TestTaskImports(TestCase):
 
 
 @pytest.mark.django_db
-class TestTaskViewSetActions(TestCase):
+class TestTaskViewSetActions(TaskTestBase):
     """Test TaskViewSet action methods."""
 
     def setUp(self):
+        super().setUp()  # Creates self.user
         self.factory = APIRequestFactory()
-        self.user = User.objects.create_user(username="test", email="test@example.com")
         self.viewset = TaskViewSet()
         self.viewset.request = MagicMock()
         self.viewset.request.user = self.user
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def test_viewset_has_action_methods(self):
         """Test viewset has all expected action methods."""
@@ -288,10 +264,10 @@ class TestTaskViewSetActions(TestCase):
     def test_task_filtering(self):
         """Test task filtering in viewset."""
         # Create tasks with different statuses
-        self._create_task_safely(
+        self.create_task(
             name="Pending Task", function_name="test_function", task_data={}, created_by=self.user, status="pending"
         )
-        self._create_task_safely(
+        self.create_task(
             name="Running Task", function_name="test_function", task_data={}, created_by=self.user, status="running"
         )
 
@@ -307,17 +283,11 @@ class TestTaskViewSetActions(TestCase):
 
 
 @pytest.mark.django_db
-class TestSerializerFieldCoverage(TestCase):
+class TestSerializerFieldCoverage(TaskTestBase):
     """Test serializer field coverage."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username="test", email="test@example.com")
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
+        super().setUp()  # Creates self.user
 
     def test_task_serializer_fields(self):
         """Test TaskSerializer field coverage."""
@@ -362,9 +332,7 @@ class TestSerializerFieldCoverage(TestCase):
 
     def test_task_serializer_update(self):
         """Test TaskSerializer update method."""
-        task = self._create_task_safely(
-            name="Update Test", function_name="test_function", task_data={}, created_by=self.user
-        )
+        task = self.create_task(name="Update Test", function_name="test_function", task_data={}, created_by=self.user)
 
         data = {"name": "Updated Name"}
         serializer = TaskSerializer(instance=task, data=data, partial=True)

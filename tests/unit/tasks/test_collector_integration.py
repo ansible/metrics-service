@@ -16,7 +16,7 @@ from apps.tasks.tasks import collect_config_metrics
 class TestCollectorDatabaseIntegration:
     """Test that collectors properly use Django database connections."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.config")
     @patch("django.db.connections")
     def test_collect_config_metrics_uses_django_connection(self, mock_connections, mock_config_collector):
@@ -51,7 +51,7 @@ class TestCollectorDatabaseIntegration:
         assert result["parameters_used"]["database"] == "awx"
         assert "config_data" in result
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.config")
     @patch("django.db.connections")
     def test_collect_config_metrics_defaults_to_awx_database(self, mock_connections, mock_config_collector):
@@ -71,7 +71,7 @@ class TestCollectorDatabaseIntegration:
         mock_connections.__getitem__.assert_called_once_with("awx")
         assert result["parameters_used"]["database"] == "awx"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.config")
     @patch("django.db.connections")
     def test_collect_config_metrics_handles_collector_error(self, mock_connections, mock_config_collector):
@@ -92,7 +92,7 @@ class TestCollectorDatabaseIntegration:
         assert "Collection failed" in result["error"]
         assert "Database connection failed" in result["error"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", False)
     def test_collect_config_metrics_handles_missing_metrics_utility(self):
         """Test that collect_config_metrics handles missing metrics-utility."""
         # Call the task function

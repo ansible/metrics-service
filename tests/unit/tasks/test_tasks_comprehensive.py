@@ -13,7 +13,7 @@ from django.test import TestCase
 
 from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task
-from tests.test_utils import get_test_password
+from tests.base.task_test_base import TaskTestBase
 
 User = get_user_model()
 
@@ -23,10 +23,10 @@ class TestMetricsUtilityImport(TestCase):
     """Test metrics utility import functionality."""
 
     def test_metrics_utility_available_flag(self):
-        """Test that METRICS_UTILITY_AVAILABLE flag is properly set."""
+        """Test that metrics_utility_available flag is properly set."""
         # Should be True if metrics-utility is available
-        assert hasattr(tasks, "METRICS_UTILITY_AVAILABLE")
-        assert isinstance(tasks.METRICS_UTILITY_AVAILABLE, bool)
+        assert hasattr(tasks, "metrics_utility_available")
+        assert isinstance(tasks.metrics_utility_available, bool)
 
     @patch("apps.tasks.tasks_collector.logger")
     def test_metrics_utility_import_error(self, mock_logger):
@@ -60,14 +60,12 @@ class TestDispatcherdDecorator(TestCase):
 
 
 @pytest.mark.unit
-class TestSystemTasksCreation(TestCase):
+class TestSystemTasksCreation(TaskTestBase):
     """Test system tasks creation and management."""
 
     def setUp(self):
         """Set up test environment."""
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password=get_test_password()
-        )
+        super().setUp()  # Creates self.user
 
     def test_create_system_tasks_disabled_task(self):
         """Test handling of disabled system tasks."""
@@ -113,20 +111,12 @@ class TestSystemTasksCreation(TestCase):
 
 
 @pytest.mark.unit
-class TestSystemTaskHelpers(TestCase):
+class TestSystemTaskHelpers(TaskTestBase):
     """Test system task helper functions."""
 
     def setUp(self):
         """Set up test environment."""
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password=get_test_password()
-        )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
+        super().setUp()  # Creates self.user
 
     def test_process_system_task_new_task(self):
         """Test _process_system_task with new task creation."""
@@ -150,7 +140,7 @@ class TestSystemTaskHelpers(TestCase):
     def test_process_system_task_update_existing(self):
         """Test _process_system_task with existing task update."""
         # Create existing task
-        self._create_task_safely(
+        self.create_task(
             name="Test System Task",
             description="Old description",
             function_name="test_function",
@@ -192,7 +182,7 @@ class TestSystemTaskHelpers(TestCase):
             "priority": 2,
         }
 
-        self._create_task_safely(
+        self.create_task(
             name=system_task_config["name"],
             description=system_task_config["description"],
             function_name=system_task_config["function_name"],
@@ -214,7 +204,7 @@ class TestSystemTaskHelpers(TestCase):
 
     def test_update_existing_system_task_multiple_fields(self):
         """Test _update_existing_system_task with multiple field changes."""
-        existing_task = self._create_task_safely(
+        existing_task = self.create_task(
             name="Test Task",
             description="Old description",
             function_name="test_function",
@@ -335,7 +325,7 @@ class TestEdgeCasesAndErrorHandling:
         result = tasks.process_user_data(user_id=None)
         assert "error" in result["status"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     def test_metrics_collection_edge_cases(self, mock_connections, mock_collector):
@@ -363,7 +353,7 @@ class TestEdgeCasesAndErrorHandling:
             db=mock_db_connection, salt=ANY, since=None, until=None, ship_path=None, save_rollups=True
         )
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.logger")
     def test_error_logging(self, mock_logger):
         """Test that errors are properly logged."""

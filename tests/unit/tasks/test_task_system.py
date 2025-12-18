@@ -8,7 +8,7 @@ import pytest
 from django.test import TestCase
 
 from apps.core.models import User
-from apps.tasks.models import Task, TaskExecution
+from apps.tasks.models import TaskExecution
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
     cleanup_old_data,
@@ -17,6 +17,7 @@ from apps.tasks.tasks import (
     send_notification_email,
     submit_task_to_dispatcher,
 )
+from tests.base.task_test_base import TaskTestBase
 
 # Note: Some utilities may not be implemented yet
 # from apps.tasks.utils import (
@@ -100,21 +101,13 @@ class TaskFunctionsTestCase(TestCase):
 
 
 @pytest.mark.unit
-class ExecuteDbTaskTestCase(TestCase):
+class ExecuteDbTaskTestCase(TaskTestBase):
     """Test cases for execute_db_task function."""
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="taskuser")
-        self.task = self._create_task_safely(
-            name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7}
-        )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
+        super().setUp()  # Creates self.user
+        self.task = self.create_task(name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7})
 
     @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_success(self):
@@ -186,15 +179,14 @@ class ExecuteDbTaskTestCase(TestCase):
 
 
 @pytest.mark.unit
-class SubmitTaskTestCase(TestCase):
+class SubmitTaskTestCase(TaskTestBase):
     """Test cases for submit_task_to_dispatcher function."""
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="submituser")
+        super().setUp()  # Creates self.user
         # Create task without triggering signals to prevent recursion during test setup
-        self.task = Task(name="Submit Task", function_name="cleanup_old_data", created_by=self.user)
-        self.task.save()
+        self.task = self.create_task(name="Submit Task", function_name="cleanup_old_data")
 
     @patch("apps.tasks.models.TaskExecution.objects.create")
     def test_submit_task_to_dispatcher_exception(self, mock_create):

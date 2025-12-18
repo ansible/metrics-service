@@ -11,7 +11,6 @@ import logging
 
 # Import all collector tasks
 from .tasks_collector import (
-    METRICS_UTILITY_AVAILABLE,
     anonymize_data,
     collect_all_metrics,
     collect_anonymous_metrics,
@@ -22,6 +21,7 @@ from .tasks_collector import (
     debug_segment_messages,
     full_process,
     full_process_anonymize,
+    metrics_utility_available,
     send_to_segment,
     test_segment_track,
 )
@@ -405,7 +405,7 @@ __all__ = [
     "full_process_anonymize",
     "test_segment_track",
     "debug_segment_messages",
-    "METRICS_UTILITY_AVAILABLE",
+    "metrics_utility_available",
     # Configuration
     "TASK_FUNCTIONS",
     "TASK_METADATA",

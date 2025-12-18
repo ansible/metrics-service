@@ -194,9 +194,10 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         # and is not recurring (otherwise it will be picked up by the scheduler)
         if not self.scheduled_time and not self.is_recurring:
             try:
-                from .tasks_system import submit_task_to_dispatcher
+                # Use submission_utils to avoid circular import with tasks_system
+                from .submission_utils import submit_task_for_execution
 
-                submit_task_to_dispatcher(self)
+                submit_task_for_execution(self)
             except Exception as e:
                 # If submission fails, update the task status
                 logger.error(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")

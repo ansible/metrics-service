@@ -6,7 +6,6 @@ communication, and testing tasks with proper error handling and status tracking.
 """
 
 import logging
-import os
 import time
 from typing import Any
 
@@ -415,42 +414,16 @@ def submit_task_to_dispatcher(task: Any) -> None:
     """
     Submit a task to the dispatcher for execution.
 
+    This is now a wrapper around submission_utils.submit_task_for_execution()
+    for backward compatibility. The actual implementation has been moved to
+    submission_utils.py to break circular imports.
+
     Args:
         task: The task to submit
     """
-    from .models import TaskExecution
+    from .submission_utils import submit_task_for_execution
 
-    try:
-        # Create execution record
-        TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
-
-        # Ensure dispatcherd is configured before attempting to submit tasks
-        from .dispatcherd_config import ensure_dispatcherd_configured
-
-        ensure_dispatcherd_configured()
-
-        # Import dispatcherd submit function
-        from dispatcherd.publish import submit_task
-
-        # Determine the appropriate queue based on task type
-        from .dispatcherd_config import get_queue_for_function
-
-        queue = get_queue_for_function(task.function_name)
-
-        # Submit to dispatcherd using execute_db_task as the entry point
-        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
-
-        # Update task status to indicate it's been submitted
-        task.status = "pending"
-        task.save()
-
-        logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
-
-    except Exception as e:
-        logger.error(f"Error submitting task to dispatcher: {str(e)}")
-        task.status = "failed"
-        task.error_message = f"Failed to submit to dispatcher: {str(e)}"
-        task.save()
+    submit_task_for_execution(task)
 
 
 # System-defined tasks are now handled by APScheduler cron scheduler only

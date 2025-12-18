@@ -23,7 +23,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         """Set up test environment."""
         # Import here to avoid import issues during collection
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", False)
     def test_all_functions_when_metrics_utility_unavailable(self):
         """Test all functions when metrics utility is not available."""
         from apps.tasks.tasks_collector import (
@@ -56,7 +56,7 @@ class TestTasksCollectorFullCoverage(TestCase):
             assert result["status"] == "error"
             assert "metrics-utility is not available" in result["error"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.log_task_execution")
@@ -92,7 +92,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         # Verify processor called with correct parameters
         mock_processor.assert_called()
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
@@ -114,7 +114,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         assert "data" in call_args[1]
         assert "parameters_used" in call_args[1]["data"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.config")
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
@@ -146,7 +146,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         call_args = mock_create_result.call_args
         assert call_args[0][0] == "error"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.job_host_summary")
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
@@ -191,7 +191,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         }
         collect_job_host_summary(**kwargs)
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.main_jobevent")
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
@@ -235,7 +235,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         kwargs = {"since": None}
         collect_host_metrics(**kwargs)
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector._collect_all_metrics")
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
@@ -308,7 +308,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         assert since == existing_since
         assert until == existing_until
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("apps.tasks.tasks_collector.config")
     @patch("apps.tasks.tasks_collector.job_host_summary")
@@ -379,7 +379,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         with pytest.raises(ValueError, match="Unknown collector"):
             _run_single_collector("unknown_collector", mock_db, "", "", "salt")
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector._run_single_collector")
     @patch("apps.tasks.tasks_collector.logger")
     def test_collect_all_metrics_helper_with_errors(self, mock_logger, mock_run_single):
@@ -448,14 +448,14 @@ class TestTasksCollectorFullCoverage(TestCase):
         assert result2["main_host"] == {"host1": "data", "host2": "data"}
         assert "failed_collector" not in result2
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.segment_available", True)
     @patch("apps.tasks.tasks_collector.logger")
     def test_send_to_segment_full_coverage(self, mock_logger):
         """Test _send_to_segment with all branches."""
         from apps.tasks.tasks_collector import _send_to_segment
 
         # Test when segment not available
-        with patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", False):
+        with patch("apps.tasks.tasks_collector.segment_available", False):
             result = _send_to_segment("user", "event", {"data": "test"})
             assert result == "segment_not_available"
 
@@ -473,11 +473,11 @@ class TestTasksCollectorFullCoverage(TestCase):
             assert "error:" in result
             mock_logger.error.assert_called()
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector._collect_all_metrics")
     @patch("apps.tasks.tasks_collector._prepare_segment_data")
     @patch("apps.tasks.tasks_collector._send_to_segment")
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.segment_available", True)
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
     def test_full_process_all_branches(
@@ -519,7 +519,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         mock_collect_all.side_effect = Exception("Process error")
         full_process()
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector._collect_all_metrics")
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
@@ -548,7 +548,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         mock_collect_all.side_effect = Exception("Metrics error")
         collect_metrics()
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector._prepare_segment_data")
     @patch("apps.tasks.tasks_collector.create_task_result")
     def test_anonymize_data_function(self, mock_create_result, mock_prepare):
@@ -575,10 +575,10 @@ class TestTasksCollectorFullCoverage(TestCase):
         mock_prepare.side_effect = Exception("Anonymization error")
         anonymize_data(**kwargs)
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.metrics_utility_available", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
     @patch("apps.tasks.tasks_collector._send_to_segment")
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.segment_available", True)
     @patch("django.db.connections")
     @patch("apps.tasks.tasks_collector.create_task_result")
     def test_full_process_anonymize(self, mock_create_result, mock_connections, mock_send_segment, mock_processor):
@@ -623,7 +623,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         mock_send.side_effect = Exception("Debug error")
         debug_segment_messages()
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.segment_available", True)
     @patch("apps.tasks.tasks_collector._send_to_segment")
     @patch("apps.tasks.tasks_collector.create_task_result")
     def test_test_segment_track(self, mock_create_result, mock_send):
@@ -645,14 +645,14 @@ class TestTasksCollectorFullCoverage(TestCase):
         test_segment_track(**kwargs)
 
         # Test when segment not available
-        with patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", False):
+        with patch("apps.tasks.tasks_collector.segment_available", False):
             test_segment_track()
 
         # Test exception handling
         mock_send.side_effect = Exception("Test error")
         test_segment_track()
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.segment_available", True)
     @patch("apps.tasks.tasks_collector._send_to_segment")
     @patch("apps.tasks.tasks_collector.create_task_result")
     def test_send_to_segment_function(self, mock_create_result, mock_send):
@@ -674,7 +674,7 @@ class TestTasksCollectorFullCoverage(TestCase):
         assert call_args[0][0] == "error"
 
         # Test when segment not available
-        with patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", False):
+        with patch("apps.tasks.tasks_collector.segment_available", False):
             send_to_segment(**kwargs)
 
         # Test exception handling
@@ -780,10 +780,10 @@ class TestTasksCollectorFullCoverage(TestCase):
 
         # Test that all functions with logger.error calls can reach them
         functions_with_errors = [
-            (collect_anonymous_metrics, "METRICS_UTILITY_AVAILABLE", True),
-            (collect_config_metrics, "METRICS_UTILITY_AVAILABLE", True),
-            (collect_job_host_summary, "METRICS_UTILITY_AVAILABLE", True),
-            (collect_host_metrics, "METRICS_UTILITY_AVAILABLE", True),
+            (collect_anonymous_metrics, "metrics_utility_available", True),
+            (collect_config_metrics, "metrics_utility_available", True),
+            (collect_job_host_summary, "metrics_utility_available", True),
+            (collect_host_metrics, "metrics_utility_available", True),
         ]
 
         for func, patch_attr, patch_val in functions_with_errors:
@@ -797,21 +797,21 @@ class TestTasksCollectorFullCoverage(TestCase):
                 mock_logger.reset_mock()
 
         # Test _send_to_segment error logging
-        with patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True), patch("segment.analytics") as mock_analytics:
+        with patch("apps.tasks.tasks_collector.segment_available", True), patch("segment.analytics") as mock_analytics:
             mock_analytics.track.side_effect = Exception("Segment error")
             _send_to_segment("user", "event", {"data": "test"})
             mock_logger.error.assert_called()
 
     def test_segment_import_paths(self):
         """Test segment-related import paths."""
-        # Test that SEGMENT_AVAILABLE is properly set based on imports
-        from apps.tasks.tasks_collector import SEGMENT_AVAILABLE, StorageSegment
+        # Test that segment_available is properly set based on imports
+        from apps.tasks.tasks_collector import StorageSegment, segment_available
 
         # These should be set based on actual import success/failure
-        assert isinstance(SEGMENT_AVAILABLE, bool)
+        assert isinstance(segment_available, bool)
 
         # StorageSegment should be None if segment not available
-        if not SEGMENT_AVAILABLE:
+        if not segment_available:
             assert StorageSegment is None
 
     def test_missing_lines_coverage(self):
@@ -828,7 +828,7 @@ class TestTasksCollectorFullCoverage(TestCase):
 
         # Test ValueError path in collect_all_metrics (lines around 388, 411-413)
         with (
-            patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True),
+            patch("apps.tasks.tasks_collector.metrics_utility_available", True),
             patch("django.db.connections") as mock_connections,
         ):
             # Mock db connection
@@ -846,11 +846,11 @@ class TestTasksCollectorFullCoverage(TestCase):
         # but we can verify the fallback behavior when imports fail
 
         # Test that the module can handle when metrics-utility is not available
-        from apps.tasks.tasks_collector import METRICS_UTILITY_AVAILABLE
+        from apps.tasks.tasks_collector import metrics_utility_available
 
         # If metrics utility is available, the imports worked
         # If not, the fallback None values are set
-        if not METRICS_UTILITY_AVAILABLE:
+        if not metrics_utility_available:
             from apps.tasks.tasks_collector import (
                 anonymized_rollups_processor,
                 config,
@@ -867,7 +867,7 @@ class TestTasksCollectorFullCoverage(TestCase):
             assert main_jobevent is None
 
         # Test segment import handling
-        from apps.tasks.tasks_collector import SEGMENT_AVAILABLE, StorageSegment
+        from apps.tasks.tasks_collector import StorageSegment, segment_available
 
-        if not SEGMENT_AVAILABLE:
+        if not segment_available:
             assert StorageSegment is None

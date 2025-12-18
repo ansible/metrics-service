@@ -10,7 +10,8 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.models import Organization, Team
-from apps.tasks.models import Task, TaskChain, TaskChainMembership, TaskDependency, TaskExecution
+from apps.tasks.models import TaskChain, TaskChainMembership, TaskDependency, TaskExecution
+from tests.base.task_test_base import TaskTestBase
 from tests.test_utils import get_test_password
 
 User = get_user_model()
@@ -49,24 +50,17 @@ class CoreModelsTestCase(TestCase):
 
 
 @pytest.mark.unit
-class TaskModelTestCase(TestCase):
+class TaskModelTestCase(TaskTestBase):
     """Test cases for Task system models."""
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="taskuser", email="task@example.com")
+        super().setUp()  # Creates self.user
 
-        self.task = self._create_task_safely(
+        self.task = self.create_task(
             name="Test Task",
             function_name="test_function",
             task_data={"param": "value"},
-            created_by=self.user,
             status="pending",
         )
 
@@ -120,9 +114,7 @@ class TaskModelTestCase(TestCase):
 
     def test_task_dependency_creation(self):
         """Test TaskDependency model creation."""
-        task2 = self._create_task_safely(
-            name="Dependent Task", function_name="dependent_function", created_by=self.user
-        )
+        task2 = self.create_task(name="Dependent Task", function_name="dependent_function", created_by=self.user)
 
         dependency = TaskDependency.objects.create(
             dependent_task=task2, prerequisite_task=self.task, required_status="completed"
@@ -167,7 +159,7 @@ class TaskModelTestCase(TestCase):
         self.assertTrue(chain.is_active)
 
         # Test task chain membership
-        task2 = self._create_task_safely(name="Task 2", function_name="function2", created_by=self.user)
+        task2 = self.create_task(name="Task 2", function_name="function2", created_by=self.user)
 
         membership1 = TaskChainMembership.objects.create(chain=chain, task=self.task, order=1)
 
@@ -183,18 +175,12 @@ class TaskModelTestCase(TestCase):
 
 
 @pytest.mark.unit
-class ModelValidationTestCase(TestCase):
+class ModelValidationTestCase(TaskTestBase):
     """Test cases for model validation and constraints."""
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="validationuser")
+        super().setUp()  # Creates self.user
         self.organization = Organization.objects.create(name="Test Org")
 
     def test_team_unique_constraint(self):
@@ -209,8 +195,8 @@ class ModelValidationTestCase(TestCase):
 
     def test_task_dependency_unique_constraint(self):
         """Test TaskDependency unique constraint."""
-        task1 = self._create_task_safely(name="Task 1", function_name="func1")
-        task2 = self._create_task_safely(name="Task 2", function_name="func2")
+        task1 = self.create_task(name="Task 1", function_name="func1")
+        task2 = self.create_task(name="Task 2", function_name="func2")
 
         # First dependency should be created successfully
         dep1 = TaskDependency.objects.create(dependent_task=task2, prerequisite_task=task1)
@@ -221,7 +207,7 @@ class ModelValidationTestCase(TestCase):
     def test_task_chain_membership_unique_constraint(self):
         """Test TaskChainMembership unique constraint."""
         chain = TaskChain.objects.create(name="Test Chain")
-        task = self._create_task_safely(name="Test Task", function_name="func")
+        task = self.create_task(name="Test Task", function_name="func")
 
         # First membership should be created successfully
         membership1 = TaskChainMembership.objects.create(chain=chain, task=task, order=1)
@@ -232,18 +218,12 @@ class ModelValidationTestCase(TestCase):
 
 
 @pytest.mark.unit
-class ModelMethodsTestCase(TestCase):
+class ModelMethodsTestCase(TaskTestBase):
     """Test cases for model methods and properties."""
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def setUp(self):
         """Set up test data."""
-        self.user = User.objects.create_user(username="methoduser")
+        super().setUp()  # Creates self.user
 
     def test_user_password_handling(self):
         """Test User password handling."""
@@ -259,7 +239,7 @@ class ModelMethodsTestCase(TestCase):
 
     def test_task_priority_choices(self):
         """Test Task priority choices."""
-        task = self._create_task_safely(name="Priority Test", function_name="priority_func")
+        task = self.create_task(name="Priority Test", function_name="priority_func")
 
         valid_priorities = [1, 2, 3, 4]  # Low, Normal, High, Critical
 

@@ -5,8 +5,6 @@ This module provides serializers for task management functionality
 converted from the manage_tasks.py command to REST API endpoints.
 """
 
-import json
-
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -15,12 +13,12 @@ from apps.tasks.models import (
     TaskExecution,
 )
 
-from .base_serializers import BaseModelSerializer, StatusFieldMixin
+from .base_serializers import BaseModelSerializer, StatusFieldMixin, TaskFieldMixin, ValidationMixin
 
 User = get_user_model()
 
 
-class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
+class TaskSerializer(BaseModelSerializer, StatusFieldMixin, TaskFieldMixin):
     """
     Main serializer for Task model with comprehensive functionality.
 
@@ -108,17 +106,7 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
             return obj.get_duration()
         return None
 
-    def get_can_retry(self, obj) -> bool:
-        """Check if task can be retried."""
-        return obj.can_retry()
-
-    def get_can_delete(self, obj) -> bool:
-        """Check if task can be deleted."""
-        return obj.can_delete()
-
-    def get_can_modify(self, obj) -> bool:
-        """Check if task can be modified."""
-        return obj.can_modify()
+    # Methods get_can_retry(), get_can_delete(), get_can_modify() now provided by TaskFieldMixin
 
     def get_is_ready_to_run(self, obj) -> bool:
         """Check if task is ready to run."""
@@ -130,7 +118,7 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
         return next_time.isoformat() if next_time else None
 
 
-class TaskCreateSerializer(serializers.ModelSerializer):
+class TaskCreateSerializer(ValidationMixin, serializers.ModelSerializer):
     """
     Serializer for creating tasks via the API.
 
@@ -176,25 +164,12 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Invalid function name. Available functions: {available_functions}")
         return value
 
-    def validate_cron_expression(self, value):
-        """Validate cron expression format."""
-        if value:
-            try:
-                from croniter import croniter
-
-                croniter(value)
-            except (ValueError, TypeError) as e:
-                raise serializers.ValidationError(f"Invalid cron expression: {e}") from e
-        return value
+    # validate_cron_expression() is now provided by ValidationMixin
 
     def validate_task_data(self, value):
         """Validate task data is proper JSON if provided as string."""
-        if isinstance(value, str):
-            try:
-                return json.loads(value)
-            except json.JSONDecodeError as e:
-                raise serializers.ValidationError(f"Invalid JSON data: {e}") from e
-        return value
+        # Use ValidationMixin's validate_json_field method
+        return self.validate_json_field(value, field_name="task_data")
 
     def validate_user(self, value):
         """Validate user exists if provided."""
