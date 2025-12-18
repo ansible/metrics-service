@@ -71,12 +71,12 @@ need a specific URL to take priority without changing app order.
 
 ## Where to Add URLs
 
-| Use Case                     | Location                  |
-| ----------                   | ----------                |
-| App-specific endpoints       | `apps/<app_name>/urls.py` |
-| Service-level customizations | `apps/urls.py`            |
-| Priority/override patterns   | `apps/urls.py`            |
-| Cross-app endpoints          | `apps/urls.py`            |
+| Use Case | Location |
+|----------|----------|
+| App-specific endpoints | `apps/<app_name>/urls.py` |
+| Service-level customizations | `apps/urls.py` |
+| Priority/override patterns | `apps/urls.py` |
+| Cross-app endpoints | `apps/urls.py` |
 
 """
 
@@ -87,6 +87,7 @@ from ansible_base.lib.dynamic_config.dynamic_urls import (
     api_version_urls,  # type: ignore
     root_urls,  # type: ignore
 )
+from ansible_base.rbac.service_api.urls import rbac_service_urls
 from ansible_base.resource_registry.urls import urlpatterns as resource_api_urls
 from django.conf import settings
 from django.urls import include, path
@@ -99,6 +100,7 @@ urlpatterns = []
 urlpatterns += [
     path("api/v1/", include(api_version_urls)),
     path("api/v1/", include(resource_api_urls)),
+    path("api/v1/", include(rbac_service_urls)),
     path("api/", include(api_urls)),
     path("", include(root_urls)),
 ]
@@ -134,12 +136,3 @@ if not settings.DYNACONF.get("IS_RUNNING_TESTS") and settings.DYNACONF.get("DEBU
 urlpatterns += [
     path("api-auth/", include("rest_framework.urls")),
 ]
-
-# Debug and Development URLS
-if not settings.DYNACONF.get("IS_RUNNING_TESTS") and settings.DYNACONF.get("DEBUG"):
-    try:
-        from debug_toolbar.toolbar import debug_toolbar_urls  # noqa
-
-        urlpatterns.extend(debug_toolbar_urls())
-    except ImportError:
-        pass  # debug_toolbar not installed
