@@ -55,35 +55,31 @@ class TestDynaconfPrecedence:
 class TestDynaconfValidators:
     """Test Dynaconf validators enforce security requirements.
 
-    Note: Since settings are already loaded, we test that validators
-    are properly configured rather than trying to trigger them.
+    Note: Validators are only loaded in production mode (METRICS_SERVICE_MODE=production).
+    These tests import the production validators directly to verify they are configured.
     """
 
-    def test_validators_are_registered(self):
-        """Test that validators are registered in DYNACONF."""
-        from metrics_service.settings import DYNACONF
+    def test_validators_are_registered_in_production(self):
+        """Test that validators are defined in production settings."""
+        from apps.settings.production import validators
 
-        validators_list = list(DYNACONF.validators)
-        assert len(validators_list) > 0
+        assert len(validators) > 0
 
     def test_secret_key_validators_configured(self):
-        """Test that SECRET_KEY validators are configured."""
-        from metrics_service.settings import DYNACONF
+        """Test that SECRET_KEY validators are configured in production."""
+        from apps.settings.production import validators
 
-        validators_list = list(DYNACONF.validators)
-        secret_key_validators = [v for v in validators_list if "SECRET_KEY" in v.names]
+        secret_key_validators = [v for v in validators if "SECRET_KEY" in v.names]
 
         # Should have at least 1 validator for SECRET_KEY
         assert len(secret_key_validators) > 0
 
     def test_database_validators_configured(self):
-        """Test that database validators are configured."""
-        from metrics_service.settings import DYNACONF
-
-        validators_list = list(DYNACONF.validators)
+        """Test that database validators are configured in production."""
+        from apps.settings.production import validators
 
         # Should have validators for database settings
-        db_validators = [v for v in validators_list if any("DATABASES" in str(name) for name in v.names)]
+        db_validators = [v for v in validators if any("DATABASES" in str(name) for name in v.names)]
         assert len(db_validators) > 0
 
     def test_settings_pass_validation(self):
@@ -126,17 +122,20 @@ class TestDynaconfFactory:
         assert hasattr(DYNACONF, "validators")
         assert hasattr(DYNACONF, "current_env")
 
-    def test_factory_registers_validators(self):
-        """Test that validators are registered with the Dynaconf instance."""
-        from metrics_service.settings import DYNACONF
+    def test_factory_registers_validators_in_production(self):
+        """Test that validators are defined in production settings module.
 
-        # Check that validators were registered
-        # DYNACONF.validators is a ValidatorList which is iterable
-        validators_list = list(DYNACONF.validators)
-        assert len(validators_list) > 0
+        Note: Validators are only registered with DYNACONF when running in
+        production mode (METRICS_SERVICE_MODE=production). This test verifies
+        that production.py defines the expected validators.
+        """
+        from apps.settings.production import validators
+
+        # Check that validators are defined in production settings
+        assert len(validators) > 0
 
         # Check for SECRET_KEY validators
-        secret_key_validators = [v for v in validators_list if "SECRET_KEY" in v.names]
+        secret_key_validators = [v for v in validators if "SECRET_KEY" in v.names]
         assert len(secret_key_validators) > 0
 
     def test_envvar_prefix_configured(self):

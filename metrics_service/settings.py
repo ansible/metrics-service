@@ -345,17 +345,13 @@ execute_instance_hooks(
     ],
 )
 
-# Load settings validators
-if (validators_file := Path(apps_settings_dir / "validators.py")).exists():
-    validators = import_module("apps.settings.validators")
-    DYNACONF.validators.register(*validators.validators)
-
-# Top level framework validators
-from metrics_service.settings_validators import validators  # noqa
-
-DYNACONF.validators.register(*validators)
+# Load settings validators from environment-specific file (e.g., production.py, development.py)
+if (env_settings := Path(apps_settings_dir / f"{environment}.py")).exists():
+    env_module = import_module(f"apps.settings.{environment}")
+    if hasattr(env_module, "validators"):
+        DYNACONF.validators.register(*env_module.validators)
 
 # Update django.conf.settings with DYNACONF keys.
-export(__name__, DYNACONF, validation=environment != "development")
+export(__name__, DYNACONF, validation=True)
 
 ## --- End Settings | After this line only post validation can happen --- #
