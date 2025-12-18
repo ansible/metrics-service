@@ -14,7 +14,7 @@ Editable:
 - `apps/*/settings.py` - Each app settings in the loading order
 - `apps/settings/{mode}.py` - Settings specific to the current `METRICS_SERVICE_MODE`
 - `settings.local.py` - For local settings (git ignored)
-- `/etc/ansible-automation-platoform/metrics-service/settings.yaml` - for prod environment overrides
+- `/etc/ansible-automation-platoform/metrics_service/settings.yaml` - for prod environment overrides
 - `METRICS_SERVICE_` prefixed environment variables
 
 Declaring Settings:

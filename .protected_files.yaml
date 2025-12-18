@@ -9,4 +9,3 @@ protected_files:
   - .github/rulesets/branch-protection.json
   - manage.py
   - LICENSE
-  - .pre-commit-config.yaml
