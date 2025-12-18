@@ -38,4 +38,9 @@ LOGGING__loggers = {
         "level": "CRITICAL",
         "propagate": False,
     },
+    "django.template": {
+        "handlers": [],
+        "level": "CRITICAL",
+        "propagate": False,
+    },
 }
