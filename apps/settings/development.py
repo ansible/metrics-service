@@ -4,8 +4,6 @@ Inherits from ./defaults.py and adds dev-specific defaults
 """
 
 DEBUG = True
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = False
 
 CSRF_TRUSTED_ORIGINS = [

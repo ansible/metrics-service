@@ -24,9 +24,7 @@ DATABASES__awx__PASSWORD = "mypassword"
 # Test Database Configuration
 TEST_DB_NAME = "test_metrics_service"
 
-# CORS Configuration
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
-CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 # Service Configuration
 ID = "generated-uuid"

@@ -9,7 +9,6 @@ from dynaconf import Dynaconf, post_hook
 
 extra_applications = [
     "django_prometheus",
-    "corsheaders",
     "django_extensions",
 ]
 """Extra applications added after PSF templating."""
@@ -92,12 +91,6 @@ CACHES = {
         "LOCATION": "default",
     },
 }
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-
 CSRF_TRUSTED_ORIGINS = []
 
 DATABASES = {
@@ -134,9 +127,6 @@ FEATURE_ENABLED = {
     "METRICS_COLLECTION_ENABLED": False,
 }
 """Feature flags."""
-
-MIDDLEWARE = "@insert 0 corsheaders.middleware.CorsMiddleware"
-"""Middleware settings for cors."""
 
 
 @post_hook
