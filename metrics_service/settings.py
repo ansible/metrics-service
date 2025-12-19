@@ -18,7 +18,7 @@
    - Loaded based on what is on current INSTALLED_APPS, MIDDLEWARES etc
 5. Overrides from standard paths.
    - /etc/ansible-automation-platform/metrics_service/
-6. Overrides from environment variables prefixed with {{project_name | upper }}_.
+6. Overrides from environment variables prefixed with METRICS_SERVICE_.
 7. Post loading hooks registered on any Python file loaded before.
 
 ## Overrides
@@ -26,7 +26,7 @@
 > [!NOTE]
 > To override defaults define variables on each `apps`/app_name/settings.py.
 > To override settings on environments use the override path `/etc/...`
-> or set environment variables prefixed with `{{project_name | upper }}_`.
+> or set environment variables prefixed with `METRICS_SERVICE_`.
 > The environment variables can also be used on development environments
 > by adding a `.env` file to the root of the project or creating a
 > `settings.local.py`
