@@ -363,7 +363,13 @@ def _aggregate_collector_data(collections: list) -> dict:
 
     for collection in collections:
         data = collection.raw_data
-        record_count = len(data) if isinstance(data, list) else 1
+        # Handle dict with total_records key (from _csv_to_json), list, or fallback to 1
+        if isinstance(data, dict):
+            record_count = data.get("total_records", 1)
+        elif isinstance(data, list):
+            record_count = len(data)
+        else:
+            record_count = 1
 
         aggregated["total_records"] += record_count
         aggregated["hourly_snapshots"].append(
@@ -1295,6 +1301,9 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
                 logger.error(f"Failed to collect config data: {str(e)}")
                 config_data = {"error": str(e)}
 
+        # Store the count before updating status (queryset is lazy, count changes after update)
+        hourly_collections_count = hourly_collections.count()
+
         # Create DailyMetricsSummary
         daily_summary = DailyMetricsSummary.objects.create(
             summary_date=summary_date,
@@ -1302,7 +1311,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
             hourly_collection_ids=hourly_collection_ids,
             config_data=config_data,
             status="aggregated",
-            hourly_collections_count=hourly_collections.count(),
+            hourly_collections_count=hourly_collections_count,
             missing_hours=missing_hours,
             aggregation_completed_at=timezone.now(),
             rollup_task_execution_id=kwargs.get("execution_id"),
@@ -1314,7 +1323,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         log_task_execution(
             "daily_metrics_rollup",
             "completed",
-            f"Created daily summary ID: {daily_summary.id} with {hourly_collections.count()} hourly collections",
+            f"Created daily summary ID: {daily_summary.id} with {hourly_collections_count} hourly collections",
         )
 
         return create_task_result(
@@ -1323,7 +1332,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
                 "task_type": "daily_metrics_rollup",
                 "summary_id": daily_summary.id,
                 "summary_date": str(summary_date),
-                "hourly_collections_count": hourly_collections.count(),
+                "hourly_collections_count": hourly_collections_count,
                 "missing_hours": missing_hours,
                 "aggregated_collectors": list(aggregated_metrics.keys()),
             },
