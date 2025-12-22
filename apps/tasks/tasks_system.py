@@ -25,6 +25,9 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+# Constants
+ERROR_DJANGO_NOT_READY = "ERROR_DJANGO_NOT_READY"
+
 try:
     from dispatcherd.publish import task
 except ImportError:
@@ -473,7 +476,7 @@ def create_system_tasks() -> dict[str, Any]:
         from .task_groups import get_all_enabled_tasks
     except ImportError:
         # Handle case where Django isn't fully set up yet
-        return {"error": "Django not ready", "created": 0, "updated": 0, "skipped": 0}
+        return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "updated": 0, "skipped": 0}
 
     results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
 
@@ -578,7 +581,7 @@ def create_system_tasks_legacy() -> dict[str, Any]:
         from .models import Task
     except ImportError:
         # Handle case where Django isn't fully set up yet
-        return {"error": "Django not ready", "created": 0, "updated": 0, "skipped": 0}
+        return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "updated": 0, "skipped": 0}
 
     results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
 
@@ -658,7 +661,7 @@ def get_system_task_info() -> dict[str, Any]:
     try:
         from .models import Task
     except ImportError:
-        return {"error": "Django not ready", "system_tasks": []}
+        return {"error": "ERROR_DJANGO_NOT_READY", "system_tasks": []}
 
     system_tasks = Task.objects.filter(is_system_task=True).order_by("name")
 

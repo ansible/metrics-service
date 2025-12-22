@@ -4,6 +4,16 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
+# Constants for help text to avoid duplication
+HELP_TEXT_CREATED = 'The date/time this resource was created.'
+HELP_TEXT_MODIFIED_BY = 'The user who last modified this resource.'
+HELP_TEXT_CREATED_BY = 'The user who created this resource.'
+RELATED_NAME_MODIFIED = '%(app_label)s_%(class)s_modified+'
+RELATED_NAME_CREATED = '%(app_label)s_%(class)s_created+'
+MODEL_TASK = 'tasks.task'
+MODEL_TASK_EXECUTION = 'tasks.taskexecution'
+STATUS_WAITING = 'Waiting for Dependencies'
+
 
 class Migration(migrations.Migration):
 
@@ -18,8 +28,8 @@ class Migration(migrations.Migration):
             name='Task',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
                 ('name', models.CharField(help_text='The name of this resource.', max_length=512)),
                 ('started_at', models.DateTimeField(blank=True, help_text='When the process started', null=True)),
                 ('completed_at', models.DateTimeField(blank=True, help_text='When the process completed', null=True)),
@@ -31,14 +41,14 @@ class Migration(migrations.Migration):
                 ('cron_expression', models.CharField(blank=True, help_text="Cron expression for recurring tasks (e.g., '0 2 * * *')", max_length=100, null=True)),
                 ('is_recurring', models.BooleanField(default=False, help_text='Whether this task should repeat based on cron_expression')),
                 ('is_system_task', models.BooleanField(default=False, help_text='Whether this is a system-defined task that cannot be easily deleted')),
-                ('status', models.CharField(choices=[('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed'), ('cancelled', 'Cancelled'), ('waiting_for_dependencies', 'Waiting for Dependencies')], default='pending', max_length=30)),
+                ('status', models.CharField(choices=[('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed'), ('cancelled', 'Cancelled'), ('waiting_for_dependencies', STATUS_WAITING)], default='pending', max_length=30)),
                 ('priority', models.IntegerField(choices=[(1, 'Low'), (2, 'Normal'), (3, 'High'), (4, 'Critical')], default=2, help_text='Task priority (higher numbers = higher priority)')),
                 ('attempts', models.PositiveIntegerField(default=0, help_text='Number of execution attempts')),
                 ('max_attempts', models.PositiveIntegerField(default=3, help_text='Maximum number of retry attempts')),
                 ('timeout_seconds', models.PositiveIntegerField(default=3600, help_text='Task timeout in seconds')),
                 ('result_data', models.JSONField(blank=True, default=dict, help_text='JSON result data from task execution')),
                 ('created_by', models.ForeignKey(blank=True, help_text='User who created this task', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_tasks', to=settings.AUTH_USER_MODEL)),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'ordering': ['id'],
@@ -49,12 +59,12 @@ class Migration(migrations.Migration):
             name='TaskChain',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
                 ('name', models.CharField(help_text='The name of this resource.', max_length=512)),
                 ('is_active', models.BooleanField(default=True, help_text='Whether this chain is active')),
                 ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_chains', to=settings.AUTH_USER_MODEL)),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'ordering': ['id'],
@@ -64,13 +74,13 @@ class Migration(migrations.Migration):
             name='TaskChainMembership',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
                 ('order', models.PositiveIntegerField(help_text='Order of task in the chain (lower numbers run first)')),
                 ('chain', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tasks.taskchain')),
-                ('created_by', models.ForeignKey(default=None, editable=False, help_text='The user who created this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_created+', to=settings.AUTH_USER_MODEL)),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
-                ('task', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='tasks.task')),
+                ('created_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_CREATED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_CREATED, to=settings.AUTH_USER_MODEL)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
+                ('task', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=MODEL_TASK)),
             ],
             options={
                 'ordering': ['order'],
@@ -80,24 +90,24 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='taskchain',
             name='tasks',
-            field=models.ManyToManyField(help_text='Tasks in this chain', related_name='chains', through='tasks.TaskChainMembership', to='tasks.task'),
+            field=models.ManyToManyField(help_text='Tasks in this chain', related_name='chains', through='tasks.TaskChainMembership', to=MODEL_TASK),
         ),
         migrations.CreateModel(
             name='TaskExecution',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
-                ('status', models.CharField(choices=[('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed'), ('cancelled', 'Cancelled'), ('waiting_for_dependencies', 'Waiting for Dependencies')], max_length=30)),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
+                ('status', models.CharField(choices=[('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed'), ('cancelled', 'Cancelled'), ('waiting_for_dependencies', STATUS_WAITING)], max_length=30)),
                 ('started_at', models.DateTimeField(auto_now_add=True)),
                 ('completed_at', models.DateTimeField(blank=True, null=True)),
                 ('worker_id', models.CharField(blank=True, help_text='ID of the worker that executed the task', max_length=100, null=True)),
                 ('result_data', models.JSONField(blank=True, default=dict, help_text='JSON result data from this execution')),
                 ('error_message', models.TextField(blank=True, help_text='Error message if execution failed')),
                 ('execution_time_seconds', models.FloatField(blank=True, help_text='Time taken to execute the task in seconds', null=True)),
-                ('created_by', models.ForeignKey(default=None, editable=False, help_text='The user who created this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_created+', to=settings.AUTH_USER_MODEL)),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
-                ('task', models.ForeignKey(help_text='The task that was executed', on_delete=django.db.models.deletion.CASCADE, related_name='executions', to='tasks.task')),
+                ('created_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_CREATED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_CREATED, to=settings.AUTH_USER_MODEL)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
+                ('task', models.ForeignKey(help_text='The task that was executed', on_delete=django.db.models.deletion.CASCADE, related_name='executions', to=MODEL_TASK)),
             ],
             options={
                 'ordering': ['-started_at'],
@@ -107,8 +117,8 @@ class Migration(migrations.Migration):
             name='DailyMetricsSummary',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
                 ('summary_date', models.DateField(db_index=True, help_text='Date this summary covers (YYYY-MM-DD)', unique=True)),
                 ('aggregated_metrics', models.JSONField(default=dict, help_text='Aggregated metrics for the day (sums, averages, counts)')),
                 ('hourly_collection_ids', models.JSONField(default=dict, help_text='Map of collector_type -> list of HourlyMetricsCollection IDs')),
@@ -118,9 +128,9 @@ class Migration(migrations.Migration):
                 ('missing_hours', models.JSONField(default=list, help_text='List of hours that were missing collections')),
                 ('aggregation_completed_at', models.DateTimeField(blank=True, help_text='When aggregation was completed', null=True)),
                 ('error_message', models.TextField(blank=True, help_text='Error message if aggregation failed')),
-                ('created_by', models.ForeignKey(default=None, editable=False, help_text='The user who created this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_created+', to=settings.AUTH_USER_MODEL)),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
-                ('rollup_task_execution', models.ForeignKey(blank=True, help_text='TaskExecution that created this summary', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='daily_summaries', to='tasks.taskexecution')),
+                ('created_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_CREATED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_CREATED, to=settings.AUTH_USER_MODEL)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
+                ('rollup_task_execution', models.ForeignKey(blank=True, help_text='TaskExecution that created this summary', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='daily_summaries', to=MODEL_TASK_EXECUTION)),
             ],
             options={
                 'verbose_name': 'Daily Metrics Summary',
@@ -132,8 +142,8 @@ class Migration(migrations.Migration):
             name='AnonymizedMetricsPayload',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
                 ('summary_date', models.DateField(db_index=True, help_text='Date this payload covers')),
                 ('anonymized_data', models.JSONField(help_text='Anonymized metrics payload ready for Segment')),
                 ('status', models.CharField(choices=[('pending', 'Pending'), ('sending', 'Sending'), ('sent', 'Sent'), ('failed', 'Failed'), ('retry', 'Retry')], default='pending', max_length=20)),
@@ -145,10 +155,10 @@ class Migration(migrations.Migration):
                 ('sent_at', models.DateTimeField(blank=True, help_text='When payload was successfully sent', null=True)),
                 ('error_message', models.TextField(blank=True, help_text='Error message if send failed')),
                 ('payload_size_bytes', models.BigIntegerField(default=0, help_text='Size of anonymized_data in bytes')),
-                ('created_by', models.ForeignKey(default=None, editable=False, help_text='The user who created this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_created+', to=settings.AUTH_USER_MODEL)),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
+                ('created_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_CREATED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_CREATED, to=settings.AUTH_USER_MODEL)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
                 ('daily_summary', models.ForeignKey(help_text='Daily summary this payload was created from', on_delete=django.db.models.deletion.CASCADE, related_name='anonymized_payloads', to='tasks.dailymetricssummary')),
-                ('anonymization_task_execution', models.ForeignKey(blank=True, help_text='TaskExecution that created this payload', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='anonymized_payloads', to='tasks.taskexecution')),
+                ('anonymization_task_execution', models.ForeignKey(blank=True, help_text='TaskExecution that created this payload', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='anonymized_payloads', to=MODEL_TASK_EXECUTION)),
             ],
             options={
                 'verbose_name': 'Anonymized Metrics Payload',
@@ -160,13 +170,13 @@ class Migration(migrations.Migration):
             name='TaskDependency',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
-                ('required_status', models.CharField(choices=[('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed'), ('cancelled', 'Cancelled'), ('waiting_for_dependencies', 'Waiting for Dependencies')], default='completed', help_text='Required status of prerequisite task', max_length=30)),
-                ('created_by', models.ForeignKey(default=None, editable=False, help_text='The user who created this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_created+', to=settings.AUTH_USER_MODEL)),
-                ('dependent_task', models.ForeignKey(help_text='Task that depends on another task', on_delete=django.db.models.deletion.CASCADE, related_name='dependencies', to='tasks.task')),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
-                ('prerequisite_task', models.ForeignKey(help_text='Task that must complete before dependent_task can run', on_delete=django.db.models.deletion.CASCADE, related_name='dependents', to='tasks.task')),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
+                ('required_status', models.CharField(choices=[('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed'), ('cancelled', 'Cancelled'), ('waiting_for_dependencies', STATUS_WAITING)], default='completed', help_text='Required status of prerequisite task', max_length=30)),
+                ('created_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_CREATED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_CREATED, to=settings.AUTH_USER_MODEL)),
+                ('dependent_task', models.ForeignKey(help_text='Task that depends on another task', on_delete=django.db.models.deletion.CASCADE, related_name='dependencies', to=MODEL_TASK)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
+                ('prerequisite_task', models.ForeignKey(help_text='Task that must complete before dependent_task can run', on_delete=django.db.models.deletion.CASCADE, related_name='dependents', to=MODEL_TASK)),
             ],
             options={
                 'verbose_name_plural': 'Task Dependencies',
@@ -177,8 +187,8 @@ class Migration(migrations.Migration):
             name='HourlyMetricsCollection',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('modified', models.DateTimeField(auto_now=True, help_text='The date/time this resource was created.')),
-                ('created', models.DateTimeField(auto_now_add=True, help_text='The date/time this resource was created.')),
+                ('modified', models.DateTimeField(auto_now=True, help_text=HELP_TEXT_CREATED)),
+                ('created', models.DateTimeField(auto_now_add=True, help_text=HELP_TEXT_CREATED)),
                 ('collector_type', models.CharField(choices=[('job_host_summary', 'Job Host Summary'), ('main_host', 'Main Host'), ('main_jobevent', 'Main Job Event'), ('config', 'Configuration')], help_text='Type of metrics collector', max_length=50)),
                 ('collection_timestamp', models.DateTimeField(db_index=True, help_text='When this collection occurred (rounded to hour)')),
                 ('raw_data', models.JSONField(default=dict, help_text='Raw metrics data from collector')),
@@ -186,9 +196,9 @@ class Migration(migrations.Migration):
                 ('collection_parameters', models.JSONField(default=dict, help_text='Parameters used for collection (database, since, until, etc.)')),
                 ('data_size_bytes', models.BigIntegerField(default=0, help_text='Size of raw_data in bytes')),
                 ('error_message', models.TextField(blank=True, help_text='Error message if collection failed')),
-                ('created_by', models.ForeignKey(default=None, editable=False, help_text='The user who created this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_created+', to=settings.AUTH_USER_MODEL)),
-                ('modified_by', models.ForeignKey(default=None, editable=False, help_text='The user who last modified this resource.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(app_label)s_%(class)s_modified+', to=settings.AUTH_USER_MODEL)),
-                ('task_execution', models.ForeignKey(blank=True, help_text='TaskExecution that created this collection', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='hourly_collections', to='tasks.taskexecution')),
+                ('created_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_CREATED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_CREATED, to=settings.AUTH_USER_MODEL)),
+                ('modified_by', models.ForeignKey(default=None, editable=False, help_text=HELP_TEXT_MODIFIED_BY, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name=RELATED_NAME_MODIFIED, to=settings.AUTH_USER_MODEL)),
+                ('task_execution', models.ForeignKey(blank=True, help_text='TaskExecution that created this collection', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='hourly_collections', to=MODEL_TASK_EXECUTION)),
             ],
             options={
                 'verbose_name': 'Hourly Metrics Collection',
