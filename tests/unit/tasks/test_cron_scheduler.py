@@ -645,9 +645,10 @@ class TestUnifiedTaskScheduler:
 
         scheduler = UnifiedTaskScheduler()
 
-        with patch(
-            "apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")
-        ), pytest.raises(Exception, match="Config error"):
+        with (
+            patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")),
+            pytest.raises(Exception, match="Config error"),
+        ):
             scheduler.schedule_immediate_task("hello_world")
 
 
