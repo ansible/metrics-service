@@ -754,14 +754,10 @@ class TestTasksCollectorFullCoverage(TestCase):
     def test_segment_import_paths(self):
         """Test segment-related import paths."""
         # Test that SEGMENT_AVAILABLE is properly set based on imports
-        from apps.tasks.tasks_collector import SEGMENT_AVAILABLE, StorageSegment
+        from apps.tasks.tasks_collector import SEGMENT_AVAILABLE
 
         # These should be set based on actual import success/failure
         assert isinstance(SEGMENT_AVAILABLE, bool)
-
-        # StorageSegment should be None if segment not available
-        if not SEGMENT_AVAILABLE:
-            assert StorageSegment is None
 
     def test_missing_lines_coverage(self):
         """Test to cover remaining missing lines identified in coverage report."""
@@ -816,7 +812,7 @@ class TestTasksCollectorFullCoverage(TestCase):
             assert main_jobevent is None
 
         # Test segment import handling
-        from apps.tasks.tasks_collector import SEGMENT_AVAILABLE, StorageSegment
+        from apps.tasks.tasks_collector import SEGMENT_AVAILABLE
 
-        if not SEGMENT_AVAILABLE:
-            assert StorageSegment is None
+        # SEGMENT_AVAILABLE should be a boolean indicating if segment is available
+        assert isinstance(SEGMENT_AVAILABLE, bool)

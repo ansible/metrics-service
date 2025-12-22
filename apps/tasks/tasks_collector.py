@@ -586,7 +586,21 @@ def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in collect_anonymous_metrics: {str(e)}")
-        return create_task_result("error", error=f"Collection failed: {str(e)}")
+        # Include parameters_used even on error for debugging
+        return create_task_result(
+            "error",
+            error=f"Collection failed: {str(e)}",
+            data={
+                "parameters_used": {
+                    "database": kwargs.get("database", DEFAULT_DB_NAME),
+                    "since": kwargs.get("since"),
+                    "until": kwargs.get("until"),
+                    "salt": kwargs.get("salt"),
+                    "ship_path": kwargs.get("ship_path"),
+                    "save_rollups": kwargs.get("save_rollups", True),
+                },
+            },
+        )
 
 
 @task(queue="metrics_collectors", decorate=False)
