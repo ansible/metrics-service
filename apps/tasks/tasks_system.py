@@ -453,16 +453,115 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.save()
 
 
-# System-defined tasks are now handled by APScheduler cron scheduler only
-# Database-backed recurring tasks are disabled to avoid double scheduling
-# All recurring tasks are managed in apps/tasks/cron_scheduler.py
-SYSTEM_TASKS = [
-    # Database-backed system tasks disabled - use APScheduler instead
-    # See apps/tasks/cron_scheduler.py for all recurring task definitions
-]
+# System-defined tasks are now sourced from task groups and stored in database
+# Database is the source of truth for all tasks including recurring ones
+SYSTEM_TASKS = []
 
 
 def create_system_tasks() -> dict[str, Any]:
+    """
+    Create or update system-defined tasks from task groups in the database.
+
+    This function syncs task group definitions to the tasks_task table,
+    making the database the source of truth for all tasks.
+
+    Returns:
+        dict: Summary of tasks created, updated, and skipped
+    """
+    try:
+        from .models import Task
+        from .task_groups import get_all_enabled_tasks
+    except ImportError:
+        # Handle case where Django isn't fully set up yet
+        return {"error": "Django not ready", "created": 0, "updated": 0, "skipped": 0}
+
+    results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
+
+    # Get all task group definitions
+    task_groups = get_all_enabled_tasks()
+
+    for task_id, config in task_groups.items():
+        try:
+            _sync_task_group_to_database(task_id, config, results, Task)
+        except Exception as e:
+            results["tasks"].append(f"Error with {task_id}: {str(e)}")
+            logger.error(f"Failed to sync task {task_id}: {e}")
+
+    return results
+
+
+def _sync_task_group_to_database(task_id: str, config: dict[str, Any], results: dict[str, Any], task_model) -> None:
+    """
+    Sync a single task group definition to the database.
+
+    Args:
+        task_id: Unique identifier for the task
+        config: Task configuration from task groups
+        results: Results dict to update
+        task_model: Task model class
+    """
+    # Check if task already exists (by name and function)
+    existing_task = task_model.objects.filter(
+        name=task_id,
+        function_name=config["function"],
+        is_system_task=True
+    ).first()
+
+    # Prepare task data including feature flag for runtime checking
+    task_data = config.get("args", {}).copy()
+    if config.get("feature_flag"):
+        task_data["_feature_flag"] = config["feature_flag"]
+
+    if existing_task:
+        _update_existing_task_from_group(existing_task, config, task_data, results)
+    else:
+        _create_new_task_from_group(task_id, config, task_data, results, task_model)
+
+
+def _update_existing_task_from_group(existing_task, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any]) -> None:
+    """Update an existing system task from task group definition."""
+    updated = False
+
+    # Check each field for changes
+    fields_to_check = [
+        ("task_data", task_data),
+        ("cron_expression", config.get("cron")),
+        ("priority", config.get("priority", 5)),
+        ("description", config.get("description", "")),
+    ]
+
+    for field, new_value in fields_to_check:
+        if getattr(existing_task, field) != new_value:
+            setattr(existing_task, field, new_value)
+            updated = True
+
+    if updated:
+        existing_task.save()
+        results["updated"] += 1
+        results["tasks"].append(f"Updated: {existing_task.name}")
+    else:
+        results["skipped"] += 1
+        results["tasks"].append(f"Skipped: {existing_task.name} (no changes)")
+
+
+def _create_new_task_from_group(task_id: str, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any], task_model) -> None:
+    """Create a new system task from task group definition."""
+    new_task = task_model.objects.create(
+        name=task_id,
+        description=config.get("description", ""),
+        function_name=config["function"],
+        task_data=task_data,
+        cron_expression=config.get("cron"),
+        is_recurring=True,  # All task group tasks are recurring
+        priority=config.get("priority", 5),
+        is_system_task=True,
+        status="pending",
+    )
+    results["created"] += 1
+    results["tasks"].append(f"Created: {new_task.name}")
+
+
+def create_system_tasks_legacy() -> dict[str, Any]:
     """
     Create or update system-defined tasks on startup.
 

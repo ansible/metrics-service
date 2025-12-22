@@ -96,10 +96,10 @@ CSRF_TRUSTED_ORIGINS = []
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "HOST": "",  # require to be set at runtime
+        "HOST": "localhost",  # require to be set at runtime
         "PORT": "5432",
-        "USER": "metrics_service",
-        "PASSWORD": "",  # require to be set at runtime
+        "USER": "myuser",
+        "PASSWORD": "mypassword",  # require to be set at runtime
         "NAME": "metrics_service",
         "OPTIONS": {
             "sslmode": "prefer",
@@ -109,10 +109,10 @@ DATABASES = {
     # Override with METRICS_SERVICE_DATABASES__awx__HOST, etc.
     "awx": {
         "ENGINE": "django.db.backends.postgresql",
-        "HOST": "",  # require to be set at runtime
+        "HOST": "localhost",  # require to be set at runtime
         "PORT": "5432",
         "USER": "myuser",
-        "PASSWORD": "",  # require to be set at runtime
+        "PASSWORD": "mypassword",  # require to be set at runtime
         "NAME": "awx",
         "OPTIONS": {
             "sslmode": "prefer",

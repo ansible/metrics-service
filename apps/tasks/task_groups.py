@@ -321,7 +321,8 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
     Get all enabled tasks from all groups.
 
     Returns:
-        Dictionary mapping task_id to task configuration for all enabled tasks
+        Dictionary mapping task_id to task configuration for all enabled tasks.
+        Each task config includes the feature_flag from its group for runtime checking.
     """
     all_tasks = {}
 
@@ -332,6 +333,8 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
             task_config = task.copy()
             task_config["group"] = group.name
             task_config["group_description"] = group.description
+            # Add feature flag for runtime checking
+            task_config["feature_flag"] = group.enabled_setting
             all_tasks[task_id] = task_config
 
     return all_tasks

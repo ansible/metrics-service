@@ -441,6 +441,20 @@ FEATURE_ENABLED = {
 - **Anonymized Data Collection** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: enabled)
 - **Metrics Collection** - Controlled by `METRICS_COLLECTION_ENABLED` (default: disabled)
 
+**Automatic Database Initialization:**
+
+Feature flags are automatically created in the `dynamic_settings_setting` table on application startup:
+- If a setting doesn't exist, it's created with the default value from `FEATURE_ENABLED`
+- If a setting already exists, it's not modified (preserves user changes)
+- Settings can be queried/modified via SQL, Django shell, or API
+
+**Runtime Feature Flag Checking:**
+
+Hourly collection tasks automatically check feature flags before execution:
+- Tasks skip execution when their feature flag is disabled
+- No scheduler restart needed - changes take effect immediately
+- Logged when tasks are skipped for visibility
+
 ### Logging Configuration
 
 **Setting Log Level:**

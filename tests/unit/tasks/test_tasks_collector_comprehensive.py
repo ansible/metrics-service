@@ -45,7 +45,11 @@ class TestCollectAnonymousMetrics(TestCase):
         # Verify processor was called with correct parameters
         mock_processor.assert_called_once()
         call_args = mock_processor.call_args[1]
-        assert call_args["db"] == mock_db_connection
+        # Check that the db wrapper contains the correct django connection
+        from apps.tasks.tasks_collector import _RawPsycopgConnectionWrapper
+
+        assert isinstance(call_args["db"], _RawPsycopgConnectionWrapper)
+        assert call_args["db"]._django_conn == mock_db_connection
         assert call_args["since"] is None
         assert call_args["until"] is None
         assert call_args["ship_path"] is None
@@ -158,8 +162,13 @@ class TestCollectConfigMetrics(TestCase):
 
         result = collect_config_metrics()
 
-        # Verify collector instantiation and call
-        mock_config.assert_called_once_with(db=mock_db_connection)
+        # Verify collector instantiation and call - db is now wrapped
+        mock_config.assert_called_once()
+        call_args = mock_config.call_args[1]
+        from apps.tasks.tasks_collector import _RawPsycopgConnectionWrapper
+
+        assert isinstance(call_args["db"], _RawPsycopgConnectionWrapper)
+        assert call_args["db"]._django_conn == mock_db_connection
         mock_collector.gather.assert_called_once()
 
         # Verify result structure
@@ -219,8 +228,13 @@ class TestCollectHostMetrics(TestCase):
 
         result = collect_host_metrics()
 
-        # Verify collector usage
-        mock_main_host.assert_called_once_with(db=mock_db_connection)
+        # Verify collector usage - db is now wrapped
+        mock_main_host.assert_called_once()
+        call_args = mock_main_host.call_args[1]
+        from apps.tasks.tasks_collector import _RawPsycopgConnectionWrapper
+
+        assert isinstance(call_args["db"], _RawPsycopgConnectionWrapper)
+        assert call_args["db"]._django_conn == mock_db_connection
         mock_collector.gather.assert_called_once()
 
         # Verify result
@@ -263,8 +277,13 @@ class TestCollectJobHostSummary(TestCase):
 
         result = collect_job_host_summary()
 
-        # Verify collector usage
-        mock_job_host_summary.assert_called_once_with(db=mock_db_connection)
+        # Verify collector usage - db is now wrapped
+        mock_job_host_summary.assert_called_once()
+        call_args = mock_job_host_summary.call_args[1]
+        from apps.tasks.tasks_collector import _RawPsycopgConnectionWrapper
+
+        assert isinstance(call_args["db"], _RawPsycopgConnectionWrapper)
+        assert call_args["db"]._django_conn == mock_db_connection
         mock_collector.gather.assert_called_once()
 
         # Verify result structure
