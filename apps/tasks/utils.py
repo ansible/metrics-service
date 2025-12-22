@@ -413,3 +413,189 @@ def log_task_execution(task_name: str, operation: str, details: str = "", level:
 
     log_func = getattr(logger, level.lower(), logger.info)
     log_func(message)
+
+
+# =============================================================================
+# Dispatcherd Task Decorator
+# =============================================================================
+
+try:
+    from dispatcherd.publish import task
+except ImportError:
+
+    def task():
+        """Fallback task decorator when dispatcherd is not available."""
+
+        def decorator(func):
+            return func
+
+        return decorator
+
+
+# =============================================================================
+# Database and Data Utilities
+# =============================================================================
+
+
+def parse_datetime_string(date_str: str | None) -> Any:
+    """
+    Parse an ISO datetime string, return None if invalid.
+
+    Args:
+        date_str: ISO format datetime string (supports 'Z' suffix)
+
+    Returns:
+        datetime object or None if invalid/empty
+    """
+    from datetime import datetime
+
+    if not date_str:
+        return None
+    try:
+        # Replace 'Z' with '+00:00' for ISO parsing
+        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
+def get_db_connection(db_name: str = "awx"):
+    """
+    Get a Django database connection.
+
+    Args:
+        db_name: Database name from Django settings (default: 'awx')
+
+    Returns:
+        Database connection object
+    """
+    from django.db import connections
+
+    return connections[db_name]
+
+
+def generate_salt() -> str:
+    """
+    Generate a unique UUID4 salt for anonymization.
+
+    Returns:
+        str: UUID4 string
+    """
+    import uuid
+
+    return str(uuid.uuid4())
+
+
+def csv_to_json(csv_file_paths: list[str]) -> dict[str, Any]:
+    """
+    Convert CSV files returned by metrics-utility collectors to JSON format.
+
+    Args:
+        csv_file_paths: List of CSV file paths returned by collector.gather()
+
+    Returns:
+        dict: JSON representation of the CSV data with metadata
+    """
+    import contextlib
+    import csv
+    import os
+
+    if not csv_file_paths:
+        return {"records": [], "file_count": 0, "total_records": 0}
+
+    all_records = []
+    file_count = 0
+
+    for csv_path in csv_file_paths:
+        if not os.path.exists(csv_path):
+            logger.warning(f"CSV file not found: {csv_path}")
+            continue
+
+        try:
+            with open(csv_path, encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                records = list(reader)
+                all_records.extend(records)
+                file_count += 1
+
+            # Clean up CSV file after reading
+            with contextlib.suppress(Exception):
+                os.remove(csv_path)
+
+        except Exception as e:
+            logger.error(f"Error reading CSV file {csv_path}: {e}")
+            continue
+
+    return {
+        "records": all_records,
+        "file_count": file_count,
+        "total_records": len(all_records),
+    }
+
+
+# =============================================================================
+# Segment.com Integration
+# =============================================================================
+
+
+def send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
+    """
+    Send data to Segment.com using metrics-utility StorageSegment.
+
+    Args:
+        user_id: User ID for Segment tracking
+        event_name: Event name for tracking
+        segment_data: Dictionary of data to send
+
+    Returns:
+        str: "success" if sent, "segment_not_available" if Segment is not configured,
+             or "error: <message>" if sending failed.
+    """
+    try:
+        from metrics_utility.library.storage.segment import SEGMENT_AVAILABLE, StorageSegment
+    except ImportError:
+        logger.warning("metrics-utility segment integration not available")
+        return "segment_not_available"
+
+    if not SEGMENT_AVAILABLE or StorageSegment is None:
+        return "segment_not_available"
+
+    try:
+        import json
+
+        from django.conf import settings
+
+        # Get Segment write key from settings
+        write_key = getattr(settings, "SEGMENT_WRITE_KEY", None)
+        if not write_key:
+            logger.warning("SEGMENT_WRITE_KEY not configured in settings")
+            return "segment_not_available"
+
+        # Calculate data size for logging
+        data_size = len(json.dumps(segment_data).encode("utf-8"))
+
+        log_task_execution(
+            "segment_send",
+            "processing",
+            f"Sending data to Segment.com using StorageSegment (Size: {data_size} bytes)",
+        )
+
+        # Initialize StorageSegment with configuration
+        storage = StorageSegment(
+            write_key=write_key,
+            user_id=user_id,
+            debug=getattr(settings, "DEBUG", False),
+            use_bulk=data_size > 24 * 1024,  # Use bulk mode for large payloads
+        )
+
+        # Send data using StorageSegment.put()
+        artifact_name = f"metrics_collection_{user_id}"
+        chunks = storage.put(artifact_name=artifact_name, dict=segment_data, event_name=event_name)
+
+        # Log success with chunk information
+        chunk_count = len(chunks) if chunks else 1
+        logger.info(f"Successfully sent metrics to Segment.com (Size: {data_size} bytes, Chunks: {chunk_count})")
+        return "success"
+
+    except Exception as e:
+        logger.error(f"Error sending data to Segment.com: {str(e)}")
+        return f"error: {str(e)}"

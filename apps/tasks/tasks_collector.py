@@ -13,7 +13,13 @@ from typing import Any
 
 from .utils import (
     create_task_result,
+    csv_to_json,
+    generate_salt,
+    get_db_connection,
     log_task_execution,
+    parse_datetime_string,
+    send_to_segment,
+    task,
     task_execution_wrapper,
 )
 
@@ -48,37 +54,10 @@ except ImportError as e:
     main_host = None
     main_jobevent = None
 
-# Import segment.com integration from metrics-utility
-try:
-    from metrics_utility.library.storage.segment import SEGMENT_AVAILABLE
-except ImportError as e:
-    logger.warning(f"metrics-utility segment integration not available: {e}")
-    SEGMENT_AVAILABLE = False
-
-try:
-    from dispatcherd.publish import task
-except ImportError:
-
-    def task():
-        def decorator(func):
-            return func
-
-        return decorator
-
 
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-
-def _parse_datetime_string(date_str: str | None) -> datetime | None:
-    """Parse an ISO datetime string, return None if invalid."""
-    if not date_str:
-        return None
-    try:
-        return datetime.fromisoformat(date_str.replace("Z", UTC_OFFSET_SUFFIX))
-    except (ValueError, AttributeError):
-        return None
 
 
 def _get_date_defaults(
@@ -95,124 +74,6 @@ def _get_date_defaults(
             until_dt = datetime.now(UTC)
 
     return since_dt, until_dt
-
-
-def _get_db_connection(db_name: str = DEFAULT_DB_NAME):
-    """Get a Django database connection."""
-    from django.db import connections
-
-    return connections[db_name]
-
-
-def _generate_salt() -> str:
-    """Generate a unique UUID4 salt."""
-    import uuid
-
-    return str(uuid.uuid4())
-
-
-def _send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
-    """
-    Send data to Segment.com using direct analytics.track().
-
-    Returns:
-        str: "success" if sent, "segment_not_available" if Segment is not configured,
-             or "error: <message>" if sending failed.
-    """
-    if not SEGMENT_AVAILABLE:
-        return MSG_SEGMENT_NOT_AVAILABLE
-
-    try:
-        import json
-        import uuid
-
-        # Generate unique message ID for debugging
-        message_id = str(uuid.uuid4())[:8]
-        data_size = len(json.dumps(segment_data).encode("utf-8"))
-
-        log_task_execution(
-            "segment_send",
-            "processing",
-            f"Sending data to Segment.com (ID: {message_id}, Size: {data_size} bytes)",
-        )
-
-        # Import and configure Segment directly
-        from django.conf import settings
-        from segment import analytics
-
-        analytics.write_key = getattr(settings, "SEGMENT_WRITE_KEY", None)
-
-        # Send one simple track message
-        analytics.track(
-            user_id=user_id,
-            event=event_name,
-            properties={
-                "artifact_name": f"metrics_collection_{user_id}",
-                "data": segment_data,
-                "upload_timestamp": datetime.now(UTC).isoformat(),
-                "message_info": {
-                    "message_id": message_id,
-                    "data_size": data_size,
-                    "source": "metrics-service",
-                },
-            },
-        )
-
-        # Flush to ensure the message is sent
-        analytics.flush()
-
-        logger.info(f"Successfully sent metrics to Segment.com (ID: {message_id}, Size: {data_size} bytes)")
-        return "success"
-
-    except Exception as e:
-        logger.error(f"Error sending data to Segment.com: {str(e)}")
-        return f"error: {str(e)}"
-
-
-def _csv_to_json(csv_file_paths: list[str]) -> dict[str, Any]:
-    """
-    Convert CSV files returned by metrics-utility collectors to JSON format.
-
-    Args:
-        csv_file_paths: List of CSV file paths returned by collector.gather()
-
-    Returns:
-        dict: JSON representation of the CSV data with metadata
-    """
-    import csv
-    import os
-
-    if not csv_file_paths:
-        return {"records": [], "file_count": 0, "total_records": 0}
-
-    all_records = []
-    file_count = 0
-
-    for csv_path in csv_file_paths:
-        if not os.path.exists(csv_path):
-            logger.warning(f"CSV file not found: {csv_path}")
-            continue
-
-        try:
-            with open(csv_path, encoding="utf-8") as csvfile:
-                reader = csv.DictReader(csvfile)
-                records = list(reader)
-                all_records.extend(records)
-                file_count += 1
-
-            # Clean up CSV file after reading
-            with contextlib.suppress(Exception):
-                os.remove(csv_path)
-
-        except Exception as e:
-            logger.error(f"Error reading CSV file {csv_path}: {e}")
-            continue
-
-    return {
-        "records": all_records,
-        "file_count": file_count,
-        "total_records": len(all_records),
-    }
 
 
 # =============================================================================
@@ -273,8 +134,8 @@ def _run_main_jobevent_collector(
 
 def _run_single_collector(collector_name: str, db_connection, since: str, until: str, salt: str) -> dict[str, Any]:
     """Run a single collector and return its data."""
-    since_dt = _parse_datetime_string(since)
-    until_dt = _parse_datetime_string(until)
+    since_dt = parse_datetime_string(since)
+    until_dt = parse_datetime_string(until)
     since_dt, until_dt = _get_date_defaults(collector_name, since_dt, until_dt)
 
     collector_functions = {
@@ -363,7 +224,7 @@ def _aggregate_collector_data(collections: list) -> dict:
 
     for collection in collections:
         data = collection.raw_data
-        # Handle dict with total_records key (from _csv_to_json), list, or fallback to 1
+        # Handle dict with total_records key (from csv_to_json), list, or fallback to 1
         if isinstance(data, dict):
             record_count = data.get("total_records", 1)
         elif isinstance(data, list):
@@ -459,7 +320,7 @@ def _collect_hourly_metrics(
     hour_timestamp_str = kwargs.get("hour_timestamp")
     collection_hour = None
     if hour_timestamp_str:
-        collection_hour = _parse_datetime_string(hour_timestamp_str)
+        collection_hour = parse_datetime_string(hour_timestamp_str)
     # Fallback to previous hour if no timestamp provided or parsing failed
     if collection_hour is None:
         now = timezone.now()
@@ -469,7 +330,7 @@ def _collect_hourly_metrics(
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
 
         # Build collector parameters
         if uses_date_range:
@@ -490,7 +351,7 @@ def _collect_hourly_metrics(
 
         # Gather and convert data
         csv_file_paths = collector.gather()
-        collected_data = _csv_to_json(csv_file_paths)
+        collected_data = csv_to_json(csv_file_paths)
 
         # Store in HourlyMetricsCollection
         hourly_collection = HourlyMetricsCollection.objects.create(
@@ -565,11 +426,11 @@ def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
         since = kwargs.get("since")
         until = kwargs.get("until")
-        salt = kwargs.get("salt", _generate_salt())
+        salt = kwargs.get("salt", generate_salt())
         ship_path = kwargs.get("ship_path")
         save_rollups = kwargs.get("save_rollups", True)
 
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
 
         metrics_data = anonymized_rollups_processor(
             db=db_connection, salt=salt, since=since, until=until, ship_path=ship_path, save_rollups=save_rollups
@@ -631,7 +492,7 @@ def collect_config_metrics(**kwargs) -> dict[str, Any]:
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
 
         collector = config(db=db_connection)
         config_data = collector.gather()
@@ -673,10 +534,10 @@ def collect_job_host_summary(**kwargs) -> dict[str, Any]:
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        since_dt = _parse_datetime_string(kwargs.get("since"))
-        until_dt = _parse_datetime_string(kwargs.get("until"))
+        since_dt = parse_datetime_string(kwargs.get("since"))
+        until_dt = parse_datetime_string(kwargs.get("until"))
 
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
 
         if since_dt is not None and until_dt is not None:
             collector = job_host_summary(db=db_connection, since=since_dt, until=until_dt)
@@ -725,9 +586,9 @@ def collect_host_metrics(**kwargs) -> dict[str, Any]:
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        since_dt = _parse_datetime_string(kwargs.get("since"))
+        since_dt = parse_datetime_string(kwargs.get("since"))
 
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
 
         if since_dt is not None:
             collector = main_jobevent(db=db_connection, since=since_dt)
@@ -775,7 +636,7 @@ def collect_all_metrics(**kwargs) -> dict[str, Any]:
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
         since = kwargs.get("since")
         until = kwargs.get("until")
         salt = kwargs.get("salt", "default-salt")
@@ -837,11 +698,11 @@ def full_process(**kwargs) -> dict[str, Any]:
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
         since = kwargs.get("since")
         until = kwargs.get("until")
-        salt = kwargs.get("salt", _generate_salt())
-        user_id = kwargs.get("user_id", _generate_salt())
+        salt = kwargs.get("salt", generate_salt())
+        user_id = kwargs.get("user_id", generate_salt())
         event_name = kwargs.get("event_name", "metrics_collected")
         collectors_list = kwargs.get("collectors", ["anonymized_rollups", "config", "job_host_summary"])
         send_to_segment = kwargs.get("send_to_segment", True)
@@ -857,7 +718,7 @@ def full_process(**kwargs) -> dict[str, Any]:
         # Step 3: Send to Segment.com if enabled
         segment_status = "skipped"
         if send_to_segment:
-            segment_status = _send_to_segment(user_id, event_name, segment_data)
+            segment_status = send_to_segment(user_id, event_name, segment_data)
 
         return create_task_result(
             "success",
@@ -913,7 +774,7 @@ def collect_metrics(**kwargs) -> dict[str, Any]:
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
         since = kwargs.get("since")
         until = kwargs.get("until")
         collectors_list = kwargs.get("collectors", DEFAULT_COLLECTORS)
@@ -969,7 +830,7 @@ def anonymize_data(**kwargs) -> dict[str, Any]:
         if not raw_data:
             return create_task_result("error", error="No data provided for anonymization")
 
-        salt = kwargs.get("salt", _generate_salt())
+        salt = kwargs.get("salt", generate_salt())
         output_format = kwargs.get("output_format", "segment_ready")
 
         anonymized_data = _prepare_segment_data(
@@ -1028,17 +889,17 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = _get_db_connection(db_name)
+        db_connection = get_db_connection(db_name)
         since = kwargs.get("since")
         until = kwargs.get("until")
-        salt = kwargs.get("salt", _generate_salt())
+        salt = kwargs.get("salt", generate_salt())
         user_id = kwargs.get("user_id", "anonymous-user")
         event_name = kwargs.get("event_name", "anonymized_metrics_collected")
         send_to_segment = kwargs.get("send_to_segment", True)
 
         # Parse and apply defaults for dates
-        since_dt = _parse_datetime_string(since)
-        until_dt = _parse_datetime_string(until)
+        since_dt = parse_datetime_string(since)
+        until_dt = parse_datetime_string(until)
         since_dt, until_dt = _get_date_defaults("anonymized_rollups", since_dt, until_dt)
 
         # Step 1: Collect anonymized metrics
@@ -1065,7 +926,7 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
                     "collection_timestamp": datetime.now(UTC).isoformat(),
                 },
             }
-            segment_status = _send_to_segment(user_id, event_name, segment_data)
+            segment_status = send_to_segment(user_id, event_name, segment_data)
 
         return create_task_result(
             "success",
@@ -1092,8 +953,8 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
 
 
 @task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("send_to_segment")
-def send_to_segment(**kwargs) -> dict[str, Any]:
+@task_execution_wrapper("send_to_segment_task")
+def send_to_segment_task(**kwargs) -> dict[str, Any]:
     """
     Dedicated task to send anonymized data to Segment.com.
 
@@ -1106,7 +967,7 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with transmission status
     """
-    log_task_execution("send_to_segment", "processing", "Sending anonymized data to Segment.com")
+    log_task_execution("send_to_segment_task", "processing", "Sending anonymized data to Segment.com")
 
     try:
         anonymized_data = kwargs.get("data")
@@ -1116,12 +977,12 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
         user_id = kwargs.get("user_id", "anonymous-user")
         event_name = kwargs.get("event_name", "metrics_sent")
 
-        segment_status = _send_to_segment(user_id, event_name, anonymized_data)
+        segment_status = send_to_segment(user_id, event_name, anonymized_data)
 
         return create_task_result(
             "success",
             {
-                "task_type": "send_to_segment",
+                "task_type": "send_to_segment_task",
                 "segment_status": segment_status,
                 "transmission_completed": segment_status == "success",
                 "parameters_used": {
@@ -1133,7 +994,7 @@ def send_to_segment(**kwargs) -> dict[str, Any]:
         )
 
     except Exception as e:
-        logger.error(f"Error in send_to_segment: {str(e)}")
+        logger.error(f"Error in send_to_segment_task: {str(e)}")
         return create_task_result("error", error=f"Segment transmission failed: {str(e)}")
 
 
@@ -1294,7 +1155,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         if METRICS_UTILITY_AVAILABLE:
             try:
                 db_name = kwargs.get("database", DEFAULT_DB_NAME)
-                db_connection = _get_db_connection(db_name)
+                db_connection = get_db_connection(db_name)
                 config_collector = config(db=db_connection)
                 config_data = config_collector.gather()
             except Exception as e:
@@ -1390,7 +1251,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         daily_summary = DailyMetricsSummary.objects.get(summary_date=summary_date, status="aggregated")
 
         # Generate or use provided salt
-        salt = kwargs.get("salt", _generate_salt())
+        salt = kwargs.get("salt", generate_salt())
 
         # Apply anonymization
         anonymized_data = _anonymize_daily_summary(daily_summary.aggregated_metrics, daily_summary.config_data, salt)
@@ -1416,7 +1277,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
                 daily_summary=daily_summary,
                 anonymization_task_execution_id=kwargs.get("execution_id"),
                 segment_event_name=kwargs.get("event_name", "daily_metrics_rollup"),
-                segment_user_id=kwargs.get("user_id", _generate_salt()),
+                segment_user_id=kwargs.get("user_id", generate_salt()),
             )
 
             # Update daily summary status
@@ -1453,7 +1314,7 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
 
     This task:
     1. Fetches AnonymizedMetricsPayload records with status=pending
-    2. Sends to Segment using _send_to_segment helper
+    2. Sends to Segment using send_to_segment helper
     3. Updates payload status based on result
     4. Handles retries for failed sends
 
@@ -1499,7 +1360,7 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
             payload.save()
 
             try:
-                segment_status = _send_to_segment(
+                segment_status = send_to_segment(
                     user_id=payload.segment_user_id,
                     event_name=payload.segment_event_name,
                     segment_data=payload.anonymized_data,
