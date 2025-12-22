@@ -460,17 +460,29 @@ def parse_datetime_string(date_str: str | None) -> Any:
 
 def get_db_connection(db_name: str = "awx"):
     """
-    Get a Django database connection.
+    Get a raw database connection that supports PostgreSQL COPY commands.
+
+    Django's CursorDebugWrapper doesn't support the COPY command, so we need
+    to use the raw connection for metrics-utility collectors that use COPY
+    for efficient data extraction.
 
     Args:
         db_name: Database name from Django settings (default: 'awx')
 
     Returns:
-        Database connection object
+        Raw database connection object (psycopg2 connection)
     """
     from django.db import connections
 
-    return connections[db_name]
+    # Get the raw connection to bypass Django's cursor wrapper
+    # This is necessary for PostgreSQL COPY commands used by metrics-utility
+    django_connection = connections[db_name]
+
+    # Ensure the connection is open
+    django_connection.ensure_connection()
+
+    # Return the raw psycopg2 connection
+    return django_connection.connection
 
 
 def generate_salt() -> str:
