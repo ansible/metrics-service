@@ -748,13 +748,13 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
             results["daily_summaries"]["deleted"] = deleted_count
 
         # Cleanup sent payloads older than retention period
-        # Keep unsent/failed payloads longer (30 days) for retry/debugging
+        # Keep unsent/failed/pending payloads longer (30 days) for retry/debugging
         sent_payload_cutoff = now - timedelta(days=payload_retention_days)
         unsent_payload_cutoff = now - timedelta(days=30)
 
         old_sent_payloads = AnonymizedMetricsPayload.objects.filter(status="sent", sent_at__lt=sent_payload_cutoff)
         old_unsent_payloads = AnonymizedMetricsPayload.objects.filter(
-            status__in=["failed"], created__lt=unsent_payload_cutoff
+            status__in=["failed", "pending", "sending", "retry"], created__lt=unsent_payload_cutoff
         )
 
         total_old_payloads = old_sent_payloads.count() + old_unsent_payloads.count()

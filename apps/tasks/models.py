@@ -616,6 +616,13 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
             models.Index(fields=["status", "created"]),
             models.Index(fields=["summary_date"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["daily_summary"],
+                condition=models.Q(status__in=["pending", "sending", "sent"]),
+                name="unique_active_payload_per_summary",
+            )
+        ]
         verbose_name = "Anonymized Metrics Payload"
         verbose_name_plural = "Anonymized Metrics Payloads"
 

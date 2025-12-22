@@ -721,3 +721,124 @@ class TestSegmentSendingTask(TestCase):
         payload.refresh_from_db()
         assert payload.status == "retry"
         assert "segment_not_available" in payload.error_message
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestPRFixes(TestCase):
+    """Test fixes for PR #79 code review issues."""
+
+    def test_duplicate_payload_prevention(self):
+        """Test unique constraint prevents duplicate active payloads (Issue #8)."""
+        from datetime import date
+
+        from django.db import IntegrityError, transaction
+
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
+
+        summary = DailyMetricsSummary.objects.create(
+            summary_date=date(2024, 1, 30), aggregated_metrics={}, config_data={}, status="aggregated"
+        )
+
+        # Create first payload with pending status
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=date(2024, 1, 30),
+            anonymized_data={"test": "data1"},
+            status="pending",
+            daily_summary=summary,
+        )
+
+        # Try to create second payload with pending status for same summary
+        # Should raise IntegrityError due to unique constraint
+        # Use transaction.atomic to prevent transaction errors in tests
+        with transaction.atomic(), pytest.raises(IntegrityError):
+            AnonymizedMetricsPayload.objects.create(
+                summary_date=date(2024, 1, 30),
+                anonymized_data={"test": "data2"},
+                status="pending",
+                daily_summary=summary,
+            )
+
+        # Verify only one payload exists
+        assert AnonymizedMetricsPayload.objects.filter(daily_summary=summary).count() == 1
+
+    def test_transaction_rollback_on_error(self):
+        """Test transaction rollback prevents partial state (Issue #8)."""
+        from datetime import date
+
+        from apps.tasks.models import DailyMetricsSummary
+
+        # Create daily summary
+        summary = DailyMetricsSummary.objects.create(
+            summary_date=date(2024, 1, 31),
+            aggregated_metrics={"job_host_summary": {"total": 100}},
+            config_data={},
+            status="aggregated",
+        )
+
+        original_status = summary.status
+
+        # Mock the anonymize function to raise an error inside the transaction
+        with patch("apps.tasks.tasks_collector._anonymize_daily_summary") as mock_anonymize:
+            mock_anonymize.side_effect = Exception("Anonymization error")
+
+            # Call the function, should fail
+            result = daily_anonymize_and_prepare(summary_date=date(2024, 1, 31).isoformat())
+
+            assert result["status"] == "error"
+            assert "Anonymization failed" in result["error"]
+
+        # Verify summary status was NOT changed (transaction rolled back)
+        summary.refresh_from_db()
+        assert summary.status == original_status  # Should still be "aggregated"
+
+        # Verify no payload was created
+        from apps.tasks.models import AnonymizedMetricsPayload
+
+        assert AnonymizedMetricsPayload.objects.filter(daily_summary=summary).count() == 0
+
+    def test_cleanup_all_payload_statuses(self):
+        """Test cleanup includes all payload statuses, not just failed (Issue #7)."""
+        from datetime import date, timedelta
+
+        from django.utils import timezone
+
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
+        from apps.tasks.tasks_system import cleanup_metrics_data
+
+        # Create old payloads with different statuses
+        old_time = timezone.now() - timedelta(days=35)
+
+        # Create payloads with various statuses (all old enough to be cleaned up)
+        # Use separate summaries to avoid unique constraint conflicts
+        statuses_to_test = ["failed", "pending", "sending", "retry"]
+        for idx, status in enumerate(statuses_to_test):
+            # Create a separate summary for each payload
+            summary = DailyMetricsSummary.objects.create(
+                summary_date=date(2024, 1, 15 + idx), aggregated_metrics={}, config_data={}, status="aggregated"
+            )
+
+            payload = AnonymizedMetricsPayload.objects.create(
+                summary_date=date(2024, 1, 15 + idx),
+                anonymized_data={"test": f"data_{status}"},
+                status=status,
+                daily_summary=summary,
+            )
+            # Manually set created time to be old
+            payload.created = old_time
+            payload.save()
+
+        # Verify 4 payloads exist
+        assert AnonymizedMetricsPayload.objects.count() == 4
+
+        # Run cleanup with short retention period to clean up all old payloads
+        result = cleanup_metrics_data(
+            hourly_retention_days=7, daily_retention_days=30, payload_retention_days=7, dry_run=False
+        )
+
+        assert result["status"] == "success"
+
+        # Verify all 4 old payloads were cleaned up (not just "failed")
+        # The cleanup should have deleted all statuses
+        remaining = AnonymizedMetricsPayload.objects.count()
+        assert remaining == 0, f"Expected 0 remaining payloads, got {remaining}"

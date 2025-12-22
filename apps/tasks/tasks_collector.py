@@ -1384,6 +1384,8 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     log_task_execution("daily_anonymize_and_prepare", "processing", f"Anonymizing daily summary for: {summary_date}")
 
     try:
+        from django.db import transaction
+
         # Get daily summary
         daily_summary = DailyMetricsSummary.objects.get(summary_date=summary_date, status="aggregated")
 
@@ -1404,20 +1406,22 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             "aggregation_timestamp": aggregation_timestamp,
         }
 
-        # Create AnonymizedMetricsPayload
-        payload = AnonymizedMetricsPayload.objects.create(
-            summary_date=summary_date,
-            anonymized_data=anonymized_data,
-            status="pending",
-            daily_summary=daily_summary,
-            anonymization_task_execution_id=kwargs.get("execution_id"),
-            segment_event_name=kwargs.get("event_name", "daily_metrics_rollup"),
-            segment_user_id=kwargs.get("user_id", _generate_salt()),
-        )
+        # Use atomic transaction to prevent duplicate payloads
+        with transaction.atomic():
+            # Create AnonymizedMetricsPayload
+            payload = AnonymizedMetricsPayload.objects.create(
+                summary_date=summary_date,
+                anonymized_data=anonymized_data,
+                status="pending",
+                daily_summary=daily_summary,
+                anonymization_task_execution_id=kwargs.get("execution_id"),
+                segment_event_name=kwargs.get("event_name", "daily_metrics_rollup"),
+                segment_user_id=kwargs.get("user_id", _generate_salt()),
+            )
 
-        # Update daily summary status
-        daily_summary.status = "anonymized"
-        daily_summary.save()
+            # Update daily summary status
+            daily_summary.status = "anonymized"
+            daily_summary.save()
 
         log_task_execution("daily_anonymize_and_prepare", "completed", f"Created anonymized payload ID: {payload.id}")
 

@@ -232,7 +232,7 @@ HOURLY_METRICS_GROUP = TaskGroup(
     name="hourly_metrics",
     description="Hourly metrics collection with daily rollup and anonymization",
     enabled_setting="METRICS_COLLECTION_ENABLED",
-    default_enabled=True,  # Enabled by default
+    default_enabled=False,  # Disabled by default, customer opt-in required
     tasks=[
         # Hourly Collection Tasks
         {
