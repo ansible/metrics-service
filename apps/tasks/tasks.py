@@ -27,7 +27,7 @@ from .tasks_collector import (
     full_process,
     full_process_anonymize,
     send_anonymized_to_segment,
-    send_to_segment,
+    send_to_segment_task,
 )
 
 # Import all system tasks
@@ -87,7 +87,7 @@ TASK_FUNCTIONS = {
     "collect_job_host_summary": collect_job_host_summary,
     "collect_host_metrics": collect_host_metrics,
     "anonymize_data": anonymize_data,
-    "send_to_segment": send_to_segment,
+    "send_to_segment": send_to_segment_task,
     "full_process": full_process,
     "full_process_anonymize": full_process_anonymize,
 }
@@ -370,7 +370,7 @@ __all__ = [
     "collect_host_metrics",
     "collect_job_host_summary",
     "anonymize_data",
-    "send_to_segment",
+    "send_to_segment_task",
     "full_process",
     "full_process_anonymize",
     "METRICS_UTILITY_AVAILABLE",

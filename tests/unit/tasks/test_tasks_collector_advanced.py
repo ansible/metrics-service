@@ -27,29 +27,29 @@ from apps.tasks.tasks_collector import (
 class TestCSVHelperFunctions(TestCase):
     """Test CSV reading helper functions."""
 
-    @patch("apps.tasks.tasks_collector.logger")
+    @patch("apps.tasks.utils.logger")
     def test_csv_to_json_empty_list(self, mock_logger):
-        """Test _csv_to_json with empty file list."""
-        from apps.tasks.tasks_collector import _csv_to_json
+        """Test csv_to_json with empty file list."""
+        from apps.tasks.utils import csv_to_json
 
-        result = _csv_to_json([])
+        result = csv_to_json([])
         assert result["records"] == []
         assert result["file_count"] == 0
         assert result["total_records"] == 0
 
-    @patch("apps.tasks.tasks_collector.logger")
+    @patch("apps.tasks.utils.logger")
     def test_csv_to_json_nonexistent_file(self, mock_logger):
-        """Test _csv_to_json with nonexistent file."""
-        from apps.tasks.tasks_collector import _csv_to_json
+        """Test csv_to_json with nonexistent file."""
+        from apps.tasks.utils import csv_to_json
 
-        result = _csv_to_json(["/nonexistent/file.csv"])
+        result = csv_to_json(["/nonexistent/file.csv"])
         assert result["file_count"] == 0
         mock_logger.warning.assert_called()
 
-    @patch("apps.tasks.tasks_collector.logger")
+    @patch("apps.tasks.utils.logger")
     def test_csv_to_json_success(self, mock_logger):
-        """Test _csv_to_json with valid CSV files."""
-        from apps.tasks.tasks_collector import _csv_to_json
+        """Test csv_to_json with valid CSV files."""
+        from apps.tasks.utils import csv_to_json
 
         # Create temporary CSV file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
@@ -59,7 +59,7 @@ class TestCSVHelperFunctions(TestCase):
             csv_path = f.name
 
         try:
-            result = _csv_to_json([csv_path])
+            result = csv_to_json([csv_path])
             assert result["file_count"] == 1
             assert result["total_records"] == 2
             assert len(result["records"]) == 2
@@ -72,10 +72,10 @@ class TestCSVHelperFunctions(TestCase):
             if os.path.exists(csv_path):
                 os.remove(csv_path)
 
-    @patch("apps.tasks.tasks_collector.logger")
+    @patch("apps.tasks.utils.logger")
     def test_csv_to_json_error_handling(self, mock_logger):
-        """Test _csv_to_json error handling."""
-        from apps.tasks.tasks_collector import _csv_to_json
+        """Test csv_to_json error handling."""
+        from apps.tasks.utils import csv_to_json
 
         # Create a file with invalid CSV content
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
@@ -85,7 +85,7 @@ class TestCSVHelperFunctions(TestCase):
         try:
             # Mock open to raise an exception
             with patch("builtins.open", side_effect=Exception("Read error")):
-                result = _csv_to_json([csv_path])
+                result = csv_to_json([csv_path])
                 assert result["file_count"] == 0
                 mock_logger.error.assert_called()
         finally:
@@ -260,8 +260,8 @@ class TestHourlyCollectionTasks(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
-    @patch("apps.tasks.tasks_collector._csv_to_json")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.tasks_collector.csv_to_json")
     def test_collect_job_host_summary_hourly_success(self, mock_csv_to_json, mock_get_db, mock_job_host_summary):
         """Test successful hourly job_host_summary collection."""
         from apps.tasks.models import HourlyMetricsCollection
@@ -292,8 +292,8 @@ class TestHourlyCollectionTasks(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.main_jobevent")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
-    @patch("apps.tasks.tasks_collector._csv_to_json")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.tasks_collector.csv_to_json")
     def test_collect_host_metrics_hourly_success(self, mock_csv_to_json, mock_get_db, mock_main_jobevent):
         """Test successful hourly main_jobevent collection."""
 
@@ -313,8 +313,8 @@ class TestHourlyCollectionTasks(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.main_host")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
-    @patch("apps.tasks.tasks_collector._csv_to_json")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.tasks_collector.csv_to_json")
     def test_collect_main_host_hourly_success(self, mock_csv_to_json, mock_get_db, mock_main_host):
         """Test successful hourly main_host collection."""
         mock_db = MagicMock()
@@ -332,7 +332,7 @@ class TestHourlyCollectionTasks(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
     def test_collect_hourly_with_custom_timestamp(self, mock_get_db, mock_job_host_summary):
         """Test hourly collection with custom timestamp."""
         from apps.tasks.models import HourlyMetricsCollection
@@ -347,7 +347,7 @@ class TestHourlyCollectionTasks(TestCase):
         # Use specific hour timestamp
         hour_timestamp = "2024-01-15T10:00:00+00:00"
 
-        with patch("apps.tasks.tasks_collector._csv_to_json", return_value={"total_records": 0}):
+        with patch("apps.tasks.tasks_collector.csv_to_json", return_value={"total_records": 0}):
             result = collect_job_host_summary_hourly(hour_timestamp=hour_timestamp)
 
         assert result["status"] == "success"
@@ -356,7 +356,7 @@ class TestHourlyCollectionTasks(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
     def test_collect_hourly_error_handling(self, mock_get_db, mock_job_host_summary):
         """Test error handling in hourly collection."""
         from apps.tasks.models import HourlyMetricsCollection
@@ -395,7 +395,7 @@ class TestDailyRollupTask(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
     def test_daily_metrics_rollup_with_collections(self, mock_get_db, mock_config):
         """Test daily rollup with hourly collections."""
         from datetime import date
@@ -448,7 +448,7 @@ class TestDailyRollupTask(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
     def test_daily_metrics_rollup_missing_hours(self, mock_get_db, mock_config):
         """Test daily rollup detects missing hours."""
         from datetime import date
@@ -481,7 +481,7 @@ class TestDailyRollupTask(TestCase):
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector._get_db_connection")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
     def test_daily_metrics_rollup_config_error(self, mock_get_db, mock_config):
         """Test daily rollup handles config collection errors."""
         from datetime import date
@@ -512,7 +512,7 @@ class TestAnonymizationTask(TestCase):
         assert result["status"] == "error"
         assert "No daily summary found" in result["error"]
 
-    @patch("apps.tasks.tasks_collector._generate_salt")
+    @patch("apps.tasks.tasks_collector.generate_salt")
     def test_daily_anonymize_success(self, mock_generate_salt):
         """Test successful anonymization."""
         from datetime import date
@@ -584,8 +584,7 @@ class TestSegmentSendingTask(TestCase):
         assert result["results"]["sent"] == 0
         assert result["total_processed"] == 0
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector._send_to_segment")
+    @patch("apps.tasks.tasks_collector.send_to_segment")
     def test_send_to_segment_success(self, mock_send_to_segment):
         """Test successful sending to Segment."""
         from datetime import date
@@ -618,8 +617,7 @@ class TestSegmentSendingTask(TestCase):
         payload.refresh_from_db()
         assert payload.status == "sent"
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector._send_to_segment")
+    @patch("apps.tasks.tasks_collector.send_to_segment")
     def test_send_to_segment_specific_payload(self, mock_send_to_segment):
         """Test sending specific payload by ID."""
         from datetime import date
@@ -641,8 +639,7 @@ class TestSegmentSendingTask(TestCase):
         assert result["status"] == "success"
         assert result["results"]["sent"] == 1
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector._send_to_segment")
+    @patch("apps.tasks.tasks_collector.send_to_segment")
     def test_send_to_segment_retry_logic(self, mock_send_to_segment):
         """Test retry logic for failed sends."""
         from datetime import date
@@ -671,7 +668,6 @@ class TestSegmentSendingTask(TestCase):
         payload.refresh_from_db()
         assert payload.status == "sent"
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
     def test_send_to_segment_max_retries_exceeded(self):
         """Test handling when max retries exceeded."""
         from datetime import date
@@ -699,12 +695,15 @@ class TestSegmentSendingTask(TestCase):
         assert payload.status == "failed"
         assert "Max retries exceeded" in payload.error_message
 
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", False)
-    def test_send_to_segment_not_available(self):
+    @patch("apps.tasks.tasks_collector.send_to_segment")
+    def test_send_to_segment_not_available(self, mock_send_to_segment):
         """Test sending when Segment not available."""
         from datetime import date
 
         from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
+
+        # Mock send_to_segment to return segment_not_available
+        mock_send_to_segment.return_value = "segment_not_available"
 
         summary = DailyMetricsSummary.objects.create(
             summary_date=date(2024, 1, 26), aggregated_metrics={}, config_data={}, status="anonymized"

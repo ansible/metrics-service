@@ -34,6 +34,7 @@ DEFAULT_COLLECTORS = ["anonymized_rollups", "config", "job_host_summary", "main_
 
 # Import metrics-utility collectors
 try:
+    from metrics_utility.anonymized_rollups.anonymized_rollups import hash as anonymize_hash
     from metrics_utility.library.anonymize import anonymized_rollups_processor
     from metrics_utility.library.collectors.controller import (
         config,
@@ -48,6 +49,7 @@ except ImportError as e:
     METRICS_UTILITY_AVAILABLE = False
 
     # Provide fallback attributes for testing when metrics-utility is not available
+    anonymize_hash = None
     anonymized_rollups_processor = None
     config = None
     job_host_summary = None
@@ -246,14 +248,26 @@ def _aggregate_collector_data(collections: list) -> dict:
 
 
 def _is_sensitive_field(field_name: str) -> bool:
-    """Check if field contains sensitive data that should be hashed."""
+    """
+    Check if field contains sensitive data that should be hashed.
+
+    Note: This uses pattern matching to identify potentially sensitive fields.
+    For more comprehensive anonymization, use metrics-utility's compute_anonymized_rollup.
+    """
     sensitive_fields = {"name", "hostname", "username", "email", "ip_address", "host", "user"}
     return any(sensitive in field_name.lower() for sensitive in sensitive_fields)
 
 
 def _anonymize_dict(data: dict, salt: str) -> dict:
-    """Apply anonymization to dictionary values."""
-    import hashlib
+    """
+    Apply anonymization to dictionary values using metrics-utility's hash function.
+
+    Note: This is a simple utility for dictionary anonymization.
+    For complete rollup anonymization, use metrics-utility's compute_anonymized_rollup function.
+    """
+    if not METRICS_UTILITY_AVAILABLE or anonymize_hash is None:
+        logger.warning("metrics-utility hash function not available, skipping anonymization")
+        return data
 
     anonymized = {}
     # Fields that should not be anonymized
@@ -263,7 +277,8 @@ def _anonymize_dict(data: dict, salt: str) -> dict:
         if key in structural_fields:
             anonymized[key] = value
         elif isinstance(value, str) and _is_sensitive_field(key):
-            anonymized[key] = hashlib.sha256(f"{value}{salt}".encode()).hexdigest()[:16]
+            # Use metrics-utility's hash function
+            anonymized[key] = anonymize_hash(value, salt)[:16]
         elif isinstance(value, dict):
             anonymized[key] = _anonymize_dict(value, salt)
         elif isinstance(value, list):
@@ -275,7 +290,12 @@ def _anonymize_dict(data: dict, salt: str) -> dict:
 
 
 def _anonymize_daily_summary(aggregated_metrics: dict, config_data: dict, salt: str) -> dict:
-    """Apply anonymization to daily summary using metrics-utility patterns."""
+    """
+    Apply anonymization to daily summary using metrics-utility's hash function.
+
+    Note: This is a simplified anonymization for daily summaries.
+    For complete anonymization of raw data, use metrics-utility's anonymized_rollups_processor.
+    """
     return {
         "job_host_summary": _anonymize_dict(aggregated_metrics.get("job_host_summary", {}), salt),
         "main_jobevent": _anonymize_dict(aggregated_metrics.get("main_jobevent", {}), salt),
