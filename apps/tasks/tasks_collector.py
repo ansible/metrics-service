@@ -4,6 +4,35 @@ Metrics collection and anonymized data collection tasks for metrics_service.
 This module provides tasks for collecting metrics and anonymized data using
 the metrics-utility library. These tasks integrate with AWX/Automation Controller
 for data collection and analysis.
+
+WORKFLOW:
+=========
+
+1. Hourly Collection (24 times/day)
+   - Tasks: collect_job_host_summary_hourly, collect_host_metrics_hourly, collect_main_host_hourly
+   - Process: Collect CSV → Convert to JSON → Store in HourlyMetricsCollection (NOT anonymized)
+   - Purpose: Raw data storage for debugging/inspection
+
+2. Daily Rollup (once/day)
+   - Task: daily_metrics_rollup()
+   - Process: Aggregate 24 hourly JSON collections → Create summary → Store in DailyMetricsSummary
+   - Status: "aggregated" (data is NOT anonymized yet)
+   - Purpose: Summarize full day of metrics for anonymization
+
+3. Daily Anonymize (once/day)
+   - Task: daily_anonymize_and_prepare()
+   - Process: Fetch aggregated summary → Apply anonymize_rollup_data() → Store AnonymizedMetricsPayload
+   - Anonymization: Uses anonymize_rollup_data() from metrics-utility library
+   - Status: Payload set to "pending", daily summary set to "anonymized"
+   - Purpose: Prepare anonymized data for Segment.com
+
+4. Send to Segment (as needed for pending payloads)
+   - Task: send_anonymized_to_segment()
+   - Process: Fetch pending payloads → Send via StorageSegment → Update status to "sent"
+   - Purpose: Transmit anonymized data to Segment.com
+
+IMPORTANT: All anonymization is handled by metrics-utility library. No custom
+anonymization logic should exist in this file.
 """
 
 import contextlib
@@ -32,10 +61,15 @@ UTC_OFFSET_SUFFIX = "+00:00"
 DEFAULT_DB_NAME = "awx"
 DEFAULT_COLLECTORS = ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"]
 
-# Import metrics-utility collectors
+# Import metrics-utility collectors and anonymization functions
 try:
-    from metrics_utility.anonymized_rollups.anonymized_rollups import hash as anonymize_hash
-    from metrics_utility.library.anonymize import anonymized_rollups_processor
+    from metrics_utility.anonymized_rollups.anonymized_rollups import (
+        anonymize_data as anonymize_rollup_data,
+    )
+    from metrics_utility.library.anonymize import (
+        anonymized_rollups_processor,
+        compute_anonymized_rollup_from_raw_data,
+    )
     from metrics_utility.library.collectors.controller import (
         config,
         job_host_summary,
@@ -49,8 +83,9 @@ except ImportError as e:
     METRICS_UTILITY_AVAILABLE = False
 
     # Provide fallback attributes for testing when metrics-utility is not available
-    anonymize_hash = None
+    anonymize_rollup_data = None
     anonymized_rollups_processor = None
+    compute_anonymized_rollup_from_raw_data = None
     config = None
     job_host_summary = None
     main_host = None
@@ -245,63 +280,6 @@ def _aggregate_collector_data(collections: list) -> dict:
         )
 
     return aggregated
-
-
-def _is_sensitive_field(field_name: str) -> bool:
-    """
-    Check if field contains sensitive data that should be hashed.
-
-    Note: This uses pattern matching to identify potentially sensitive fields.
-    For more comprehensive anonymization, use metrics-utility's compute_anonymized_rollup.
-    """
-    sensitive_fields = {"name", "hostname", "username", "email", "ip_address", "host", "user"}
-    return any(sensitive in field_name.lower() for sensitive in sensitive_fields)
-
-
-def _anonymize_dict(data: dict, salt: str) -> dict:
-    """
-    Apply anonymization to dictionary values using metrics-utility's hash function.
-
-    Note: This is a simple utility for dictionary anonymization.
-    For complete rollup anonymization, use metrics-utility's compute_anonymized_rollup function.
-    """
-    if not METRICS_UTILITY_AVAILABLE or anonymize_hash is None:
-        logger.warning("metrics-utility hash function not available, skipping anonymization")
-        return data
-
-    anonymized = {}
-    # Fields that should not be anonymized
-    structural_fields = {"hourly_snapshots", "collection_id", "hour", "timestamp", "record_count", "total_records"}
-
-    for key, value in data.items():
-        if key in structural_fields:
-            anonymized[key] = value
-        elif isinstance(value, str) and _is_sensitive_field(key):
-            # Use metrics-utility's hash function
-            anonymized[key] = anonymize_hash(value, salt)[:16]
-        elif isinstance(value, dict):
-            anonymized[key] = _anonymize_dict(value, salt)
-        elif isinstance(value, list):
-            anonymized[key] = [_anonymize_dict(item, salt) if isinstance(item, dict) else item for item in value]
-        else:
-            anonymized[key] = value
-
-    return anonymized
-
-
-def _anonymize_daily_summary(aggregated_metrics: dict, config_data: dict, salt: str) -> dict:
-    """
-    Apply anonymization to daily summary using metrics-utility's hash function.
-
-    Note: This is a simplified anonymization for daily summaries.
-    For complete anonymization of raw data, use metrics-utility's anonymized_rollups_processor.
-    """
-    return {
-        "job_host_summary": _anonymize_dict(aggregated_metrics.get("job_host_summary", {}), salt),
-        "main_jobevent": _anonymize_dict(aggregated_metrics.get("main_jobevent", {}), salt),
-        "main_host": _anonymize_dict(aggregated_metrics.get("main_host", {}), salt),
-        "config": _anonymize_dict(config_data, salt),
-    }
 
 
 # =============================================================================
@@ -1236,8 +1214,8 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     Anonymize daily summary and prepare payload for Segment.
 
     This task:
-    1. Fetches DailyMetricsSummary for specified date
-    2. Applies anonymization using hash functions
+    1. Fetches DailyMetricsSummary (with aggregated, non-anonymized data)
+    2. Applies anonymization using anonymize_rollup_data() from metrics-utility
     3. Creates AnonymizedMetricsPayload record
     4. Does NOT send (separate task handles sending)
 
@@ -1255,6 +1233,9 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
 
     from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
+    if not METRICS_UTILITY_AVAILABLE or anonymize_rollup_data is None:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
+
     # Determine summary date
     summary_date_str = kwargs.get("summary_date")
     if summary_date_str:
@@ -1267,16 +1248,31 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     try:
         from django.db import transaction
 
-        # Get daily summary
+        # Get daily summary (aggregated but not anonymized)
         daily_summary = DailyMetricsSummary.objects.get(summary_date=summary_date, status="aggregated")
 
         # Generate or use provided salt
         salt = kwargs.get("salt", generate_salt())
 
-        # Apply anonymization
-        anonymized_data = _anonymize_daily_summary(daily_summary.aggregated_metrics, daily_summary.config_data, salt)
+        # Prepare data structure for anonymization
+        # anonymize_rollup_data expects a flattened structure with specific keys
+        data_to_anonymize = {
+            "job_host_summary": daily_summary.aggregated_metrics.get("job_host_summary", []),
+            "jobs_by_template": daily_summary.aggregated_metrics.get("jobs_by_template", []),
+            "module_stats": daily_summary.aggregated_metrics.get("module_stats", []),
+            "collection_name_stats": daily_summary.aggregated_metrics.get("collection_name_stats", []),
+            "modules_used_per_playbook": daily_summary.aggregated_metrics.get("modules_used_per_playbook", []),
+            "main_jobevent": daily_summary.aggregated_metrics.get("main_jobevent", {}),
+            "main_host": daily_summary.aggregated_metrics.get("main_host", {}),
+        }
 
-        # Add metadata
+        # Apply anonymization using metrics-utility (modifies in-place)
+        anonymize_rollup_data(data_to_anonymize, salt)
+
+        # Add config and metadata
+        anonymized_data = data_to_anonymize.copy()
+        anonymized_data["config"] = daily_summary.config_data
+
         aggregation_timestamp = (
             daily_summary.aggregation_completed_at.isoformat() if daily_summary.aggregation_completed_at else None
         )

@@ -155,98 +155,6 @@ class TestAggregationHelpers(TestCase):
 
 
 @pytest.mark.unit
-class TestAnonymizationHelpers(TestCase):
-    """Test anonymization helper functions."""
-
-    def test_is_sensitive_field(self):
-        """Test _is_sensitive_field detection."""
-        from apps.tasks.tasks_collector import _is_sensitive_field
-
-        assert _is_sensitive_field("username")
-        assert _is_sensitive_field("email")
-        assert _is_sensitive_field("hostname")
-        assert _is_sensitive_field("ip_address")
-        assert _is_sensitive_field("host")
-        assert _is_sensitive_field("user_name")  # Contains 'name'
-        assert not _is_sensitive_field("count")
-        assert not _is_sensitive_field("id")
-        assert not _is_sensitive_field("status")
-
-    def test_anonymize_dict_basic(self):
-        """Test _anonymize_dict with basic data."""
-        from apps.tasks.tasks_collector import _anonymize_dict
-
-        data = {
-            "username": "alice",
-            "count": 42,
-            "status": "active",
-        }
-
-        result = _anonymize_dict(data, "test-salt")
-        assert "username" in result
-        assert result["username"] != "alice"  # Should be hashed
-        assert len(result["username"]) == 16  # Hash truncated to 16 chars
-        assert result["count"] == 42  # Not anonymized
-        assert result["status"] == "active"  # Not anonymized
-
-    def test_anonymize_dict_nested(self):
-        """Test _anonymize_dict with nested structures."""
-        from apps.tasks.tasks_collector import _anonymize_dict
-
-        data = {
-            "user": {
-                "name": "bob",
-                "count": 10,
-            },
-            "hosts": [{"hostname": "server1"}, {"hostname": "server2"}],
-        }
-
-        result = _anonymize_dict(data, "test-salt")
-        assert isinstance(result["user"], dict)
-        assert result["user"]["name"] != "bob"
-        assert result["user"]["count"] == 10
-        assert isinstance(result["hosts"], list)
-        assert result["hosts"][0]["hostname"] != "server1"
-
-    def test_anonymize_dict_structural_fields(self):
-        """Test _anonymize_dict preserves structural fields."""
-        from apps.tasks.tasks_collector import _anonymize_dict
-
-        data = {
-            "hourly_snapshots": [{"hour": 0}, {"hour": 1}],
-            "collection_id": 123,
-            "total_records": 456,
-            "username": "test",
-        }
-
-        result = _anonymize_dict(data, "salt")
-        # Structural fields preserved
-        assert result["hourly_snapshots"] == data["hourly_snapshots"]
-        assert result["collection_id"] == 123
-        assert result["total_records"] == 456
-        # Sensitive field anonymized
-        assert result["username"] != "test"
-
-    def test_anonymize_daily_summary(self):
-        """Test _anonymize_daily_summary."""
-        from apps.tasks.tasks_collector import _anonymize_daily_summary
-
-        aggregated_metrics = {
-            "job_host_summary": {"total": 100},
-            "main_jobevent": {"total": 200},
-            "main_host": {"total": 50},
-        }
-        config_data = {"version": "4.5.0"}
-
-        result = _anonymize_daily_summary(aggregated_metrics, config_data, "salt")
-        assert "job_host_summary" in result
-        assert "main_jobevent" in result
-        assert "main_host" in result
-        assert "config" in result
-        assert result["config"] == {"version": "4.5.0"}
-
-
-@pytest.mark.unit
 @pytest.mark.django_db
 class TestHourlyCollectionTasks(TestCase):
     """Test hourly collection tasks."""
@@ -777,8 +685,8 @@ class TestPRFixes(TestCase):
 
         original_status = summary.status
 
-        # Mock the anonymize function to raise an error inside the transaction
-        with patch("apps.tasks.tasks_collector._anonymize_daily_summary") as mock_anonymize:
+        # Mock the anonymize_rollup_data function from metrics-utility to raise an error
+        with patch("apps.tasks.tasks_collector.anonymize_rollup_data") as mock_anonymize:
             mock_anonymize.side_effect = Exception("Anonymization error")
 
             # Call the function, should fail
