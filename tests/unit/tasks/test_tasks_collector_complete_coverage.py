@@ -603,55 +603,6 @@ class TestTasksCollectorFullCoverage(TestCase):
         mock_processor.side_effect = Exception("Anonymize error")
         full_process_anonymize()
 
-    @patch("apps.tasks.tasks_collector._send_to_segment")
-    @patch("apps.tasks.tasks_collector.create_task_result")
-    def test_debug_segment_messages(self, mock_create_result, mock_send):
-        """Test debug_segment_messages function."""
-        from apps.tasks.tasks_collector import debug_segment_messages
-
-        mock_send.return_value = "success"
-        mock_create_result.return_value = {"status": "success"}
-
-        # Test debug function
-        debug_segment_messages()
-
-        # Test with custom parameters
-        kwargs = {"user_id": "debug-user", "event_name": "debug-event"}
-        debug_segment_messages(**kwargs)
-
-        # Test exception handling
-        mock_send.side_effect = Exception("Debug error")
-        debug_segment_messages()
-
-    @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector._send_to_segment")
-    @patch("apps.tasks.tasks_collector.create_task_result")
-    def test_test_segment_track(self, mock_create_result, mock_send):
-        """Test test_segment_track function."""
-        from apps.tasks.tasks_collector import test_segment_track
-
-        mock_send.return_value = "success"
-        mock_create_result.return_value = {"status": "success"}
-
-        # Test with default parameters
-        test_segment_track()
-
-        # Test with custom parameters
-        kwargs = {
-            "message": "Custom test message",
-            "user_id": "test-user",
-            "event_name": "test-event",
-        }
-        test_segment_track(**kwargs)
-
-        # Test when segment not available
-        with patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", False):
-            test_segment_track()
-
-        # Test exception handling
-        mock_send.side_effect = Exception("Test error")
-        test_segment_track()
-
     @patch("apps.tasks.tasks_collector.SEGMENT_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector._send_to_segment")
     @patch("apps.tasks.tasks_collector.create_task_result")
@@ -696,21 +647,19 @@ class TestTasksCollectorFullCoverage(TestCase):
     def test_module_constants(self):
         """Test all module constants are properly defined."""
         from apps.tasks.tasks_collector import (
-            EXAMPLE_START_DATE,
-            LABEL_DB_CONNECTION,
-            LABEL_END_DATE,
-            LABEL_METRICS_COLLECTION,
-            LABEL_START_DATE,
+            DEFAULT_COLLECTORS,
+            DEFAULT_DB_NAME,
             MSG_METRICS_UTILITY_NOT_AVAILABLE,
+            MSG_SEGMENT_NOT_AVAILABLE,
+            UTC_OFFSET_SUFFIX,
         )
 
         # All constants should be strings
         assert isinstance(MSG_METRICS_UTILITY_NOT_AVAILABLE, str)
-        assert isinstance(LABEL_METRICS_COLLECTION, str)
-        assert isinstance(LABEL_DB_CONNECTION, str)
-        assert isinstance(LABEL_START_DATE, str)
-        assert isinstance(LABEL_END_DATE, str)
-        assert isinstance(EXAMPLE_START_DATE, str)
+        assert isinstance(MSG_SEGMENT_NOT_AVAILABLE, str)
+        assert isinstance(UTC_OFFSET_SUFFIX, str)
+        assert isinstance(DEFAULT_DB_NAME, str)
+        assert isinstance(DEFAULT_COLLECTORS, list)
 
     @patch("apps.tasks.tasks_collector.logger")
     def test_logging_coverage(self, mock_logger):

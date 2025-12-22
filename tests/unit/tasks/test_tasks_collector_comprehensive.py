@@ -294,20 +294,19 @@ class TestCollectorModuleImports(TestCase):
     def test_constants_defined(self):
         """Test that required constants are defined."""
         from apps.tasks.tasks_collector import (
-            EXAMPLE_START_DATE,
-            LABEL_DB_CONNECTION,
-            LABEL_END_DATE,
-            LABEL_METRICS_COLLECTION,
-            LABEL_START_DATE,
+            DEFAULT_COLLECTORS,
+            DEFAULT_DB_NAME,
             MSG_METRICS_UTILITY_NOT_AVAILABLE,
+            MSG_SEGMENT_NOT_AVAILABLE,
+            UTC_OFFSET_SUFFIX,
         )
 
         assert MSG_METRICS_UTILITY_NOT_AVAILABLE == "metrics-utility is not available"
-        assert LABEL_METRICS_COLLECTION == "Metrics Collection"
-        assert LABEL_DB_CONNECTION == "Database name from Django settings (default: 'awx')"
-        assert EXAMPLE_START_DATE == "2024-01-01T00:00:00Z"
-        assert LABEL_START_DATE == "Start date for collection (ISO format)"
-        assert LABEL_END_DATE == "End date for collection (ISO format)"
+        assert MSG_SEGMENT_NOT_AVAILABLE == "segment_not_available"
+        assert DEFAULT_DB_NAME == "awx"
+        assert UTC_OFFSET_SUFFIX == "+00:00"
+        assert "anonymized_rollups" in DEFAULT_COLLECTORS
+        assert "config" in DEFAULT_COLLECTORS
 
     def test_fallback_attributes_when_import_fails(self):
         """Test that fallback attributes are set when metrics-utility import fails."""

@@ -24,12 +24,10 @@ from .tasks_collector import (
     collect_metrics,
     daily_anonymize_and_prepare,
     daily_metrics_rollup,
-    debug_segment_messages,
     full_process,
     full_process_anonymize,
     send_anonymized_to_segment,
     send_to_segment,
-    test_segment_track,
 )
 
 # Import all system tasks
@@ -92,8 +90,6 @@ TASK_FUNCTIONS = {
     "send_to_segment": send_to_segment,
     "full_process": full_process,
     "full_process_anonymize": full_process_anonymize,
-    "test_segment_track": test_segment_track,
-    "debug_segment_messages": debug_segment_messages,
 }
 
 # Enhanced task metadata for dashboard display
@@ -350,48 +346,6 @@ TASK_METADATA = {
             {"name": "Test mode (no Segment)", "data": {"send_to_segment": False}},
         ],
     },
-    "test_segment_track": {
-        "category": "Testing",
-        "description": "Send a simple test track message to Segment.com to verify consolidated messaging",
-        "parameters": {
-            "message": {
-                "type": "string",
-                "default": "Test message from metrics-service",
-                "description": "Test message content to send",
-            },
-            "segment_write_key": {
-                "type": "string",
-                "default": "NA",
-                "description": DESC_SEGMENT_WRITE_KEY,
-                "sensitive": True,
-            },
-            "user_id": {"type": "string", "default": "test-user", "description": DESC_USER_ID_TRACKING},
-            "event_name": {"type": "string", "default": "test_track_message", "description": DESC_EVENT_NAME_TRACKING},
-        },
-        "examples": [
-            {"name": "Basic test", "data": {}},
-            {"name": "Custom message", "data": {"message": "Hello from consolidated messaging test!"}},
-            {"name": "Custom user", "data": {"user_id": "test-consolidated-user", "message": "Testing one message"}},
-        ],
-    },
-    "debug_segment_messages": {
-        "category": "Testing",
-        "description": "Debug helper to trace exactly what Segment messages are being sent",
-        "parameters": {
-            "segment_write_key": {
-                "type": "string",
-                "default": "NA",
-                "description": DESC_SEGMENT_WRITE_KEY,
-                "sensitive": True,
-            },
-            "user_id": {"type": "string", "default": "debug-user", "description": DESC_USER_ID_TRACKING},
-            "event_name": {"type": "string", "default": "debug_segment_test", "description": DESC_EVENT_NAME_TRACKING},
-        },
-        "examples": [
-            {"name": "Basic debug", "data": {}},
-            {"name": "Custom user", "data": {"user_id": "my-debug-test"}},
-        ],
-    },
 }
 
 # Explicit exports for better IDE support
@@ -419,8 +373,6 @@ __all__ = [
     "send_to_segment",
     "full_process",
     "full_process_anonymize",
-    "test_segment_track",
-    "debug_segment_messages",
     "METRICS_UTILITY_AVAILABLE",
     # Configuration
     "TASK_FUNCTIONS",
