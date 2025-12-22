@@ -451,9 +451,11 @@ def _collect_hourly_metrics(
 
     # Determine collection hour (default to previous hour)
     hour_timestamp_str = kwargs.get("hour_timestamp")
+    collection_hour = None
     if hour_timestamp_str:
         collection_hour = _parse_datetime_string(hour_timestamp_str)
-    else:
+    # Fallback to previous hour if no timestamp provided or parsing failed
+    if collection_hour is None:
         now = timezone.now()
         collection_hour = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
 
@@ -1383,11 +1385,14 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         anonymized_data = _anonymize_daily_summary(daily_summary.aggregated_metrics, daily_summary.config_data, salt)
 
         # Add metadata
+        aggregation_timestamp = (
+            daily_summary.aggregation_completed_at.isoformat() if daily_summary.aggregation_completed_at else None
+        )
         anonymized_data["summary_metadata"] = {
             "summary_date": str(summary_date),
             "hourly_collections_count": daily_summary.hourly_collections_count,
             "missing_hours": daily_summary.missing_hours,
-            "aggregation_timestamp": daily_summary.aggregation_completed_at.isoformat(),
+            "aggregation_timestamp": aggregation_timestamp,
         }
 
         # Create AnonymizedMetricsPayload

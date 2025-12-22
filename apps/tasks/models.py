@@ -590,6 +590,10 @@ class DailyMetricsSummary(CommonModel, AuditableModel):
         """
         from django.db.models import Q
 
+        # Return empty queryset if no hourly collections are associated
+        if not self.hourly_collection_ids:
+            return HourlyMetricsCollection.objects.none()
+
         query = Q()
         for collector_type, ids in self.hourly_collection_ids.items():
             query |= Q(id__in=ids, collector_type=collector_type)
