@@ -638,7 +638,7 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
             results["hourly_collections"]["deleted"] = deleted_count
 
         # Cleanup daily summaries older than retention period
-        daily_cutoff_date = (now.date() - timedelta(days=daily_retention_days))
+        daily_cutoff_date = now.date() - timedelta(days=daily_retention_days)
         old_daily = DailyMetricsSummary.objects.filter(summary_date__lt=daily_cutoff_date)
         results["daily_summaries"]["found"] = old_daily.count()
 

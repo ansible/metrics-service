@@ -6,6 +6,7 @@ the metrics-utility library. These tasks integrate with AWX/Automation Controlle
 for data collection and analysis.
 """
 
+import contextlib
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -1164,7 +1165,7 @@ def _csv_to_json(csv_file_paths: list[str]) -> dict[str, Any]:
             continue
 
         try:
-            with open(csv_path, 'r', encoding='utf-8') as csvfile:
+            with open(csv_path, encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)
                 records = list(reader)
                 all_records.extend(records)
@@ -1289,9 +1290,9 @@ def collect_job_host_summary_hourly(**kwargs) -> dict[str, Any]:
                     "until": until.isoformat(),
                 },
             )
-        except Exception:
-            # If even creating the failed record fails, just log it
-            pass
+        except Exception as create_err:
+            # If even creating the failed record fails, log it
+            logger.warning(f"Failed to create error record for job_host_summary collection: {create_err}")
 
         return create_task_result("error", error=f"Collection failed: {str(e)}")
 
@@ -1385,7 +1386,7 @@ def collect_host_metrics_hourly(**kwargs) -> dict[str, Any]:
         logger.error(f"Error in collect_host_metrics_hourly: {str(e)}")
 
         # Store failed collection
-        try:
+        with contextlib.suppress(Exception):
             HourlyMetricsCollection.objects.create(
                 collector_type="main_jobevent",
                 collection_timestamp=collection_hour,
@@ -1398,8 +1399,6 @@ def collect_host_metrics_hourly(**kwargs) -> dict[str, Any]:
                     "until": until.isoformat(),
                 },
             )
-        except Exception:
-            pass
 
         return create_task_result("error", error=f"Collection failed: {str(e)}")
 
@@ -1489,7 +1488,7 @@ def collect_main_host_hourly(**kwargs) -> dict[str, Any]:
         logger.error(f"Error in collect_main_host_hourly: {str(e)}")
 
         # Store failed collection
-        try:
+        with contextlib.suppress(Exception):
             HourlyMetricsCollection.objects.create(
                 collector_type="main_host",
                 collection_timestamp=collection_hour,
@@ -1501,8 +1500,6 @@ def collect_main_host_hourly(**kwargs) -> dict[str, Any]:
                     "collection_time": collection_hour.isoformat(),
                 },
             )
-        except Exception:
-            pass
 
         return create_task_result("error", error=f"Collection failed: {str(e)}")
 
@@ -1654,7 +1651,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     if summary_date_str:
         summary_date = date.fromisoformat(summary_date_str)
     else:
-        summary_date = (timezone.now().date() - timedelta(days=1))
+        summary_date = timezone.now().date() - timedelta(days=1)
 
     log_task_execution("daily_metrics_rollup", "processing", f"Creating daily summary for: {summary_date}")
 
@@ -1856,7 +1853,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     if summary_date_str:
         summary_date = date.fromisoformat(summary_date_str)
     else:
-        summary_date = (timezone.now().date() - timedelta(days=1))
+        summary_date = timezone.now().date() - timedelta(days=1)
 
     log_task_execution("daily_anonymize_and_prepare", "processing", f"Anonymizing daily summary for: {summary_date}")
 
