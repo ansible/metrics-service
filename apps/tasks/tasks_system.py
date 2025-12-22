@@ -502,9 +502,7 @@ def _sync_task_group_to_database(task_id: str, config: dict[str, Any], results: 
     """
     # Check if task already exists (by name and function)
     existing_task = task_model.objects.filter(
-        name=task_id,
-        function_name=config["function"],
-        is_system_task=True
+        name=task_id, function_name=config["function"], is_system_task=True
     ).first()
 
     # Prepare task data including feature flag for runtime checking
@@ -518,7 +516,9 @@ def _sync_task_group_to_database(task_id: str, config: dict[str, Any], results: 
         _create_new_task_from_group(task_id, config, task_data, results, task_model)
 
 
-def _update_existing_task_from_group(existing_task, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any]) -> None:
+def _update_existing_task_from_group(
+    existing_task, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any]
+) -> None:
     """Update an existing system task from task group definition."""
     updated = False
 
@@ -544,7 +544,9 @@ def _update_existing_task_from_group(existing_task, config: dict[str, Any], task
         results["tasks"].append(f"Skipped: {existing_task.name} (no changes)")
 
 
-def _create_new_task_from_group(task_id: str, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any], task_model) -> None:
+def _create_new_task_from_group(
+    task_id: str, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any], task_model
+) -> None:
     """Create a new system task from task group definition."""
     new_task = task_model.objects.create(
         name=task_id,

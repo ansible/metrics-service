@@ -194,8 +194,7 @@ def initialize_default_settings():
         )
 
         logger.info(
-            f"Initialized setting '{setting_key}' with default value: {default_value} "
-            f"({config['description']})"
+            f"Initialized setting '{setting_key}' with default value: {default_value} ({config['description']})"
         )
         created_count += 1
 

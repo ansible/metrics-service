@@ -14,7 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.utils import timezone
 
-from .task_groups import get_all_enabled_tasks, get_task_group_status
+from .task_groups import get_task_group_status
 from .tasks import TASK_FUNCTIONS
 
 logger = logging.getLogger(__name__)
@@ -53,10 +53,9 @@ class UnifiedTaskScheduler:
             from .models import Task
 
             # Load all system tasks (recurring) from database
-            system_tasks = Task.objects.filter(
-                is_system_task=True,
-                is_recurring=True
-            ).exclude(status__in=["cancelled", "completed"])
+            system_tasks = Task.objects.filter(is_system_task=True, is_recurring=True).exclude(
+                status__in=["cancelled", "completed"]
+            )
 
             # Convert to registry format
             self.task_registry = {}
@@ -214,8 +213,7 @@ class UnifiedTaskScheduler:
                 is_enabled = get_feature_enabled_from_db(feature_flag_to_check, False)
                 if not is_enabled:
                     logger.info(
-                        f"Skipping task {task_id} ({function_name}): "
-                        f"feature flag {feature_flag_to_check} is disabled"
+                        f"Skipping task {task_id} ({function_name}): feature flag {feature_flag_to_check} is disabled"
                     )
                     return
 

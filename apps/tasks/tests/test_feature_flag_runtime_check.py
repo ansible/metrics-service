@@ -2,8 +2,9 @@
 Tests for runtime feature flag checking in task scheduler.
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
@@ -16,9 +17,7 @@ class TestFeatureFlagRuntimeCheck:
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
     @patch("dispatcherd.publish.submit_task")
-    def test_task_executes_when_feature_flag_enabled(
-        self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks
-    ):
+    def test_task_executes_when_feature_flag_enabled(self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks):
         """Test that task executes when its feature flag is enabled."""
         mock_get_tasks.return_value = {}
         mock_get_feature.return_value = True  # Feature is enabled
@@ -40,9 +39,7 @@ class TestFeatureFlagRuntimeCheck:
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
     @patch("dispatcherd.publish.submit_task")
-    def test_task_skips_when_feature_flag_disabled(
-        self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks
-    ):
+    def test_task_skips_when_feature_flag_disabled(self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks):
         """Test that task is skipped when its feature flag is disabled."""
         mock_get_tasks.return_value = {}
         mock_get_feature.return_value = False  # Feature is disabled
@@ -78,7 +75,7 @@ class TestFeatureFlagRuntimeCheck:
     @patch("apps.tasks.cron_scheduler.get_all_enabled_tasks")
     def test_get_all_enabled_tasks_includes_feature_flag(self, mock_get_tasks):
         """Test that get_all_enabled_tasks includes feature_flag in task configs."""
-        from apps.tasks.task_groups import get_all_enabled_tasks, HOURLY_METRICS_GROUP
+        from apps.tasks.task_groups import HOURLY_METRICS_GROUP, get_all_enabled_tasks
 
         # Get all enabled tasks
         all_tasks = get_all_enabled_tasks()
@@ -95,9 +92,7 @@ class TestFeatureFlagRuntimeCheck:
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
     @patch("dispatcherd.publish.submit_task")
-    def test_feature_flag_checked_at_execution_time(
-        self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks
-    ):
+    def test_feature_flag_checked_at_execution_time(self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks):
         """Test that feature flag is checked at execution time, not at registration."""
         mock_get_tasks.return_value = {}
 
@@ -131,9 +126,7 @@ class TestFeatureFlagRuntimeCheck:
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
     @patch("dispatcherd.publish.submit_task")
-    def test_feature_flag_error_prevents_execution(
-        self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks
-    ):
+    def test_feature_flag_error_prevents_execution(self, mock_submit, mock_ensure, mock_get_feature, mock_get_tasks):
         """Test that errors checking feature flag prevent task execution."""
         mock_get_tasks.return_value = {}
         mock_get_feature.side_effect = Exception("Database error")
