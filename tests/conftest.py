@@ -121,3 +121,94 @@ def task(user):
     from apps.tasks.models import Task
 
     return Task.objects.create(name="Test Task", function_name="hello_world", task_data={}, created_by=user)
+
+
+@pytest.fixture
+def create_task_safely():
+    """
+    Factory fixture for creating tasks without triggering signals.
+
+    This fixture provides a way to create tasks while bypassing Django signals,
+    which is useful for testing task behavior in isolation.
+
+    Usage:
+        def test_something(create_task_safely):
+            from apps.tasks.models import Task
+            task = create_task_safely(Task, name="test", function_name="hello_world")
+    """
+
+    def _create(task_model, **kwargs):
+        task = task_model(**kwargs)
+        task.save()
+        return task
+
+    return _create
+
+
+@pytest.fixture
+def mock_scheduler():
+    """
+    Fixture for mocking the task scheduler.
+
+    Provides a mocked scheduler instance with running=True, suitable for
+    testing scheduler-dependent code without actually starting the scheduler.
+
+    Usage:
+        def test_something(mock_scheduler):
+            # mock_scheduler is already patched and running
+            assert mock_scheduler.running is True
+    """
+    from unittest.mock import MagicMock, patch
+
+    with patch("apps.tasks.cron_scheduler.get_scheduler") as mock:
+        scheduler = MagicMock()
+        scheduler.running = True
+        mock.return_value = scheduler
+        yield scheduler
+
+
+@pytest.fixture
+def mock_style():
+    """
+    Fixture for mocking Django command style output.
+
+    Provides a mocked style object for testing Django management commands
+    without actual console output.
+
+    Usage:
+        def test_command(mock_style):
+            output = mock_style.SUCCESS("Test message")
+            assert output == "Test message"
+    """
+    from unittest.mock import MagicMock
+
+    style = MagicMock()
+    style.SUCCESS.side_effect = lambda msg: msg
+    style.ERROR.side_effect = lambda msg: msg
+    style.WARNING.side_effect = lambda msg: msg
+    style.NOTICE.side_effect = lambda msg: msg
+    return style
+
+
+@pytest.fixture
+def mock_db_connection():
+    """
+    Fixture for mocking database connections used by collectors.
+
+    Provides a mocked database connection suitable for testing metrics
+    collectors without requiring an actual AWX database connection.
+
+    Usage:
+        def test_collector(mock_db_connection):
+            # mock_db_connection is the raw psycopg2 connection
+            collector = config(db=mock_db_connection)
+            result = collector.gather()
+    """
+    from unittest.mock import MagicMock, patch
+
+    with patch("django.db.connections") as mock_connections:
+        mock_raw_connection = MagicMock()
+        mock_db_connection_obj = MagicMock()
+        mock_db_connection_obj.connection = mock_raw_connection
+        mock_connections.__getitem__.return_value = mock_db_connection_obj
+        yield mock_raw_connection
