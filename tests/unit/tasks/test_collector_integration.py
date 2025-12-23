@@ -33,7 +33,7 @@ class TestCollectorDatabaseIntegration:
 
         # Setup mock collector return value
         mock_collector_instance = MagicMock()
-        mock_collector_instance.gather.return_value = ["/tmp/config.csv"]
+        mock_collector_instance.gather.return_value = ["/tmp/config.csv"]  # noqa: S108
         mock_config_collector.return_value = mock_collector_instance
 
         # Setup CSV to JSON conversion
@@ -72,7 +72,7 @@ class TestCollectorDatabaseIntegration:
         mock_connections.__getitem__.return_value = mock_db_connection
 
         mock_collector_instance = MagicMock()
-        mock_collector_instance.gather.return_value = ["/tmp/config.csv"]
+        mock_collector_instance.gather.return_value = ["/tmp/config.csv"]  # noqa: S108
         mock_config_collector.return_value = mock_collector_instance
 
         # Call with CSV output format
@@ -81,7 +81,7 @@ class TestCollectorDatabaseIntegration:
         # Verify CSV output
         assert result["status"] == "success"
         assert "csv_files" in result
-        assert result["csv_files"] == ["/tmp/config.csv"]
+        assert result["csv_files"] == ["/tmp/config.csv"]  # noqa: S108
         assert result["file_count"] == 1
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
