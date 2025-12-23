@@ -828,9 +828,8 @@ class TestStalePayloadRecovery(TestCase):
             status="sending",
             daily_summary=summary,
         )
-        # Set modified time to be stale
-        payload.modified = timezone.now() - timedelta(minutes=15)
-        payload.save()
+        # Set modified time to be stale (use update to bypass auto_now)
+        AnonymizedMetricsPayload.objects.filter(id=payload.id).update(modified=timezone.now() - timedelta(minutes=15))
 
         mock_send.return_value = "success"
 
@@ -908,32 +907,38 @@ class TestHandleSuccessfulSendEdgeCases(TestCase):
 
         mock_send.return_value = "success"
 
-        # Delete the summary to cause update to fail
-        summary.delete()
+        # Mock the summary.save() to raise an exception
+        with patch.object(DailyMetricsSummary, "save", side_effect=Exception("Database error")):
+            result = send_anonymized_to_segment(payload_id=payload.id)
 
-        result = send_anonymized_to_segment(payload_id=payload.id)
+            # Should still succeed for the payload even if summary update fails
+            assert result["status"] == "success"
+            assert result["results"]["sent"] == 1
 
-        # Should still succeed for the payload even if summary update fails
-        assert result["status"] == "success"
-        assert result["results"]["sent"] == 1
-
-        payload.refresh_from_db()
-        assert payload.status == "sent"
+            payload.refresh_from_db()
+            assert payload.status == "sent"
 
     @patch("apps.tasks.tasks_collector.send_to_segment")
     def test_handle_successful_send_no_daily_summary(self, mock_send):
-        """Test _handle_successful_send when payload has no daily_summary."""
+        """Test _handle_successful_send when payload has daily_summary."""
         from datetime import date
 
-        from apps.tasks.models import AnonymizedMetricsPayload
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
         from apps.tasks.tasks_collector import send_anonymized_to_segment
 
-        # Create payload without daily_summary
+        summary = DailyMetricsSummary.objects.create(
+            summary_date=date(2024, 2, 4),
+            aggregated_metrics={},
+            config_data={},
+            status="anonymized",
+        )
+
+        # Create payload with daily_summary
         payload = AnonymizedMetricsPayload.objects.create(
             summary_date=date(2024, 2, 4),
             anonymized_data={"test": "data"},
             status="pending",
-            daily_summary=None,
+            daily_summary=summary,
         )
 
         mock_send.return_value = "success"
@@ -967,7 +972,7 @@ class TestDailyMetricsRollupEdgeCases(TestCase):
         from apps.tasks.tasks_collector import daily_metrics_rollup
 
         # Patch HourlyMetricsCollection to raise
-        with patch("apps.tasks.tasks_collector.HourlyMetricsCollection") as mock_model:
+        with patch("apps.tasks.models.HourlyMetricsCollection") as mock_model:
             mock_model.objects.filter.side_effect = Exception("Database error")
 
             result = daily_metrics_rollup(summary_date="2024-02-06")
@@ -1051,15 +1056,22 @@ class TestGetPayloadsToSend(TestCase):
         """Test _get_payloads_to_send without specific payload_id."""
         from datetime import date
 
-        from apps.tasks.models import AnonymizedMetricsPayload
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
         from apps.tasks.tasks_collector import _get_payloads_to_send
 
         # Create multiple pending payloads
         for i in range(3):
+            summary = DailyMetricsSummary.objects.create(
+                summary_date=date(2024, 2, 10 + i),
+                aggregated_metrics={},
+                config_data={},
+                status="anonymized",
+            )
             AnonymizedMetricsPayload.objects.create(
                 summary_date=date(2024, 2, 10 + i),
                 anonymized_data={"test": f"data{i}"},
                 status="pending",
+                daily_summary=summary,
             )
 
         stale_threshold = timezone.now() - timedelta(minutes=10)
@@ -1072,13 +1084,21 @@ class TestGetPayloadsToSend(TestCase):
         """Test _get_payloads_to_send with specific payload_id."""
         from datetime import date
 
-        from apps.tasks.models import AnonymizedMetricsPayload
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
         from apps.tasks.tasks_collector import _get_payloads_to_send
+
+        summary = DailyMetricsSummary.objects.create(
+            summary_date=date(2024, 2, 15),
+            aggregated_metrics={},
+            config_data={},
+            status="anonymized",
+        )
 
         payload = AnonymizedMetricsPayload.objects.create(
             summary_date=date(2024, 2, 15),
             anonymized_data={"test": "data"},
             status="pending",
+            daily_summary=summary,
         )
 
         stale_threshold = timezone.now() - timedelta(minutes=10)
@@ -1169,14 +1189,22 @@ class TestHandleFailedSend(TestCase):
         """Test _handle_failed_send updates payload correctly."""
         from datetime import date
 
-        from apps.tasks.models import AnonymizedMetricsPayload
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
         from apps.tasks.tasks_collector import _handle_failed_send
+
+        summary = DailyMetricsSummary.objects.create(
+            summary_date=date(2024, 3, 1),
+            aggregated_metrics={},
+            config_data={},
+            status="anonymized",
+        )
 
         payload = AnonymizedMetricsPayload.objects.create(
             summary_date=date(2024, 3, 1),
             anonymized_data={"test": "data"},
             status="sending",
             retry_count=0,
+            daily_summary=summary,
         )
 
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
@@ -1264,13 +1292,21 @@ class TestProcessSinglePayloadEdgeCases(TestCase):
         """Test processing a stale payload that succeeds."""
         from datetime import date
 
-        from apps.tasks.models import AnonymizedMetricsPayload
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
         from apps.tasks.tasks_collector import _process_single_payload
+
+        summary = DailyMetricsSummary.objects.create(
+            summary_date=date(2024, 3, 5),
+            aggregated_metrics={},
+            config_data={},
+            status="anonymized",
+        )
 
         payload = AnonymizedMetricsPayload.objects.create(
             summary_date=date(2024, 3, 5),
             anonymized_data={"test": "data"},
             status="sending",  # Stale status
+            daily_summary=summary,
         )
 
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}

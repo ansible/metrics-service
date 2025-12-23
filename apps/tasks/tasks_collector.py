@@ -781,7 +781,7 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
         salt = kwargs.get("salt", generate_salt())
         user_id = kwargs.get("user_id", "anonymous-user")
         event_name = kwargs.get("event_name", "anonymized_metrics_collected")
-        send_to_segment = kwargs.get("send_to_segment", True)
+        should_send_to_segment = kwargs.get("send_to_segment", True)
 
         # Parse and apply defaults for dates
         since_dt = parse_datetime_string(since)
@@ -801,7 +801,7 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
 
         # Step 2: Send to Segment.com if enabled
         segment_status = "skipped"
-        if send_to_segment:
+        if should_send_to_segment:
             segment_data = {
                 "anonymized_rollups": anonymized_data,
                 "collection_metadata": {
@@ -826,7 +826,7 @@ def full_process_anonymize(**kwargs) -> dict[str, Any]:
                     "since": since,
                     "until": until,
                     "salt": salt,
-                    "send_to_segment": send_to_segment,
+                    "send_to_segment": should_send_to_segment,
                     "event_name": event_name,
                     "user_id": user_id,
                 },
