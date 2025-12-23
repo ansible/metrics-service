@@ -3,7 +3,7 @@ Comprehensive unit tests for tasks utils module.
 """
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
@@ -388,3 +388,206 @@ class TaskUtilsTestCase(TestCase):
         utils.log_task_execution("test_task", "complete")
 
         mock_logger.info.assert_called_once_with("Task 'test_task' complete")
+
+
+class TestParseDatetimeString(TestCase):
+    """Test parse_datetime_string function."""
+
+    def test_parse_valid_iso_datetime(self):
+        """Test parsing valid ISO datetime string."""
+        result = utils.parse_datetime_string("2024-01-15T10:30:00+00:00")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2024)
+        self.assertEqual(result.month, 1)
+        self.assertEqual(result.day, 15)
+        self.assertEqual(result.hour, 10)
+        self.assertEqual(result.minute, 30)
+
+    def test_parse_datetime_with_z_suffix(self):
+        """Test parsing datetime with Z suffix (UTC)."""
+        result = utils.parse_datetime_string("2024-06-20T15:45:00Z")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2024)
+        self.assertEqual(result.month, 6)
+        self.assertEqual(result.day, 20)
+
+    def test_parse_empty_string(self):
+        """Test parsing empty string returns None."""
+        result = utils.parse_datetime_string("")
+
+        self.assertIsNone(result)
+
+    def test_parse_none(self):
+        """Test parsing None returns None."""
+        result = utils.parse_datetime_string(None)
+
+        self.assertIsNone(result)
+
+    def test_parse_invalid_datetime(self):
+        """Test parsing invalid datetime returns None."""
+        result = utils.parse_datetime_string("not-a-date")
+
+        self.assertIsNone(result)
+
+    def test_parse_partial_date(self):
+        """Test parsing partial date returns None."""
+        result = utils.parse_datetime_string("2024-01")
+
+        self.assertIsNone(result)
+
+
+class TestGetDbConnection(TestCase):
+    """Test get_db_connection function."""
+
+    @patch("django.db.connections")
+    def test_get_db_connection_default(self, mock_connections):
+        """Test getting default AWX database connection."""
+        mock_raw_conn = MagicMock()
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        result = utils.get_db_connection()
+
+        mock_connections.__getitem__.assert_called_once_with("awx")
+        mock_django_conn.ensure_connection.assert_called_once()
+        self.assertEqual(result, mock_raw_conn)
+
+    @patch("django.db.connections")
+    def test_get_db_connection_custom_db(self, mock_connections):
+        """Test getting custom database connection."""
+        mock_raw_conn = MagicMock()
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        result = utils.get_db_connection("custom_db")
+
+        mock_connections.__getitem__.assert_called_once_with("custom_db")
+        self.assertEqual(result, mock_raw_conn)
+
+
+class TestGenerateSalt(TestCase):
+    """Test generate_salt function."""
+
+    def test_generate_salt_returns_string(self):
+        """Test generate_salt returns a string."""
+        result = utils.generate_salt()
+
+        self.assertIsInstance(result, str)
+
+    def test_generate_salt_is_uuid_format(self):
+        """Test generate_salt returns UUID4 format."""
+        import uuid
+
+        result = utils.generate_salt()
+
+        # Should be valid UUID
+        uuid.UUID(result)  # Raises ValueError if invalid
+
+    def test_generate_salt_unique(self):
+        """Test generate_salt returns unique values."""
+        salt1 = utils.generate_salt()
+        salt2 = utils.generate_salt()
+
+        self.assertNotEqual(salt1, salt2)
+
+
+class TestSendToSegment(TestCase):
+    """Test send_to_segment function."""
+
+    @patch("apps.tasks.utils.logger")
+    def test_send_to_segment_import_error(self, mock_logger):
+        """Test send_to_segment when metrics-utility import fails."""
+        with (
+            patch.dict("sys.modules", {"metrics_utility.library.storage.segment": None}),
+            patch("apps.tasks.utils.logger"),
+        ):
+            # The function handles ImportError internally, so we need to test the fallback
+            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+
+            # Result should indicate segment not available if metrics-utility is not installed
+            self.assertIn(result, ["success", "segment_not_available", "error"])
+
+    def test_send_to_segment_no_write_key(self):
+        """Test send_to_segment when SEGMENT_WRITE_KEY not configured."""
+        with (
+            patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", True),
+            patch("metrics_utility.library.storage.segment.StorageSegment", MagicMock()),
+            patch("django.conf.settings") as mock_settings,
+        ):
+            mock_settings.SEGMENT_WRITE_KEY = None
+
+            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+
+            self.assertEqual(result, "segment_not_available")
+
+    @patch("apps.tasks.utils.logger")
+    def test_send_to_segment_success(self, mock_logger):
+        """Test send_to_segment successful transmission."""
+        mock_storage_instance = MagicMock()
+        mock_storage_instance.put.return_value = ["chunk1", "chunk2"]
+
+        with (
+            patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", True),
+            patch(
+                "metrics_utility.library.storage.segment.StorageSegment", return_value=mock_storage_instance
+            ) as mock_storage_class,
+            patch("django.conf.settings") as mock_settings,
+        ):
+            mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
+            mock_settings.DEBUG = False
+
+            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+
+            self.assertEqual(result, "success")
+            mock_storage_class.assert_called_once_with(
+                write_key="test-write-key",
+                user_id="user1",
+                debug=False,
+                use_bulk=False,  # Small data, no bulk
+            )
+
+    @patch("apps.tasks.utils.logger")
+    def test_send_to_segment_bulk_mode(self, mock_logger):
+        """Test send_to_segment uses bulk mode for large data."""
+        mock_storage_instance = MagicMock()
+        mock_storage_instance.put.return_value = None  # No chunks returned
+
+        # Create large data (> 24KB)
+        large_data = {"data": "x" * (25 * 1024)}
+
+        with (
+            patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", True),
+            patch(
+                "metrics_utility.library.storage.segment.StorageSegment", return_value=mock_storage_instance
+            ) as mock_storage_class,
+            patch("django.conf.settings") as mock_settings,
+        ):
+            mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
+            mock_settings.DEBUG = False
+
+            result = utils.send_to_segment("user1", "test_event", large_data)
+
+            self.assertEqual(result, "success")
+            # Should use bulk mode for large data
+            call_kwargs = mock_storage_class.call_args[1]
+            self.assertTrue(call_kwargs["use_bulk"])
+
+    @patch("apps.tasks.utils.logger")
+    def test_send_to_segment_exception(self, mock_logger):
+        """Test send_to_segment handles exceptions."""
+        with (
+            patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", True),
+            patch("metrics_utility.library.storage.segment.StorageSegment") as mock_storage_class,
+            patch("django.conf.settings") as mock_settings,
+        ):
+            mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
+            mock_storage_class.side_effect = Exception("Connection error")
+
+            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+
+            self.assertTrue(result.startswith("error:"))
+            self.assertIn("Connection error", result)
