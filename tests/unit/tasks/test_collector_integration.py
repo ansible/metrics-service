@@ -21,8 +21,11 @@ class TestCollectorDatabaseIntegration:
     @patch("django.db.connections")
     def test_collect_config_metrics_uses_django_connection(self, mock_connections, mock_config_collector):
         """Test that collect_config_metrics uses Django database connection."""
-        # Setup mock database connection
+        # Setup mock database connection with .connection attribute
+        # get_db_connection returns django_connection.connection (raw psycopg2 connection)
+        mock_raw_connection = MagicMock()
         mock_db_connection = MagicMock()
+        mock_db_connection.connection = mock_raw_connection
         mock_connections.__getitem__.return_value = mock_db_connection
 
         # Setup mock collector return value
@@ -39,8 +42,8 @@ class TestCollectorDatabaseIntegration:
         # Verify Django connections was accessed with 'awx'
         mock_connections.__getitem__.assert_called_once_with("awx")
 
-        # Verify collector was called with the Django connection
-        mock_config_collector.assert_called_once_with(db=mock_db_connection)
+        # Verify collector was called with the raw connection (.connection attribute)
+        mock_config_collector.assert_called_once_with(db=mock_raw_connection)
 
         # Verify collector.gather() was called
         mock_collector_instance.gather.assert_called_once()
@@ -56,8 +59,10 @@ class TestCollectorDatabaseIntegration:
     @patch("django.db.connections")
     def test_collect_config_metrics_defaults_to_awx_database(self, mock_connections, mock_config_collector):
         """Test that collect_config_metrics defaults to 'awx' database."""
-        # Setup mocks
+        # Setup mocks with .connection attribute
+        mock_raw_connection = MagicMock()
         mock_db_connection = MagicMock()
+        mock_db_connection.connection = mock_raw_connection
         mock_connections.__getitem__.return_value = mock_db_connection
 
         mock_collector_instance = MagicMock()
@@ -76,8 +81,10 @@ class TestCollectorDatabaseIntegration:
     @patch("django.db.connections")
     def test_collect_config_metrics_handles_collector_error(self, mock_connections, mock_config_collector):
         """Test that collect_config_metrics handles errors from collector."""
-        # Setup mock to raise an exception
+        # Setup mock with .connection attribute to raise an exception
+        mock_raw_connection = MagicMock()
         mock_db_connection = MagicMock()
+        mock_db_connection.connection = mock_raw_connection
         mock_connections.__getitem__.return_value = mock_db_connection
 
         mock_collector_instance = MagicMock()

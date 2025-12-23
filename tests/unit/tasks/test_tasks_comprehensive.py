@@ -5,7 +5,7 @@ This module provides extensive coverage for all task functions, system tasks,
 error conditions, and edge cases.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -335,8 +335,11 @@ class TestEdgeCasesAndErrorHandling:
     @patch("django.db.connections")
     def test_metrics_collection_edge_cases(self, mock_connections, mock_collector):
         """Test metrics collection works with Django database connections."""
-        # Setup mock database connection
-        mock_db_connection = object()
+        # Setup mock database connection with .connection attribute
+        # get_db_connection returns django_connection.connection (raw psycopg2 connection)
+        mock_raw_connection = object()
+        mock_db_connection = MagicMock()
+        mock_db_connection.connection = mock_raw_connection
         mock_connections.__getitem__.return_value = mock_db_connection
 
         # Setup mock collector return value
@@ -355,7 +358,7 @@ class TestEdgeCasesAndErrorHandling:
         from unittest.mock import ANY
 
         mock_collector.assert_called_once_with(
-            db=mock_db_connection, salt=ANY, since=None, until=None, ship_path=None, save_rollups=True
+            db=mock_raw_connection, salt=ANY, since=None, until=None, ship_path=None, save_rollups=True
         )
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)

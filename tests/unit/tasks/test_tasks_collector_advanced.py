@@ -410,9 +410,14 @@ class TestDailyRollupTask(TestCase):
 class TestAnonymizationTask(TestCase):
     """Test daily anonymization and preparation task."""
 
-    def test_daily_anonymize_no_summary(self):
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
+    def test_daily_anonymize_no_summary(self, mock_anonymize):
         """Test anonymization when daily summary doesn't exist."""
         from datetime import date
+
+        # Mock is not used because the error happens before calling it
+        mock_anonymize.return_value = None
 
         summary_date = date(2024, 1, 20)
         result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
@@ -420,14 +425,18 @@ class TestAnonymizationTask(TestCase):
         assert result["status"] == "error"
         assert "No daily summary found" in result["error"]
 
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
     @patch("apps.tasks.tasks_collector.generate_salt")
-    def test_daily_anonymize_success(self, mock_generate_salt):
+    def test_daily_anonymize_success(self, mock_generate_salt, mock_anonymize):
         """Test successful anonymization."""
         from datetime import date
 
         from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
         mock_generate_salt.return_value = "test-salt-12345"
+        # Mock anonymize_rollup_data to modify data in-place (like the real function)
+        mock_anonymize.return_value = None
 
         summary_date = date(2024, 1, 20)
 
@@ -458,11 +467,16 @@ class TestAnonymizationTask(TestCase):
         summary.refresh_from_db()
         assert summary.status == "anonymized"
 
-    def test_daily_anonymize_custom_salt(self):
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
+    def test_daily_anonymize_custom_salt(self, mock_anonymize):
         """Test anonymization with custom salt."""
         from datetime import date
 
         from apps.tasks.models import DailyMetricsSummary
+
+        # Mock anonymize_rollup_data to modify data in-place
+        mock_anonymize.return_value = None
 
         summary_date = date(2024, 1, 21)
 
@@ -669,6 +683,7 @@ class TestPRFixes(TestCase):
         # Verify only one payload exists
         assert AnonymizedMetricsPayload.objects.filter(daily_summary=summary).count() == 1
 
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     def test_transaction_rollback_on_error(self):
         """Test transaction rollback prevents partial state (Issue #8)."""
         from datetime import date
