@@ -101,8 +101,6 @@ def mock_task_functions():
     return {
         "hello_world": Mock(),
         "cleanup_old_data": Mock(),
-        "send_notification_email": Mock(),
-        "process_user_data": Mock(),
         "execute_db_task": Mock(),
         "sleep": Mock(),
     }
@@ -402,7 +400,6 @@ class TestUnifiedTaskScheduler:
 
         # Test specific queue mappings
         assert scheduler._get_queue_for_function("cleanup_old_data") == "metrics_cleanup"
-        assert scheduler._get_queue_for_function("send_notification_email") == "metrics_notifications"
         assert scheduler._get_queue_for_function("collect_anonymous_metrics") == "metrics_collectors"
         assert scheduler._get_queue_for_function("gather_automation_controller_billing_data") == "metrics_utility"
 
@@ -777,8 +774,6 @@ class TestThreadSafety:
         ("hello_world", "metrics_tasks"),
         ("cleanup_old_data", "metrics_cleanup"),
         ("cleanup_old_tasks", "metrics_cleanup"),
-        ("send_notification_email", "metrics_notifications"),
-        ("process_user_data", "metrics_tasks"),
         ("execute_db_task", "metrics_tasks"),
         ("sleep", "metrics_tasks"),
         ("collect_anonymous_metrics", "metrics_collectors"),

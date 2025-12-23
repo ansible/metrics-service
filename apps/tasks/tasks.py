@@ -13,15 +13,11 @@ import logging
 from .tasks_collector import (
     METRICS_UTILITY_AVAILABLE,
     anonymize_data,
-    collect_all_metrics,
-    collect_anonymous_metrics,
-    collect_config_metrics,
-    collect_host_metrics,
     collect_host_metrics_hourly,
-    collect_job_host_summary,
     collect_job_host_summary_hourly,
     collect_main_host_hourly,
     collect_metrics,
+    collect_single_collector,
     daily_anonymize_and_prepare,
     daily_metrics_rollup,
     full_process,
@@ -40,8 +36,6 @@ from .tasks_system import (
     execute_db_task,
     get_system_task_info,
     hello_world,
-    process_user_data,
-    send_notification_email,
     sleep,
     submit_task_to_dispatcher,
 )
@@ -67,8 +61,6 @@ TASK_FUNCTIONS = {
     "cleanup_old_data": cleanup_old_data,
     "cleanup_old_tasks": cleanup_old_tasks,
     "cleanup_metrics_data": cleanup_metrics_data,
-    "send_notification_email": send_notification_email,
-    "process_user_data": process_user_data,
     "execute_db_task": execute_db_task,
     "sleep": sleep,
     # Hourly Metrics Collection Tasks
@@ -79,13 +71,9 @@ TASK_FUNCTIONS = {
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
-    # Metrics Collection Tasks (unified + individual collectors)
+    # Metrics Collection Tasks (unified collectors)
+    "collect_single_collector": collect_single_collector,
     "collect_metrics": collect_metrics,
-    "collect_all_metrics": collect_all_metrics,
-    "collect_anonymous_metrics": collect_anonymous_metrics,
-    "collect_config_metrics": collect_config_metrics,
-    "collect_job_host_summary": collect_job_host_summary,
-    "collect_host_metrics": collect_host_metrics,
     "anonymize_data": anonymize_data,
     "send_to_segment": send_to_segment_task,
     "full_process": full_process,
@@ -173,54 +161,6 @@ TASK_METADATA = {
             {"name": "Conservative cleanup", "data": {"days_old": 10, "include_executions": False}},
         ],
     },
-    "send_notification_email": {
-        "category": "Communication",
-        "description": "Send notification email to specified recipients",
-        "parameters": {
-            "recipient": {
-                "type": "string",
-                "required": True,
-                "description": "Email address of the recipient",
-                "pattern": "email",
-            },
-            "subject": {"type": "string", "default": "Notification", "description": "Email subject line"},
-            "message": {"type": "string", "default": "", "description": "Email message body"},
-            "html_message": {"type": "string", "description": "Optional HTML version of the message"},
-        },
-        "examples": [
-            {
-                "name": "Basic notification",
-                "data": {
-                    "recipient": "admin@example.com",
-                    "subject": "System Alert",
-                    "message": "System maintenance completed",
-                },
-            },
-            {
-                "name": "Custom message",
-                "data": {"recipient": "user@example.com", "subject": "Welcome", "message": "Welcome to our service!"},
-            },
-        ],
-    },
-    "process_user_data": {
-        "category": "Data Processing",
-        "description": "Process user data in the background with various operations",
-        "parameters": {
-            "user_id": {"type": "integer", "description": "ID of the user to process (required for most operations)"},
-            "operation": {
-                "type": "string",
-                "default": "sync",
-                "description": "Type of operation to perform",
-                "choices": ["sync", "validate", "hello_world"],
-            },
-            "message": {"type": "string", "description": "Custom message for hello_world operation"},
-        },
-        "examples": [
-            {"name": "Hello World", "data": {"operation": "hello_world", "message": "Hello from the system!"}},
-            {"name": "Sync user data", "data": {"user_id": 1, "operation": "sync"}},
-            {"name": "Validate user", "data": {"user_id": 1, "operation": "validate"}},
-        ],
-    },
     "execute_db_task": {
         "category": "System",
         "description": "Execute a database-defined task with comprehensive lifecycle management",
@@ -230,13 +170,48 @@ TASK_METADATA = {
         },
         "examples": [{"name": "Execute task by ID", "data": {"task_id": 123}}],
     },
+    "collect_single_collector": {
+        "category": LABEL_METRICS_COLLECTION,
+        "description": "Unified task to collect data from a single collector with configurable output format",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Collector to run",
+                "choices": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
+            },
+            "database": {"type": "string", "description": LABEL_DB_CONNECTION},
+            "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
+            "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "salt": {"type": "string", "description": DESC_SALT_ANONYMIZATION},
+            "output_format": {
+                "type": "string",
+                "default": "json",
+                "description": "Output format: 'json' (converted) or 'csv' (raw file paths)",
+                "choices": ["json", "csv"],
+            },
+        },
+        "examples": [
+            {"name": "Config collector (JSON)", "data": {"collector_type": "config"}},
+            {"name": "Job summary (CSV)", "data": {"collector_type": "job_host_summary", "output_format": "csv"}},
+            {
+                "name": "Anonymized with dates",
+                "data": {
+                    "collector_type": "anonymized_rollups",
+                    "since": EXAMPLE_START_DATE,
+                    "until": "2024-01-02T00:00:00Z",
+                },
+            },
+        ],
+    },
     "collect_metrics": {
         "category": LABEL_METRICS_COLLECTION,
-        "description": "Unified task to collect metrics from all available collectors",
+        "description": "Unified task to collect metrics from multiple collectors",
         "parameters": {
             "database": {"type": "string", "description": LABEL_DB_CONNECTION},
             "since": {"type": "string", "description": LABEL_START_DATE, "pattern": "datetime"},
             "until": {"type": "string", "description": LABEL_END_DATE, "pattern": "datetime"},
+            "salt": {"type": "string", "default": "default-salt", "description": DESC_SALT_ANONYMIZATION},
             "collectors": {
                 "type": "array",
                 "default": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"],
@@ -245,9 +220,16 @@ TASK_METADATA = {
             },
         },
         "examples": [
-            {"name": "All collectors", "data": {}},
+            {"name": "All collectors (default)", "data": {}},
             {"name": "Specific collectors", "data": {"collectors": ["config", "job_host_summary"]}},
-            {"name": "Date range collection", "data": {"since": EXAMPLE_START_DATE, "until": "2024-01-02T00:00:00Z"}},
+            {
+                "name": "Date range with salt",
+                "data": {
+                    "since": EXAMPLE_START_DATE,
+                    "until": "2024-01-02T00:00:00Z",
+                    "salt": "custom-salt-value",
+                },
+            },
         ],
     },
     "anonymize_data": {
@@ -355,20 +337,14 @@ __all__ = [
     "sleep",
     "cleanup_old_data",
     "cleanup_old_tasks",
-    "send_notification_email",
-    "process_user_data",
     "execute_db_task",
     "submit_task_to_dispatcher",
     "create_system_tasks",
     "get_system_task_info",
     "SYSTEM_TASKS",
     # Metrics Collection tasks
+    "collect_single_collector",
     "collect_metrics",
-    "collect_all_metrics",
-    "collect_anonymous_metrics",
-    "collect_config_metrics",
-    "collect_host_metrics",
-    "collect_job_host_summary",
     "anonymize_data",
     "send_to_segment_task",
     "full_process",

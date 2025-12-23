@@ -13,8 +13,6 @@ from apps.tasks.tasks import (
     TASK_FUNCTIONS,
     cleanup_old_data,
     execute_db_task,
-    process_user_data,
-    send_notification_email,
     submit_task_to_dispatcher,
 )
 
@@ -46,57 +44,6 @@ class TaskFunctionsTestCase(TestCase):
 
             # Should still return success since the function handles exceptions gracefully
             self.assertEqual(result["status"], "success")
-
-    def test_send_notification_email_success(self):
-        """Test send_notification_email function success."""
-        result = send_notification_email(recipient="test@example.com", subject="Test Subject", message="Test message")
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["recipient"], "test@example.com")
-        self.assertEqual(result["subject"], "Test Subject")
-
-    def test_send_notification_email_default_subject(self):
-        """Test send_notification_email with default subject."""
-        result = send_notification_email(recipient="test@example.com")
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["subject"], "Notification")
-
-    def test_process_user_data_success(self):
-        """Test process_user_data function success."""
-        user = User.objects.create_user(username="testuser")
-
-        result = process_user_data(user_id=user.id, operation="sync")
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["user_id"], user.id)
-        self.assertEqual(result["username"], "testuser")
-        self.assertEqual(result["operation"], "sync")
-
-    def test_process_user_data_validation_operation(self):
-        """Test process_user_data with validation operation."""
-        user = User.objects.create_user(username="testuser")
-
-        result = process_user_data(user_id=user.id, operation="validate")
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["operation"], "validate")
-
-    def test_process_user_data_user_not_found(self):
-        """Test process_user_data with non-existent user."""
-        result = process_user_data(user_id=99999, operation="sync")
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("error", result)
-
-    def test_process_user_data_default_operation(self):
-        """Test process_user_data with default operation."""
-        user = User.objects.create_user(username="testuser")
-
-        result = process_user_data(user_id=user.id)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["operation"], "sync")
 
 
 @pytest.mark.unit
@@ -215,7 +162,7 @@ class TaskFunctionRegistryTestCase(TestCase):
 
     def test_task_functions_registry(self):
         """Test TASK_FUNCTIONS contains expected functions."""
-        expected_functions = ["cleanup_old_data", "send_notification_email", "process_user_data", "execute_db_task"]
+        expected_functions = ["cleanup_old_data", "execute_db_task", "hello_world"]
 
         for func_name in expected_functions:
             self.assertIn(func_name, TASK_FUNCTIONS)

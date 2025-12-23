@@ -47,7 +47,7 @@ class TestTaskViewSetAPI(APITestCase):
             name="Task 1", function_name="cleanup_old_data", created_by=self.user, status="pending"
         )
         self._create_task_safely(
-            name="Task 2", function_name="send_notification_email", created_by=self.user, status="completed"
+            name="Task 2", function_name="cleanup_old_data", created_by=self.user, status="completed"
         )
 
         url = reverse("tasks:v1:task-list")

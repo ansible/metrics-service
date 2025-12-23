@@ -389,10 +389,6 @@ class TestGetQueueForFunction:
         assert get_queue_for_function("cleanup_old_data") == "metrics_cleanup"
         assert get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
 
-    def test_returns_correct_queue_for_notification_tasks(self):
-        """Test that notification tasks are routed to metrics_notifications queue."""
-        assert get_queue_for_function("send_notification_email") == "metrics_notifications"
-
     def test_returns_correct_queue_for_collector_tasks(self):
         """Test that collector tasks are routed to metrics_collectors queue."""
         assert get_queue_for_function("collect_anonymous_metrics") == "metrics_collectors"
@@ -411,7 +407,6 @@ class TestGetQueueForFunction:
     def test_returns_correct_queue_for_general_tasks(self):
         """Test that general tasks are routed to metrics_tasks queue."""
         assert get_queue_for_function("hello_world") == "metrics_tasks"
-        assert get_queue_for_function("process_user_data") == "metrics_tasks"
         assert get_queue_for_function("execute_db_task") == "metrics_tasks"
         assert get_queue_for_function("sleep") == "metrics_tasks"
 
@@ -428,8 +423,6 @@ class TestGetQueueForFunction:
             "hello_world": "metrics_tasks",
             "cleanup_old_data": "metrics_cleanup",
             "cleanup_old_tasks": "metrics_cleanup",
-            "send_notification_email": "metrics_notifications",
-            "process_user_data": "metrics_tasks",
             "execute_db_task": "metrics_tasks",
             "sleep": "metrics_tasks",
             "collect_anonymous_metrics": "metrics_collectors",

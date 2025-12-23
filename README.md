@@ -95,8 +95,6 @@ GET /api/v1/tasks/available_functions/
 
 - `cleanup_old_data` - Clean up old system data
 - `cleanup_old_tasks` - Clean up completed/failed tasks
-- `send_notification_email` - Send notification emails
-- `process_user_data` - Process user data in background
 - `hello_world` - Simple test task for dispatcherd integration
 - `sleep` - Sleep for specified duration (testing)
 - `execute_db_task` - Execute database-defined tasks with lifecycle management

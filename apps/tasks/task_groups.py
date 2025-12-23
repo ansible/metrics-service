@@ -161,24 +161,6 @@ ANONYMIZED_DATA_GROUP = TaskGroup(
     default_enabled=True,  # Default enabled but can be controlled
     tasks=[
         {
-            "task_id": "collect_anonymous_metrics",
-            "function": "collect_anonymous_metrics",
-            "cron": "0 */6 * * *",  # Every 6 hours
-            "args": {},
-            "enabled": True,
-            "description": "Collect anonymous system metrics for monitoring",
-            "category": "anonymous_metrics",
-        },
-        {
-            "task_id": "collect_config_metrics",
-            "function": "collect_config_metrics",
-            "cron": "0 4 * * 0",  # Weekly on Sunday at 4 AM
-            "args": {},
-            "enabled": True,
-            "description": "Collect system configuration information anonymously",
-            "category": "anonymous_metrics",
-        },
-        {
             "task_id": "full_process_anonymize",
             "function": "full_process_anonymize",
             "cron": "0 */12 * * *",  # Every 12 hours
@@ -198,30 +180,12 @@ METRICS_COLLECTION_GROUP = TaskGroup(
     default_enabled=False,  # Customers must explicitly enable
     tasks=[
         {
-            "task_id": "collect_host_metrics",
-            "function": "collect_host_metrics",
-            "cron": "0 */4 * * *",  # Every 4 hours
-            "args": {},
-            "enabled": True,
-            "description": "Collect host performance and system metrics",
-            "category": "metrics_collection",
-        },
-        {
-            "task_id": "collect_job_host_summary",
-            "function": "collect_job_host_summary",
-            "cron": "0 */8 * * *",  # Every 8 hours
-            "args": {},
-            "enabled": True,
-            "description": "Collect job execution statistics and host performance data",
-            "category": "metrics_collection",
-        },
-        {
             "task_id": "collect_all_metrics_daily",
-            "function": "collect_all_metrics",
+            "function": "collect_metrics",  # Changed from collect_all_metrics to collect_metrics
             "cron": "0 1 * * *",  # Daily at 1 AM
-            "args": {"collectors": ["anonymous", "config", "host_metric", "job_host_summary"]},
+            "args": {"collectors": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"]},
             "enabled": True,
-            "description": "Daily comprehensive metrics collection",
+            "description": "Daily comprehensive metrics collection using all collectors",
             "category": "metrics_collection",
         },
     ],

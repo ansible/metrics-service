@@ -278,13 +278,9 @@ class TestTaskFunctionsRegistry(TestCase):
         # Check for expected task functions
         expected_functions = [
             "cleanup_old_data",
-            "send_notification_email",
-            "process_user_data",
             "execute_db_task",
-            "collect_anonymous_metrics",
-            "collect_config_metrics",
-            "collect_host_metrics",
-            "collect_job_host_summary",
+            "collect_single_collector",
+            "collect_metrics",
         ]
 
         for func_name in expected_functions:
@@ -327,13 +323,14 @@ class TestEdgeCasesAndErrorHandling:
 
     def test_task_execution_with_none_values(self):
         """Test task execution with None values."""
-        result = tasks.process_user_data(user_id=None)
-        assert "error" in result["status"]
+        result = tasks.cleanup_old_data(days_old=None)
+        assert result["status"] == "success"
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
     @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
+    @patch("apps.tasks.tasks_collector.csv_to_json")
     @patch("django.db.connections")
-    def test_metrics_collection_edge_cases(self, mock_connections, mock_collector):
+    def test_metrics_collection_edge_cases(self, mock_connections, mock_csv_to_json, mock_collector):
         """Test metrics collection works with Django database connections."""
         # Setup mock database connection with .connection attribute
         # get_db_connection returns django_connection.connection (raw psycopg2 connection)
@@ -342,11 +339,11 @@ class TestEdgeCasesAndErrorHandling:
         mock_db_connection.connection = mock_raw_connection
         mock_connections.__getitem__.return_value = mock_db_connection
 
-        # Setup mock collector return value
-        mock_collector.return_value = {}
+        # Setup mock collector return value (returns dict, not CSV paths for anonymized_rollups)
+        mock_collector.return_value = {"anonymized": "data"}
 
-        # Call the function
-        result = tasks.collect_anonymous_metrics()
+        # Call the new unified function
+        result = tasks.collect_single_collector(collector_type="anonymized_rollups")
 
         # Verify it worked
         assert result["status"] == "success"
@@ -358,14 +355,26 @@ class TestEdgeCasesAndErrorHandling:
         from unittest.mock import ANY
 
         mock_collector.assert_called_once_with(
-            db=mock_raw_connection, salt=ANY, since=None, until=None, ship_path=None, save_rollups=True
+            db=mock_raw_connection, salt=ANY, since=ANY, until=ANY, ship_path=None, save_rollups=False
         )
 
     @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.logger")
-    def test_error_logging(self, mock_logger):
+    @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
+    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("django.db.connections")
+    def test_error_logging(self, mock_connections, mock_csv_to_json, mock_collector):
         """Test that errors are properly logged."""
-        with patch("apps.tasks.tasks_collector.anonymized_rollups_processor", side_effect=Exception("Test error")):
-            tasks.collect_anonymous_metrics()
-            # Logger should be called for error cases
-            # Note: Specific logging assertions depend on implementation
+        # Setup mocks
+        mock_raw_connection = object()
+        mock_db_connection = MagicMock()
+        mock_db_connection.connection = mock_raw_connection
+        mock_connections.__getitem__.return_value = mock_db_connection
+
+        # Make collector raise an error
+        mock_collector.side_effect = Exception("Test error")
+
+        # Call should handle error gracefully
+        result = tasks.collect_single_collector(collector_type="anonymized_rollups")
+        assert result["status"] == "error"
+        # Logger should be called for error cases
+        # Note: Specific logging assertions depend on implementation

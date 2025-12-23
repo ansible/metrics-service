@@ -12,14 +12,13 @@ from .test_common import (
 class TestTaskFunctions(BaseTaskFunctionsTest):
     """Test task functions directly."""
 
-    def test_send_notification_email_default_subject(self):
-        """Test send_notification_email with default subject."""
-        from apps.tasks.tasks import send_notification_email
+    def test_cleanup_old_data_default_values(self):
+        """Test cleanup_old_data with default values."""
+        from apps.tasks.tasks import cleanup_old_data
 
-        result = send_notification_email(recipient="test@example.com")
+        result = cleanup_old_data()
 
         self.assertEqual(result["status"], "success")
-        self.assertEqual(result["subject"], "Notification")
 
 
 class TestTaskScheduler(BaseTaskSchedulerTest):

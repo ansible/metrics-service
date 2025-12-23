@@ -266,8 +266,6 @@ def get_queue_for_function(function_name: str) -> str:
         "hello_world": "metrics_tasks",
         "cleanup_old_data": "metrics_cleanup",
         "cleanup_old_tasks": "metrics_cleanup",
-        "send_notification_email": "metrics_notifications",
-        "process_user_data": "metrics_tasks",
         "execute_db_task": "metrics_tasks",
         "sleep": "metrics_tasks",
         "collect_anonymous_metrics": "metrics_collectors",

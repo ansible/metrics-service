@@ -46,9 +46,8 @@ class TestDashboardViews(TestCase):
         # Mock TASK_FUNCTIONS
         mock_task_functions.keys.return_value = [
             "cleanup_old_data",
-            "send_notification_email",
-            "process_user_data",
             "execute_db_task",
+            "hello_world",
         ]
 
         # Mock render to return a mock response
@@ -77,9 +76,8 @@ class TestDashboardViews(TestCase):
         assert context["user"] == self.user
         assert context["available_functions"] == [
             "cleanup_old_data",
-            "send_notification_email",
-            "process_user_data",
             "execute_db_task",
+            "hello_world",
         ]
         assert context["database_driven"] is True
 

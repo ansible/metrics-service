@@ -190,6 +190,59 @@ def _run_single_collector(collector_name: str, db_connection, since: str, until:
     return collector_func()
 
 
+def _run_single_collector_with_format(
+    collector_name: str,
+    db_connection,
+    since: str,
+    until: str,
+    salt: str,
+    output_format: str = "json",
+) -> dict[str, Any]:
+    """
+    Run a single collector and return data in specified format.
+
+    Args:
+        collector_name: Name of the collector to run
+        db_connection: Database connection
+        since: Start date string (ISO format)
+        until: End date string (ISO format)
+        salt: Salt for anonymization
+        output_format: 'json' (default) or 'csv'
+
+    Returns:
+        dict: Collected data in requested format
+            JSON format: Converted JSON structure from CSV files
+            CSV format: {'csv_files': [...paths...], 'file_count': N}
+    """
+    since_dt = parse_datetime_string(since)
+    until_dt = parse_datetime_string(until)
+    since_dt, until_dt = _get_date_defaults(collector_name, since_dt, until_dt)
+
+    collector_functions = {
+        "anonymized_rollups": lambda: _run_anonymized_rollups(db_connection, salt, since_dt, until_dt),
+        "config": lambda: _run_config_collector(db_connection),
+        "job_host_summary": lambda: _run_job_host_summary_collector(db_connection, since_dt, until_dt),
+        "main_host": lambda: _run_main_host_collector(db_connection),
+        "main_jobevent": lambda: _run_main_jobevent_collector(db_connection, since_dt, until_dt),
+    }
+
+    collector_func = collector_functions.get(collector_name)
+    if collector_func is None:
+        raise ValueError(f"Unknown collector: {collector_name}")
+
+    # Collectors return CSV file paths
+    csv_file_paths = collector_func()
+
+    # Return based on output format
+    if output_format == "csv":
+        # Return raw CSV file paths without conversion
+        csv_list = csv_file_paths if isinstance(csv_file_paths, list) else [csv_file_paths]
+        return {"csv_files": csv_list, "file_count": len(csv_list)}
+    else:  # 'json' (default)
+        # Convert CSV to JSON
+        return csv_to_json(csv_file_paths)
+
+
 def _collect_all_metrics(collectors_list: list, db_connection, since: str, until: str, salt: str) -> dict[str, Any]:
     """Collect data from all specified collectors."""
     all_results = {}
@@ -398,274 +451,98 @@ def _collect_hourly_metrics(
 
 
 @task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_anonymous_metrics")
-def collect_anonymous_metrics(**kwargs) -> dict[str, Any]:
+@task_execution_wrapper("collect_single_collector")
+def collect_single_collector(**kwargs) -> dict[str, Any]:
     """
-    Collect anonymous metrics using metrics-utility library.
+    Unified task to collect data from a single collector with configurable output format.
+
+    This task consolidates all individual collector tasks into one parameterized function.
+    It can run any available collector and return data in either JSON or CSV format.
 
     Args:
         **kwargs: Task data containing collection parameters:
+            - collector_type (str): Collector to run (required)
+                Options: 'anonymized_rollups', 'config', 'job_host_summary', 'main_host', 'main_jobevent'
             - database (str): Database name from Django settings (default: 'awx')
-            - since (str): Start date for collection (optional)
-            - until (str): End date for collection (optional)
+            - since (str): Start date for collection (ISO format, optional)
+            - until (str): End date for collection (ISO format, optional)
             - salt (str): Salt for anonymization (optional, auto-generated UUID4)
-            - ship_path (str): Path for shipping data (optional)
-            - save_rollups (bool): Whether to save rollups (optional, default: True)
+            - output_format (str): Output format - 'json' or 'csv' (default: 'json')
+                'json' - Convert CSV to JSON (standard behavior)
+                'csv' - Return CSV file paths without conversion
 
     Returns:
-        dict: Task result with collected metrics data
+        dict: Task result with collected data
+            When output_format='json': Returns {'status': 'success', 'collected_data': {...json...}}
+            When output_format='csv': Returns {'status': 'success', 'csv_files': [...paths...], 'file_count': N}
     """
     if not METRICS_UTILITY_AVAILABLE:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
-    log_task_execution("collect_anonymous_metrics", "processing", "Collecting anonymous metrics")
+    collector_type = kwargs.get("collector_type")
+    if not collector_type:
+        return create_task_result("error", error="collector_type parameter is required")
+
+    log_task_execution("collect_single_collector", "processing", f"Collecting metrics using {collector_type} collector")
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
         since = kwargs.get("since")
         until = kwargs.get("until")
         salt = kwargs.get("salt", generate_salt())
-        ship_path = kwargs.get("ship_path")
-        save_rollups = kwargs.get("save_rollups", True)
+        output_format = kwargs.get("output_format", "json")
 
+        # Validate output_format
+        if output_format not in ["json", "csv"]:
+            return create_task_result("error", error=f"Invalid output_format: {output_format}. Must be 'json' or 'csv'")
+
+        # Get database connection
         db_connection = get_db_connection(db_name)
 
-        metrics_data = anonymized_rollups_processor(
-            db=db_connection, salt=salt, since=since, until=until, ship_path=ship_path, save_rollups=save_rollups
+        # Run collector with specified output format
+        collected_data = _run_single_collector_with_format(
+            collector_type, db_connection, since, until, salt, output_format
         )
 
-        return create_task_result(
-            "success",
-            {
-                "task_type": "collect_anonymous_metrics",
-                "metrics_data": metrics_data,
-                "collector_type": "anonymized_rollups",
+        # Build result based on output format
+        if output_format == "csv":
+            result_data = {
+                "task_type": "collect_single_collector",
+                "collector_type": collector_type,
+                "csv_files": collected_data.get("csv_files", []),
+                "file_count": collected_data.get("file_count", 0),
+                "output_format": "csv",
                 "parameters_used": {
                     "database": db_name,
                     "since": since,
                     "until": until,
                     "salt": salt,
-                    "ship_path": ship_path,
-                    "save_rollups": save_rollups,
+                    "output_format": output_format,
                 },
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"Error in collect_anonymous_metrics: {str(e)}")
-        # Include parameters_used even on error for debugging
-        return create_task_result(
-            "error",
-            error=f"Collection failed: {str(e)}",
-            data={
-                "parameters_used": {
-                    "database": kwargs.get("database", DEFAULT_DB_NAME),
-                    "since": kwargs.get("since"),
-                    "until": kwargs.get("until"),
-                    "salt": kwargs.get("salt"),
-                    "ship_path": kwargs.get("ship_path"),
-                    "save_rollups": kwargs.get("save_rollups", True),
-                },
-            },
-        )
-
-
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_config_metrics")
-def collect_config_metrics(**kwargs) -> dict[str, Any]:
-    """
-    Collect configuration metrics using metrics-utility library.
-
-    Args:
-        **kwargs: Task data containing collection parameters:
-            - database (str): Database name from Django settings (default: 'awx')
-
-    Returns:
-        dict: Task result with collected configuration data
-    """
-    if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
-
-    log_task_execution("collect_config_metrics", "processing", "Collecting configuration metrics")
-
-    try:
-        db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = get_db_connection(db_name)
-
-        collector = config(db=db_connection)
-        config_data = collector.gather()
-
-        return create_task_result(
-            "success",
-            {
-                "task_type": "collect_config_metrics",
-                "config_data": config_data,
-                "collector_type": "config",
-                "parameters_used": {"database": db_name},
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"Error in collect_config_metrics: {str(e)}")
-        return create_task_result("error", error=f"Collection failed: {str(e)}")
-
-
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_job_host_summary")
-def collect_job_host_summary(**kwargs) -> dict[str, Any]:
-    """
-    Collect job host summary metrics using metrics-utility library.
-
-    Args:
-        **kwargs: Task data containing collection parameters:
-            - database (str): Database name from Django settings (default: 'awx')
-            - since (str): Start date for collection (optional)
-            - until (str): End date for collection (optional)
-
-    Returns:
-        dict: Task result with collected job host summary data
-    """
-    if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
-
-    log_task_execution("collect_job_host_summary", "processing", "Collecting job host summary metrics")
-
-    try:
-        db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        since_dt = parse_datetime_string(kwargs.get("since"))
-        until_dt = parse_datetime_string(kwargs.get("until"))
-
-        db_connection = get_db_connection(db_name)
-
-        if since_dt is not None and until_dt is not None:
-            collector = job_host_summary(db=db_connection, since=since_dt, until=until_dt)
-        else:
-            collector = job_host_summary(db=db_connection)
-
-        summary_data = collector.gather()
-
-        return create_task_result(
-            "success",
-            {
-                "task_type": "collect_job_host_summary",
-                "summary_data": summary_data,
-                "collector_type": "job_host_summary",
-                "parameters_used": {
-                    "database": db_name,
-                    "since": kwargs.get("since"),
-                    "until": kwargs.get("until"),
-                },
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"Error in collect_job_host_summary: {str(e)}")
-        return create_task_result("error", error=f"Collection failed: {str(e)}")
-
-
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_host_metrics")
-def collect_host_metrics(**kwargs) -> dict[str, Any]:
-    """
-    Collect host metrics using metrics-utility library.
-
-    Args:
-        **kwargs: Task data containing collection parameters:
-            - database (str): Database name from Django settings (default: 'awx')
-            - since (str): Start date for collection (optional)
-
-    Returns:
-        dict: Task result with collected host metrics data
-    """
-    if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
-
-    log_task_execution("collect_host_metrics", "processing", "Collecting host metrics")
-
-    try:
-        db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        since_dt = parse_datetime_string(kwargs.get("since"))
-
-        db_connection = get_db_connection(db_name)
-
-        if since_dt is not None:
-            collector = main_jobevent(db=db_connection, since=since_dt)
-        else:
-            collector = main_jobevent(db=db_connection)
-
-        host_data = collector.gather()
-
-        return create_task_result(
-            "success",
-            {
-                "task_type": "collect_host_metrics",
-                "host_data": host_data,
-                "collector_type": "main_jobevent",
-                "parameters_used": {"database": db_name, "since": kwargs.get("since")},
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"Error in collect_host_metrics: {str(e)}")
-        return create_task_result("error", error=f"Collection failed: {str(e)}")
-
-
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_all_metrics")
-def collect_all_metrics(**kwargs) -> dict[str, Any]:
-    """
-    Collect all available metrics using multiple collectors.
-
-    Args:
-        **kwargs: Task data containing collection parameters:
-            - database (str): Database name from Django settings (default: 'awx')
-            - since (str): Start date for collection (optional)
-            - until (str): End date for collection (optional)
-            - salt (str): Salt for anonymization (optional)
-            - collectors (list): List of specific collectors to run (optional)
-
-    Returns:
-        dict: Task result with all collected metrics data
-    """
-    if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
-
-    log_task_execution("collect_all_metrics", "processing", "Collecting all metrics")
-
-    try:
-        db_name = kwargs.get("database", DEFAULT_DB_NAME)
-        db_connection = get_db_connection(db_name)
-        since = kwargs.get("since")
-        until = kwargs.get("until")
-        salt = kwargs.get("salt", "default-salt")
-        collectors_list = kwargs.get("collectors", ["anonymized_rollups", "config", "main_jobevent"])
-
-        all_results = {}
-        for collector_name in collectors_list:
-            try:
-                collector_data = _run_single_collector(collector_name, db_connection, since, until, salt)
-                all_results[collector_name] = collector_data
-            except Exception as e:
-                logger.error(f"Error running collector {collector_name}: {str(e)}")
-                all_results[collector_name] = {"error": str(e)}
-
-        return create_task_result(
-            "success",
-            {
-                "task_type": "collect_all_metrics",
-                "all_results": all_results,
-                "collectors_run": collectors_list,
+            }
+        else:  # 'json'
+            result_data = {
+                "task_type": "collect_single_collector",
+                "collector_type": collector_type,
+                "collected_data": collected_data,
+                "output_format": "json",
                 "parameters_used": {
                     "database": db_name,
                     "since": since,
                     "until": until,
                     "salt": salt,
+                    "output_format": output_format,
                 },
-            },
-        )
+            }
 
+        return create_task_result("success", result_data)
+
+    except ValueError as e:
+        # Handle unknown collector type
+        logger.error(f"Invalid collector_type in collect_single_collector: {str(e)}")
+        return create_task_result("error", error=str(e))
     except Exception as e:
-        logger.error(f"Error in collect_all_metrics: {str(e)}")
+        logger.error(f"Error in collect_single_collector: {str(e)}")
         return create_task_result("error", error=f"Collection failed: {str(e)}")
 
 
@@ -684,7 +561,7 @@ def full_process(**kwargs) -> dict[str, Any]:
             - user_id (str): User ID for Segment tracking (optional)
             - event_name (str): Event name for Segment tracking (default: 'metrics_collected')
             - collectors (list): List of specific collectors to run (optional)
-            - send_to_segment (bool): Whether to send data to Segment (default: True)
+            - send_to_segment_option (bool): Whether to send data to Segment (default: True)
 
     Returns:
         dict: Task result with collection, anonymization, and sending status
@@ -703,7 +580,7 @@ def full_process(**kwargs) -> dict[str, Any]:
         user_id = kwargs.get("user_id", generate_salt())
         event_name = kwargs.get("event_name", "metrics_collected")
         collectors_list = kwargs.get("collectors", ["anonymized_rollups", "config", "job_host_summary"])
-        send_to_segment = kwargs.get("send_to_segment", True)
+        send_to_segment_option = kwargs.get("send_to_segment_option", True)
 
         # Step 1: Collect metrics
         log_task_execution("full_process", "processing", "Collecting metrics data")
@@ -715,7 +592,7 @@ def full_process(**kwargs) -> dict[str, Any]:
 
         # Step 3: Send to Segment.com if enabled
         segment_status = "skipped"
-        if send_to_segment:
+        if send_to_segment_option:
             segment_status = send_to_segment(user_id, event_name, segment_data)
 
         return create_task_result(
@@ -753,14 +630,20 @@ def full_process(**kwargs) -> dict[str, Any]:
 @task_execution_wrapper("collect_metrics")
 def collect_metrics(**kwargs) -> dict[str, Any]:
     """
-    Unified task to collect metrics using multiple collectors.
+    Unified task to collect metrics from multiple collectors.
+
+    This task merges functionality from the former collect_all_metrics and collect_metrics tasks,
+    providing a single entry point for multi-collector metrics collection.
 
     Args:
         **kwargs: Task data containing collection parameters:
             - database (str): Database name from Django settings (default: 'awx')
-            - since (str): Start date for collection (optional)
-            - until (str): End date for collection (optional)
-            - collectors (list): List of specific collectors to run (default: all available)
+            - since (str): Start date for collection (ISO format, optional)
+            - until (str): End date for collection (ISO format, optional)
+            - salt (str): Salt for anonymization (default: 'default-salt')
+            - collectors (list): List of specific collectors to run
+                (default: DEFAULT_COLLECTORS = all available collectors)
+                Options: ['anonymized_rollups', 'config', 'job_host_summary', 'main_host', 'main_jobevent']
 
     Returns:
         dict: Task result with collected metrics data from all collectors
@@ -768,16 +651,18 @@ def collect_metrics(**kwargs) -> dict[str, Any]:
     if not METRICS_UTILITY_AVAILABLE:
         return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
-    log_task_execution("collect_metrics", "processing", "Collecting metrics from all collectors")
+    log_task_execution("collect_metrics", "processing", "Collecting metrics from multiple collectors")
 
     try:
         db_name = kwargs.get("database", DEFAULT_DB_NAME)
         db_connection = get_db_connection(db_name)
         since = kwargs.get("since")
         until = kwargs.get("until")
-        collectors_list = kwargs.get("collectors", DEFAULT_COLLECTORS)
+        salt = kwargs.get("salt", "default-salt")  # Added from collect_all_metrics
+        collectors_list = kwargs.get("collectors", DEFAULT_COLLECTORS)  # From collect_metrics
 
-        all_results = _collect_all_metrics(collectors_list, db_connection, since, until, "default-salt")
+        # Use shared helper function to collect from all specified collectors
+        all_results = _collect_all_metrics(collectors_list, db_connection, since, until, salt)
 
         return create_task_result(
             "success",
@@ -794,6 +679,7 @@ def collect_metrics(**kwargs) -> dict[str, Any]:
                     "database": db_name,
                     "since": since,
                     "until": until,
+                    "salt": salt,  # Now included in parameters
                     "collectors": collectors_list,
                 },
             },
@@ -1203,6 +1089,124 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
 
 # =============================================================================
+# Anonymization and Sending Tasks - Helper Functions
+# =============================================================================
+
+
+def _get_payloads_to_send(payload_id: int | None, max_payloads: int, stale_threshold) -> list:
+    """
+    Get anonymized payloads ready to send.
+
+    Args:
+        payload_id: Specific payload ID to send (optional)
+        max_payloads: Maximum number of payloads to retrieve
+        stale_threshold: Datetime threshold for stale "sending" status
+
+    Returns:
+        QuerySet of AnonymizedMetricsPayload objects
+    """
+    from django.db.models import Q
+
+    from apps.tasks.models import AnonymizedMetricsPayload
+
+    if payload_id:
+        return AnonymizedMetricsPayload.objects.filter(
+            Q(id=payload_id) & (Q(status__in=["pending", "retry"]) | Q(status="sending", modified__lt=stale_threshold))
+        )
+    return AnonymizedMetricsPayload.objects.filter(
+        Q(status__in=["pending", "retry"]) | Q(status="sending", modified__lt=stale_threshold)
+    ).order_by("created")[:max_payloads]
+
+
+def _handle_successful_send(payload, results: dict) -> None:
+    """
+    Handle successful payload send to Segment.
+
+    Args:
+        payload: AnonymizedMetricsPayload object
+        results: Results dictionary to update
+    """
+    from django.utils import timezone
+
+    payload.status = "sent"
+    payload.sent_at = timezone.now()
+    payload.error_message = ""
+    payload.save()
+    results["sent"] += 1
+
+    # Update daily summary status separately (don't let this failure affect payload)
+    try:
+        if payload.daily_summary:
+            payload.daily_summary.status = "sent"
+            payload.daily_summary.save()
+    except Exception as summary_error:
+        logger.warning(f"Failed to update daily_summary for payload {payload.id}: {summary_error}")
+
+
+def _handle_failed_send(payload, segment_status: str, results: dict) -> None:
+    """
+    Handle failed payload send to Segment.
+
+    Args:
+        payload: AnonymizedMetricsPayload object
+        segment_status: Status returned from send_to_segment
+        results: Results dictionary to update
+    """
+    payload.status = "retry"
+    payload.retry_count += 1
+    payload.error_message = f"Send failed: {segment_status}"
+    payload.save()
+    results["failed"] += 1
+
+
+def _process_single_payload(payload, results: dict) -> None:
+    """
+    Process a single payload for sending to Segment.
+
+    Args:
+        payload: AnonymizedMetricsPayload object
+        results: Results dictionary to update
+    """
+    # Track if this was a recovered stale payload
+    was_stale = payload.status == "sending"
+    if was_stale:
+        results["recovered"] += 1
+        logger.info(f"Recovering stale payload {payload.id} (stuck in 'sending' status)")
+
+    # Check retry limit (for retry status or recovered stale payloads)
+    if payload.status == "retry" and not payload.can_retry():
+        payload.status = "failed"
+        payload.error_message = "Max retries exceeded"
+        payload.save()
+        results["skipped"] += 1
+        return
+
+    # Update status to sending
+    payload.status = "sending"
+    payload.save()
+
+    try:
+        segment_status = send_to_segment(
+            user_id=payload.segment_user_id,
+            event_name=payload.segment_event_name,
+            segment_data=payload.anonymized_data,
+        )
+
+        if segment_status == "success":
+            _handle_successful_send(payload, results)
+        else:
+            _handle_failed_send(payload, segment_status, results)
+
+    except Exception as e:
+        logger.error(f"Error sending payload {payload.id}: {str(e)}")
+        payload.status = "retry"
+        payload.retry_count += 1
+        payload.error_message = str(e)
+        payload.save()
+        results["failed"] += 1
+
+
+# =============================================================================
 # Anonymization and Sending Tasks
 # =============================================================================
 
@@ -1286,13 +1290,15 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         # Use atomic transaction to prevent duplicate payloads
         with transaction.atomic():
             # Create AnonymizedMetricsPayload
+            todays_date = datetime.now(UTC).date().isoformat()
+            event_name = f"Controller Metrics Anonymized Daily {todays_date}"
             payload = AnonymizedMetricsPayload.objects.create(
                 summary_date=summary_date,
                 anonymized_data=anonymized_data,
                 status="pending",
                 daily_summary=daily_summary,
                 anonymization_task_execution_id=kwargs.get("execution_id"),
-                segment_event_name=kwargs.get("event_name", "daily_metrics_rollup"),
+                segment_event_name=kwargs.get("event_name", event_name),
                 segment_user_id=kwargs.get("user_id", generate_salt()),
             )
 
@@ -1329,88 +1335,48 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     Send anonymized payload to Segment.
 
     This task:
-    1. Fetches AnonymizedMetricsPayload records with status=pending
-    2. Sends to Segment using send_to_segment helper
-    3. Updates payload status based on result
-    4. Handles retries for failed sends
+    1. Fetches AnonymizedMetricsPayload records with status=pending/retry
+    2. Recovers stale "sending" payloads (stuck for > 10 minutes)
+    3. Sends to Segment using send_to_segment helper
+    4. Updates payload status based on result
+    5. Handles retries for failed sends
 
     Args:
         **kwargs: Task data containing:
             - payload_id (int): Specific payload ID to send (optional)
             - max_payloads (int): Maximum number of payloads to send (default: 5)
+            - stale_minutes (int): Minutes before "sending" status is considered stale (default: 10)
 
     Returns:
         dict: Task result with send statistics
     """
     from django.utils import timezone
 
-    from apps.tasks.models import AnonymizedMetricsPayload
-
     max_payloads = kwargs.get("max_payloads", 5)
     payload_id = kwargs.get("payload_id")
+    stale_minutes = kwargs.get("stale_minutes", 10)
 
     log_task_execution("send_anonymized_to_segment", "processing", "Sending anonymized payloads to Segment")
 
     try:
+        # Threshold for stale "sending" payloads (process crashed before completion)
+        stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
+
         # Get payloads to send
-        if payload_id:
-            payloads = AnonymizedMetricsPayload.objects.filter(id=payload_id, status__in=["pending", "retry"])
-        else:
-            payloads = AnonymizedMetricsPayload.objects.filter(status__in=["pending", "retry"]).order_by("created")[
-                :max_payloads
-            ]
+        payloads = _get_payloads_to_send(payload_id, max_payloads, stale_threshold)
 
-        results = {"sent": 0, "failed": 0, "skipped": 0}
+        # Initialize results
+        results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
 
+        # Process each payload
         for payload in payloads:
-            # Check retry limit
-            if payload.status == "retry" and not payload.can_retry():
-                payload.status = "failed"
-                payload.error_message = "Max retries exceeded"
-                payload.save()
-                results["skipped"] += 1
-                continue
-
-            # Update status to sending
-            payload.status = "sending"
-            payload.save()
-
-            try:
-                segment_status = send_to_segment(
-                    user_id=payload.segment_user_id,
-                    event_name=payload.segment_event_name,
-                    segment_data=payload.anonymized_data,
-                )
-
-                if segment_status == "success":
-                    payload.status = "sent"
-                    payload.sent_at = timezone.now()
-                    payload.error_message = ""
-                    results["sent"] += 1
-
-                    # Update daily summary status
-                    payload.daily_summary.status = "sent"
-                    payload.daily_summary.save()
-                else:
-                    payload.status = "retry"
-                    payload.retry_count += 1
-                    payload.error_message = f"Send failed: {segment_status}"
-                    results["failed"] += 1
-
-                payload.save()
-
-            except Exception as e:
-                logger.error(f"Error sending payload {payload.id}: {str(e)}")
-                payload.status = "retry"
-                payload.retry_count += 1
-                payload.error_message = str(e)
-                payload.save()
-                results["failed"] += 1
+            _process_single_payload(payload, results)
 
         log_task_execution(
             "send_anonymized_to_segment",
             "completed",
-            f"Sent: {results['sent']}, Failed: {results['failed']}, Skipped: {results['skipped']}",
+            f"Sent: {results['sent']}, Failed: {results['failed']}, "
+            f"Skipped: {results['skipped']}, Recovered: {results['recovered']}",
         )
 
         return create_task_result(

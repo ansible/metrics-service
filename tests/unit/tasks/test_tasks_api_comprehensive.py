@@ -43,8 +43,8 @@ class TestTaskViewSetComprehensive(TestCase):
 
         self.running_task = self._create_task_safely(
             name="Running Task",
-            function_name="send_notification_email",
-            task_data={"email": "test@example.com"},
+            function_name="cleanup_old_data",
+            task_data={"days_old": 30},
             status="running",
             created_by=self.user,
             started_at=django_timezone.now(),
@@ -52,7 +52,7 @@ class TestTaskViewSetComprehensive(TestCase):
 
         self.completed_task = self._create_task_safely(
             name="Completed Task",
-            function_name="process_user_data",
+            function_name="hello_world",
             task_data={},
             status="completed",
             created_by=self.user,
