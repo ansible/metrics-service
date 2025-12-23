@@ -705,13 +705,14 @@ class TestTaskPermissions(APITestCase):
             username="user", email="user@example.com", password=get_test_password()
         )
 
-    def test_unauthenticated_access_denied(self):
-        """Test unauthenticated requests are denied."""
+    @override_settings(DEVELOPER_MODE_ENABLED=False)
+    def test_developer_mode_disabled_access_denied(self):
+        """Test requests are denied when developer mode is disabled."""
         url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
 
-        # Should require authentication
-        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+        # Should deny access when developer mode is disabled
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     @override_settings(DEVELOPER_MODE_ENABLED=True)
     def test_authenticated_user_can_list_tasks(self):
