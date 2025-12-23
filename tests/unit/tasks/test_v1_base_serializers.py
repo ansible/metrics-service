@@ -492,7 +492,7 @@ class TestStatusFieldMixin(TestCase):
         serializer = TestSerializer()
         duration = serializer.get_duration(mock_obj)
 
-        assert duration == 42.5
+        assert duration == pytest.approx(42.5)
         mock_obj.get_duration.assert_called_once()
 
     def test_get_duration_without_object_method(self):

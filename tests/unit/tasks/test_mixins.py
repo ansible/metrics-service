@@ -181,7 +181,7 @@ class TestStatusTrackingMixin(TestCase):
         duration = task.get_duration()
 
         assert duration is not None
-        assert duration == 42.5
+        assert duration == pytest.approx(42.5)
 
     def test_get_duration_without_started_at(self):
         """Test get_duration() returns None when started_at is missing."""
