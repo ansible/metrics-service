@@ -286,11 +286,11 @@ class TestTaskGroupIntegration(TestCase):
         # System tasks
         assert any("cleanup" in task_id for task_id in task_ids)
 
-        # Anonymized data tasks
-        assert any("anonymous" in task_id for task_id in task_ids)
+        # Anonymized data tasks - after consolidation, only full_process_anonymize remains
+        assert any("anonymize" in task_id for task_id in task_ids)
 
-        # Metrics collection tasks
-        assert any("host_metrics" in task_id for task_id in task_ids)
+        # Metrics collection tasks - after consolidation, only daily collection remains
+        assert any("metrics" in task_id for task_id in task_ids)
 
     @override_settings(
         FEATURE_ENABLED={

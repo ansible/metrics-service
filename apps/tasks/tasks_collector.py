@@ -476,12 +476,14 @@ def collect_single_collector(**kwargs) -> dict[str, Any]:
             When output_format='json': Returns {'status': 'success', 'collected_data': {...json...}}
             When output_format='csv': Returns {'status': 'success', 'csv_files': [...paths...], 'file_count': N}
     """
-    if not METRICS_UTILITY_AVAILABLE:
-        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
-
+    # Validate required parameters first
     collector_type = kwargs.get("collector_type")
     if not collector_type:
         return create_task_result("error", error="collector_type parameter is required")
+
+    # Check if metrics-utility is available
+    if not METRICS_UTILITY_AVAILABLE:
+        return create_task_result("error", error=MSG_METRICS_UTILITY_NOT_AVAILABLE)
 
     log_task_execution("collect_single_collector", "processing", f"Collecting metrics using {collector_type} collector")
 
