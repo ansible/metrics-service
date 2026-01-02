@@ -1074,29 +1074,43 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
                 logger.error(f"Failed to collect config data: {str(e)}")
                 config_data = {"error": str(e)}
 
-        # Store the count before updating status (queryset is lazy, count changes after update)
-        hourly_collections_count = hourly_collections.count()
+        # Calculate count from the IDs we actually processed (not from a new query)
+        # This avoids a race condition where new records could be inserted between
+        # iteration and count/update, causing incorrect counts and marking unprocessed
+        # records as "processed"
+        all_processed_ids = []
+        for ids_list in hourly_collection_ids.values():
+            all_processed_ids.extend(ids_list)
+        hourly_collections_count = len(all_processed_ids)
 
-        # Create DailyMetricsSummary
-        daily_summary = DailyMetricsSummary.objects.create(
+        # Create or update DailyMetricsSummary
+        # Use update_or_create to handle retries and scheduler double-triggers gracefully
+        # The unique constraint on summary_date would cause IntegrityError if we used
+        # create() and a record already exists for this date
+        daily_summary, created = DailyMetricsSummary.objects.update_or_create(
             summary_date=summary_date,
-            aggregated_metrics=aggregated_metrics,
-            hourly_collection_ids=hourly_collection_ids,
-            config_data=config_data,
-            status="aggregated",
-            hourly_collections_count=hourly_collections_count,
-            missing_hours=missing_hours,
-            aggregation_completed_at=timezone.now(),
-            rollup_task_execution_id=kwargs.get("execution_id"),
+            defaults={
+                "aggregated_metrics": aggregated_metrics,
+                "hourly_collection_ids": hourly_collection_ids,
+                "config_data": config_data,
+                "status": "aggregated",
+                "hourly_collections_count": hourly_collections_count,
+                "missing_hours": missing_hours,
+                "aggregation_completed_at": timezone.now(),
+                "rollup_task_execution_id": kwargs.get("execution_id"),
+                "error_message": "",  # Clear any previous error
+            },
         )
 
-        # Mark hourly collections as processed
-        hourly_collections.update(status="processed")
+        # Mark only the hourly collections we actually processed as "processed"
+        # Uses the collected IDs to avoid race condition with newly inserted records
+        HourlyMetricsCollection.objects.filter(id__in=all_processed_ids).update(status="processed")
 
+        action = "Created" if created else "Updated"
         log_task_execution(
             "daily_metrics_rollup",
             "completed",
-            f"Created daily summary ID: {daily_summary.id} with {hourly_collections_count} hourly collections",
+            f"{action} daily summary ID: {daily_summary.id} with {hourly_collections_count} hourly collections",
         )
 
         return create_task_result(
@@ -1108,6 +1122,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
                 "hourly_collections_count": hourly_collections_count,
                 "missing_hours": missing_hours,
                 "aggregated_collectors": list(aggregated_metrics.keys()),
+                "created": created,  # True if new record, False if updated existing
             },
         )
 
