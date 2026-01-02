@@ -245,12 +245,30 @@ class UnifiedTaskScheduler:
     def _get_queue_for_function(self, function_name: str) -> str:
         """Determine the appropriate queue for a function."""
         queue_mapping = {
+            # System/general tasks
             "hello_world": "metrics_tasks",
-            "cleanup_old_data": "metrics_cleanup",
-            "cleanup_old_tasks": "metrics_cleanup",
             "execute_db_task": "metrics_tasks",
             "sleep": "metrics_tasks",
-            # Metrics collection tasks
+            # Cleanup tasks
+            "cleanup_old_data": "metrics_cleanup",
+            "cleanup_old_tasks": "metrics_cleanup",
+            "cleanup_metrics_data": "metrics_cleanup",
+            # Hourly collection tasks
+            "collect_job_host_summary_hourly": "metrics_collectors",
+            "collect_host_metrics_hourly": "metrics_collectors",
+            "collect_main_host_hourly": "metrics_collectors",
+            # Daily rollup and anonymization tasks
+            "daily_metrics_rollup": "metrics_collectors",
+            "daily_anonymize_and_prepare": "metrics_collectors",
+            "send_anonymized_to_segment": "metrics_collectors",
+            # Unified collector tasks
+            "collect_single_collector": "metrics_collectors",
+            "collect_metrics": "metrics_collectors",
+            "anonymize_data": "metrics_collectors",
+            "send_to_segment": "metrics_collectors",
+            "full_process": "metrics_collectors",
+            "full_process_anonymize": "metrics_collectors",
+            # Legacy metrics collection task names (backward compatibility)
             "collect_anonymous_metrics": "metrics_collectors",
             "collect_config_metrics": "metrics_collectors",
             "collect_job_host_summary": "metrics_collectors",

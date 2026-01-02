@@ -299,28 +299,42 @@ def _aggregate_collector_data(collections: list) -> dict:
     """
     Aggregate metrics from hourly collections.
 
-    This is a generic aggregator that works for all collector types.
+    This function merges the actual raw data from all hourly collections
+    for use in daily rollup and anonymization.
 
     Args:
         collections: List of HourlyMetricsCollection objects
 
     Returns:
-        dict: Aggregated metrics with hourly snapshots
+        dict: Aggregated metrics containing:
+            - records: Merged list of all records from hourly collections
+            - total_records: Total count of records
+            - hourly_snapshots: Metadata about each hourly collection
     """
     aggregated = {
+        "records": [],
         "total_records": 0,
         "hourly_snapshots": [],
     }
 
     for collection in collections:
         data = collection.raw_data
-        # Handle dict with total_records key (from csv_to_json), list, or fallback to 1
+
+        # Extract records from the raw data
+        # csv_to_json returns {"records": [...], "total_records": N, "file_count": N}
         if isinstance(data, dict):
-            record_count = data.get("total_records", 1)
+            records = data.get("records", [])
+            record_count = len(records) if records else data.get("total_records", 0)
+            # Merge records into aggregated list
+            if records:
+                aggregated["records"].extend(records)
         elif isinstance(data, list):
+            # If raw_data is already a list, use it directly
+            records = data
             record_count = len(data)
+            aggregated["records"].extend(records)
         else:
-            record_count = 1
+            record_count = 0
 
         aggregated["total_records"] += record_count
         aggregated["hourly_snapshots"].append(
@@ -405,16 +419,23 @@ def _collect_hourly_metrics(
         collected_data = csv_to_json(csv_file_paths)
 
         # Store in HourlyMetricsCollection
-        hourly_collection = HourlyMetricsCollection.objects.create(
+        # Use update_or_create to handle retries and scheduler double-triggers
+        # The unique_together constraint on (collector_type, collection_timestamp)
+        # would cause IntegrityError if we used create() and a record already exists
+        hourly_collection, created = HourlyMetricsCollection.objects.update_or_create(
             collector_type=collector_name,
             collection_timestamp=collection_hour,
-            raw_data=collected_data,
-            status="collected",
-            collection_parameters=collection_params,
-            task_execution_id=kwargs.get("execution_id"),
+            defaults={
+                "raw_data": collected_data,
+                "status": "collected",
+                "collection_parameters": collection_params,
+                "task_execution_id": kwargs.get("execution_id"),
+                "error_message": "",  # Clear any previous error
+            },
         )
 
-        log_task_execution(task_name, "completed", f"Stored hourly collection ID: {hourly_collection.id}")
+        action = "Created" if created else "Updated"
+        log_task_execution(task_name, "completed", f"{action} hourly collection ID: {hourly_collection.id}")
 
         return create_task_result(
             "success",
@@ -425,6 +446,7 @@ def _collect_hourly_metrics(
                 "collection_timestamp": collection_hour.isoformat(),
                 "data_size_bytes": hourly_collection.data_size_bytes,
                 "records_collected": collected_data.get("total_records", 0),
+                "was_retry": not created,
             },
         )
 
@@ -432,14 +454,18 @@ def _collect_hourly_metrics(
         logger.error(f"Error in {task_name}: {str(e)}")
 
         # Store failed collection
+        # Use update_or_create to handle cases where a record already exists
+        # (e.g., a previous attempt created a record, or scheduler double-trigger)
         with contextlib.suppress(Exception):
-            HourlyMetricsCollection.objects.create(
+            HourlyMetricsCollection.objects.update_or_create(
                 collector_type=collector_name,
                 collection_timestamp=collection_hour,
-                raw_data={},
-                status="failed",
-                error_message=str(e),
-                collection_parameters={"database": kwargs.get("database", DEFAULT_DB_NAME)},
+                defaults={
+                    "raw_data": {},
+                    "status": "failed",
+                    "error_message": str(e),
+                    "collection_parameters": {"database": kwargs.get("database", DEFAULT_DB_NAME)},
+                },
             )
 
         return create_task_result("error", error=f"Collection failed: {str(e)}")
@@ -1262,14 +1288,31 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
 
         # Prepare data structure for anonymization
         # anonymize_rollup_data expects a flattened structure with specific keys
+        # Extract records from aggregated_metrics (each collector type has {"records": [...], ...})
+        def extract_records(data: dict | list, default=None) -> list | dict:
+            """Extract records from aggregated collector data structure."""
+            if default is None:
+                default = []
+            if isinstance(data, dict):
+                # New structure: {"records": [...], "total_records": N, "hourly_snapshots": [...]}
+                return data.get("records", default)
+            elif isinstance(data, list):
+                # Legacy structure: direct list of records
+                return data
+            return default
+
         data_to_anonymize = {
-            "job_host_summary": daily_summary.aggregated_metrics.get("job_host_summary", []),
-            "jobs_by_template": daily_summary.aggregated_metrics.get("jobs_by_template", []),
-            "module_stats": daily_summary.aggregated_metrics.get("module_stats", []),
-            "collection_name_stats": daily_summary.aggregated_metrics.get("collection_name_stats", []),
-            "modules_used_per_playbook": daily_summary.aggregated_metrics.get("modules_used_per_playbook", []),
-            "main_jobevent": daily_summary.aggregated_metrics.get("main_jobevent", {}),
-            "main_host": daily_summary.aggregated_metrics.get("main_host", {}),
+            "job_host_summary": extract_records(daily_summary.aggregated_metrics.get("job_host_summary", {}), []),
+            "jobs_by_template": extract_records(daily_summary.aggregated_metrics.get("jobs_by_template", {}), []),
+            "module_stats": extract_records(daily_summary.aggregated_metrics.get("module_stats", {}), []),
+            "collection_name_stats": extract_records(
+                daily_summary.aggregated_metrics.get("collection_name_stats", {}), []
+            ),
+            "modules_used_per_playbook": extract_records(
+                daily_summary.aggregated_metrics.get("modules_used_per_playbook", {}), []
+            ),
+            "main_jobevent": extract_records(daily_summary.aggregated_metrics.get("main_jobevent", {}), {}),
+            "main_host": extract_records(daily_summary.aggregated_metrics.get("main_host", {}), {}),
         }
 
         # Apply anonymization using metrics-utility (modifies in-place)

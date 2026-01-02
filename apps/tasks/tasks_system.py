@@ -446,7 +446,7 @@ def _create_new_task_from_group(
         task_data=task_data,
         cron_expression=config.get("cron"),
         is_recurring=True,  # All task group tasks are recurring
-        priority=config.get("priority", 5),
+        priority=config.get("priority", 2),
         is_system_task=True,
         status="pending",
     )

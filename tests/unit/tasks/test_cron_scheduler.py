@@ -771,20 +771,41 @@ class TestThreadSafety:
 @pytest.mark.parametrize(
     "function_name,expected_queue",
     [
+        # System/general tasks
         ("hello_world", "metrics_tasks"),
-        ("cleanup_old_data", "metrics_cleanup"),
-        ("cleanup_old_tasks", "metrics_cleanup"),
         ("execute_db_task", "metrics_tasks"),
         ("sleep", "metrics_tasks"),
+        # Cleanup tasks
+        ("cleanup_old_data", "metrics_cleanup"),
+        ("cleanup_old_tasks", "metrics_cleanup"),
+        ("cleanup_metrics_data", "metrics_cleanup"),
+        # Hourly collection tasks
+        ("collect_job_host_summary_hourly", "metrics_collectors"),
+        ("collect_host_metrics_hourly", "metrics_collectors"),
+        ("collect_main_host_hourly", "metrics_collectors"),
+        # Daily rollup and anonymization tasks
+        ("daily_metrics_rollup", "metrics_collectors"),
+        ("daily_anonymize_and_prepare", "metrics_collectors"),
+        ("send_anonymized_to_segment", "metrics_collectors"),
+        # Unified collector tasks
+        ("collect_single_collector", "metrics_collectors"),
+        ("collect_metrics", "metrics_collectors"),
+        ("anonymize_data", "metrics_collectors"),
+        ("send_to_segment", "metrics_collectors"),
+        ("full_process", "metrics_collectors"),
+        ("full_process_anonymize", "metrics_collectors"),
+        # Legacy metrics collection task names (backward compatibility)
         ("collect_anonymous_metrics", "metrics_collectors"),
         ("collect_config_metrics", "metrics_collectors"),
         ("collect_job_host_summary", "metrics_collectors"),
         ("collect_host_metrics", "metrics_collectors"),
         ("collect_all_metrics", "metrics_collectors"),
+        # Metrics-utility tasks
         ("gather_automation_controller_billing_data", "metrics_utility"),
         ("build_metrics_report", "metrics_utility"),
         ("metrics_utility_health_check", "metrics_utility"),
         ("metrics_utility_custom_command", "metrics_utility"),
+        # Unknown function (default)
         ("unknown_function", "metrics_tasks"),
     ],
 )

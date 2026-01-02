@@ -6,7 +6,7 @@ that aren't covered by the basic comprehensive tests.
 """
 
 import tempfile
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -106,31 +106,45 @@ class TestAggregationHelpers(TestCase):
         result = _aggregate_collector_data([])
         assert result["total_records"] == 0
         assert result["hourly_snapshots"] == []
+        assert result["records"] == []
 
     def test_aggregate_collector_data_with_dict_data(self):
-        """Test _aggregate_collector_data with dict data."""
+        """Test _aggregate_collector_data with dict data containing records."""
         from apps.tasks.tasks_collector import _aggregate_collector_data
 
-        # Create mock collections
+        # Create mock collections using csv_to_json format
         collection1 = Mock()
-        collection1.raw_data = {"total_records": 5, "data": "test"}
+        collection1.raw_data = {
+            "records": [{"host": "host1"}, {"host": "host2"}, {"host": "host3"}],
+            "total_records": 3,
+            "file_count": 1,
+        }
         collection1.collection_timestamp = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         collection1.id = 1
 
         collection2 = Mock()
-        collection2.raw_data = {"total_records": 3}
+        collection2.raw_data = {
+            "records": [{"host": "host4"}, {"host": "host5"}],
+            "total_records": 2,
+            "file_count": 1,
+        }
         collection2.collection_timestamp = datetime(2024, 1, 1, 13, 0, 0, tzinfo=UTC)
         collection2.id = 2
 
         result = _aggregate_collector_data([collection1, collection2])
-        assert result["total_records"] == 8
+        assert result["total_records"] == 5
         assert len(result["hourly_snapshots"]) == 2
         assert result["hourly_snapshots"][0]["hour"] == 12
-        assert result["hourly_snapshots"][0]["record_count"] == 5
+        assert result["hourly_snapshots"][0]["record_count"] == 3
         assert result["hourly_snapshots"][1]["hour"] == 13
+        assert result["hourly_snapshots"][1]["record_count"] == 2
+        # Verify records are merged
+        assert len(result["records"]) == 5
+        assert result["records"][0] == {"host": "host1"}
+        assert result["records"][4] == {"host": "host5"}
 
     def test_aggregate_collector_data_with_list_data(self):
-        """Test _aggregate_collector_data with list data."""
+        """Test _aggregate_collector_data with list data (legacy format)."""
         from apps.tasks.tasks_collector import _aggregate_collector_data
 
         collection = Mock()
@@ -140,6 +154,9 @@ class TestAggregationHelpers(TestCase):
 
         result = _aggregate_collector_data([collection])
         assert result["total_records"] == 3
+        # Records should be merged from raw list
+        assert len(result["records"]) == 3
+        assert result["records"] == [{"item": 1}, {"item": 2}, {"item": 3}]
 
     def test_aggregate_collector_data_with_other_data(self):
         """Test _aggregate_collector_data with non-dict/list data."""
@@ -151,7 +168,84 @@ class TestAggregationHelpers(TestCase):
         collection.id = 4
 
         result = _aggregate_collector_data([collection])
-        assert result["total_records"] == 1
+        assert result["total_records"] == 0
+        # No records extracted from invalid data
+        assert result["records"] == []
+
+    def test_aggregate_collector_data_merges_multiple_hours(self):
+        """Test _aggregate_collector_data properly merges records from multiple hours."""
+        from apps.tasks.tasks_collector import _aggregate_collector_data
+
+        # Simulate 3 hourly collections with different record counts
+        collections = []
+        for hour in range(3):
+            collection = Mock()
+            collection.raw_data = {
+                "records": [{"hour": hour, "record": i} for i in range(hour + 1)],
+                "total_records": hour + 1,
+                "file_count": 1,
+            }
+            collection.collection_timestamp = datetime(2024, 1, 1, hour, 0, 0, tzinfo=UTC)
+            collection.id = hour + 1
+            collections.append(collection)
+
+        result = _aggregate_collector_data(collections)
+        # Total: 1 + 2 + 3 = 6 records
+        assert result["total_records"] == 6
+        assert len(result["records"]) == 6
+        assert len(result["hourly_snapshots"]) == 3
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestAggregationToAnonymizationIntegration(TestCase):
+    """Test that aggregated data is correctly extracted for anonymization."""
+
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
+    def test_daily_anonymize_extracts_records_from_new_structure(self, mock_anonymize):
+        """Test daily_anonymize_and_prepare extracts records from new aggregated structure."""
+        from apps.tasks.models import DailyMetricsSummary
+
+        mock_anonymize.return_value = None
+
+        # Create summary with the NEW aggregated structure (with records key)
+        DailyMetricsSummary.objects.create(
+            summary_date=date(2024, 4, 1),
+            aggregated_metrics={
+                "job_host_summary": {
+                    "records": [{"host": "host1"}, {"host": "host2"}],
+                    "total_records": 2,
+                    "hourly_snapshots": [{"hour": 0, "record_count": 2}],
+                },
+                "main_host": {
+                    "records": [{"host_id": 1}, {"host_id": 2}, {"host_id": 3}],
+                    "total_records": 3,
+                    "hourly_snapshots": [{"hour": 0, "record_count": 3}],
+                },
+                "main_jobevent": {
+                    "records": [{"event": "runner_on_ok"}],
+                    "total_records": 1,
+                    "hourly_snapshots": [{"hour": 0, "record_count": 1}],
+                },
+            },
+            config_data={"version": "4.5.0"},
+            status="aggregated",
+            hourly_collections_count=24,
+            missing_hours=[],
+            aggregation_completed_at=timezone.now(),
+        )
+
+        result = daily_anonymize_and_prepare(summary_date=date(2024, 4, 1).isoformat())
+
+        assert result["status"] == "success"
+        mock_anonymize.assert_called_once()
+
+        # Verify records were extracted, not the entire structure with metadata
+        call_data = mock_anonymize.call_args[0][0]
+        assert call_data["job_host_summary"] == [{"host": "host1"}, {"host": "host2"}]
+        assert call_data["main_host"] == [{"host_id": 1}, {"host_id": 2}, {"host_id": 3}]
+        assert call_data["main_jobevent"] == [{"event": "runner_on_ok"}]
 
 
 @pytest.mark.unit
@@ -764,3 +858,123 @@ class TestPRFixes(TestCase):
         # The cleanup should have deleted all statuses
         remaining = AnonymizedMetricsPayload.objects.count()
         assert remaining == 0, f"Expected 0 remaining payloads, got {remaining}"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestHourlyCollectionRetryBehavior(TestCase):
+    """
+    Test that hourly collection properly handles retries and duplicate triggers.
+
+    The _collect_hourly_metrics function uses update_or_create to handle cases where:
+    1. A failed task is retried and now succeeds
+    2. Scheduler double-triggers the same hour
+    3. Multiple attempts for the same collection period
+    """
+
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.tasks_collector.job_host_summary")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
+    def test_retry_after_failure_updates_existing_record(self, mock_get_db, mock_collector_class, mock_csv_to_json):
+        """
+        Test that a successful retry updates the failed record instead of creating a new one.
+
+        This verifies the fix for the IntegrityError that would occur when a task
+        is retried after failure (since unique_together constraint on collector_type + timestamp).
+        """
+        from apps.tasks.models import HourlyMetricsCollection
+
+        # Set up a fixed collection hour
+        collection_hour = timezone.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+        # Create an existing "failed" record for this hour
+        failed_record = HourlyMetricsCollection.objects.create(
+            collector_type="job_host_summary",
+            collection_timestamp=collection_hour,
+            raw_data={},
+            status="failed",
+            error_message="Initial failure",
+        )
+        original_id = failed_record.id
+
+        # Mock successful collection
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+        mock_collector = MagicMock()
+        mock_collector.gather.return_value = ["/tmp/test.csv"]  # noqa: S108
+        mock_collector_class.return_value = mock_collector
+        mock_csv_to_json.return_value = {"total_records": 100, "data": [{"host": "test"}]}
+
+        # Run the collection with the same timestamp
+        result = collect_job_host_summary_hourly(hour_timestamp=collection_hour.isoformat())
+
+        # Should succeed
+        assert result["status"] == "success"
+        assert result["was_retry"] is True  # Indicates it was an update, not a create
+
+        # Verify only one record exists (the original one was updated)
+        records = HourlyMetricsCollection.objects.filter(
+            collector_type="job_host_summary",
+            collection_timestamp=collection_hour,
+        )
+        assert records.count() == 1
+
+        # Verify the record was updated (same ID, new status)
+        updated_record = records.first()
+        assert updated_record.id == original_id
+        assert updated_record.status == "collected"
+        assert updated_record.raw_data["total_records"] == 100
+        assert updated_record.error_message == ""  # Error cleared
+
+    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.tasks_collector.job_host_summary")
+    @patch("apps.tasks.tasks_collector.get_db_connection")
+    def test_scheduler_double_trigger_updates_existing_record(
+        self, mock_get_db, mock_collector_class, mock_csv_to_json
+    ):
+        """
+        Test that a double-triggered task updates the existing record.
+
+        This simulates a scheduler double-trigger scenario where the same collection
+        is triggered twice for the same hour.
+        """
+        from apps.tasks.models import HourlyMetricsCollection
+
+        # Set up mocks
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+        mock_collector = MagicMock()
+        mock_collector.gather.return_value = ["/tmp/test.csv"]  # noqa: S108
+        mock_collector_class.return_value = mock_collector
+
+        collection_hour = timezone.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+        # First call - data with 50 records
+        mock_csv_to_json.return_value = {"total_records": 50, "data": [{"host": "first"}]}
+        result1 = collect_job_host_summary_hourly(hour_timestamp=collection_hour.isoformat())
+
+        assert result1["status"] == "success"
+        assert result1["was_retry"] is False  # First creation
+
+        first_id = result1["collection_id"]
+
+        # Second call (double-trigger) - data with 100 records
+        mock_csv_to_json.return_value = {"total_records": 100, "data": [{"host": "second"}]}
+        result2 = collect_job_host_summary_hourly(hour_timestamp=collection_hour.isoformat())
+
+        assert result2["status"] == "success"
+        assert result2["was_retry"] is True  # Update of existing
+        assert result2["collection_id"] == first_id  # Same record ID
+
+        # Verify only one record exists
+        records = HourlyMetricsCollection.objects.filter(
+            collector_type="job_host_summary",
+            collection_timestamp=collection_hour,
+        )
+        assert records.count() == 1
+
+        # Verify the record has the latest data
+        updated_record = records.first()
+        assert updated_record.raw_data["total_records"] == 100
