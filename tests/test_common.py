@@ -22,24 +22,12 @@ class BaseTaskFunctionsTest(unittest.TestCase):
         self.assertEqual(result["days_old"], 30)
         self.assertIn("cleaned_count", result)
 
-    def test_send_notification_email(self):
-        """Test send_notification_email function."""
-        from apps.tasks.tasks import send_notification_email
-
-        result = send_notification_email(recipient="test@example.com", subject="Test Subject", message="Test message")
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["recipient"], "test@example.com")
-        self.assertEqual(result["subject"], "Test Subject")
-
     def test_task_functions_registry(self):
         """Test TASK_FUNCTIONS registry."""
         from apps.tasks.tasks import TASK_FUNCTIONS
 
         expected_functions = [
             "cleanup_old_data",
-            "send_notification_email",
-            "process_user_data",
             "execute_db_task",
             "hello_world",
             "sleep",
@@ -55,20 +43,32 @@ class BaseTaskSchedulerTest(unittest.TestCase):
 
     def test_task_scheduler_init(self):
         """Test UnifiedTaskScheduler initialization."""
+        from unittest.mock import Mock
+
         from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
-        with patch("apps.tasks.cron_scheduler.get_all_enabled_tasks", return_value={}):
+        with patch("apps.tasks.models.Task") as mock_task_model:
+            # Mock empty database
+            mock_queryset = Mock()
+            mock_queryset.exclude.return_value = []
+            mock_task_model.objects.filter.return_value = mock_queryset
+
             scheduler = UnifiedTaskScheduler(check_interval=30)
         self.assertEqual(scheduler.check_interval, 30)
         self.assertFalse(scheduler.running)
 
     def test_task_scheduler_stop(self):
         """Test UnifiedTaskScheduler stop method."""
-        from unittest.mock import patch
+        from unittest.mock import Mock, patch
 
         from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
-        with patch("apps.tasks.cron_scheduler.get_all_enabled_tasks", return_value={}):
+        with patch("apps.tasks.models.Task") as mock_task_model:
+            # Mock empty database
+            mock_queryset = Mock()
+            mock_queryset.exclude.return_value = []
+            mock_task_model.objects.filter.return_value = mock_queryset
+
             scheduler = UnifiedTaskScheduler()
         scheduler.running = True
         with patch.object(scheduler.scheduler, "shutdown"):

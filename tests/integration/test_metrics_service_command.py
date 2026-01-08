@@ -85,9 +85,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
             name="Task 1", function_name="cleanup_old_data", status="pending", created_by=self.user
         )
         task1.save()
-        Task.objects.create(
-            name="Task 2", function_name="send_notification_email", status="completed", created_by=self.user
-        )
+        Task.objects.create(name="Task 2", function_name="cleanup_old_data", status="completed", created_by=self.user)
 
         with patch("sys.stdout.write") as mock_stdout:
             call_command("metrics_service", "tasks", "list")
@@ -101,7 +99,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
         )
         pending_task.save()
         Task.objects.create(
-            name="Completed Task", function_name="send_notification_email", status="completed", created_by=self.user
+            name="Completed Task", function_name="hello_world", status="completed", created_by=self.user
         )
 
         with patch("sys.stdout.write") as mock_stdout:

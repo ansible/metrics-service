@@ -155,8 +155,8 @@ class TestPredefinedTaskGroups(TestCase):
         assert ANONYMIZED_DATA_GROUP.is_enabled() is True
 
         task_ids = [task["task_id"] for task in ANONYMIZED_DATA_GROUP.get_enabled_tasks()]
-        assert "collect_anonymous_metrics" in task_ids
-        assert "collect_config_metrics" in task_ids
+        # After consolidation, only full_process_anonymize remains
+        assert "full_process_anonymize" in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_anonymized_data_group_disabled(self):
@@ -172,8 +172,7 @@ class TestPredefinedTaskGroups(TestCase):
         assert METRICS_COLLECTION_GROUP.is_enabled() is True
 
         task_ids = [task["task_id"] for task in METRICS_COLLECTION_GROUP.get_enabled_tasks()]
-        assert "collect_host_metrics" in task_ids
-        assert "collect_job_host_summary" in task_ids
+        # After consolidation, only the daily collection task remains
         assert "collect_all_metrics_daily" in task_ids
 
     @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION_ENABLED": False})
@@ -204,13 +203,11 @@ class TestTaskGroupFunctions(TestCase):
         assert "weekly_data_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
-        # Anonymized data tasks (enabled)
-        assert "collect_anonymous_metrics" in task_ids
-        assert "collect_config_metrics" in task_ids
+        # Anonymized data tasks (enabled) - after consolidation
+        assert "full_process_anonymize" in task_ids
 
-        # Metrics collection tasks (disabled)
-        assert "collect_host_metrics" not in task_ids
-        assert "collect_job_host_summary" not in task_ids
+        # Metrics collection tasks (disabled) - after consolidation
+        assert "collect_all_metrics_daily" not in task_ids
 
         # Check that group information is added to tasks
         for _task_id, task_config in all_tasks.items():
@@ -289,11 +286,11 @@ class TestTaskGroupIntegration(TestCase):
         # System tasks
         assert any("cleanup" in task_id for task_id in task_ids)
 
-        # Anonymized data tasks
-        assert any("anonymous" in task_id for task_id in task_ids)
+        # Anonymized data tasks - after consolidation, only full_process_anonymize remains
+        assert any("anonymize" in task_id for task_id in task_ids)
 
-        # Metrics collection tasks
-        assert any("host_metrics" in task_id for task_id in task_ids)
+        # Metrics collection tasks - after consolidation, only daily collection remains
+        assert any("metrics" in task_id for task_id in task_ids)
 
     @override_settings(
         FEATURE_ENABLED={

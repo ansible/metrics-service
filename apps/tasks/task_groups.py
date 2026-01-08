@@ -161,24 +161,6 @@ ANONYMIZED_DATA_GROUP = TaskGroup(
     default_enabled=True,  # Default enabled but can be controlled
     tasks=[
         {
-            "task_id": "collect_anonymous_metrics",
-            "function": "collect_anonymous_metrics",
-            "cron": "0 */6 * * *",  # Every 6 hours
-            "args": {},
-            "enabled": True,
-            "description": "Collect anonymous system metrics for monitoring",
-            "category": "anonymous_metrics",
-        },
-        {
-            "task_id": "collect_config_metrics",
-            "function": "collect_config_metrics",
-            "cron": "0 4 * * 0",  # Weekly on Sunday at 4 AM
-            "args": {},
-            "enabled": True,
-            "description": "Collect system configuration information anonymously",
-            "category": "anonymous_metrics",
-        },
-        {
             "task_id": "full_process_anonymize",
             "function": "full_process_anonymize",
             "cron": "0 */12 * * *",  # Every 12 hours
@@ -198,31 +180,93 @@ METRICS_COLLECTION_GROUP = TaskGroup(
     default_enabled=False,  # Customers must explicitly enable
     tasks=[
         {
-            "task_id": "collect_host_metrics",
-            "function": "collect_host_metrics",
-            "cron": "0 */4 * * *",  # Every 4 hours
-            "args": {},
-            "enabled": True,
-            "description": "Collect host performance and system metrics",
-            "category": "metrics_collection",
-        },
-        {
-            "task_id": "collect_job_host_summary",
-            "function": "collect_job_host_summary",
-            "cron": "0 */8 * * *",  # Every 8 hours
-            "args": {},
-            "enabled": True,
-            "description": "Collect job execution statistics and host performance data",
-            "category": "metrics_collection",
-        },
-        {
             "task_id": "collect_all_metrics_daily",
-            "function": "collect_all_metrics",
+            "function": "collect_metrics",  # Changed from collect_all_metrics to collect_metrics
             "cron": "0 1 * * *",  # Daily at 1 AM
-            "args": {"collectors": ["anonymous", "config", "host_metric", "job_host_summary"]},
+            "args": {"collectors": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"]},
             "enabled": True,
-            "description": "Daily comprehensive metrics collection",
+            "description": "Daily comprehensive metrics collection using all collectors",
             "category": "metrics_collection",
+        },
+    ],
+)
+
+# Hourly Metrics Collection Group - Customer controlled, hourly granularity with daily rollup
+HOURLY_METRICS_GROUP = TaskGroup(
+    name="hourly_metrics",
+    description="Hourly metrics collection with daily rollup and anonymization",
+    enabled_setting="METRICS_COLLECTION_ENABLED",
+    default_enabled=False,  # Disabled by default, customer opt-in required
+    tasks=[
+        # Hourly Collection Tasks
+        {
+            "task_id": "hourly_job_host_summary",
+            "function": "collect_job_host_summary_hourly",
+            "cron": "5 * * * *",  # Every hour at XX:05
+            "args": {},
+            "enabled": True,
+            "description": "Collect job host summary metrics every hour",
+            "category": "hourly_collection",
+        },
+        {
+            "task_id": "hourly_host_metrics",
+            "function": "collect_host_metrics_hourly",
+            "cron": "10 * * * *",  # Every hour at XX:10
+            "args": {},
+            "enabled": True,
+            "description": "Collect host metrics every hour",
+            "category": "hourly_collection",
+        },
+        {
+            "task_id": "hourly_main_host",
+            "function": "collect_main_host_hourly",
+            "cron": "15 * * * *",  # Every hour at XX:15
+            "args": {},
+            "enabled": True,
+            "description": "Collect main_host metrics every hour",
+            "category": "hourly_collection",
+        },
+        # Daily Rollup Tasks
+        {
+            "task_id": "daily_metrics_rollup",
+            "function": "daily_metrics_rollup",
+            "cron": "0 2 * * *",  # Daily at 2:00 AM
+            "args": {},
+            "enabled": True,
+            "description": "Create daily rollup from hourly collections",
+            "category": "daily_rollup",
+        },
+        {
+            "task_id": "daily_anonymize",
+            "function": "daily_anonymize_and_prepare",
+            "cron": "0 3 * * *",  # Daily at 3:00 AM
+            "args": {},
+            "enabled": True,
+            "description": "Anonymize daily summary for Segment transmission",
+            "category": "daily_anonymization",
+        },
+        {
+            "task_id": "send_to_segment_daily",
+            "function": "send_anonymized_to_segment",
+            "cron": "30 3 * * *",  # Daily at 3:30 AM
+            "args": {},
+            "enabled": True,
+            "description": "Send anonymized payloads to Segment",
+            "category": "daily_send",
+        },
+        # Cleanup Task
+        {
+            "task_id": "cleanup_metrics_data",
+            "function": "cleanup_metrics_data",
+            "cron": "0 4 * * *",  # Daily at 4:00 AM
+            "args": {
+                "hourly_retention_days": 7,
+                "daily_retention_days": 30,
+                "payload_retention_days": 7,
+            },
+            "enabled": True,
+            "description": "Clean up old metrics data based on retention policies",
+            "category": "maintenance",
         },
     ],
 )
@@ -232,6 +276,7 @@ TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     ANONYMIZED_DATA_GROUP,
     METRICS_COLLECTION_GROUP,
+    HOURLY_METRICS_GROUP,
 ]
 
 
@@ -240,7 +285,8 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
     Get all enabled tasks from all groups.
 
     Returns:
-        Dictionary mapping task_id to task configuration for all enabled tasks
+        Dictionary mapping task_id to task configuration for all enabled tasks.
+        Each task config includes the feature_flag from its group for runtime checking.
     """
     all_tasks = {}
 
@@ -251,6 +297,8 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
             task_config = task.copy()
             task_config["group"] = group.name
             task_config["group_description"] = group.description
+            # Add feature flag for runtime checking
+            task_config["feature_flag"] = group.enabled_setting
             all_tasks[task_id] = task_config
 
     return all_tasks

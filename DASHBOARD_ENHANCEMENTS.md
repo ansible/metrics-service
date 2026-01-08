@@ -17,8 +17,6 @@ Added `TASK_METADATA` dictionary with detailed information for all 12 task funct
 #### **Categories Included**:
 - **Testing**: `hello_world`, `sleep`
 - **Maintenance**: `cleanup_old_data`, `cleanup_old_tasks`
-- **Communication**: `send_notification_email`
-- **Data Processing**: `process_user_data`
 - **System**: `execute_db_task`
 - **Metrics Collection**: `collect_anonymous_metrics`, `collect_config_metrics`, `collect_job_host_summary`, `collect_host_metrics`, `collect_all_metrics`
 

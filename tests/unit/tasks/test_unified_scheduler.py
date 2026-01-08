@@ -64,7 +64,11 @@ def mock_recurring_task():
 @pytest.fixture
 def scheduler():
     """Create a UnifiedTaskScheduler instance."""
-    with patch("apps.tasks.cron_scheduler.get_all_enabled_tasks", return_value={}):
+    with patch("apps.tasks.models.Task") as mock_task_model:
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_model.objects.filter.return_value = mock_queryset
         return UnifiedTaskScheduler()
 
 
@@ -74,7 +78,12 @@ class TestUnifiedTaskScheduler:
 
     def test_init(self):
         """Test scheduler initialization."""
-        with patch("apps.tasks.cron_scheduler.get_all_enabled_tasks", return_value={}):
+        with patch("apps.tasks.models.Task") as mock_task_model:
+            # Mock empty database
+            mock_queryset = Mock()
+            mock_queryset.exclude.return_value = []
+            mock_task_model.objects.filter.return_value = mock_queryset
+
             scheduler = UnifiedTaskScheduler(check_interval=30)
 
         assert scheduler.check_interval == 30
@@ -82,14 +91,25 @@ class TestUnifiedTaskScheduler:
         assert isinstance(scheduler.task_registry, dict)
         assert isinstance(scheduler._db_task_jobs, dict)
 
-    @patch("apps.tasks.cron_scheduler.get_all_enabled_tasks")
-    def test_load_task_registry(self, mock_get_tasks):
-        """Test loading task registry from task groups."""
-        mock_tasks = {"test_task": {"function": "test_function", "cron": "0 * * * *", "enabled": True}}
-        mock_get_tasks.return_value = mock_tasks
+    @patch("apps.tasks.models.Task")
+    def test_load_task_registry(self, mock_task_model):
+        """Test loading task registry from database."""
+        # Create mock task objects
+        task1 = Mock()
+        task1.id = 1
+        task1.name = "test_task"
+        task1.function_name = "test_function"
+        task1.cron_expression = "0 * * * *"
+        task1.task_data = {}
+        task1.description = "Test task"
+        task1.priority = 5
+
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = [task1]
+        mock_task_model.objects.filter.return_value = mock_queryset
 
         scheduler = UnifiedTaskScheduler()
-        assert scheduler.task_registry == mock_tasks
+        assert "test_task" in scheduler.task_registry
 
     @patch("apps.tasks.models.Task")
     def test_sync_database_tasks_scheduled(self, mock_task_model, scheduler):

@@ -146,3 +146,59 @@ def rollback_configuration_change(change_id, user):
     except Exception as e:
         logger.error(f"Failed to rollback configuration change {change_id}: {str(e)}")
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
+
+
+def initialize_default_settings():
+    """
+    Initialize default feature flag settings in the database on application startup.
+
+    This ensures that all feature flags are visible in the database and can be
+    easily discovered and modified by administrators.
+    """
+    from django.conf import settings as django_settings
+
+    # Define default feature flags and their values
+    default_settings = {
+        "METRICS_COLLECTION_ENABLED": {
+            "default_value": False,
+            "description": "Enable hourly metrics collection with daily rollup and anonymization",
+        },
+        "ANONYMIZED_DATA_COLLECTION": {
+            "default_value": True,
+            "description": "Enable anonymous data collection for Red Hat",
+        },
+    }
+
+    created_count = 0
+    skipped_count = 0
+
+    for setting_key, config in default_settings.items():
+        # Check if setting already exists
+        existing = Setting.objects.filter(setting_key=setting_key).first()
+
+        if existing:
+            logger.debug(f"Setting '{setting_key}' already exists with value: {existing.current_value}")
+            skipped_count += 1
+            continue
+
+        # Get default value from Django settings FEATURE_ENABLED dict, or use hardcoded default
+        feature_enabled = getattr(django_settings, "FEATURE_ENABLED", {})
+        default_value = feature_enabled.get(setting_key, config["default_value"])
+
+        # Create the setting
+        Setting.objects.create(
+            setting_key=setting_key,
+            current_value=json.dumps(default_value),
+            previous_value=None,
+            last_modified_by=None,  # System initialization
+        )
+
+        logger.info(
+            f"Initialized setting '{setting_key}' with default value: {default_value} ({config['description']})"
+        )
+        created_count += 1
+
+    if created_count > 0:
+        logger.info(f"Initialized {created_count} default settings in database")
+    if skipped_count > 0:
+        logger.debug(f"Skipped {skipped_count} existing settings")

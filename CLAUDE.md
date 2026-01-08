@@ -299,7 +299,7 @@ The web-based dashboard provides a centralized interface for task management:
 
 The service includes a comprehensive background task system with:
 
-- **Task functions** - `cleanup_old_data`, `send_notification_email`, `process_user_data`, `execute_db_task`
+- **Task functions** - `cleanup_old_data`, `cleanup_old_tasks`, `execute_db_task`, `hello_world`
 - **Database-driven tasks** - Tasks defined in DB with dependency management
 - **Dispatcherd integration** - Always enabled, multi-worker task processing with health monitoring
 - **Scheduling** - Cron-like recurring tasks and dependency chains
@@ -389,8 +389,6 @@ The system includes these built-in task functions organized by feature groups:
 
 - **`cleanup_old_data`** - Clean up old data from the system
 - **`cleanup_old_tasks`** - Clean up completed/failed tasks
-- **`send_notification_email`** - Send notification emails to users
-- **`process_user_data`** - Process user data in the background
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
 
 **Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`):
@@ -440,6 +438,20 @@ FEATURE_ENABLED = {
 - **System Tasks** - Always enabled (cleanup, maintenance)
 - **Anonymized Data Collection** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: enabled)
 - **Metrics Collection** - Controlled by `METRICS_COLLECTION_ENABLED` (default: disabled)
+
+**Automatic Database Initialization:**
+
+Feature flags are automatically created in the `dynamic_settings_setting` table on application startup:
+- If a setting doesn't exist, it's created with the default value from `FEATURE_ENABLED`
+- If a setting already exists, it's not modified (preserves user changes)
+- Settings can be queried/modified via SQL, Django shell, or API
+
+**Runtime Feature Flag Checking:**
+
+Hourly collection tasks automatically check feature flags before execution:
+- Tasks skip execution when their feature flag is disabled
+- No scheduler restart needed - changes take effect immediately
+- Logged when tasks are skipped for visibility
 
 ### Logging Configuration
 

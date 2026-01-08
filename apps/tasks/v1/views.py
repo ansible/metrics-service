@@ -29,9 +29,9 @@ Operations:
 Task Functions:
     Supports all registered task functions including:
     - cleanup_old_data: System maintenance tasks
-    - send_notification_email: Email notifications
-    - process_user_data: User data processing
+    - cleanup_old_tasks: Task cleanup
     - execute_db_task: Database operations
+    - hello_world: Test task
 
 Security:
     - Developer mode must be enabled (DEVELOPER_MODE_ENABLED=True)

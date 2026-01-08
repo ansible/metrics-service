@@ -14,7 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.utils import timezone
 
-from .task_groups import get_all_enabled_tasks, get_task_group_status
+from .task_groups import get_task_group_status
 from .tasks import TASK_FUNCTIONS
 
 logger = logging.getLogger(__name__)
@@ -43,30 +43,44 @@ class UnifiedTaskScheduler:
         self._db_task_jobs: dict[int, str] = {}  # task_id -> job_id mapping
 
     def _load_task_registry(self):
-        """Load task registry from task groups with feature enable control."""
-        try:
-            enabled_tasks = get_all_enabled_tasks()
-            self.task_registry = enabled_tasks
-            logger.info(f"Loaded {len(enabled_tasks)} enabled tasks from task groups")
+        """
+        Load task registry from database (source of truth).
 
-            # Log which groups are enabled/disabled
-            group_status = get_task_group_status()
-            for group_name, status in group_status.items():
-                if status["enabled"]:
-                    logger.info(
-                        f"Task group '{group_name}' enabled: {status['enabled_tasks']}/{status['total_tasks']} tasks"
-                    )
-                else:
-                    logger.info(f"Task group '{group_name}' disabled: {status['total_tasks']} tasks skipped")
+        All tasks including system tasks are stored in the tasks_task table.
+        Task group definitions are synced to the database on startup.
+        """
+        try:
+            from .models import Task
+
+            # Load all system tasks (recurring) from database
+            system_tasks = Task.objects.filter(is_system_task=True, is_recurring=True).exclude(
+                status__in=["cancelled", "completed"]
+            )
+
+            # Convert to registry format
+            self.task_registry = {}
+            for task in system_tasks:
+                self.task_registry[task.name] = {
+                    "function": task.function_name,
+                    "cron": task.cron_expression,
+                    "args": task.task_data or {},
+                    "description": task.description,
+                    "priority": task.priority,
+                    "enabled": True,  # All in DB are enabled
+                    "task_id": task.name,
+                    "db_id": task.id,
+                }
+
+            logger.info(f"Loaded {len(self.task_registry)} system tasks from database")
 
         except Exception as e:
-            logger.error(f"Failed to load task registry from groups: {str(e)}")
+            logger.error(f"Failed to load task registry from database: {str(e)}")
             # Fallback to empty registry
             self.task_registry = {}
 
     def reload_task_registry(self):
-        """Reload task registry from task groups (useful when feature enables change)."""
-        logger.info("Reloading task registry from task groups")
+        """Reload task registry from database (source of truth)."""
+        logger.info("Reloading task registry from database")
         old_count = len(self.task_registry)
 
         # Stop existing tasks
@@ -77,7 +91,7 @@ class UnifiedTaskScheduler:
                 except Exception as e:
                     logger.debug(f"Job {task_id} not found in scheduler: {str(e)}")
 
-        # Reload registry
+        # Reload registry from database
         self._load_task_registry()
 
         # Re-add tasks if scheduler is running
@@ -95,7 +109,7 @@ class UnifiedTaskScheduler:
                 return
 
             try:
-                # Add all enabled tasks to the scheduler
+                # Add all tasks to the scheduler (feature flag check happens at runtime)
                 self._add_registry_tasks()
 
                 # Start the scheduler
@@ -161,11 +175,11 @@ class UnifiedTaskScheduler:
         # Create trigger based on cron expression
         trigger = CronTrigger.from_crontab(config["cron"])
 
-        # Add job to scheduler
+        # Add job to scheduler with feature flag info
         self.scheduler.add_job(
             func=self._execute_scheduled_task,
             trigger=trigger,
-            args=[task_id, function_name, config.get("args", {})],
+            args=[task_id, function_name, config.get("args", {}), config.get("feature_flag")],
             id=task_id,
             name=config.get("description", task_id),
             replace_existing=True,
@@ -174,9 +188,38 @@ class UnifiedTaskScheduler:
 
         logger.info(f"Added scheduled task: {task_id} ({config['cron']})")
 
-    def _execute_scheduled_task(self, task_id: str, function_name: str, args: dict[str, Any]):
-        """Execute a scheduled task by submitting it to dispatcherd."""
+    def _execute_scheduled_task(
+        self, task_id: str, function_name: str, args: dict[str, Any], feature_flag: str | None = None
+    ):
+        """
+        Execute a scheduled task by submitting it to dispatcherd.
+
+        Checks feature flags at runtime before execution to ensure tasks
+        are only run when their associated feature is enabled.
+
+        Args:
+            task_id: Unique identifier for the task
+            function_name: Name of the function to execute
+            args: Arguments to pass to the function (may contain _feature_flag)
+            feature_flag: Optional feature flag name to check before execution (deprecated, use args['_feature_flag'])
+        """
         try:
+            # Check feature flag - either from args or parameter (for backward compatibility)
+            feature_flag_to_check = args.get("_feature_flag") or feature_flag
+
+            if feature_flag_to_check:
+                from .task_groups import get_feature_enabled_from_db
+
+                is_enabled = get_feature_enabled_from_db(feature_flag_to_check, False)
+                if not is_enabled:
+                    logger.info(
+                        f"Skipping task {task_id} ({function_name}): feature flag {feature_flag_to_check} is disabled"
+                    )
+                    return
+
+            # Remove _feature_flag from args before passing to task function
+            task_args = {k: v for k, v in args.items() if k != "_feature_flag"}
+
             # Ensure dispatcherd is configured before attempting to submit tasks
             from .dispatcherd_config import ensure_dispatcherd_configured
 
@@ -192,7 +235,7 @@ class UnifiedTaskScheduler:
             queue = self._get_queue_for_function(function_name)
 
             # Submit to dispatcherd using string reference for consistency
-            submit_task(f"apps.tasks.tasks.{function_name}", kwargs=args, queue=queue)
+            submit_task(f"apps.tasks.tasks.{function_name}", kwargs=task_args, queue=queue)
 
             logger.info(f"Submitted scheduled task {task_id} ({function_name}) to queue {queue}")
 
@@ -202,14 +245,30 @@ class UnifiedTaskScheduler:
     def _get_queue_for_function(self, function_name: str) -> str:
         """Determine the appropriate queue for a function."""
         queue_mapping = {
+            # System/general tasks
             "hello_world": "metrics_tasks",
-            "cleanup_old_data": "metrics_cleanup",
-            "cleanup_old_tasks": "metrics_cleanup",
-            "send_notification_email": "metrics_notifications",
-            "process_user_data": "metrics_tasks",
             "execute_db_task": "metrics_tasks",
             "sleep": "metrics_tasks",
-            # Metrics collection tasks
+            # Cleanup tasks
+            "cleanup_old_data": "metrics_cleanup",
+            "cleanup_old_tasks": "metrics_cleanup",
+            "cleanup_metrics_data": "metrics_cleanup",
+            # Hourly collection tasks
+            "collect_job_host_summary_hourly": "metrics_collectors",
+            "collect_host_metrics_hourly": "metrics_collectors",
+            "collect_main_host_hourly": "metrics_collectors",
+            # Daily rollup and anonymization tasks
+            "daily_metrics_rollup": "metrics_collectors",
+            "daily_anonymize_and_prepare": "metrics_collectors",
+            "send_anonymized_to_segment": "metrics_collectors",
+            # Unified collector tasks
+            "collect_single_collector": "metrics_collectors",
+            "collect_metrics": "metrics_collectors",
+            "anonymize_data": "metrics_collectors",
+            "send_to_segment": "metrics_collectors",
+            "full_process": "metrics_collectors",
+            "full_process_anonymize": "metrics_collectors",
+            # Legacy metrics collection task names (backward compatibility)
             "collect_anonymous_metrics": "metrics_collectors",
             "collect_config_metrics": "metrics_collectors",
             "collect_job_host_summary": "metrics_collectors",
