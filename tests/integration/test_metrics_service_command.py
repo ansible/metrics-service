@@ -370,6 +370,30 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
             "max_tasks": 100,
         }
 
+    def _setup_mocks_for_start_services(self, mock_exists, mock_exit, mock_sleep, mock_popen):
+        """Set up common mocks for tests that call _start_services."""
+        mock_exists.return_value = True
+        mock_exit.side_effect = SystemExit
+        mock_sleep.return_value = None
+        mock_popen.side_effect = self._create_mock_processes_with_exit()
+
+    def _create_command_instance(self):
+        """Create and configure a Command instance for testing."""
+        from apps.tasks.management.commands.metrics_service import Command
+
+        command = Command()
+        command.shutdown_requested = False
+        return command
+
+    def _call_run_command_with_mock(self, *args, expect_exception=False):
+        """Helper to call run command with _start_services mocked."""
+        with patch("apps.tasks.management.commands.metrics_service.Command._start_services") as mock_start:
+            try:
+                call_command("metrics_service", "run", *args)
+            except (ValueError, SystemExit) if expect_exception else ():
+                pass  # Expected if validation happens
+            return mock_start
+
     @patch("apps.tasks.management.commands.metrics_service.Command._start_services")
     def test_service_run_command_validation(self, mock_start_services):
         """Test that the run command validates and processes arguments correctly."""
@@ -412,18 +436,8 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
     @patch("sys.exit")
     def test_signal_handler_setup(self, mock_exit, mock_sleep, mock_exists, mock_popen):
         """Test that signal handlers are properly configured in _start_services_simple."""
-        import signal
-
-        from apps.tasks.management.commands.metrics_service import Command
-
-        command = Command()
-        command.shutdown_requested = False
-
-        mock_exists.return_value = True
-        mock_exit.side_effect = SystemExit
-        mock_sleep.return_value = None
-        mock_popen.side_effect = self._create_mock_processes_with_exit()
-
+        command = self._create_command_instance()
+        self._setup_mocks_for_start_services(mock_exists, mock_exit, mock_sleep, mock_popen)
         config = self._get_default_config()
 
         # Signal handlers are set up inside _start_services_simple
@@ -504,15 +518,9 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         import sys
         from pathlib import Path
 
-        from apps.tasks.management.commands.metrics_service import Command
-
-        command = Command()
+        command = self._create_command_instance()
         manage_py = Path(__file__).parent.parent.parent / "manage.py"
-        mock_exists.return_value = True
-        mock_exit.side_effect = SystemExit
-        mock_sleep.return_value = None
-        mock_popen.side_effect = self._create_mock_processes_with_exit()
-
+        self._setup_mocks_for_start_services(mock_exists, mock_exit, mock_sleep, mock_popen)
         config = self._get_default_config()
 
         # Start services will build the dispatcher command internally
@@ -548,53 +556,19 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
         # Test with invalid workers (should be caught by argparse or command validation)
         # Mock _start_services to prevent infinite loop if validation doesn't catch it
-        with patch("apps.tasks.management.commands.metrics_service.Command._start_services") as mock_start:
-            try:
-                call_command(
-                    "metrics_service",
-                    "run",
-                    "--host",
-                    "127.0.0.1",
-                    "--port",
-                    "8000",
-                    "--workers",
-                    "-1",  # Invalid workers
-                )
-            except (ValueError, SystemExit):
-                pass  # Expected if validation happens
-            # If validation doesn't catch it, _start_services should not be called
-            # or should be called and handle the error gracefully
+        self._call_run_command_with_mock(
+            "--host", "127.0.0.1", "--port", "8000", "--workers", "-1", expect_exception=True
+        )
 
         # Test with invalid port (should be caught by command validation)
         # Note: The current implementation doesn't validate port format strictly,
         # but it will fail when trying to start the server
-        with patch("apps.tasks.management.commands.metrics_service.Command._start_services") as mock_start:
-            # This should not raise an error at the command parsing level
-            # but may fail when actually starting services
-            try:
-                call_command(
-                    "metrics_service",
-                    "run",
-                    "--host",
-                    "127.0.0.1",
-                    "--port",
-                    "invalid_port",
-                )
-            except (ValueError, SystemExit):
-                pass  # Expected if validation happens
+        self._call_run_command_with_mock(
+            "--host", "127.0.0.1", "--port", "invalid_port", expect_exception=True
+        )
 
         # Test that valid configuration works
-        with patch("apps.tasks.management.commands.metrics_service.Command._start_services") as mock_start:
-            call_command(
-                "metrics_service",
-                "run",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                "8000",
-                "--workers",
-                "4",
-                "--log-level",
-                "INFO",
-            )
-            mock_start.assert_called_once()
+        mock_start = self._call_run_command_with_mock(
+            "--host", "127.0.0.1", "--port", "8000", "--workers", "4", "--log-level", "INFO"
+        )
+        mock_start.assert_called_once()
