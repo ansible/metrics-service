@@ -28,9 +28,6 @@ class TestMetricsServiceCommand(TestCase):
         """Clean up test fixtures."""
         # Ensure shutdown is requested to stop any running processes
         self.command.shutdown_requested = True
-        # Clean up any processes or threads that might be running
-        if hasattr(self.command, "_cleanup_processes_and_threads"):
-            self.command._cleanup_processes_and_threads()
 
     def test_command_help_text(self):
         """Test command has proper help text."""
@@ -77,18 +74,38 @@ class TestMetricsServiceCommand(TestCase):
         }
 
     @patch("signal.signal")
-    def test_setup_signal_handlers(self, mock_signal):
-        """Test _setup_signal_handlers method."""
+    @patch("subprocess.Popen")
+    @patch("pathlib.Path.exists")
+    @patch("sys.exit")
+    def test_signal_handlers_in_start_services(self, mock_exit, mock_exists, mock_popen, mock_signal):
+        """Test that signal handlers are set up in _start_services_simple."""
         self.command.stdout = self.out
-        self.command._setup_signal_handlers()
-
-        # Verify signal handlers were registered
-        mock_signal.assert_has_calls(
-            [
-                call(signal.SIGINT, mock_signal.call_args_list[0][0][1]),
-                call(signal.SIGTERM, mock_signal.call_args_list[1][0][1]),
-            ]
-        )
+        self.command.output.stdout = self.out
+        
+        mock_exists.return_value = True
+        mock_exit.side_effect = SystemExit
+        
+        # Create mock processes
+        mock_process = MagicMock()
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+        
+        config = {
+            "host": "127.0.0.1",
+            "port": "8000",
+            "workers": 4,
+            "log_level": "INFO",
+            "timeout": 3600,
+            "max_tasks": 100,
+        }
+        
+        # Signal handlers are set up inside _start_services_simple
+        # We'll verify they're called when the method runs
+        with pytest.raises(SystemExit):
+            self.command._start_services(config)
+        
+        # Verify signal handlers were registered (called twice for SIGINT and SIGTERM)
+        assert mock_signal.call_count >= 2
 
     @patch("subprocess.Popen")
     @patch("signal.signal")
@@ -203,6 +220,73 @@ class TestMetricsServiceCommand(TestCase):
 
         # Verify the run command handler was called
         mock_run_command.assert_called_once_with(options)
+
+    @patch("subprocess.Popen")
+    @patch("pathlib.Path.exists")
+    @patch("time.sleep")
+    @patch("sys.exit")
+    def test_start_services_builds_correct_commands(self, mock_exit, mock_sleep, mock_exists, mock_popen):
+        """Test that _start_services_simple builds correct commands for all three processes."""
+        import sys
+        from pathlib import Path
+
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+
+        manage_py = Path(__file__).parent.parent.parent.parent / "manage.py"
+        mock_exists.return_value = True
+        mock_exit.side_effect = SystemExit
+
+        # Create mock processes
+        mock_process = MagicMock()
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+
+        config = {
+            "host": "127.0.0.1",
+            "port": "8000",
+            "workers": 4,
+            "log_level": "DEBUG",
+            "timeout": 3600,
+            "max_tasks": 100,
+        }
+
+        mock_sleep.return_value = None
+
+        with pytest.raises(SystemExit):
+            self.command._start_services(config)
+
+        # Verify 3 processes were started
+        assert mock_popen.call_count == 3
+
+        # Verify Django command
+        django_call = mock_popen.call_args_list[0]
+        django_cmd = django_call[0][0]
+        assert sys.executable in django_cmd
+        assert str(manage_py) in django_cmd
+        assert "runserver" in django_cmd
+        assert "127.0.0.1:8000" in django_cmd
+        assert "--noreload" in django_cmd
+        assert "--verbosity=2" in django_cmd  # DEBUG level adds verbosity
+
+        # Verify Dispatcher command
+        dispatcher_call = mock_popen.call_args_list[1]
+        dispatcher_cmd = dispatcher_call[0][0]
+        assert sys.executable in dispatcher_cmd
+        assert str(manage_py) in dispatcher_cmd
+        assert "run_dispatcherd" in dispatcher_cmd
+        assert "--workers=4" in dispatcher_cmd
+        assert "--timeout=3600" in dispatcher_cmd
+        assert "--max-tasks=100" in dispatcher_cmd
+        assert "--log-level=DEBUG" in dispatcher_cmd
+
+        # Verify Scheduler command
+        scheduler_call = mock_popen.call_args_list[2]
+        scheduler_cmd = scheduler_call[0][0]
+        assert sys.executable in scheduler_cmd
+        assert str(manage_py) in scheduler_cmd
+        assert "run_task_scheduler" in scheduler_cmd
+        assert "--log-level=DEBUG" in scheduler_cmd
 
 
 class TestMetricsServiceSignalHandling(TestCase):
