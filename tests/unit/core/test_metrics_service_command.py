@@ -2,11 +2,9 @@
 Integration tests for apps.core.management.commands.metrics_service module.
 """
 
-import signal
-import subprocess
 from io import StringIO
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 from django.test import TestCase
@@ -176,7 +174,6 @@ class TestMetricsServiceCommand(TestCase):
     def test_start_services_builds_correct_commands(self, mock_exit, mock_sleep, mock_exists, mock_popen):
         """Test that _start_services_simple builds correct commands for all three processes."""
         import sys
-        from pathlib import Path
 
         self.command.stdout = self.out
         self.command.output.stdout = self.out
@@ -232,6 +229,7 @@ class TestMetricsServiceSignalHandling(TestCase):
         """Set up test fixtures."""
         self.command = Command()
         self.command.stdout = StringIO()
+
 
 class TestMetricsServiceEdgeCases(TestCase):
     """Test edge cases and error conditions."""

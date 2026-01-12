@@ -356,8 +356,10 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         with patch("apps.tasks.management.commands.metrics_service.Command._start_services") as mock_start:
             try:
                 call_command("metrics_service", "run", *args)
-            except (ValueError, SystemExit) if expect_exception else ():
-                pass  # Expected if validation happens
+            except (ValueError, SystemExit):
+                if not expect_exception:
+                    raise  # Re-raise if exception not expected
+                # Expected if validation happens
             return mock_start
 
     @patch("apps.tasks.management.commands.metrics_service.Command._start_services")
@@ -511,10 +513,6 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
     def test_input_validation(self):
         """Test input validation for security in command options."""
-        from apps.tasks.management.commands.metrics_service import Command
-
-        command = Command()
-
         # Test that invalid configuration values are caught at the command level
         # The new implementation builds commands directly, so validation happens
         # when the command is constructed. We test this by ensuring the command
@@ -529,9 +527,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         # Test with invalid port (should be caught by command validation)
         # Note: The current implementation doesn't validate port format strictly,
         # but it will fail when trying to start the server
-        self._call_run_command_with_mock(
-            "--host", "127.0.0.1", "--port", "invalid_port", expect_exception=True
-        )
+        self._call_run_command_with_mock("--host", "127.0.0.1", "--port", "invalid_port", expect_exception=True)
 
         # Test that valid configuration works
         mock_start = self._call_run_command_with_mock(

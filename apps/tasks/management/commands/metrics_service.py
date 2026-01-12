@@ -9,6 +9,7 @@ import json
 import signal
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -621,110 +622,128 @@ class Command(BaseCommand):
         This is the new simplified approach that directly spawns 3 processes
         (like the Procfile commands) and exits when any one exits.
         """
-        import time
-
         processes = []
         process_names = ["Django", "Dispatcher", "Scheduler"]
+
+        self._setup_signal_handlers_for_processes(processes)
+
+        try:
+            manage_py = self._get_manage_py_path()
+            self._display_startup_message(config)
+
+            commands = self._build_service_commands(manage_py, config)
+            for cmd in commands:
+                processes.append(subprocess.Popen(cmd))  # noqa: S603
+
+            self.output.write("All services started")
+            self.output.write("Metrics service is running (Press Ctrl+C to stop)")
+
+            self._monitor_processes(processes, process_names)
+
+        except KeyboardInterrupt:
+            self._handle_keyboard_interrupt(processes)
+        except Exception as e:
+            self._handle_startup_error(processes, e)
+
+    def _get_manage_py_path(self) -> Path:
+        """Get the path to manage.py."""
+        manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
+        if not manage_py.exists():
+            self.output.error("manage.py not found")
+            sys.exit(1)
+        return manage_py
+
+    def _display_startup_message(self, config: dict[str, Any]) -> None:
+        """Display startup message with service configuration."""
+        self.output.success("Starting metrics service:")
+        self.output.write(f"Django server: http://{config['host']}:{config['port']}")
+        self.output.write(f"Dispatcher workers: {config['workers']}")
+        self.output.write("Task scheduler: APScheduler with cron support")
+
+    def _build_service_commands(self, manage_py: Path, config: dict[str, Any]) -> list[list[str]]:
+        """Build commands for all three services."""
+        django_cmd = [
+            sys.executable,
+            str(manage_py),
+            "runserver",
+            f"{config['host']}:{config['port']}",
+            "--noreload",
+        ]
+        if config["log_level"] == "DEBUG":
+            django_cmd.append("--verbosity=2")
+
+        dispatcher_cmd = [
+            sys.executable,
+            str(manage_py),
+            "run_dispatcherd",
+            f"--workers={config['workers']}",
+            f"--timeout={config['timeout']}",
+            f"--max-tasks={config['max_tasks']}",
+            f"--log-level={config['log_level']}",
+        ]
+
+        scheduler_cmd = [
+            sys.executable,
+            str(manage_py),
+            "run_task_scheduler",
+            f"--log-level={config['log_level']}",
+        ]
+
+        return [django_cmd, dispatcher_cmd, scheduler_cmd]
+
+    def _setup_signal_handlers_for_processes(self, processes: list[subprocess.Popen]) -> None:
+        """Set up signal handlers for graceful shutdown."""
 
         def signal_handler(sig, frame):
             """Handle shutdown signal."""
             self.output.warning("Shutting down services...")
-            for process in processes:
-                if process.poll() is None:
-                    process.terminate()
-            # Give processes a moment to terminate gracefully
-            time.sleep(1)
-            for process in processes:
-                if process.poll() is None:
-                    process.kill()
+            self._cleanup_all_processes(processes)
             sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-        try:
-            # Get manage.py path
-            manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
-            if not manage_py.exists():
-                self.output.error("manage.py not found")
-                sys.exit(1)
+    def _cleanup_all_processes(self, processes: list[subprocess.Popen]) -> None:
+        """Clean up all running processes."""
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+        time.sleep(1)
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
 
-            self.output.success("Starting metrics service:")
-            self.output.write(f"Django server: http://{config['host']}:{config['port']}")
-            self.output.write(f"Dispatcher workers: {config['workers']}")
-            self.output.write("Task scheduler: APScheduler with cron support")
-
-            # Start Django process
-            django_cmd = [
-                sys.executable,
-                str(manage_py),
-                "runserver",
-                f"{config['host']}:{config['port']}",
-                "--noreload",
-            ]
-            if config["log_level"] == "DEBUG":
-                django_cmd.append("--verbosity=2")
-            processes.append(subprocess.Popen(django_cmd))  # noqa: S603
-
-            # Start Dispatcher process
-            dispatcher_cmd = [
-                sys.executable,
-                str(manage_py),
-                "run_dispatcherd",
-                f"--workers={config['workers']}",
-                f"--timeout={config['timeout']}",
-                f"--max-tasks={config['max_tasks']}",
-                f"--log-level={config['log_level']}",
-            ]
-            processes.append(subprocess.Popen(dispatcher_cmd))  # noqa: S603
-
-            # Start Scheduler process
-            scheduler_cmd = [
-                sys.executable,
-                str(manage_py),
-                "run_task_scheduler",
-                f"--log-level={config['log_level']}",
-            ]
-            processes.append(subprocess.Popen(scheduler_cmd))  # noqa: S603
-
-            self.output.write("All services started")
-            self.output.write("Metrics service is running (Press Ctrl+C to stop)")
-
-            # Monitor processes - exit when any exits
-            while True:
-                for i, process in enumerate(processes):
-                    if process.poll() is not None:
-                        # Process exited
-                        exit_code = process.returncode
-                        self.output.error(f"{process_names[i]} process exited with code {exit_code}")
-                        # Clean up other processes
-                        for j, p in enumerate(processes):
-                            if j != i and p.poll() is None:
-                                p.terminate()
-                        # Wait a bit for graceful shutdown
-                        time.sleep(1)
-                        # Force kill if still running
-                        for j, p in enumerate(processes):
-                            if j != i and p.poll() is None:
-                                p.kill()
-                        sys.exit(exit_code)
-                time.sleep(1)
-
-        except KeyboardInterrupt:
-            self.output.warning("Received interrupt, shutting down...")
-            for process in processes:
-                if process.poll() is None:
-                    process.terminate()
+    def _monitor_processes(self, processes: list[subprocess.Popen], process_names: list[str]) -> None:
+        """Monitor processes and exit when any exits."""
+        while True:
+            for i, process in enumerate(processes):
+                if process.poll() is not None:
+                    exit_code = process.returncode
+                    self.output.error(f"{process_names[i]} process exited with code {exit_code}")
+                    self._cleanup_other_processes(processes, i)
+                    sys.exit(exit_code)
             time.sleep(1)
-            for process in processes:
-                if process.poll() is None:
-                    process.kill()
-        except Exception as e:
-            self.output.error(f"Failed to start services: {e}")
-            for process in processes:
-                if process.poll() is None:
-                    process.terminate()
-            sys.exit(1)
+
+    def _cleanup_other_processes(self, processes: list[subprocess.Popen], exclude_index: int) -> None:
+        """Clean up all processes except the one at exclude_index."""
+        for j, p in enumerate(processes):
+            if j != exclude_index and p.poll() is None:
+                p.terminate()
+        time.sleep(1)
+        for j, p in enumerate(processes):
+            if j != exclude_index and p.poll() is None:
+                p.kill()
+
+    def _handle_keyboard_interrupt(self, processes: list[subprocess.Popen]) -> None:
+        """Handle keyboard interrupt gracefully."""
+        self.output.warning("Received interrupt, shutting down...")
+        self._cleanup_all_processes(processes)
+
+    def _handle_startup_error(self, processes: list[subprocess.Popen], error: Exception) -> None:
+        """Handle startup errors."""
+        self.output.error(f"Failed to start services: {error}")
+        self._cleanup_all_processes(processes)
+        sys.exit(1)
 
     def _extract_config(self, options: dict[str, Any]) -> dict[str, Any]:
         """Extract configuration from command options."""
