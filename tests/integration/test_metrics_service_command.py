@@ -335,6 +335,41 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         self.manage_py = Path(__file__).parent.parent.parent / "manage.py"
         assert self.manage_py.exists(), f"manage.py not found at {self.manage_py}"
 
+    def _create_mock_processes_with_exit(self):
+        """Create mock processes where Django process exits after first check."""
+        poll_call_count = {"django": 0}
+
+        def django_poll_side_effect():
+            """Simulate Django process that exits after first monitoring check."""
+            poll_call_count["django"] += 1
+            if poll_call_count["django"] == 1:
+                return None  # First check: still running
+            return 0  # Exited
+
+        django_process = MagicMock()
+        django_process.poll.side_effect = django_poll_side_effect
+        django_process.returncode = 0
+        django_process.terminate.return_value = None
+        django_process.kill.return_value = None
+
+        other_process = MagicMock()
+        other_process.poll.return_value = None
+        other_process.terminate.return_value = None
+        other_process.kill.return_value = None
+
+        return [django_process, other_process, other_process]
+
+    def _get_default_config(self):
+        """Get default test configuration."""
+        return {
+            "host": "127.0.0.1",
+            "port": "8000",
+            "workers": 4,
+            "log_level": "INFO",
+            "timeout": 3600,
+            "max_tasks": 100,
+        }
+
     @patch("apps.tasks.management.commands.metrics_service.Command._start_services")
     def test_service_run_command_validation(self, mock_start_services):
         """Test that the run command validates and processes arguments correctly."""
@@ -387,39 +422,9 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         mock_exists.return_value = True
         mock_exit.side_effect = SystemExit
         mock_sleep.return_value = None
+        mock_popen.side_effect = self._create_mock_processes_with_exit()
 
-        # Track poll calls to simulate process exit after first monitoring iteration
-        poll_call_count = {"django": 0}
-
-        def django_poll_side_effect():
-            """Simulate Django process that exits after first monitoring check."""
-            poll_call_count["django"] += 1
-            if poll_call_count["django"] == 1:
-                return None  # First check: still running
-            return 0  # Exited
-
-        # Create mock processes - one exits, others stay running
-        django_process = MagicMock()
-        django_process.poll.side_effect = django_poll_side_effect
-        django_process.returncode = 0
-        django_process.terminate.return_value = None
-        django_process.kill.return_value = None
-
-        other_process = MagicMock()
-        other_process.poll.return_value = None
-        other_process.terminate.return_value = None
-        other_process.kill.return_value = None
-
-        mock_popen.side_effect = [django_process, other_process, other_process]
-
-        config = {
-            "host": "127.0.0.1",
-            "port": "8000",
-            "workers": 4,
-            "log_level": "INFO",
-            "timeout": 3600,
-            "max_tasks": 100,
-        }
+        config = self._get_default_config()
 
         # Signal handlers are set up inside _start_services_simple
         with pytest.raises(SystemExit):
@@ -506,39 +511,9 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         mock_exists.return_value = True
         mock_exit.side_effect = SystemExit
         mock_sleep.return_value = None
+        mock_popen.side_effect = self._create_mock_processes_with_exit()
 
-        # Track poll calls to simulate process exit after first monitoring iteration
-        poll_call_count = {"django": 0}
-
-        def django_poll_side_effect():
-            """Simulate Django process that exits after first monitoring check."""
-            poll_call_count["django"] += 1
-            if poll_call_count["django"] == 1:
-                return None  # First check: still running
-            return 0  # Exited
-
-        # Create mock processes - one exits, others stay running
-        django_process = MagicMock()
-        django_process.poll.side_effect = django_poll_side_effect
-        django_process.returncode = 0
-        django_process.terminate.return_value = None
-        django_process.kill.return_value = None
-
-        other_process = MagicMock()
-        other_process.poll.return_value = None
-        other_process.terminate.return_value = None
-        other_process.kill.return_value = None
-
-        mock_popen.side_effect = [django_process, other_process, other_process]
-
-        config = {
-            "host": "127.0.0.1",
-            "port": "8000",
-            "workers": 4,
-            "log_level": "INFO",
-            "timeout": 3600,
-            "max_tasks": 100,
-        }
+        config = self._get_default_config()
 
         # Start services will build the dispatcher command internally
         # We'll verify it by checking the Popen calls
