@@ -139,23 +139,68 @@ class TestMetricsServiceCommand(TestCase):
         mock_process.wait.assert_called_once_with(timeout=5)
         mock_process.kill.assert_called_once()
 
-    @patch.object(Command, "_monitor_services")
-    @patch.object(Command, "_start_dispatcher_thread")
-    @patch.object(Command, "_start_django_thread")
-    def test_start_services_success(self, mock_django, mock_dispatcher, mock_monitor):
+    @patch("subprocess.Popen")
+    @patch("signal.signal")
+    @patch("pathlib.Path.exists")
+    @patch("time.sleep")
+    @patch("sys.exit")
+    def test_start_services_success(self, mock_exit, mock_sleep, mock_exists, mock_signal, mock_popen):
         """Test _start_services method success path."""
         self.command.stdout = self.out
         # Update the output formatter to use the test stdout
         self.command.output.stdout = self.out
 
-        config = {"host": "127.0.0.1", "port": "8000", "workers": 4, "log_level": "INFO"}
+        # Mock Path.exists to return True for manage.py
+        mock_exists.return_value = True
+
+        # Track poll calls to simulate process exit after first monitoring iteration
+        poll_call_count = {"django": 0}
+
+        def django_poll_side_effect():
+            """Simulate Django process that exits after first monitoring check."""
+            poll_call_count["django"] += 1
+            # First call in monitoring loop returns None (running)
+            # Second call (when checking if exited) returns 0 (exited)
+            # Subsequent calls during cleanup should return 0
+            if poll_call_count["django"] == 1:
+                return None  # First check: still running
+            return 0  # Exited
+
+        # Create separate mock processes for each service
+        django_process = MagicMock()
+        django_process.poll.side_effect = django_poll_side_effect
+        django_process.returncode = 0
+        django_process.terminate.return_value = None
+        django_process.kill.return_value = None
+
+        # Other processes stay running (always return None)
+        other_process = MagicMock()
+        other_process.poll.return_value = None
+        other_process.terminate.return_value = None
+        other_process.kill.return_value = None
+
+        # Return different processes for each call
+        mock_popen.side_effect = [django_process, other_process, other_process]
+
+        config = {
+            "host": "127.0.0.1",
+            "port": "8000",
+            "workers": 4,
+            "log_level": "INFO",
+            "timeout": 3600,
+            "max_tasks": 100,
+        }
+
+        # Make sleep do nothing to speed up test
+        mock_sleep.return_value = None
 
         self.command._start_services(config)
 
-        # Verify all services were started
-        mock_django.assert_called_once_with(config)
-        mock_dispatcher.assert_called_once_with(config)
-        mock_monitor.assert_called_once_with(config)
+        # Should exit when process exits
+        mock_exit.assert_called()
+
+        # Verify processes were started (3 processes: Django, Dispatcher, Scheduler)
+        assert mock_popen.call_count == 3
 
         # Check output contains startup message
         output = self.out.getvalue()
@@ -163,23 +208,32 @@ class TestMetricsServiceCommand(TestCase):
         assert "Django server: http://127.0.0.1:8000" in output
         assert "Dispatcher workers: 4" in output
 
-    @patch.object(Command, "_initialize_service_state")
+    @patch("pathlib.Path.exists")
     @patch("sys.exit")
-    def test_start_services_exception(self, mock_exit, mock_init):
+    def test_start_services_exception(self, mock_exit, mock_exists):
         """Test _start_services handles exceptions."""
         self.command.stdout = self.out
         # Update the output formatter to use the test stdout
         self.command.output.stdout = self.out
-        mock_init.side_effect = Exception("Test error")
 
-        config = {"host": "127.0.0.1", "port": "8000", "workers": 4, "log_level": "INFO"}
+        # Mock Path.exists to raise an exception (simulating an error during startup)
+        mock_exists.side_effect = Exception("Test error")
+
+        config = {
+            "host": "127.0.0.1",
+            "port": "8000",
+            "workers": 4,
+            "log_level": "INFO",
+            "timeout": 3600,
+            "max_tasks": 100,
+        }
 
         self.command._start_services(config)
 
         mock_exit.assert_called_once_with(1)
 
         output = self.out.getvalue()
-        assert "Start failed: Test error" in output
+        assert "Failed to start services: Test error" in output
 
     @patch("threading.Thread")
     def test_start_django_thread(self, mock_thread):
