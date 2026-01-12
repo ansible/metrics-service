@@ -12,6 +12,7 @@ import pytest
 from django.test import TestCase
 
 from apps.tasks.management.commands.metrics_service import Command
+from tests.unit.core.test_metrics_service_helpers import create_mock_processes_with_exit, get_default_config
 
 
 class TestMetricsServiceCommand(TestCase):
@@ -28,41 +29,6 @@ class TestMetricsServiceCommand(TestCase):
         """Clean up test fixtures."""
         # Ensure shutdown is requested to stop any running processes
         self.command.shutdown_requested = True
-
-    def _create_mock_processes_with_exit(self):
-        """Create mock processes where Django process exits after first check."""
-        poll_call_count = {"django": 0}
-
-        def django_poll_side_effect():
-            """Simulate Django process that exits after first monitoring check."""
-            poll_call_count["django"] += 1
-            if poll_call_count["django"] == 1:
-                return None  # First check: still running
-            return 0  # Exited
-
-        django_process = MagicMock()
-        django_process.poll.side_effect = django_poll_side_effect
-        django_process.returncode = 0
-        django_process.terminate.return_value = None
-        django_process.kill.return_value = None
-
-        other_process = MagicMock()
-        other_process.poll.return_value = None
-        other_process.terminate.return_value = None
-        other_process.kill.return_value = None
-
-        return [django_process, other_process, other_process]
-
-    def _get_default_config(self, log_level="INFO"):
-        """Get default test configuration."""
-        return {
-            "host": "127.0.0.1",
-            "port": "8000",
-            "workers": 4,
-            "log_level": log_level,
-            "timeout": 3600,
-            "max_tasks": 100,
-        }
 
     def test_command_help_text(self):
         """Test command has proper help text."""
@@ -121,9 +87,9 @@ class TestMetricsServiceCommand(TestCase):
         mock_exists.return_value = True
         mock_exit.side_effect = SystemExit
         mock_sleep.return_value = None
-        mock_popen.side_effect = self._create_mock_processes_with_exit()
+        mock_popen.side_effect = create_mock_processes_with_exit()
 
-        config = self._get_default_config()
+        config = get_default_config()
 
         # Signal handlers are set up inside _start_services_simple
         # We'll verify they're called when the method runs
@@ -146,9 +112,9 @@ class TestMetricsServiceCommand(TestCase):
         mock_exists.return_value = True
         mock_exit.side_effect = SystemExit
         mock_sleep.return_value = None
-        mock_popen.side_effect = self._create_mock_processes_with_exit()
+        mock_popen.side_effect = create_mock_processes_with_exit()
 
-        config = self._get_default_config()
+        config = get_default_config()
 
         # sys.exit will raise SystemExit, which we need to catch
         with pytest.raises(SystemExit):
@@ -219,9 +185,9 @@ class TestMetricsServiceCommand(TestCase):
         mock_exists.return_value = True
         mock_exit.side_effect = SystemExit
         mock_sleep.return_value = None
-        mock_popen.side_effect = self._create_mock_processes_with_exit()
+        mock_popen.side_effect = create_mock_processes_with_exit()
 
-        config = self._get_default_config(log_level="DEBUG")
+        config = get_default_config(log_level="DEBUG")
 
         with pytest.raises(SystemExit):
             self.command._start_services(config)
