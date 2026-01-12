@@ -153,6 +153,12 @@ class TestMetricsServiceCommand(TestCase):
         # Mock Path.exists to return True for manage.py
         mock_exists.return_value = True
 
+        # Make sys.exit raise SystemExit (like the real sys.exit does)
+        # This is necessary because the implementation uses an infinite loop
+        # that only exits via sys.exit(), and if sys.exit doesn't raise,
+        # the loop will hang forever
+        mock_exit.side_effect = SystemExit
+
         # Track poll calls to simulate process exit after first monitoring iteration
         poll_call_count = {"django": 0}
 
@@ -194,7 +200,9 @@ class TestMetricsServiceCommand(TestCase):
         # Make sleep do nothing to speed up test
         mock_sleep.return_value = None
 
-        self.command._start_services(config)
+        # sys.exit will raise SystemExit, which we need to catch
+        with pytest.raises(SystemExit):
+            self.command._start_services(config)
 
         # Should exit when process exits
         mock_exit.assert_called()
