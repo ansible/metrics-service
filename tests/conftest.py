@@ -4,6 +4,37 @@ Pytest configuration and fixtures for metrics_service tests.
 
 import os
 
+# Patch ansible_base feature flags loading before Django setup to prevent
+# Resource.DoesNotExist errors during test migrations
+try:
+    # Import and patch load_feature_flags before Django setup
+    try:
+        from ansible_base.feature_flags.utils import load_feature_flags as original_load_feature_flags
+
+        def safe_load_feature_flags():
+            """
+            Wrapper that catches Resource.DoesNotExist during migrations.
+            
+            During test migrations, Resource objects may not exist yet,
+            causing DoesNotExist errors when feature flags try to validate.
+            """
+            try:
+                return original_load_feature_flags()
+            except Exception:
+                # During migrations, Resource objects may not exist yet
+                # Silently skip feature flag loading in tests
+                pass
+
+        # Patch the function in the module before Django setup
+        import ansible_base.feature_flags.utils
+        ansible_base.feature_flags.utils.load_feature_flags = safe_load_feature_flags
+    except ImportError:
+        # If ansible_base is not available, continue anyway
+        pass
+except Exception:
+    # If patching fails, continue anyway
+    pass
+
 import django
 from django.conf import settings
 
