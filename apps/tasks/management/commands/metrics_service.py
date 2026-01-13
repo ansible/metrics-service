@@ -7,10 +7,10 @@ run_dispatcherd command, fixing the configuration inconsistency issue.
 
 import contextlib
 import json
+import selectors
 import signal
 import subprocess
 import sys
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -626,7 +626,7 @@ class Command(BaseCommand):
         """
         processes = []
         process_names = ["Django", "Dispatcher", "Scheduler"]
-        output_threads = []
+        process_outputs = {}  # Map stdout file descriptor to (process, name)
 
         self._setup_signal_handlers_for_processes(processes)
 
@@ -647,20 +647,15 @@ class Command(BaseCommand):
                 )
                 processes.append(process)
 
-                # Start a thread to read output from this process
-                thread = threading.Thread(
-                    target=self._read_process_output,
-                    args=(process, process.stdout, process_names[i]),
-                    daemon=True,
-                )
-                thread.start()
-                output_threads.append(thread)
+                # Store mapping of file descriptor to process info for select-based reading
+                if process.stdout:
+                    process_outputs[process.stdout.fileno()] = (process, process_names[i])
 
             self.output.write("All services started")
             self.output.write("Metrics service is running (Press Ctrl+C to stop)")
             self.output.write("")
 
-            self._monitor_processes(processes, process_names)
+            self._monitor_processes_with_select(processes, process_names, process_outputs)
 
         except KeyboardInterrupt:
             self._handle_keyboard_interrupt(processes)
@@ -739,54 +734,73 @@ class Command(BaseCommand):
                     # Process may have already been killed
                     process.kill()
 
-    def _read_process_output(self, process: subprocess.Popen, stdout, process_name: str) -> None:
-        """Read output from a subprocess and display it with process name prefix."""
+    def _read_remaining_output(self, process: subprocess.Popen, process_name: str) -> None:
+        """Read any remaining output from a process that has exited."""
+        if process.stdout:
+            try:
+                remaining = process.stdout.read()
+                if remaining:
+                    self.output.write(f"\n{process_name} final output:")
+                    for line in remaining.splitlines():
+                        if line.strip():
+                            self.output.write(f"  {line}")
+            except (OSError, ValueError) as e:
+                # Output stream may already be closed
+                # Log only if it's an unexpected error type
+                if "Bad file descriptor" not in str(e) and "I/O operation on closed file" not in str(e):
+                    self.output.write(f"  (Note: Could not read remaining output: {e})")
+
+    def _monitor_processes_with_select(
+        self,
+        processes: list[subprocess.Popen],
+        process_names: list[str],
+        process_outputs: dict[int, tuple[subprocess.Popen, str]],
+    ) -> None:
+        """Monitor processes using selectors for non-blocking I/O (no threading)."""
+        # Create selector for cross-platform support
+        selector = selectors.DefaultSelector()
+
+        # Register all stdout file descriptors
+        for _fd, (process, name) in process_outputs.items():
+            selector.register(process.stdout, selectors.EVENT_READ, (process, name))
+
         try:
-            for line in iter(stdout.readline, ""):
-                if not line:
-                    break
-                # Display output with process name prefix
-                line = line.rstrip()
-                if line:  # Only print non-empty lines
-                    self.output.write(f"[{process_name}] {line}")
-        except (OSError, ValueError) as e:
-            # Process may have closed the pipe - this is expected when process terminates
-            # Only log if it's not a normal pipe closure
-            if process.poll() is None:
-                # Process is still running but pipe error occurred
-                self.output.warning(f"[{process_name}] Error reading output: {e}")
-        finally:
-            if stdout:
-                stdout.close()
+            while True:
+                # Check if any process has exited
+                for i, process in enumerate(processes):
+                    if process.poll() is not None:
+                        exit_code = process.returncode
+                        self.output.write("")  # Empty line for separation
+                        self.output.error(f"❌ {process_names[i]} process exited with code {exit_code}")
 
-    def _monitor_processes(self, processes: list[subprocess.Popen], process_names: list[str]) -> None:
-        """Monitor processes and exit when any exits."""
-        while True:
-            for i, process in enumerate(processes):
-                if process.poll() is not None:
-                    exit_code = process.returncode
-                    self.output.write("")  # Empty line for separation
-                    self.output.error(f"❌ {process_names[i]} process exited with code {exit_code}")
+                        # Read any remaining output
+                        self._read_remaining_output(process, process_names[i])
 
-                    # Read any remaining output that might not have been captured
-                    if process.stdout:
+                        self._cleanup_all_processes(processes)
+                        sys.exit(exit_code)
+
+                # Wait for data to be available (with timeout)
+                events = selector.select(timeout=0.5)
+
+                # Read available data from all ready file descriptors
+                for key, _mask in events:
+                    process, name = key.data
+                    if process.poll() is None:  # Process still running
                         try:
-                            remaining = process.stdout.read()
-                            if remaining:
-                                self.output.write(f"\n{process_names[i]} final output:")
-                                for line in remaining.splitlines():
-                                    if line.strip():
-                                        self.output.write(f"  {line}")
+                            line = process.stdout.readline()
+                            if line:
+                                line = line.rstrip()
+                                if line:
+                                    self.output.write(f"[{name}] {line}")
                         except (OSError, ValueError) as e:
-                            # Output stream may already be closed by the reading thread
-                            # This is expected and not an error condition
-                            # Log only if it's an unexpected error type
-                            if "Bad file descriptor" not in str(e) and "I/O operation on closed file" not in str(e):
-                                self.output.write(f"  (Note: Could not read remaining output: {e})")
-
-                    self._cleanup_all_processes(processes)
-                    sys.exit(exit_code)
-            time.sleep(0.5)  # Check more frequently for faster error detection
+                            # Pipe may have closed
+                            if process.poll() is None:
+                                self.output.warning(f"[{name}] Error reading output: {e}")
+        finally:
+            # Clean up selector
+            for key in list(selector.get_map().values()):
+                selector.unregister(key.fileobj)
+            selector.close()
 
     def _handle_keyboard_interrupt(self, processes: list[subprocess.Popen]) -> None:
         """Handle keyboard interrupt gracefully."""
