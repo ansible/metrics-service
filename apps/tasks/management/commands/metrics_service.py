@@ -5,6 +5,7 @@ This version ensures dispatcherd uses the same configuration as the standalone
 run_dispatcherd command, fixing the configuration inconsistency issue.
 """
 
+import contextlib
 import json
 import signal
 import subprocess
@@ -707,11 +708,15 @@ class Command(BaseCommand):
         """Clean up all running processes."""
         for process in processes:
             if process.poll() is None:
-                process.terminate()
+                with contextlib.suppress(OSError, ProcessLookupError):
+                    # Process may have already terminated
+                    process.terminate()
         time.sleep(1)
         for process in processes:
             if process.poll() is None:
-                process.kill()
+                with contextlib.suppress(OSError, ProcessLookupError):
+                    # Process may have already been killed
+                    process.kill()
 
     def _monitor_processes(self, processes: list[subprocess.Popen], process_names: list[str]) -> None:
         """Monitor processes and exit when any exits."""
@@ -720,19 +725,9 @@ class Command(BaseCommand):
                 if process.poll() is not None:
                     exit_code = process.returncode
                     self.output.error(f"{process_names[i]} process exited with code {exit_code}")
-                    self._cleanup_other_processes(processes, i)
+                    self._cleanup_all_processes(processes)
                     sys.exit(exit_code)
             time.sleep(1)
-
-    def _cleanup_other_processes(self, processes: list[subprocess.Popen], exclude_index: int) -> None:
-        """Clean up all processes except the one at exclude_index."""
-        for j, p in enumerate(processes):
-            if j != exclude_index and p.poll() is None:
-                p.terminate()
-        time.sleep(1)
-        for j, p in enumerate(processes):
-            if j != exclude_index and p.poll() is None:
-                p.kill()
 
     def _handle_keyboard_interrupt(self, processes: list[subprocess.Popen]) -> None:
         """Handle keyboard interrupt gracefully."""
