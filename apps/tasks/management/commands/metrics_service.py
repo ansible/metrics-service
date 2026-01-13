@@ -711,7 +711,7 @@ class Command(BaseCommand):
                 with contextlib.suppress(OSError, ProcessLookupError):
                     # Process may have already terminated
                     process.terminate()
-        time.sleep(1)
+        time.sleep(3)
         for process in processes:
             if process.poll() is None:
                 with contextlib.suppress(OSError, ProcessLookupError):
