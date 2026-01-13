@@ -10,6 +10,7 @@ import json
 import signal
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -625,6 +626,7 @@ class Command(BaseCommand):
         """
         processes = []
         process_names = ["Django", "Dispatcher", "Scheduler"]
+        output_threads = []
 
         self._setup_signal_handlers_for_processes(processes)
 
@@ -633,11 +635,29 @@ class Command(BaseCommand):
             self._display_startup_message(config)
 
             commands = self._build_service_commands(manage_py, config)
-            for cmd in commands:
-                processes.append(subprocess.Popen(cmd))  # noqa: S603
+            for i, cmd in enumerate(commands):
+                # Capture both stdout and stderr
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,  # Combine stderr into stdout
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )  # noqa: S603
+                processes.append(process)
+
+                # Start a thread to read output from this process
+                thread = threading.Thread(
+                    target=self._read_process_output,
+                    args=(process, process.stdout, process_names[i]),
+                    daemon=True,
+                )
+                thread.start()
+                output_threads.append(thread)
 
             self.output.write("All services started")
             self.output.write("Metrics service is running (Press Ctrl+C to stop)")
+            self.output.write("")
 
             self._monitor_processes(processes, process_names)
 
@@ -718,16 +738,47 @@ class Command(BaseCommand):
                     # Process may have already been killed
                     process.kill()
 
+    def _read_process_output(self, process: subprocess.Popen, stdout, process_name: str) -> None:
+        """Read output from a subprocess and display it with process name prefix."""
+        try:
+            for line in iter(stdout.readline, ""):
+                if not line:
+                    break
+                # Display output with process name prefix
+                line = line.rstrip()
+                if line:  # Only print non-empty lines
+                    self.output.write(f"[{process_name}] {line}")
+        except Exception:
+            # Process may have closed the pipe
+            pass
+        finally:
+            if stdout:
+                stdout.close()
+
     def _monitor_processes(self, processes: list[subprocess.Popen], process_names: list[str]) -> None:
         """Monitor processes and exit when any exits."""
         while True:
             for i, process in enumerate(processes):
                 if process.poll() is not None:
                     exit_code = process.returncode
-                    self.output.error(f"{process_names[i]} process exited with code {exit_code}")
+                    self.output.write("")  # Empty line for separation
+                    self.output.error(f"❌ {process_names[i]} process exited with code {exit_code}")
+                    
+                    # Read any remaining output that might not have been captured
+                    if process.stdout:
+                        try:
+                            remaining = process.stdout.read()
+                            if remaining:
+                                self.output.write(f"\n{process_names[i]} final output:")
+                                for line in remaining.splitlines():
+                                    if line.strip():
+                                        self.output.write(f"  {line}")
+                        except Exception:
+                            pass
+                    
                     self._cleanup_all_processes(processes)
                     sys.exit(exit_code)
-            time.sleep(1)
+            time.sleep(0.5)  # Check more frequently for faster error detection
 
     def _handle_keyboard_interrupt(self, processes: list[subprocess.Popen]) -> None:
         """Handle keyboard interrupt gracefully."""
