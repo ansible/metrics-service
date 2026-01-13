@@ -637,13 +637,14 @@ class Command(BaseCommand):
             commands = self._build_service_commands(manage_py, config)
             for i, cmd in enumerate(commands):
                 # Capture both stdout and stderr
-                process = subprocess.Popen(
+                # Commands are built from trusted sources (manage.py and known commands)
+                process = subprocess.Popen(  # noqa: S603
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,  # Combine stderr into stdout
                     text=True,
                     bufsize=1,  # Line buffered
-                )  # noqa: S603
+                )
                 processes.append(process)
 
                 # Start a thread to read output from this process
@@ -748,9 +749,12 @@ class Command(BaseCommand):
                 line = line.rstrip()
                 if line:  # Only print non-empty lines
                     self.output.write(f"[{process_name}] {line}")
-        except Exception:
-            # Process may have closed the pipe
-            pass
+        except (OSError, ValueError) as e:
+            # Process may have closed the pipe - this is expected when process terminates
+            # Only log if it's not a normal pipe closure
+            if process.poll() is None:
+                # Process is still running but pipe error occurred
+                self.output.warning(f"[{process_name}] Error reading output: {e}")
         finally:
             if stdout:
                 stdout.close()
@@ -763,7 +767,7 @@ class Command(BaseCommand):
                     exit_code = process.returncode
                     self.output.write("")  # Empty line for separation
                     self.output.error(f"❌ {process_names[i]} process exited with code {exit_code}")
-                    
+
                     # Read any remaining output that might not have been captured
                     if process.stdout:
                         try:
@@ -773,9 +777,13 @@ class Command(BaseCommand):
                                 for line in remaining.splitlines():
                                     if line.strip():
                                         self.output.write(f"  {line}")
-                        except Exception:
-                            pass
-                    
+                        except (OSError, ValueError) as e:
+                            # Output stream may already be closed by the reading thread
+                            # This is expected and not an error condition
+                            # Log only if it's an unexpected error type
+                            if "Bad file descriptor" not in str(e) and "I/O operation on closed file" not in str(e):
+                                self.output.write(f"  (Note: Could not read remaining output: {e})")
+
                     self._cleanup_all_processes(processes)
                     sys.exit(exit_code)
             time.sleep(0.5)  # Check more frequently for faster error detection
