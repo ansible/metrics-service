@@ -229,7 +229,7 @@ Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings manageme
 **Development Mode** (default):
 
 > [!IMPORTANT]
-> The following example assumes those values exported as environment variables, 
+> The following example assumes those values exported as environment variables,
 > to set on the settings.local.py file remove the `METRICS_SERVICE_` prefix.
 
 ```bash
@@ -238,7 +238,6 @@ DJANGO_SETTINGS_MODULE=metrics_service.settings
 METRICS_SERVICE_MODE=development
 METRICS_SERVICE_SECRET_KEY=dev-secret-key-change-in-production
 METRICS_SERVICE_DEBUG="true"
-METRICS_SERVICE_DEVELOPER_MODE_ENABLED="true"
 METRICS_SERVICE_ALLOWED_HOSTS='["localhost","127.0.0.1","metrics-service","0.0.0.0"]'
 
 # Database

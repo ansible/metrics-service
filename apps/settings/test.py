@@ -67,7 +67,6 @@ LOGGING = {
 
 # Disable dispatcherd during tests to avoid background processes
 DISPATCHERD_ENABLED = False
-DEVELOPER_MODE_ENABLED = True
 
 # Disable feature enables during tests
 FEATURE_ENABLED = {

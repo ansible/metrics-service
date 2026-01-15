@@ -39,7 +39,7 @@ from tests.test_utils import get_test_password
 
 @pytest.mark.unit
 @pytest.mark.django_db
-@override_settings(DEVELOPER_MODE_ENABLED=True)
+@override_settings(MODE="development")
 class TestTaskViewSet(APITestCase):
     """Test TaskViewSet CRUD endpoints and custom actions."""
 
@@ -501,7 +501,7 @@ class TestTaskViewSet(APITestCase):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-@override_settings(DEVELOPER_MODE_ENABLED=True)
+@override_settings(MODE="development")
 class TestTaskExecutionViewSet(APITestCase):
     """Test TaskExecutionViewSet endpoints."""
 
@@ -634,7 +634,7 @@ class TestTaskSerializers(TestCase):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-@override_settings(DEVELOPER_MODE_ENABLED=True)
+@override_settings(MODE="development")
 class TestTaskFiltering(APITestCase):
     """Test task filtering, search, and pagination."""
 
@@ -705,16 +705,16 @@ class TestTaskPermissions(APITestCase):
             username="user", email="user@example.com", password=get_test_password()
         )
 
-    @override_settings(DEVELOPER_MODE_ENABLED=False)
-    def test_developer_mode_disabled_access_denied(self):
-        """Test requests are denied when developer mode is disabled."""
+    @override_settings(MODE="production")
+    def test_development_mode_disabled_access_denied(self):
+        """Test requests are denied when development mode is disabled."""
         url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
 
-        # Should deny access when developer mode is disabled
+        # Should deny access when development mode is disabled
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @override_settings(DEVELOPER_MODE_ENABLED=True)
+    @override_settings(MODE="development")
     def test_authenticated_user_can_list_tasks(self):
         """Test authenticated users can list tasks."""
         self.client.force_authenticate(user=self.regular_user)
@@ -724,7 +724,7 @@ class TestTaskPermissions(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
 
-    @override_settings(DEVELOPER_MODE_ENABLED=True)
+    @override_settings(MODE="development")
     def test_admin_user_full_access(self):
         """Test admin users have full access to task operations."""
         self.client.force_authenticate(user=self.admin_user)

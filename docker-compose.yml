@@ -45,7 +45,6 @@ services:
       METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: prefer
       METRICS_SERVICE_ALLOWED_HOSTS: '["localhost","127.0.0.1","metrics-service","0.0.0.0"]'
       METRICS_SERVICE_DEBUG: "true"
-      METRICS_SERVICE_DEVELOPER_MODE_ENABLED: "true"
       METRICS_SERVICE_ANONYMIZED_DATA: "true"
       METRICS_SERVICE_METRICS_COLLECTION: "false"
       DJANGO_SETTINGS_MODULE: metrics_service.settings

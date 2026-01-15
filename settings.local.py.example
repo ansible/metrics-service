@@ -6,7 +6,7 @@
 # METRICS_SERVICE_LOG_LEVEL=DEBUG
 
 SECRET_KEY = "dev-secret-key-change-in-production"
-DEBUG = False
+DEBUG = True
 
 # Database Configuration (PostgreSQL)
 # Using dunder notation for nested settings
