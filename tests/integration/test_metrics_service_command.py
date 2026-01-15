@@ -486,15 +486,26 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         import sys
         from pathlib import Path
 
+        from apps.tasks.management.commands import metrics_service
+
         command = self._create_command_instance()
         manage_py = Path(__file__).parent.parent.parent / "manage.py"
         self._setup_mocks_for_start_services(mock_exists, mock_exit, mock_sleep, mock_popen)
         config = get_default_config()
 
-        # Start services will build the dispatcher command internally
-        # We'll verify it by checking the Popen calls
-        with pytest.raises(SystemExit):
-            command._start_services(config)
+        # Patch sys.argv[0] in the metrics_service module to point to manage.py
+        # so the command finds it correctly when it uses sys.argv[0]
+        original_argv = metrics_service.sys.argv
+        metrics_service.sys.argv = [str(manage_py)]
+
+        try:
+            # Start services will build the dispatcher command internally
+            # We'll verify it by checking the Popen calls
+            with pytest.raises(SystemExit):
+                command._start_services(config)
+        finally:
+            # Restore original argv
+            metrics_service.sys.argv = original_argv
 
         # Verify dispatcher command was built correctly by checking Popen calls
         # The second call should be for dispatcher (index 1)
