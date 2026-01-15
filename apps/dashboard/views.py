@@ -2,7 +2,6 @@
 Dashboard views for task management and monitoring.
 """
 
-import os
 from functools import wraps
 
 from django.conf import settings
@@ -49,11 +48,11 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 
     from apps.tasks.tasks import TASK_FUNCTIONS
 
-    prefix = os.getenv("METRICS_SERVICE_URL_PREFIX")
+    prefix = settings.URL_PREFIX
 
     root_url = "/api/v1/"
-    if prefix:
-        root_url = f"/{prefix}{root_url}"
+    if prefix and prefix != "/":
+        root_url = f"/{prefix}/{root_url}".replace("//", "/")
 
     context = {
         "page_title": "Task Dashboard",

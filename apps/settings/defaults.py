@@ -123,6 +123,9 @@ FEATURE_ENABLED = {
     "METRICS_COLLECTION_ENABLED": False,
 }
 
+# Used when generating API URLs in views, example "metrics-service"
+URL_PREFIX = None
+
 
 @post_hook
 def load_prometheus_middlewares(settings: Dynaconf) -> dict:
