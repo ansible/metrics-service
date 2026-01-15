@@ -5,10 +5,14 @@ This version ensures dispatcherd uses the same configuration as the standalone
 run_dispatcherd command, fixing the configuration inconsistency issue.
 """
 
+import contextlib
 import json
+import selectors
 import signal
 import subprocess
 import sys
+import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,10 +22,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.tasks.models import Task
-from apps.tasks.services import (
-    OutputFormatter,
-    ProcessManager,
-)
+from apps.tasks.services import OutputFormatter
 
 User = get_user_model()
 
@@ -44,10 +45,7 @@ class Command(BaseCommand):
         """Initialize the command with service instances."""
         super().__init__(*args, **kwargs)
         self.output = OutputFormatter(self.stdout, self.style)
-        self.process_manager = ProcessManager(self.output)
         self.shutdown_requested = False
-        self.threads = []
-        self.processes = []
 
     def add_arguments(self, parser):
         """Add command line arguments."""
@@ -106,6 +104,12 @@ class Command(BaseCommand):
             choices=["DEBUG", "INFO", "WARNING", "ERROR"],
             default="INFO",
             help="Log level for both services (default: INFO)",
+        )
+        parser.add_argument(
+            "--check-interval",
+            type=int,
+            default=60,
+            help="Task scheduler check interval in seconds (default: 60)",
         )
 
     def _add_init_tasks_arguments(self, parser):
@@ -615,185 +619,204 @@ class Command(BaseCommand):
         """Handle removing cron job."""
         self.output.warning("⚠️ Cron remove functionality not yet implemented")
 
-    def _setup_signal_handlers(self) -> None:
-        """Setup signal handlers for graceful shutdown."""
+    def _start_services(self, config: dict[str, Any]) -> None:
+        """Start services with the given configuration."""
+        # Use new simple process-based approach
+        self._start_services_simple(config)
+
+    def _start_services_simple(self, config: dict[str, Any]) -> None:
+        """
+        Start all 3 services as separate processes and monitor them.
+
+        This is the new simplified approach that directly spawns 3 processes
+        (like the Procfile commands) and exits when any one exits.
+        """
+        processes = []
+        process_names = ["Django", "Dispatcher", "Scheduler"]
+        process_outputs = {}  # Map stdout file descriptor to (process, name)
+
+        self._setup_signal_handlers_for_processes(processes)
+
+        try:
+            manage_py = sys.argv[0]
+            self._display_startup_message(config)
+
+            commands = self._build_service_commands(manage_py, config)
+            for i, cmd in enumerate(commands):
+                # Capture both stdout and stderr
+                # Commands are built from trusted sources (manage.py and known commands)
+                process = subprocess.Popen(  # noqa: S603
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,  # Combine stderr into stdout
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+                processes.append(process)
+
+                # Store mapping of file descriptor to process info for select-based reading
+                if process.stdout:
+                    process_outputs[process.stdout.fileno()] = (process, process_names[i])
+
+            self.output.write("All services started")
+            self.output.write("Metrics service is running (Press Ctrl+C to stop)")
+            self.output.write("")
+
+            self._monitor_processes_with_select(processes, process_names, process_outputs)
+
+        except KeyboardInterrupt:
+            self._handle_keyboard_interrupt(processes)
+        except Exception as e:
+            self._handle_startup_error(processes, e)
+
+    def _display_startup_message(self, config: dict[str, Any]) -> None:
+        """Display startup message with service configuration."""
+        self.output.success("Starting metrics service:")
+        self.output.write(f"Django server: http://{config['host']}:{config['port']}")
+        self.output.write(f"Dispatcher workers: {config['workers']}")
+        self.output.write("Task scheduler: APScheduler with cron support")
+
+    def _build_service_commands(self, manage_py: str | Path, config: dict[str, Any]) -> list[list[str]]:
+        """Build commands for all three services."""
+        django_cmd = [
+            sys.executable,
+            str(manage_py),
+            "runserver",
+            f"{config['host']}:{config['port']}",
+        ]
+        if config["log_level"] == "DEBUG":
+            django_cmd.append("--verbosity=2")
+
+        dispatcher_cmd = [
+            sys.executable,
+            str(manage_py),
+            "run_dispatcherd",
+            f"--workers={config['workers']}",
+            f"--timeout={config['timeout']}",
+            f"--max-tasks={config['max_tasks']}",
+            f"--log-level={config['log_level']}",
+        ]
+
+        scheduler_cmd = [
+            sys.executable,
+            str(manage_py),
+            "run_task_scheduler",
+            f"--log-level={config['log_level']}",
+            f"--check-interval={config['check_interval']}",
+        ]
+
+        return [django_cmd, dispatcher_cmd, scheduler_cmd]
+
+    def _setup_signal_handlers_for_processes(self, processes: list[subprocess.Popen]) -> None:
+        """Set up signal handlers for graceful shutdown."""
 
         def signal_handler(sig, frame):
-            self.output.warning(f"Received signal {sig}, shutting down...")
-            self.shutdown_requested = True
+            """Handle shutdown signal."""
+            self.output.warning("Shutting down services...")
+            self._cleanup_all_processes(processes)
+            sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-    def _initialize_service_state(self) -> None:
-        """Initialize service state variables."""
-        self.shutdown_requested = False
-        self.threads = []
-        self.processes = []
-
-    def _cleanup_processes_and_threads(self) -> None:
-        """Clean up processes and threads."""
-        # Clean up processes
-        for process in self.processes:
-            if process.poll() is None:  # Process is still running
-                try:
+    def _cleanup_all_processes(self, processes: list[subprocess.Popen]) -> None:
+        """Clean up all running processes."""
+        for process in processes:
+            if process.poll() is None:
+                with contextlib.suppress(OSError, ProcessLookupError):
+                    # Process may have already terminated
                     process.terminate()
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
+        time.sleep(3)
+        for process in processes:
+            if process.poll() is None:
+                with contextlib.suppress(OSError, ProcessLookupError):
+                    # Process may have already been killed
                     process.kill()
 
-        # Clean up threads
-        for thread in self.threads:
-            if thread.is_alive():
-                thread.join(timeout=5)
+    def _read_remaining_output(self, process: subprocess.Popen, process_name: str) -> None:
+        """Read any remaining output from a process that has exited."""
+        if process.stdout:
+            try:
+                remaining = process.stdout.read()
+                if remaining:
+                    self.output.write(f"\n{process_name} final output:")
+                    for line in remaining.splitlines():
+                        if line.strip():
+                            self.output.write(f"  {line}")
+            except (OSError, ValueError) as e:
+                # Output stream may already be closed
+                # Log only if it's an unexpected error type
+                if "Bad file descriptor" not in str(e) and "I/O operation on closed file" not in str(e):
+                    self.output.write(f"  (Note: Could not read remaining output: {e})")
 
-    def _start_services(self, config: dict[str, Any]) -> None:
-        """Start services with the given configuration."""
+    def _monitor_processes_with_select(
+        self,
+        processes: list[subprocess.Popen],
+        process_names: list[str],
+        process_outputs: dict[int, tuple[subprocess.Popen, str]],
+    ) -> None:
+        """Monitor processes using selectors for non-blocking I/O (no threading)."""
+        # Create selector for cross-platform support
+        selector = selectors.DefaultSelector()
+
+        # Register all stdout file descriptors
+        for _fd, (process, name) in process_outputs.items():
+            selector.register(process.stdout, selectors.EVENT_READ, (process, name))
+
         try:
-            self._initialize_service_state()
-            self._setup_signal_handlers()
+            while True:
+                # Check if any process has exited
+                for i, process in enumerate(processes):
+                    if process.poll() is not None:
+                        exit_code = process.returncode
+                        self.output.write("")  # Empty line for separation
+                        self.output.error(f"❌ {process_names[i]} process exited with code {exit_code}")
 
-            self.output.success("Starting metrics service:")
-            self.output.write(f"Django server: http://{config['host']}:{config['port']}")
-            self.output.write(f"Dispatcher workers: {config['workers']}")
-            self.output.write("Task scheduler: APScheduler with cron support")
+                        # Read any remaining output
+                        self._read_remaining_output(process, process_names[i])
 
-            # Start Django server
-            self._start_django_thread(config)
+                        self._cleanup_all_processes(processes)
+                        sys.exit(exit_code)
 
-            # Start dispatcher
-            self._start_dispatcher_thread(config)
+                # Wait for data to be available (with timeout)
+                events = selector.select(timeout=0.5)
 
-            # Start task scheduler
-            self._start_scheduler_thread(config)
+                # Read available data from all ready file descriptors
+                for key, _mask in events:
+                    process, name = key.data
+                    if process.poll() is None:  # Process still running
+                        try:
+                            line = process.stdout.readline()
+                            if line:
+                                line = line.rstrip()
+                                if line:
+                                    self.output.write(f"[{name}] {line}")
+                        except (OSError, ValueError) as e:
+                            # Pipe may have closed
+                            if process.poll() is None:
+                                self.output.warning(f"[{name}] Error reading output: {e}")
+        finally:
+            # Clean up selector
+            for key in list(selector.get_map().values()):
+                selector.unregister(key.fileobj)
+            selector.close()
 
-            # Monitor services
-            self._monitor_services(config)
+    def _handle_keyboard_interrupt(self, processes: list[subprocess.Popen]) -> None:
+        """Handle keyboard interrupt gracefully."""
+        self.output.warning("Received interrupt, shutting down...")
+        self._cleanup_all_processes(processes)
 
-        except Exception as e:
-            self.output.error(f"Start failed: {e}")
-            sys.exit(1)
-
-    def _start_django_thread(self, config: dict[str, Any]) -> None:
-        """Start Django server in a thread."""
-        import threading
-
-        def django_runner():
-            self._run_django_server(config["host"], config["port"], config["log_level"])
-
-        thread = threading.Thread(target=django_runner, daemon=True)
-        thread.start()
-        self.threads.append(thread)
-
-    def _start_dispatcher_thread(self, config: dict[str, Any]) -> None:
-        """Start dispatcher in a thread."""
-        import threading
-
-        def dispatcher_runner():
-            self._run_dispatcherd(config["workers"], config["timeout"], config["max_tasks"], config["log_level"])
-
-        thread = threading.Thread(target=dispatcher_runner, daemon=True)
-        thread.start()
-        self.threads.append(thread)
-
-    def _start_scheduler_thread(self, config: dict[str, Any]) -> None:
-        """Start task scheduler in a thread."""
-        import threading
-
-        def scheduler_runner():
-            self._run_task_scheduler(config["log_level"])
-
-        thread = threading.Thread(target=scheduler_runner, daemon=True)
-        thread.start()
-        self.threads.append(thread)
-
-    def _monitor_services(self, config: dict[str, Any]) -> None:
-        """Monitor running services."""
-        import time
-
-        self.output.write(f"Django server started on http://{config['host']}:{config['port']}")
-        self.output.write(f"Dispatcher started with {config['workers']} workers")
-        self.output.write("Task scheduler started with cron support")
-        self.output.write("Metrics service is running (Press Ctrl+C to stop)")
-
-        while not self.shutdown_requested:
-            # Check if any threads have died
-            for i, thread in enumerate(self.threads):
-                if not thread.is_alive():
-                    if i == 0:  # Django thread
-                        self.output.error("Django server thread stopped unexpectedly")
-                    elif i == 1:  # Dispatcher thread
-                        self.output.error("Dispatcher thread stopped unexpectedly")
-                    elif i == 2:  # Scheduler thread
-                        self.output.error("Task scheduler thread stopped unexpectedly")
-                    self.shutdown_requested = True
-                    break
-
-            time.sleep(1)
-
-        self._cleanup_processes_and_threads()
-
-    def _run_task_scheduler(self, log_level: str) -> None:
-        """Run task scheduler with APScheduler."""
-        try:
-            import logging
-            import time
-
-            # Configure logging level
-            log_level_value = getattr(logging, log_level, logging.INFO)
-            logging.getLogger("apscheduler").setLevel(log_level_value)
-
-            # Import and start the scheduler
-            from apps.tasks.cron_scheduler import get_scheduler, start_scheduler
-
-            self.output.write("[Scheduler] Starting task scheduler...")
-            start_scheduler()
-            scheduler = get_scheduler()
-            self.output.write("[Scheduler] Task scheduler started successfully")
-
-            # Keep the scheduler running
-            while not self.shutdown_requested:
-                time.sleep(1)
-                if not scheduler.running:
-                    self.output.error("[Scheduler] Scheduler stopped unexpectedly")
-                    break
-
-        except ImportError as e:
-            self.output.error(f"[Scheduler] Failed to import scheduler: {e}")
-        except Exception as e:
-            self.output.error(f"[Scheduler] Scheduler error: {e}")
-
-    def _run_dispatcherd(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> None:
-        """Run dispatcherd process."""
-        try:
-            cmd = self._build_dispatcher_command(workers, timeout, max_tasks, log_level)
-            process = self._start_dispatcher_process(cmd)
-            if process:
-                self._monitor_dispatcher_process(process)
-        except Exception as e:
-            self.output.error(f"Dispatcher error: {e}")
-
-    def _start_dispatcher_process(self, cmd: list[str]) -> subprocess.Popen:
-        """Start dispatcher process."""
-        try:
-            process = subprocess.Popen(  # noqa: S603  # Command is internally constructed and validated
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
-            )
-            self.processes.append(process)
-            return process
-        except Exception as e:
-            self.output.error(f"Dispatcher error: {e}")
-            return None
-
-    def _monitor_dispatcher_process(self, process: subprocess.Popen) -> None:
-        """Monitor dispatcher process."""
-        while not self.shutdown_requested and process.poll() is None:
-            line = process.stdout.readline()
-            if line:
-                self.output.write(f"[Dispatcher] {line.strip()}")
-
-        if process.poll() is not None:
-            self.output.write(f"Dispatcher process exited with code {process.poll()}")
+    def _handle_startup_error(self, processes: list[subprocess.Popen], error: Exception) -> None:
+        """Handle startup errors."""
+        self.output.error(f"Failed to start services: {error}")
+        # Output the full traceback
+        self.output.write("")
+        self.output.write("Full traceback:")
+        self.output.write_separator("-", 50)
+        for line in traceback.format_exception(type(error), error, error.__traceback__):
+            self.output.write(line.rstrip())
+        self._cleanup_all_processes(processes)
+        sys.exit(1)
 
     def _extract_config(self, options: dict[str, Any]) -> dict[str, Any]:
         """Extract configuration from command options."""
@@ -804,79 +827,8 @@ class Command(BaseCommand):
             "timeout": options.get("timeout", 3600),
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),
+            "check_interval": options.get("check_interval", 60),
         }
-
-    def _build_dispatcher_command(self, workers: int, timeout: int, max_tasks: int, log_level: str) -> list[str]:
-        """Build dispatcher command with validation."""
-        # Validation
-        if not isinstance(workers, int) or workers <= 0:
-            raise ValueError(f"Invalid workers count: {workers}")
-        if not isinstance(timeout, int) or timeout <= 0:
-            raise ValueError(f"Invalid timeout: {timeout}")
-        if not isinstance(max_tasks, int) or max_tasks <= 0:
-            raise ValueError(f"Invalid max_tasks: {max_tasks}")
-        if log_level not in ["DEBUG", "INFO", "WARNING", "ERROR"]:
-            raise ValueError(f"Invalid log_level: {log_level}")
-
-        manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
-        cmd = [
-            sys.executable,
-            str(manage_py),
-            "run_dispatcherd",
-            f"--workers={workers}",
-            f"--timeout={timeout}",
-            f"--max-tasks={max_tasks}",
-            f"--log-level={log_level}",
-        ]
-        return cmd
-
-    def _run_django_server(self, host: str, port: str, log_level: str) -> None:
-        """Run Django server with security validation."""
-        try:
-            # Validate inputs for security
-            if not isinstance(host, str) or not all(c.isalnum() or c in ".:_-" for c in host):
-                raise ValueError(f"Invalid host: {host}")
-            if not isinstance(port, int | str) or not str(port).isdigit():
-                raise ValueError(f"Invalid port: {port}")
-
-            manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
-
-            # Check if manage.py exists
-            if not manage_py.exists():
-                self.output.error("manage.py not found")
-                return
-
-            cmd = [
-                sys.executable,
-                str(manage_py),
-                "runserver",
-                f"{host}:{port}",
-                "--noreload",
-            ]
-
-            # Add verbosity for DEBUG level
-            if log_level == "DEBUG":
-                cmd.append("--verbosity=2")
-
-            self.output.write(f"Starting Django server: {' '.join(cmd)}")
-
-            # Start the Django server process
-            process = subprocess.Popen(  # noqa: S603  # Command is internally constructed and validated
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1
-            )
-            self.processes.append(process)
-
-            # Monitor the process
-            while not self.shutdown_requested and process.poll() is None:
-                line = process.stdout.readline()
-                if line:
-                    self.output.write(f"[Django] {line.strip()}")
-
-            if process.poll() is not None:
-                self.output.write(f"Django server process exited with code {process.poll()}")
-
-        except Exception as e:
-            self.output.error(f"Failed to start Django server: {e}")
 
     def _handle_task_management_command(self, options: dict[str, Any]) -> None:
         """Handle task management commands."""
