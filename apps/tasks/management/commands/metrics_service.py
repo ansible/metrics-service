@@ -682,7 +682,6 @@ class Command(BaseCommand):
             str(manage_py),
             "runserver",
             f"{config['host']}:{config['port']}",
-            "--noreload",
         ]
         if config["log_level"] == "DEBUG":
             django_cmd.append("--verbosity=2")

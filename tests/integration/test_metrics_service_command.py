@@ -471,13 +471,11 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
             str(manage_py),
             "runserver",
             f"{host}:{port}",
-            "--noreload",
         ]
 
         # Verify command structure
         assert "runserver" in expected_cmd
         assert f"{host}:{port}" in expected_cmd
-        assert "--noreload" in expected_cmd
 
     @patch("subprocess.Popen")
     @patch("pathlib.Path.exists")

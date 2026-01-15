@@ -220,7 +220,6 @@ class TestMetricsServiceCommand(TestCase):
         assert str(manage_py) in django_cmd
         assert "runserver" in django_cmd
         assert "127.0.0.1:8000" in django_cmd
-        assert "--noreload" in django_cmd
         assert "--verbosity=2" in django_cmd  # DEBUG level adds verbosity
 
         # Verify Dispatcher command
