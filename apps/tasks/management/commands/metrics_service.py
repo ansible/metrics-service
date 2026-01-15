@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -808,6 +809,12 @@ class Command(BaseCommand):
     def _handle_startup_error(self, processes: list[subprocess.Popen], error: Exception) -> None:
         """Handle startup errors."""
         self.output.error(f"Failed to start services: {error}")
+        # Output the full traceback
+        self.output.write("")
+        self.output.write("Full traceback:")
+        self.output.write_separator("-", 50)
+        for line in traceback.format_exception(type(error), error, error.__traceback__):
+            self.output.write(line.rstrip())
         self._cleanup_all_processes(processes)
         sys.exit(1)
 
