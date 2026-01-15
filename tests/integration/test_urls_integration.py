@@ -14,7 +14,7 @@ import contextlib
 import pytest
 from django.contrib.auth import get_user_model
 from django.http import Http404
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import NoReverseMatch, resolve, reverse
 from rest_framework.test import APIClient
 
@@ -202,6 +202,7 @@ class TestAuthenticationURLs(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
 
+    @override_settings(MODE="development")
     def test_authentication_redirects(self):
         """Test authentication redirects."""
         # Test that unauthenticated users are redirected
@@ -221,6 +222,7 @@ class TestDashboardURLs(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
 
+    @override_settings(MODE="development")
     def test_dashboard_access(self):
         """Test dashboard access through URLs."""
         # Test unauthenticated access
@@ -232,6 +234,7 @@ class TestDashboardURLs(TestCase):
         response = self.client.get("/dashboard/")
         assert response.status_code in [200, 302, 404]
 
+    @override_settings(MODE="development")
     def test_dashboard_subpages(self):
         """Test dashboard subpages."""
         # Test various dashboard subpages
@@ -423,6 +426,7 @@ class TestURLSecurity(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
 
+    @override_settings(MODE="development")
     def test_secure_url_access(self):
         """Test that secure URLs require authentication."""
 

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest, HttpResponse
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 
 from apps.core.models import User
 from apps.dashboard.views import dashboard_view
@@ -22,6 +22,7 @@ class TestDashboardViews(TestCase):
         self.factory = RequestFactory()
         self.user = User.objects.create_user(username="testuser", email="test@example.com")
 
+    @override_settings(MODE="development")
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_with_anonymous_user(self, mock_task_functions):
         """Test dashboard view with anonymous user."""
@@ -39,6 +40,7 @@ class TestDashboardViews(TestCase):
         assert isinstance(response, HttpResponse)
         assert response.status_code == 200
 
+    @override_settings(MODE="development")
     @patch("apps.dashboard.views.render")
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_context(self, mock_task_functions, mock_render):
@@ -84,6 +86,7 @@ class TestDashboardViews(TestCase):
         # Verify response is returned
         assert response == mock_response
 
+    @override_settings(MODE="development")
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_empty_task_functions(self, mock_task_functions):
         """Test dashboard view when no task functions are available."""
@@ -110,6 +113,7 @@ class TestDashboardViews(TestCase):
         # This is indicated by the view having certain attributes
         assert hasattr(dashboard_view, "__wrapped__") or hasattr(dashboard_view, "view_func")
 
+    @override_settings(MODE="development")
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_task_functions_import(self, mock_task_functions):
         """Test that TASK_FUNCTIONS is imported correctly within the view."""
@@ -149,6 +153,7 @@ class TestDashboardViews(TestCase):
         # Check return annotation
         assert sig.return_annotation == HttpResponse
 
+    @override_settings(MODE="development")
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_superuser_access(self, mock_task_functions):
         """Test dashboard view access for superuser."""
@@ -181,6 +186,7 @@ class TestDashboardViews(TestCase):
         assert render
         assert require_safe
 
+    @override_settings(MODE="development")
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_dashboard_view_with_different_request_methods(self, mock_task_functions):
         """Test that dashboard view handles different request objects."""
