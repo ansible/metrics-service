@@ -130,9 +130,10 @@ class TestMetricsServiceCommand(TestCase):
         assert "Django server: http://127.0.0.1:8000" in output
         assert "Dispatcher workers: 4" in output
 
+    @patch("subprocess.Popen")
     @patch("pathlib.Path.exists")
     @patch("sys.exit")
-    def test_start_services_exception(self, mock_exit, mock_exists):
+    def test_start_services_exception(self, mock_exit, mock_exists, mock_popen):
         """Test _start_services handles exceptions."""
         self.command.stdout = self.out
         # Update the output formatter to use the test stdout
@@ -140,6 +141,10 @@ class TestMetricsServiceCommand(TestCase):
 
         # Mock Path.exists to raise an exception (simulating an error during startup)
         mock_exists.side_effect = Exception("Test error")
+        # Make sys.exit actually raise SystemExit so execution stops
+        mock_exit.side_effect = SystemExit
+        # Prevent subprocess.Popen from actually creating processes
+        mock_popen.side_effect = Exception("Test error")
 
         config = {
             "host": "127.0.0.1",
@@ -150,7 +155,9 @@ class TestMetricsServiceCommand(TestCase):
             "max_tasks": 100,
         }
 
-        self.command._start_services(config)
+        # The exception should be caught and sys.exit(1) should be called
+        with pytest.raises(SystemExit):
+            self.command._start_services(config)
 
         mock_exit.assert_called_once_with(1)
 
