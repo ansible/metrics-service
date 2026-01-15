@@ -10,13 +10,15 @@ DEBUG = True
 
 # Database Configuration (PostgreSQL)
 # Using dunder notation for nested settings
-DATABASES__default__ENGINE = "django.db.backends.postgresql"
+
+# DATABASES__default__ENGINE = "django.db.backends.postgresql"
+# DATABASES__default__NAME = "metrics_service"
+# DATABASES__default__OPTIONS__sslmode = "prefer"
+# DATABASES__default__PORT = 5432
+# DATABASES__default__USER = "metrics_service"
+
 DATABASES__default__HOST = "127.0.0.1"
-DATABASES__default__PORT = 5432
-DATABASES__default__USER = "metrics_service"
 DATABASES__default__PASSWORD = "metrics_service"
-DATABASES__default__NAME = "metrics_service"
-DATABASES__default__OPTIONS__sslmode = "prefer"
 
 DATABASES__awx__HOST = "127.0.0.1"
 DATABASES__awx__PASSWORD = "mypassword"
