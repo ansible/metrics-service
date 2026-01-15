@@ -631,7 +631,7 @@ class Command(BaseCommand):
         self._setup_signal_handlers_for_processes(processes)
 
         try:
-            manage_py = self._get_manage_py_path()
+            manage_py = sys.argv[0]
             self._display_startup_message(config)
 
             commands = self._build_service_commands(manage_py, config)
@@ -662,14 +662,6 @@ class Command(BaseCommand):
         except Exception as e:
             self._handle_startup_error(processes, e)
 
-    def _get_manage_py_path(self) -> Path:
-        """Get the path to manage.py."""
-        manage_py = Path(__file__).parent.parent.parent.parent.parent / "manage.py"
-        if not manage_py.exists():
-            self.output.error("manage.py not found")
-            sys.exit(1)
-        return manage_py
-
     def _display_startup_message(self, config: dict[str, Any]) -> None:
         """Display startup message with service configuration."""
         self.output.success("Starting metrics service:")
@@ -677,7 +669,7 @@ class Command(BaseCommand):
         self.output.write(f"Dispatcher workers: {config['workers']}")
         self.output.write("Task scheduler: APScheduler with cron support")
 
-    def _build_service_commands(self, manage_py: Path, config: dict[str, Any]) -> list[list[str]]:
+    def _build_service_commands(self, manage_py: str | Path, config: dict[str, Any]) -> list[list[str]]:
         """Build commands for all three services."""
         django_cmd = [
             sys.executable,
