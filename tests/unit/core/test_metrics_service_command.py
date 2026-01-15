@@ -155,6 +155,7 @@ class TestMetricsServiceCommand(TestCase):
             "log_level": "INFO",
             "timeout": 3600,
             "max_tasks": 100,
+            "check_interval": 60,
         }
 
         # The exception should be caught and sys.exit(1) should be called
