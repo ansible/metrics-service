@@ -104,6 +104,12 @@ class Command(BaseCommand):
             default="INFO",
             help="Log level for both services (default: INFO)",
         )
+        parser.add_argument(
+            "--check-interval",
+            type=int,
+            default=60,
+            help="Task scheduler check interval in seconds (default: 60)",
+        )
 
     def _add_init_tasks_arguments(self, parser):
         """Add arguments for the init_system_tasks command."""
@@ -696,6 +702,7 @@ class Command(BaseCommand):
             str(manage_py),
             "run_task_scheduler",
             f"--log-level={config['log_level']}",
+            f"--check-interval={config['check_interval']}",
         ]
 
         return [django_cmd, dispatcher_cmd, scheduler_cmd]
@@ -814,6 +821,7 @@ class Command(BaseCommand):
             "timeout": options.get("timeout", 3600),
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),
+            "check_interval": options.get("check_interval", 60),
         }
 
     def _handle_task_management_command(self, options: dict[str, Any]) -> None:

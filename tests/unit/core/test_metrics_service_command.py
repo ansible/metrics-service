@@ -59,6 +59,7 @@ class TestMetricsServiceCommand(TestCase):
             "timeout": 7200,
             "max_tasks": 200,
             "log_level": "DEBUG",
+            "check_interval": 120,
         }
 
         config = self.command._extract_config(options)
@@ -70,6 +71,7 @@ class TestMetricsServiceCommand(TestCase):
             "timeout": 7200,
             "max_tasks": 200,
             "log_level": "DEBUG",
+            "check_interval": 120,
         }
 
     @patch("signal.signal")
@@ -238,6 +240,7 @@ class TestMetricsServiceCommand(TestCase):
         assert str(manage_py) in scheduler_cmd
         assert "run_task_scheduler" in scheduler_cmd
         assert "--log-level=DEBUG" in scheduler_cmd
+        assert "--check-interval=60" in scheduler_cmd
 
 
 class TestMetricsServiceSignalHandling(TestCase):

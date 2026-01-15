@@ -42,4 +42,5 @@ def get_default_config(log_level="INFO"):
         "log_level": log_level,
         "timeout": 3600,
         "max_tasks": 100,
+        "check_interval": 60,
     }

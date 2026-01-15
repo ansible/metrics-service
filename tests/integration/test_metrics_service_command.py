@@ -428,6 +428,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
             "timeout": 7200,
             "max_tasks": 200,
             "log_level": "WARNING",
+            "check_interval": 120,
         }
 
         config = command._extract_config(options)
@@ -438,6 +439,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         assert config["timeout"] == 7200
         assert config["max_tasks"] == 200
         assert config["log_level"] == "WARNING"
+        assert config["check_interval"] == 120
 
     def test_django_server_command_building(self):
         """Test Django server command building and validation."""
