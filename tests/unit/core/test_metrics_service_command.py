@@ -175,10 +175,17 @@ class TestMetricsServiceCommand(TestCase):
         """Test that _start_services_simple builds correct commands for all three processes."""
         import sys
 
+        from apps.tasks.management.commands import metrics_service
+
         self.command.stdout = self.out
         self.command.output.stdout = self.out
 
         manage_py = Path(__file__).parent.parent.parent.parent / "manage.py"
+        # Patch sys.argv[0] in the metrics_service module to point to manage.py
+        # so the command finds it correctly when it uses sys.argv[0]
+        original_argv = metrics_service.sys.argv
+        metrics_service.sys.argv = [str(manage_py)]
+
         mock_exists.return_value = True
         mock_exit.side_effect = SystemExit
         mock_sleep.return_value = None
@@ -186,8 +193,12 @@ class TestMetricsServiceCommand(TestCase):
 
         config = get_default_config(log_level="DEBUG")
 
-        with pytest.raises(SystemExit):
-            self.command._start_services(config)
+        try:
+            with pytest.raises(SystemExit):
+                self.command._start_services(config)
+        finally:
+            # Restore original argv
+            metrics_service.sys.argv = original_argv
 
         # Verify 3 processes were started
         assert mock_popen.call_count == 3
