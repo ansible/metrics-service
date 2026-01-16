@@ -1,10 +1,7 @@
 """
 Dashboard views for task management and monitoring.
-
-NOTE: The dashboard is only accessible when DEVELOPER_MODE_ENABLED is True.
 """
 
-import os
 from functools import wraps
 
 from django.conf import settings
@@ -13,20 +10,19 @@ from django.shortcuts import render
 from django.views.decorators.http import require_safe
 
 
-def require_developer_mode(view_func):
+def require_development_mode(view_func):
     """
-    Decorator that restricts access to views when developer mode is disabled.
+    Decorator that restricts access to views when development mode is disabled.
 
-    Returns 403 Forbidden with a descriptive message when DEVELOPER_MODE_ENABLED is False.
+    Returns 403 Forbidden with a descriptive message when METRICS_SERVICE_MODE=development
     """
 
     @wraps(view_func)
     def wrapper(request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        developer_mode = getattr(settings, "DEVELOPER_MODE_ENABLED", False)
-        if not developer_mode:
+        if settings.MODE != "development":
             return HttpResponseForbidden(
-                "The dashboard is only available when developer mode is enabled. "
-                "Set METRICS_SERVICE_DEVELOPER_MODE_ENABLED=true to enable."
+                "The dashboard is only available when development mode is enabled. "
+                "Set METRICS_SERVICE_MODE=development to enable."
             )
         return view_func(request, *args, **kwargs)
 
@@ -34,7 +30,7 @@ def require_developer_mode(view_func):
 
 
 @require_safe
-@require_developer_mode
+@require_development_mode
 def dashboard_view(request: HttpRequest) -> HttpResponse:
     """
     Main dashboard view for task management.
@@ -43,21 +39,21 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     task monitoring and management capabilities. All task data is
     fetched dynamically from the database via API endpoints.
 
-    NOTE: Only accessible when DEVELOPER_MODE_ENABLED is True.
-
     Args:
         request: HTTP request object
 
     Returns:
         HttpResponse: Rendered dashboard template
     """
+
     from apps.tasks.tasks import TASK_FUNCTIONS
 
-    prefix = os.getenv("METRICS_SERVICE_URL_PREFIX")
+    prefix = settings.URL_PREFIX
 
     root_url = "/api/v1/"
-    if prefix:
-        root_url = f"/{prefix}{root_url}"
+    if prefix and prefix != "/":
+        root_url = f"/{prefix}/{root_url}".replace("//", "/")
+
     context = {
         "page_title": "Task Dashboard",
         "api_base_url": root_url,
@@ -65,4 +61,5 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
         "available_functions": list(TASK_FUNCTIONS.keys()),
         "database_driven": True,  # Flag to indicate this uses database tasks
     }
+
     return render(request, "dashboard.html", context)

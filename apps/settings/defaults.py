@@ -7,12 +7,14 @@ from the `metrics_service.settings`.
 
 from dynaconf import Dynaconf, post_hook
 
+# Extra applications added after PSF templating
 extra_applications = [
     "django_prometheus",
     "django_extensions",
 ]
-"""Extra applications added after PSF templating."""
 
+# Default DAB applications layd out from PSF, add/remove according to the project needs,
+# adjust `pyproject` dab extra dependencies acording to apps added/removed here
 dab_applications = [
     "ansible_base.activitystream",
     "ansible_base.api_documentation",
@@ -23,33 +25,27 @@ dab_applications = [
     "ansible_base.rest_filters",
     "ansible_base.rest_pagination",
 ]
-"""Default DAB applications layd out from PSF, add/remove according to the project needs,
-adjust `pyproject` dab extra dependencies acording to apps added/removed here.
-"""
 
+# List of applications from the apps/ folder
 project_applications = [
     "apps.core",
     "apps.dynamic_settings",
     "apps.tasks",
     "apps.dashboard",
 ]
-"""List of applications from the apps/ folder."""
 
-
+# Final state of the INSTALLED_APPS that will merge with the rest of the settings
 INSTALLED_APPS = [
     "dynaconf_merge_unique",  # DO NOT REMOVE THIS
     *dab_applications,
     *project_applications,
     *extra_applications,
 ]
-"""Final state of the INSTALLED_APPS that will merge with the rest of the settings."""
 
-DEVELOPER_MODE_ENABLED = False
-"""Relax the permission system for developers"""
-
+# Enable debug mode
 DEBUG = False
-"""Enable debug mode"""
 
+# REST framework settings
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
@@ -74,16 +70,15 @@ REST_FRAMEWORK = {
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
 }
-"""REST framework settings."""
 
+# Title of Swagger the API documentation
 SPECTACULAR_SETTINGS__TITLE = "metrics_service API"
-"""Title of Swagger the API documentation."""
+# Description of Swagger the API documentation
 SPECTACULAR_SETTINGS__DESCRIPTION = "API documentation for the metrics_service"
-"""Description of Swagger the API documentation."""
+# Version of Swagger the API documentation
 SPECTACULAR_SETTINGS__VERSION = "v1"
-"""Version of Swagger the API documentation."""
+# Split components into request and response for generating clients
 SPECTACULAR_SETTINGS__COMPONENT_SPLIT_REQUEST = True
-"""Split components into request and response for generating clients."""
 
 CACHES = {
     "default": {
@@ -93,6 +88,7 @@ CACHES = {
 }
 CSRF_TRUSTED_ORIGINS = []
 
+# Databases settings, using PostgreSQL by default
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -119,14 +115,16 @@ DATABASES = {
         },
     },
 }
-"""Databases settings, using PostgreSQL by default."""
 
+# Feature flags
 # TODO: convert to DAB feature flags
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": True,
     "METRICS_COLLECTION_ENABLED": False,
 }
-"""Feature flags."""
+
+# Used when generating API URLs in views, example "metrics-service"
+URL_PREFIX = None
 
 
 @post_hook

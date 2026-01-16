@@ -1,7 +1,7 @@
 """
-Unit tests for Developer Mode permission functionality.
+Unit tests for development mode permission functionality.
 
-Tests that development endpoints are properly restricted when developer mode is disabled.
+Tests that development endpoints are properly restricted when development mode is disabled.
 """
 
 import pytest
@@ -15,26 +15,26 @@ User = get_user_model()
 
 @pytest.mark.unit
 @pytest.mark.django_db
-class TestDeveloperModeDisabled(TestCase):
-    """Test that endpoints are blocked when developer mode is disabled."""
+class TestDevelopmentModeDisabled(TestCase):
+    """Test that endpoints are blocked when development mode is disabled."""
 
     def setUp(self):
         """Set up test fixtures."""
         self.client = APIClient()
         self.user = User.objects.create_user(username="testuser", email="test@example.com", password="testpass123")  # noqa: S105
 
-    @override_settings(DEVELOPER_MODE_ENABLED=False)
-    def test_tasks_api_returns_403_when_developer_mode_disabled(self):
-        """Test that tasks API returns 403 when developer mode is disabled."""
+    @override_settings(MODE="production")
+    def test_tasks_api_returns_403_when_development_mode_disabled(self):
+        """Test that tasks API returns 403 when development mode is disabled."""
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get("/api/v1/tasks/")
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @override_settings(DEVELOPER_MODE_ENABLED=False)
-    def test_dashboard_returns_403_when_developer_mode_disabled(self):
-        """Test that dashboard returns 403 when developer mode is disabled."""
+    @override_settings(MODE="production")
+    def test_dashboard_returns_403_when_development_mode_disabled(self):
+        """Test that dashboard returns 403 when development mode is disabled."""
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get("/dashboard/")

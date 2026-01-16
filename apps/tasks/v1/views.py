@@ -34,7 +34,6 @@ Task Functions:
     - hello_world: Test task
 
 Security:
-    - Developer mode must be enabled (DEVELOPER_MODE_ENABLED=True)
     - Input validation for all task parameters
     - Safe task function execution with proper isolation
     - Audit logging for all task operations
@@ -70,8 +69,6 @@ class TaskViewSet(BaseViewSet):
     This ViewSet provides all the functionality from the manage_tasks.py command
     converted to REST API endpoints including creation, listing, monitoring,
     and control.
-
-    NOTE: This ViewSet is only accessible when DEVELOPER_MODE_ENABLED is True.
     """
 
     queryset = Task.objects.select_related("created_by").all()
@@ -503,8 +500,6 @@ class TaskViewSet(BaseViewSet):
 class TaskExecutionViewSet(BaseViewSet):
     """
     ViewSet for TaskExecution model to monitor task execution history.
-
-    NOTE: This ViewSet is only accessible when DEVELOPER_MODE_ENABLED is True.
     """
 
     queryset = TaskExecution.objects.select_related("task").all()
