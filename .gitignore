@@ -269,3 +269,6 @@ src/*/aap_settings.py
 
 # Local settings
 settings.local.py
+
+# Performance test outputs
+tools/performance_tests/output/
