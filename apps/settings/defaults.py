@@ -123,7 +123,7 @@ FEATURE_ENABLED = {
     "METRICS_COLLECTION_ENABLED": False,
 }
 
-# Used when generating API URLs in views, example "metrics-service"
+# Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
 
