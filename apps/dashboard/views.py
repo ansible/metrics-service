@@ -2,6 +2,7 @@
 Dashboard views for task management and monitoring.
 """
 
+import re
 from functools import wraps
 
 from django.conf import settings
@@ -29,6 +30,17 @@ def require_development_mode(view_func):
     return wrapper
 
 
+def url_for(path):
+    """
+    Transforms URL paths to use METRICS_SERVICE_URL_PREFIX, if present
+    When settings.URL_PREFIX is None, returns path prefixed with /api/
+    When settings.URL_PREFIX is set, returns path prefixed with /$prefix/, after slash sanitization
+    """
+
+    prefix = settings.URL_PREFIX or "/api/"
+    return re.sub(r"/+", "/", f"/{prefix}/{path}")
+
+
 @require_safe
 @require_development_mode
 def dashboard_view(request: HttpRequest) -> HttpResponse:
@@ -48,15 +60,9 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 
     from apps.tasks.tasks import TASK_FUNCTIONS
 
-    prefix = settings.URL_PREFIX
-
-    root_url = "/api/v1/"
-    if prefix and prefix != "/":
-        root_url = f"/{prefix}/{root_url}".replace("//", "/")
-
     context = {
         "page_title": "Task Dashboard",
-        "api_base_url": root_url,
+        "api_base_url": url_for("/v1/"),  # /api/v1/ or /URL_PREFIX/v1/
         "user": request.user,
         "available_functions": list(TASK_FUNCTIONS.keys()),
         "database_driven": True,  # Flag to indicate this uses database tasks
