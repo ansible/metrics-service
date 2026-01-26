@@ -254,7 +254,10 @@ sqlparse==0.5.5
     #   django
     #   django-ansible-base
 typing-extensions==4.15.0
-    # via -r requirements-pinned.txt
+    # via
+    #   -r requirements-pinned.txt
+    #   psycopg
+    #   referencing
 tzlocal==5.3.1
     # via
     #   -r requirements-pinned.txt
