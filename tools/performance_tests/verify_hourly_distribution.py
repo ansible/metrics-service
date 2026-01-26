@@ -192,7 +192,8 @@ def verify_dataset(size_name: str) -> tuple[bool, dict]:  # noqa: C901, PLR0912,
         sorted_ts = sorted(ts_list)
         for i in range(len(sorted_ts) - 1):
             gap = (sorted_ts[i + 1] - sorted_ts[i]).total_seconds() / 3600
-            if gap != 1.0:
+            # Use tolerance for floating point comparison (allow 0.1% deviation)
+            if abs(gap - 1.0) > 0.001:
                 gap_issues.append(f"{collector_type}: {gap:.1f} hour gap between {sorted_ts[i]} and {sorted_ts[i + 1]}")
 
     if gap_issues:
