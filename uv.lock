@@ -324,7 +324,7 @@ wheels = [
 [[package]]
 name = "django-ansible-base"
 version = "2026.1.22.0.dev13+g1b7ae7085"
-source = { git = "https://github.com/ansible/django-ansible-base?rev=devel#1b7ae7085675ca2c4a778e17dc5b61e619087fcb" }
+source = { git = "https://github.com/ansible/django-ansible-base?rev=1b7ae7085675ca2c4a778e17dc5b61e619087fcb#1b7ae7085675ca2c4a778e17dc5b61e619087fcb" }
 dependencies = [
     { name = "cryptography" },
     { name = "django" },
@@ -834,7 +834,7 @@ requires-dist = [
     { name = "croniter", specifier = ">=1.3.0" },
     { name = "dispatcherd", specifier = ">=2025.5.21" },
     { name = "django", specifier = "==5.2.7" },
-    { name = "django-ansible-base", extras = ["api-documentation", "feature-flags", "jwt-consumer", "rbac", "resource-registry", "rest-filters"], git = "https://github.com/ansible/django-ansible-base?rev=devel" },
+    { name = "django-ansible-base", extras = ["api-documentation", "feature-flags", "jwt-consumer", "rbac", "resource-registry", "rest-filters"], git = "https://github.com/ansible/django-ansible-base?rev=1b7ae7085675ca2c4a778e17dc5b61e619087fcb" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-debug-toolbar", marker = "extra == 'dev'", specifier = ">=4.2" },
     { name = "django-extensions", specifier = ">=3.2" },

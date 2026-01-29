@@ -338,4 +338,4 @@ with open('.copier-answers.yml') as f:
 """
 
 [tool.uv.sources]
-django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "devel" }
+django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "1b7ae7085675ca2c4a778e17dc5b61e619087fcb" }
