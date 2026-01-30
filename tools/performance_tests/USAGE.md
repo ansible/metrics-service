@@ -1,159 +1,122 @@
-# Performance Testing Usage Guide
+# Simple Performance Test
 
-Performance testing for metrics-service collection and rollup tasks.
+This is a basic performance test to measure collection and rollup time.
+
+## What It Does
+
+1. Checks what raw data exists in AWX database
+2. Picks a test date (middle of the data range)
+3. Runs collection for one day (24 hours)
+4. Measures how long collection takes
+5. Runs rollup on that day's data
+6. Measures how long rollup takes
+7. Reports the results
 
 ## Prerequisites
 
-**Important:** Performance tests require raw data in AWX/Controller database tables. Use [metrics-utility data generators](https://github.com/ansible/metrics-utility/tree/devel/tools/anonymized_db_perf_data) to populate test data.
-
-### Setup Raw Test Data
+**Raw AWX data must exist** - Use metrics-utility generators:
 
 ```bash
-# Clone metrics-utility repository
-git clone https://github.com/ansible/metrics-utility.git
-cd metrics-utility
-
-# Install and generate test data
-pip install -e .
-
-# Small dataset (~100K events): 20 jobs × 100 hosts × 50 tasks
-python tools/anonymized_db_perf_data/fill_perf_db_data.py --job-count=20 --host-count=100 --task-count=50
-
-# Medium dataset (~1M events): 20 jobs × 1000 hosts × 50 tasks
-python tools/anonymized_db_perf_data/fill_perf_db_data.py --job-count=20 --host-count=1000 --task-count=50
-
-# Large dataset (~10M events): 200 jobs × 869 hosts × 50 tasks
-python tools/anonymized_db_perf_data/fill_perf_db_data.py --job-count=200 --host-count=869 --task-count=50
+# In metrics-utility repository:
+python tools/anonymized_db_perf_data/fill_perf_db_data.py \
+    --job-count=200 \
+    --host-count=869 \
+    --task-count=50
 ```
 
-This populates AWX database tables (`main_jobevent`, `main_host`, `main_jobhostsummary`) that the collection tasks read from.
+This creates ~11M events in the AWX database.
 
-## Quick Start
+## How to Run
 
 ```bash
-# Run complete test suite across all dataset sizes (small, medium, large)
-python tools/performance_tests/run_all_dataset_sizes.py
+# Set database connection
+export METRICS_SERVICE_DATABASES__default__ENGINE=django.db.backends.postgresql
+export METRICS_SERVICE_DATABASES__default__HOST=localhost
+export METRICS_SERVICE_DATABASES__default__PORT=5432
+export METRICS_SERVICE_DATABASES__default__USER=metrics_service
+export METRICS_SERVICE_DATABASES__default__PASSWORD=metrics_service
+export METRICS_SERVICE_DATABASES__default__NAME=metrics_service
 
-# View results
-cat tools/performance_tests/output/full_suite_*/SUMMARY.md
+# Run the test
+.venv/bin/python tools/performance_tests/collection_rollup_benchmark.py
 ```
 
-## Individual Operations
+## Reporting
 
-### 1. Run Collection Tasks
+```
+Step 1: Check Raw AWX Data
+  - How many events exist
+  - Date range of events
+  - How many hosts, job summaries
 
-**Note:** Collection tasks require raw data (see Prerequisites). They query AWX database tables and create `HourlyMetricsCollection` records.
+Step 2: Pick Test Date
+  - Which date it's testing
+  - How many events on that date
 
-```bash
-# Run hourly collection tasks for 24 hours
-python tools/performance_tests/generate_test_data.py --size small
-python tools/performance_tests/generate_test_data.py --size medium
-python tools/performance_tests/generate_test_data.py --size large
+Step 3: Clean Existing Collections
+  - Removes old test data
+
+Step 4: Run Collection on 24 hours
+  - Progress updates every 6 hours
+  - Show collections created
+  - Show total data size
+  - Show duration
+
+Step 5: Verify Collections
+  - Show what was actually collected
+  - Warns if collectors returned empty data
+
+Step 6: Run Rollup
+  - Shows rollup duration
+  - Shows summaries created
+
+Final Results:
+  - Collection: X minutes
+  - Rollup: X seconds
+  - Total: X minutes
 ```
 
-This executes the actual production collection tasks:
+## Example Output
 
-- `collect_job_host_summary_hourly` - Uses metrics-utility `job_host_summary` collector
-- `collect_host_metrics_hourly` - Uses metrics-utility `main_host` collector
-- `collect_main_host_hourly` - Uses metrics-utility `main_jobevent` collector
+```
+================================================================================
+  Final Results
+================================================================================
 
-Collections are stored in `HourlyMetricsCollection` model for rollup processing.
+Test date: 2024-01-15
 
-### 1.5 Verify Test Data Distribution
+Collection:
+  Collections created: 72
+  Total size: 43.15 MB
+  Duration: 156.3 seconds (2.6 minutes)
 
-```bash
-# Validate that generated data is correctly distributed
-python tools/performance_tests/verify_hourly_distribution.py --size small
-python tools/performance_tests/verify_hourly_distribution.py --size medium
-python tools/performance_tests/verify_hourly_distribution.py --size large
+Rollup:
+  Duration: 2.45 seconds
 
-# Auto-detect and verify current dataset
-python tools/performance_tests/verify_hourly_distribution.py
+Total pipeline:
+  Duration: 158.8 seconds (2.6 minutes)
 ```
 
-The verification script validates:
+## Interpreting Results
 
-- Correct number of collections (72 = 24 hours × 3 collectors)
-- Even distribution across hours (3 collections per hour)
-- Event counts match target dataset size
-- No gaps in hourly time sequence
+**Collection Time:**
 
-### 2. Test Individual Tasks
+- This is the main bottleneck
+- Measures how long it takes to query raw AWX tables and create HourlyMetricsCollection records
+- For 11M events, expect 2-5 minutes
 
-```bash
-# Test all tasks separately
-python tools/performance_tests/task_performance_test.py --task all
+**Rollup Time:**
 
-# Test specific task groups
-python tools/performance_tests/task_performance_test.py --task hourly    # 3 hourly collectors
-python tools/performance_tests/task_performance_test.py --task daily     # 5-step rollup pipeline
-```
+- Fast (usually < 3 seconds)
+- Processes the HourlyMetricsCollection records into daily summaries
 
-### 3. Test All Tasks Together
+**Total Time:**
 
-```bash
-# Run all tasks in parallel (max load) and sequential (normal order)
-python tools/performance_tests/run_all_tasks.py --mode both
-```
+- Collection + Rollup
+- Collection is the bottleneck (>95% of total time)
 
-## What Gets Measured
+## Troubleshooting
 
-Each test measures:
-
-- **Duration** (milliseconds)
-- **Memory usage** (before, after, delta, peak in MB)
-- **Status** (success/failed)
-
-## Output
-
-Results saved to `tools/performance_tests/output/` with:
-
-- **Markdown reports** - Human-readable summaries
-- **JSON reports** - Structured data for analysis
-- **Timing logs** - Detailed execution logs with ISO 8601 timestamps
-
-## Tasks Tested
-
-**Hourly Collections:**
-
-- `collect_job_host_summary_hourly`
-- `collect_host_metrics_hourly`
-- `collect_main_host_hourly`
-
-**Daily Rollup Pipeline:**
-
-- `daily_metrics_rollup`
-- `daily_anonymize_and_prepare`
-- `send_anonymized_to_segment`
-- `cleanup_metrics_data`
-
-**Anonymized Collection:**
-
-- `full_process_anonymize` (12-hour task)
-
-## Notes
-
-- **Requires database setup:** `python manage.py migrate`
-- **Requires raw AWX data:** Use metrics-utility generators (see Prerequisites)
-- **Tests production pipeline:** Collection tasks → HourlyMetricsCollection → Rollup
-- **Large dataset tests:** May need 4GB+ memory
-- **Enable features:** `export METRICS_SERVICE_METRICS_COLLECTION=true`
-
-## Testing Approach
-
-This performance testing follows the full production pipeline:
-
-1. **Raw Data Setup** (using metrics-utility)
-   - Populate AWX tables: `main_jobevent`, `main_host`, `main_jobhostsummary`
-   - Use `fill_perf_db_data.py` from metrics-utility repository
-
-2. **Collection Phase** (tested by `generate_test_data.py`)
-   - Run actual collection tasks (`collect_*_hourly`)
-   - Tasks use metrics-utility collectors to query raw tables
-   - Creates `HourlyMetricsCollection` records
-
-3. **Rollup Phase** (tested by performance test scripts)
-   - Aggregate hourly collections into daily summaries
-   - Test individual, parallel, and sequential execution
-
-This approach ensures realistic performance measurements that match production behavior.
+- Check that docker-compose is running: `docker-compose ps`
+- Check password matches docker-compose.yml
+- Default password is "metrics_service"
