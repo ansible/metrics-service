@@ -200,12 +200,6 @@ python manage.py metrics_service tasks show 1
 python manage.py metrics_service tasks cancel 1
 python manage.py metrics_service tasks retry 1
 
-# Cron scheduler management
-python manage.py metrics_service cron start
-python manage.py metrics_service cron stop
-python manage.py metrics_service cron status
-python manage.py metrics_service cron list
-
 # Custom service configuration
 python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 8
 ```
@@ -220,7 +214,6 @@ The `metrics_service` command consolidates all service management operations int
 - **`init-service-id`** - Initialize ServiceID for ansible-base resource registry
 - **`init-system-tasks`** - Initialize system-defined tasks (cleanup, metrics collection)
 - **`tasks`** - Manage database tasks (create, list, show, cancel, retry)
-- **`cron`** - Manage cron-based task scheduler (start, stop, status, list, add, remove)
 
 #### Command Examples:
 
@@ -228,7 +221,6 @@ The `metrics_service` command consolidates all service management operations int
 # Get help for any command
 python manage.py metrics_service --help
 python manage.py metrics_service tasks --help
-python manage.py metrics_service cron --help
 
 # Run service with custom configuration
 python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4

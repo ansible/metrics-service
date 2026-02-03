@@ -117,7 +117,8 @@ DATABASES = {
 }
 
 # Feature flags
-# TODO: convert to DAB feature flags
+# TODO: convert to DAB feature flags .. but partly done with fallback on this
+# TODO how to actually trigger a feature flag without this via env?
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": True,
     "METRICS_COLLECTION_ENABLED": False,

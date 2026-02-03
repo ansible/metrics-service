@@ -14,7 +14,6 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.utils import timezone
 
-from .task_groups import get_task_group_status
 from .tasks import TASK_FUNCTIONS
 
 logger = logging.getLogger(__name__)
@@ -32,10 +31,11 @@ class UnifiedTaskScheduler:
         """Initialize the task scheduler."""
         self.scheduler = BackgroundScheduler()
         self.running = False
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # FIXME unused?
         self.check_interval = check_interval
 
         # Task registry for scheduled tasks from task groups
+        # FIXME dead? .. not, used to register ap scheduler cron thing .. but scheduled somewhere else?
         self.task_registry: dict[str, dict[str, Any]] = {}
         self._load_task_registry()
 
@@ -53,9 +53,11 @@ class UnifiedTaskScheduler:
             from .models import Task
 
             # Load all system tasks (recurring) from database
-            system_tasks = Task.objects.filter(is_system_task=True, is_recurring=True).exclude(
+            # FIXME: ==system cronjobs .. why just these? .. ok, only used to register those, while the rest happens in periodic_database_sync .. keep just there? .. still should just do pending, and probably not filter by system tasks?
+            system_tasks = Task.objects.filter(is_system_task=True, cron_expression__isnull=False).exclude(
                 status__in=["cancelled", "completed"]
             )
+            # TODO:^ so.. should be either Task.recurring_tasks(); or nothing at all until we start & sync
 
             # Convert to registry format
             self.task_registry = {}
@@ -77,29 +79,6 @@ class UnifiedTaskScheduler:
             logger.error(f"Failed to load task registry from database: {str(e)}")
             # Fallback to empty registry
             self.task_registry = {}
-
-    def reload_task_registry(self):
-        """Reload task registry from database (source of truth)."""
-        logger.info("Reloading task registry from database")
-        old_count = len(self.task_registry)
-
-        # Stop existing tasks
-        if self.running:
-            for task_id in self.task_registry:
-                try:
-                    self.scheduler.remove_job(task_id)
-                except Exception as e:
-                    logger.debug(f"Job {task_id} not found in scheduler: {str(e)}")
-
-        # Reload registry from database
-        self._load_task_registry()
-
-        # Re-add tasks if scheduler is running
-        if self.running:
-            self._add_registry_tasks()
-
-        new_count = len(self.task_registry)
-        logger.info(f"Task registry reloaded: {old_count} -> {new_count} tasks")
 
     def start(self):
         """Start the cron scheduler."""
@@ -126,7 +105,8 @@ class UnifiedTaskScheduler:
                     seconds=self.check_interval,  # Check every minute by default
                     id="periodic_db_sync",
                     name="Periodic Database Task Sync",
-                    replace_existing=True,
+                    replace_existing=True,  # FIXME?
+                    max_instances=1,  # Prevent overlapping executions
                 )
 
                 logger.info("Task scheduler started")
@@ -176,6 +156,7 @@ class UnifiedTaskScheduler:
         trigger = CronTrigger.from_crontab(config["cron"])
 
         # Add job to scheduler with feature flag info
+        # FIXME - no longer pass feature flags
         self.scheduler.add_job(
             func=self._execute_scheduled_task,
             trigger=trigger,
@@ -204,6 +185,9 @@ class UnifiedTaskScheduler:
             feature_flag: Optional feature flag name to check before execution (deprecated, use args['_feature_flag'])
         """
         try:
+            # FIXME: probably doesn't make sense here at all? why only scheduled?
+            # ..enabled_setting TaskGroup, but ignored because wrong type
+
             # Check feature flag - either from args or parameter (for backward compatibility)
             feature_flag_to_check = args.get("_feature_flag") or feature_flag
 
@@ -242,6 +226,7 @@ class UnifiedTaskScheduler:
         except Exception as e:
             logger.error(f"Failed to execute scheduled task {task_id}: {str(e)}")
 
+    # FIXME: duplicates @task && dispatcherd_config
     def _get_queue_for_function(self, function_name: str) -> str:
         """Determine the appropriate queue for a function."""
         queue_mapping = {
@@ -283,17 +268,16 @@ class UnifiedTaskScheduler:
 
         return queue_mapping.get(function_name, "metrics_tasks")
 
+    # FIXME: is this what does it, or is it all apscheduler now?
+    # FIXME: sync_database_tasks vs periodic_database_sync
     def _sync_database_tasks(self):
         """Synchronize database tasks with the scheduler."""
         try:
             from .models import Task
 
             # Get all pending database tasks that are scheduled or recurring
-            scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False, is_recurring=False)
-
-            recurring_tasks = Task.objects.filter(
-                status="pending", is_recurring=True, cron_expression__isnull=False
-            ).exclude(cron_expression="")
+            scheduled_tasks = Task.scheduled_tasks()
+            recurring_tasks = Task.recurring_tasks()
 
             # Add scheduled tasks
             for task in scheduled_tasks:
@@ -316,11 +300,9 @@ class UnifiedTaskScheduler:
             from .models import Task
 
             # Get all pending database tasks (immediate, scheduled, or recurring)
-            immediate_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=True, is_recurring=False)
-            scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False, is_recurring=False)
-            recurring_tasks = Task.objects.filter(
-                status="pending", is_recurring=True, cron_expression__isnull=False
-            ).exclude(cron_expression="")
+            immediate_tasks = Task.immediate_tasks()
+            scheduled_tasks = Task.scheduled_tasks()
+            recurring_tasks = Task.recurring_tasks()
 
             new_immediate = 0
             new_scheduled = 0
@@ -437,7 +419,7 @@ class UnifiedTaskScheduler:
                 return
 
             # Handle recurring tasks by creating a new execution record
-            if task.is_recurring:
+            if task.cron_expression:
                 # Create a new task record for this execution
                 execution_task = Task.objects.create(
                     name=f"{task.name} (Execution {timezone.now().strftime('%Y-%m-%d %H:%M:%S')})",
@@ -445,7 +427,6 @@ class UnifiedTaskScheduler:
                     task_data=task.task_data,
                     scheduled_time=None,  # Execute immediately
                     cron_expression=None,  # This is not a recurring task
-                    is_recurring=False,  # This is a one-time execution
                     priority=task.priority,
                     max_attempts=task.max_attempts,
                     timeout_seconds=task.timeout_seconds,
@@ -497,168 +478,6 @@ class UnifiedTaskScheduler:
                 logger.debug(f"Job {job_id} not found in scheduler: {e}")
             del self._db_task_jobs[task_id]
 
-    def add_database_task(self, task):
-        """Add a database task to the scheduler (called by signals)."""
-        if not self.running:
-            return
-
-        try:
-            if task.scheduled_time and not task.is_recurring:
-                self._add_database_scheduled_task(task)
-            elif task.is_recurring and task.cron_expression:
-                self._add_database_recurring_task(task)
-
-        except Exception as e:
-            logger.error(f"Failed to add database task {task.id}: {e}")
-
-    def update_database_task(self, task):
-        """Update a database task in the scheduler (called by signals)."""
-        if not self.running:
-            return
-
-        # Remove existing job
-        self._remove_database_task(task.id)
-
-        # Add updated task if still pending and scheduled
-        if task.status == "pending":
-            self.add_database_task(task)
-
-    def remove_database_task_by_id(self, task_id: int):
-        """Remove a database task by ID (called by signals)."""
-        self._remove_database_task(task_id)
-
-    def add_dynamic_task(
-        self,
-        task_id: str,
-        function_name: str,
-        cron_expression: str,
-        args: dict[str, Any] = None,
-        description: str = None,
-    ):
-        """
-        Add a dynamic task to the scheduler.
-
-        Args:
-            task_id: Unique identifier for the task
-            function_name: Name of the function to execute
-            cron_expression: Cron expression for scheduling
-            args: Arguments to pass to the function
-            description: Human-readable description
-        """
-        if args is None:
-            args = {}
-
-        config = {
-            "function": function_name,
-            "cron": cron_expression,
-            "args": args,
-            "enabled": True,
-            "description": description or task_id,
-        }
-
-        try:
-            self._add_scheduled_task(task_id, config)
-            self.task_registry[task_id] = config
-            logger.info(f"Added dynamic task: {task_id}")
-        except Exception as e:
-            logger.error(f"Failed to add dynamic task {task_id}: {str(e)}")
-            raise
-
-    def remove_task(self, task_id: str):
-        """Remove a task from the scheduler."""
-        try:
-            self.scheduler.remove_job(task_id)
-            if task_id in self.task_registry:
-                del self.task_registry[task_id]
-            logger.info(f"Removed task: {task_id}")
-        except Exception as e:
-            logger.error(f"Failed to remove task {task_id}: {str(e)}")
-
-    def update_task(self, task_id: str, **kwargs):
-        """Update an existing task's configuration."""
-        if task_id not in self.task_registry:
-            raise ValueError(f"Task {task_id} not found")
-
-        # Update registry
-        self.task_registry[task_id].update(kwargs)
-
-        # Remove and re-add to scheduler
-        self.scheduler.remove_job(task_id)
-        self._add_scheduled_task(task_id, self.task_registry[task_id])
-
-        logger.info(f"Updated task: {task_id}")
-
-    def get_task_status(self, task_id: str) -> dict[str, Any] | None:
-        """Get the status of a scheduled task."""
-        try:
-            job = self.scheduler.get_job(task_id)
-            if job:
-                return {"id": job.id, "name": job.name, "next_run_time": job.next_run_time, "trigger": str(job.trigger)}
-        except Exception as e:
-            logger.error(f"Failed to get status for task {task_id}: {str(e)}")
-        return None
-
-    def list_tasks(self) -> dict[str, Any]:
-        """List all registered tasks."""
-        scheduled_jobs = [
-            {"id": job.id, "name": job.name, "next_run_time": job.next_run_time, "trigger": str(job.trigger)}
-            for job in self.scheduler.get_jobs()
-        ]
-
-        return {
-            "task_groups": self.task_registry,
-            "database_tasks": len(self._db_task_jobs),
-            "scheduled_jobs": scheduled_jobs,
-            "task_groups_status": get_task_group_status(),
-            "total_jobs": len(scheduled_jobs),
-        }
-
-    def get_task_groups_info(self) -> dict[str, Any]:
-        """Get detailed information about task groups and their status."""
-        return get_task_group_status()
-
-    def schedule_immediate_task(self, function_name: str, args: dict[str, Any] = None, queue: str = None) -> str:
-        """
-        Schedule a task to run immediately.
-
-        Args:
-            function_name: Name of the function to execute
-            args: Arguments to pass to the function
-            queue: Queue to submit to (optional)
-
-        Returns:
-            Job ID for the scheduled task
-        """
-        if args is None:
-            args = {}
-
-        if queue is None:
-            queue = self._get_queue_for_function(function_name)
-
-        job_id = f"immediate_{timezone.now().timestamp()}"
-
-        try:
-            # Ensure dispatcherd is configured before attempting to submit tasks
-            from .dispatcherd_config import ensure_dispatcherd_configured
-
-            ensure_dispatcherd_configured()
-
-            from dispatcherd.publish import submit_task
-
-            # Validate the task function exists
-            if function_name not in TASK_FUNCTIONS:
-                raise ValueError(f"Unknown task function: {function_name}")
-
-            # Submit immediately using string reference
-            submit_task(f"apps.tasks.tasks.{function_name}", kwargs=args, queue=queue)
-
-            logger.info(f"Scheduled immediate task {job_id} ({function_name}) to queue {queue}")
-            return job_id
-
-        except Exception as e:
-            logger.error(f"Failed to schedule immediate task {function_name}: {str(e)}")
-            raise
-
 
 # Global scheduler instance
 _scheduler_instance: UnifiedTaskScheduler | None = None
@@ -685,21 +504,3 @@ def stop_scheduler():
     if _scheduler_instance:
         _scheduler_instance.stop()
         _scheduler_instance = None
-
-
-def sync_database_tasks():
-    """Synchronize database tasks with the scheduler."""
-    scheduler = get_scheduler()
-    if scheduler.running:
-        scheduler._sync_database_tasks()
-
-
-def refresh_scheduler():
-    """Refresh the scheduler to pick up new database tasks."""
-    scheduler = get_scheduler()
-    if scheduler.running:
-        scheduler._sync_database_tasks()
-
-
-# Aliases for backward compatibility
-CronTaskScheduler = UnifiedTaskScheduler

@@ -16,7 +16,6 @@ from .utils import (
     create_task_result,
     ensure_django_setup,
     get_task_and_execution,
-    handle_post_execution,
     handle_task_error,
     log_task_execution,
     task_execution_wrapper,
@@ -130,7 +129,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     # Exclude recurring tasks if preserve_recurring is True (default)
     if preserve_recurring:
-        old_tasks_filter["is_recurring"] = False
+        old_tasks_filter["cron_expression__isnull"] = False
 
     old_tasks = Task.objects.filter(**old_tasks_filter)
 
@@ -143,7 +142,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     # Exclude recurring tasks if preserve_recurring is True (default)
     if preserve_recurring:
-        old_tasks_fallback_filter["is_recurring"] = False
+        old_tasks_fallback_filter["cron_expression__isnull"] = False
 
     old_tasks_fallback = Task.objects.filter(**old_tasks_fallback_filter)
 
@@ -232,6 +231,10 @@ def cleanup_old_data(**kwargs) -> dict[str, Any]:
     )
 
 
+# FIXME: is this really a task, or more like a task runner .. used by submit_task_to_dispatcher
+# ... doesn't that mean that this is the ONLY task? apart from periodic sync? .. or what other submit_task bare
+
+
 @task(queue="metrics_tasks", decorate=False)
 def execute_db_task(**kwargs) -> dict[str, Any]:
     """
@@ -287,15 +290,6 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
 
         log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
-        # Handle post-execution tasks
-        handle_post_execution(task)
-
-        # For recurring tasks, reset status to pending for next execution
-        if task.is_recurring:
-            task.status = "pending"
-            task.save()
-            logger.info(f"Reset recurring task {task.name} (ID: {task.id}) status to pending for next execution")
-
         return result
 
     except Exception as e:
@@ -344,11 +338,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.save()
 
 
-# System-defined tasks are now sourced from task groups and stored in database
-# Database is the source of truth for all tasks including recurring ones
-SYSTEM_TASKS = []
-
-
+# runs during `manage.py metrics_service init-system-tasks`
 def create_system_tasks() -> dict[str, Any]:
     """
     Create or update system-defined tasks from task groups in the database.
@@ -371,6 +361,7 @@ def create_system_tasks() -> dict[str, Any]:
     # Get all task group definitions
     task_groups = get_all_enabled_tasks()
 
+    # FIXME: this also doesn't remove tasks, should
     for task_id, config in task_groups.items():
         try:
             _sync_task_group_to_database(task_id, config, results, Task)
@@ -396,9 +387,11 @@ def _sync_task_group_to_database(task_id: str, config: dict[str, Any], results: 
         name=task_id, function_name=config["function"], is_system_task=True
     ).first()
 
+    # FIXME: feature_flag .. update
     # Prepare task data including feature flag for runtime checking
     task_data = config.get("args", {}).copy()
     if config.get("feature_flag"):
+        # FIXME: oh hell no, unless users can edit feature flags by posting args
         task_data["_feature_flag"] = config["feature_flag"]
 
     if existing_task:
@@ -407,6 +400,7 @@ def _sync_task_group_to_database(task_id: str, config: dict[str, Any], results: 
         _create_new_task_from_group(task_id, config, task_data, results, task_model)
 
 
+# FIXME: this never changes the function?
 def _update_existing_task_from_group(
     existing_task, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any]
 ) -> None:
@@ -445,93 +439,7 @@ def _create_new_task_from_group(
         function_name=config["function"],
         task_data=task_data,
         cron_expression=config.get("cron"),
-        is_recurring=True,  # All task group tasks are recurring
         priority=config.get("priority", 2),
-        is_system_task=True,
-        status="pending",
-    )
-    results["created"] += 1
-    results["tasks"].append(f"Created: {new_task.name}")
-
-
-def create_system_tasks_legacy() -> dict[str, Any]:
-    """
-    Create or update system-defined tasks on startup.
-
-    This function ensures that essential system tasks like cleanup and metrics
-    collection are always present and properly configured. It creates new tasks
-    or updates existing ones based on the SYSTEM_TASKS configuration.
-
-    Returns:
-        dict: Summary of tasks created, updated, and skipped
-    """
-    try:
-        from .models import Task
-    except ImportError:
-        # Handle case where Django isn't fully set up yet
-        return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "updated": 0, "skipped": 0}
-
-    results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
-
-    for system_task_config in SYSTEM_TASKS:
-        if not system_task_config.get("is_enabled", True):
-            results["skipped"] += 1
-            continue
-
-        try:
-            _process_system_task(system_task_config, results, Task)
-        except Exception as e:
-            results["tasks"].append(f"Error with {system_task_config['name']}: {str(e)}")
-
-    return results
-
-
-def _process_system_task(system_task_config: dict[str, Any], results: dict[str, Any], task_model) -> None:
-    """Process a single system task configuration."""
-    existing_task = task_model.objects.filter(
-        name=system_task_config["name"], function_name=system_task_config["function_name"], is_system_task=True
-    ).first()
-
-    if existing_task:
-        _update_existing_system_task(existing_task, system_task_config, results)
-    else:
-        _create_new_system_task(system_task_config, results, task_model)
-
-
-def _update_existing_system_task(existing_task, system_task_config: dict[str, Any], results: dict[str, Any]) -> None:
-    """Update an existing system task if configuration has changed."""
-    updated = False
-
-    # Check each field for changes
-    for field, config_key in [
-        ("task_data", "task_data"),
-        ("cron_expression", "cron_expression"),
-        ("priority", "priority"),
-        ("description", "description"),
-    ]:
-        if getattr(existing_task, field) != system_task_config[config_key]:
-            setattr(existing_task, field, system_task_config[config_key])
-            updated = True
-
-    if updated:
-        existing_task.save()
-        results["updated"] += 1
-        results["tasks"].append(f"Updated: {existing_task.name}")
-    else:
-        results["skipped"] += 1
-        results["tasks"].append(f"Skipped: {existing_task.name} (no changes)")
-
-
-def _create_new_system_task(system_task_config: dict[str, Any], results: dict[str, Any], task_model) -> None:
-    """Create a new system task."""
-    new_task = task_model.objects.create(
-        name=system_task_config["name"],
-        description=system_task_config["description"],
-        function_name=system_task_config["function_name"],
-        task_data=system_task_config["task_data"],
-        cron_expression=system_task_config["cron_expression"],
-        is_recurring=system_task_config["is_recurring"],
-        priority=system_task_config["priority"],
         is_system_task=True,
         status="pending",
     )
@@ -561,12 +469,11 @@ def get_system_task_info() -> dict[str, Any]:
             "function_name": task.function_name,
             "description": task.description,
             "status": task.status,
-            "is_recurring": task.is_recurring,
             "cron_expression": task.cron_expression,
             "priority": task.priority,
             "created": task.created.isoformat() if task.created else None,
             "last_run": task.completed_at.isoformat() if task.completed_at else None,
-            "category": next((config["category"] for config in SYSTEM_TASKS if config["name"] == task.name), "unknown"),
+            "category": "unknown",  # FIXME .. from task_groups?
         }
         task_info.append(info)
 

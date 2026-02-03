@@ -54,4 +54,3 @@ urlpatterns = [
 # POST   /api/v1/tasks/{id}/cancel/         - Cancel task (manage_tasks cancel)
 # POST   /api/v1/tasks/cleanup/             - Cleanup old tasks (manage_tasks cleanup)
 # GET    /api/v1/tasks/available_functions/ - Get available task functions
-#

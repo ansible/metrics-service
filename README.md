@@ -117,15 +117,16 @@ The service includes an automated background task system with intelligent routin
 ### Unified Service Management
 
 ```bash
-# Start complete service (Django + dispatcher + scheduler)
+# Start complete service (init*, then Django + dispatcher + scheduler)
 python manage.py metrics_service run
 
 # Start with custom configuration
 python manage.py metrics_service run --workers 4
 
-# Individual components (for development)
-python manage.py run_dispatcherd --workers 2
-python manage.py metrics_service cron start
+# Individual components
+python manage.py runserver 0.0.0.0:8000  # web
+python manage.py run_dispatcherd --workers 2  # worker
+python manage.py run_task_scheduler  # scheduler
 ```
 
 ### Automatic Task Routing
