@@ -88,8 +88,9 @@ class TestMixinsIntegration:
 
     def test_task_uses_status_tracking_mixin(self):
         """Test that Task model properly uses StatusTrackingMixin"""
-        from apps.tasks.models import Task
         from django.utils import timezone
+
+        from apps.tasks.models import Task
 
         task = Task.objects.create(name="Test Task", function_name="cleanup_old_data")
 

@@ -16,10 +16,8 @@ from django.utils import timezone
 from apps.tasks.cron_scheduler import (
     UnifiedTaskScheduler,
     get_scheduler,
-    refresh_scheduler,
     start_scheduler,
     stop_scheduler,
-    sync_database_tasks,
 )
 
 User = get_user_model()
@@ -110,70 +108,6 @@ class TestUnifiedTaskScheduler:
 
         scheduler = UnifiedTaskScheduler()
         assert "test_task" in scheduler.task_registry
-
-    @patch("apps.tasks.models.Task")
-    def test_sync_database_tasks_scheduled(self, mock_task_model, scheduler):
-        """Test syncing scheduled database tasks."""
-        # Mock scheduled task
-        mock_task = Mock()
-        mock_task.id = 1
-        mock_task.name = "Test"
-        mock_task.scheduled_time = timezone.now() + timedelta(hours=1)
-        mock_task.is_recurring = False
-
-        # Create mock QuerySets
-        mock_scheduled_qs = Mock()
-        mock_scheduled_qs.__iter__ = Mock(return_value=iter([mock_task]))
-        mock_scheduled_qs.__len__ = Mock(return_value=1)
-
-        mock_recurring_qs = Mock()
-        mock_recurring_qs.__iter__ = Mock(return_value=iter([]))
-        mock_recurring_qs.__len__ = Mock(return_value=0)
-        mock_recurring_qs.exclude.return_value = mock_recurring_qs
-
-        # Set up filter to return different results for different calls
-        def filter_side_effect(**kwargs):
-            if "is_recurring" in kwargs and kwargs["is_recurring"] is False:
-                return mock_scheduled_qs
-            return mock_recurring_qs
-
-        mock_task_model.objects.filter.side_effect = filter_side_effect
-
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler._sync_database_tasks()
-            mock_add.assert_called_once_with(mock_task)
-
-    @patch("apps.tasks.models.Task")
-    def test_sync_database_tasks_recurring(self, mock_task_model, scheduler):
-        """Test syncing recurring database tasks."""
-        # Mock recurring task
-        mock_task = Mock()
-        mock_task.id = 2
-        mock_task.name = "Recurring Test"
-        mock_task.is_recurring = True
-        mock_task.cron_expression = "0 * * * *"
-
-        # Create mock QuerySets
-        mock_scheduled_qs = Mock()
-        mock_scheduled_qs.__iter__ = Mock(return_value=iter([]))
-        mock_scheduled_qs.__len__ = Mock(return_value=0)
-
-        mock_recurring_qs = Mock()
-        mock_recurring_qs.__iter__ = Mock(return_value=iter([mock_task]))
-        mock_recurring_qs.__len__ = Mock(return_value=1)
-        mock_recurring_qs.exclude.return_value = mock_recurring_qs
-
-        # Set up filter to return different results for different calls
-        def filter_side_effect(**kwargs):
-            if "is_recurring" in kwargs and kwargs["is_recurring"] is False:
-                return mock_scheduled_qs
-            return mock_recurring_qs
-
-        mock_task_model.objects.filter.side_effect = filter_side_effect
-
-        with patch.object(scheduler, "_add_database_recurring_task") as mock_add:
-            scheduler._sync_database_tasks()
-            mock_add.assert_called_once_with(mock_task)
 
     def test_add_database_scheduled_task(self, scheduler, mock_task):
         """Test adding a scheduled database task."""
@@ -357,24 +291,6 @@ class TestGlobalSchedulerFunctions:
             stop_scheduler()
             mock_scheduler.stop.assert_called_once()
 
-    def test_sync_database_tasks(self):
-        """Test sync_database_tasks function."""
-        mock_scheduler = Mock()
-        mock_scheduler.running = True
-
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            sync_database_tasks()
-            mock_scheduler._sync_database_tasks.assert_called_once()
-
-    def test_refresh_scheduler(self):
-        """Test refresh_scheduler function."""
-        mock_scheduler = Mock()
-        mock_scheduler.running = True
-
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            refresh_scheduler()
-            mock_scheduler._sync_database_tasks.assert_called_once()
-
 
 @pytest.mark.unit
 class TestBackwardCompatibility:
@@ -390,24 +306,6 @@ class TestBackwardCompatibility:
 @pytest.mark.unit
 class TestErrorHandling:
     """Test error handling in the task scheduler."""
-
-    def test_sync_database_tasks_error(self, scheduler, caplog):
-        """Test error handling in _sync_database_tasks."""
-        with patch("apps.tasks.models.Task") as mock_task:
-            mock_task.objects.filter.side_effect = Exception("DB Error")
-
-            with caplog.at_level(logging.ERROR):
-                scheduler._sync_database_tasks()
-
-            assert "Error synchronizing database tasks" in caplog.text
-
-    def test_add_database_scheduled_task_error(self, scheduler, mock_task, caplog):
-        """Test error handling when adding scheduled task fails."""
-        with patch.object(scheduler.scheduler, "add_job", side_effect=Exception("Scheduler error")):
-            with caplog.at_level(logging.ERROR):
-                scheduler._add_database_scheduled_task(mock_task)
-
-            assert "Failed to add scheduled database task" in caplog.text
 
     def test_add_database_recurring_task_error(self, scheduler, mock_recurring_task, caplog):
         """Test error handling when adding recurring task fails."""

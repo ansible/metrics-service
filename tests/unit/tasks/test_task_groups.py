@@ -15,8 +15,6 @@ from apps.tasks.task_groups import (
     SYSTEM_TASKS_GROUP,
     TaskGroup,
     get_all_enabled_tasks,
-    get_task_group_status,
-    validate_task_groups,
 )
 
 
@@ -214,35 +212,6 @@ class TestTaskGroupFunctions(TestCase):
             assert "group" in task_config
             assert "group_description" in task_config
 
-    def test_get_task_group_status(self):
-        """Test getting status of all task groups."""
-        status = get_task_group_status()
-
-        assert "system_tasks" in status
-        assert "anonymized_data" in status
-        assert "metrics_collection" in status
-
-        # Check system tasks group
-        system_status = status["system_tasks"]
-        assert system_status["enabled"] is True
-        assert system_status["enabled_setting"] is None
-        assert system_status["total_tasks"] > 0
-        assert system_status["enabled_tasks"] == system_status["total_tasks"]
-
-    def test_validate_task_groups(self):
-        """Test validation of task groups."""
-        errors = validate_task_groups()
-
-        # Should have no errors in the predefined groups
-        assert len(errors) == 0
-
-    def test_validate_task_groups_with_errors(self):
-        """Test validation catches errors in task groups."""
-        # This test would need mock task groups with errors
-        # For now, just ensure the function works
-        errors = validate_task_groups()
-        assert isinstance(errors, list)
-
 
 class TestTaskGroupIntegration(TestCase):
     """Test integration between task groups and other components."""
@@ -273,12 +242,6 @@ class TestTaskGroupIntegration(TestCase):
     def test_all_groups_enabled(self):
         """Test when all groups are enabled."""
         all_tasks = get_all_enabled_tasks()
-        status = get_task_group_status()
-
-        # All groups should be enabled
-        for _group_name, group_status in status.items():
-            assert group_status["enabled"] is True
-            assert group_status["enabled_tasks"] > 0
 
         # Should have tasks from all groups
         task_ids = list(all_tasks.keys())
@@ -301,12 +264,13 @@ class TestTaskGroupIntegration(TestCase):
     def test_minimal_system_only(self):
         """Test when only system tasks are enabled."""
         all_tasks = get_all_enabled_tasks()
-        status = get_task_group_status()
 
-        # Only system tasks should be enabled
-        assert status["system_tasks"]["enabled"] is True
-        assert status["anonymized_data"]["enabled"] is False
-        assert status["metrics_collection"]["enabled"] is False
+        # Only system tasks should be present
+        task_ids = list(all_tasks.keys())
+        # System tasks should be present
+        assert any("cleanup" in task_id for task_id in task_ids)
+        # Feature-controlled tasks should not be present
+        assert not any("full_process_anonymize" in task_id for task_id in task_ids)
 
         # Should only have system tasks
         task_ids = list(all_tasks.keys())

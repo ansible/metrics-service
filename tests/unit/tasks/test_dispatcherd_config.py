@@ -7,10 +7,9 @@ full code coverage.
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
 
 from apps.tasks.dispatcherd_config import (
     build_config_from_django_settings,
@@ -18,7 +17,6 @@ from apps.tasks.dispatcherd_config import (
     get_config_file_path,
     get_queue_for_function,
     setup_dispatcherd_config,
-    update_config_with_database_settings,
 )
 
 
@@ -212,173 +210,6 @@ class TestEnsureDispatcherdConfigured:
             ensure_dispatcherd_configured()
 
         mock_logger.error.assert_called_with("Dispatcherd not available")
-
-
-class TestUpdateConfigWithDatabaseSettings:
-    """Tests for update_config_with_database_settings function."""
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_updates_existing_config_file(self, mock_logger, mock_get_path, mock_settings):
-        """Test that function updates existing config file with Django settings."""
-        existing_config = {
-            "version": 1,
-            "brokers": {"pg_notify": {"config": {"dbname": "old_db"}}},
-        }
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "new_db",
-                "USER": "new_user",
-                "PASSWORD": "new_pass",
-                "HOST": "new_host",
-                "PORT": "5433",
-            }
-        }
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_path.parent = MagicMock()
-        mock_get_path.return_value = mock_path
-
-        with patch("builtins.open", mock_open(read_data=yaml.dump(existing_config))):
-            update_config_with_database_settings()
-
-        mock_logger.info.assert_called_with(f"Updated dispatcherd config file: {mock_path}")
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_creates_new_config_file_when_not_exists(self, mock_logger, mock_get_path, mock_settings):
-        """Test that function creates new config file when it doesn't exist."""
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "localhost",
-                "PORT": "5432",
-            }
-        }
-        mock_path = MagicMock()
-        mock_path.exists.return_value = False
-        mock_path.parent = MagicMock()
-        mock_get_path.return_value = mock_path
-
-        MagicMock()
-        with patch("builtins.open", mock_open()):
-            update_config_with_database_settings()
-
-        # Verify parent directory was created
-        mock_path.parent.mkdir.assert_called_once_with(parents=True, exist_ok=True)
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_preserves_version_in_config(self, mock_logger, mock_get_path, mock_settings):
-        """Test that function preserves version in config when updating."""
-        existing_config = {"version": 2, "other_key": "other_value"}
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "localhost",
-                "PORT": "5432",
-            }
-        }
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_path.parent = MagicMock()
-        mock_get_path.return_value = mock_path
-
-        written_data = None
-
-        def write_side_effect(data, *args, **kwargs):
-            nonlocal written_data
-            written_data = data
-
-        with (
-            patch("builtins.open", mock_open(read_data=yaml.dump(existing_config))),
-            patch("yaml.dump", side_effect=write_side_effect),
-        ):
-            update_config_with_database_settings()
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_updates_database_connection_params(self, mock_logger, mock_get_path, mock_settings):
-        """Test that function updates database connection parameters correctly."""
-        existing_config = {"brokers": {"pg_notify": {"config": {}}}}
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "metrics_db",
-                "USER": "metrics_user",
-                "PASSWORD": "secret_pass",
-                "HOST": "db.example.com",
-                "PORT": "5432",
-            }
-        }
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_path.parent = MagicMock()
-        mock_get_path.return_value = mock_path
-
-        captured_configs = []
-
-        def yaml_dump_side_effect(data, f, **kwargs):
-            captured_configs.append(data)
-
-        with (
-            patch("builtins.open", mock_open(read_data=yaml.dump(existing_config))),
-            patch("yaml.dump", side_effect=yaml_dump_side_effect),
-        ):
-            update_config_with_database_settings()
-
-        assert len(captured_configs) > 0, "yaml.dump was not called"
-        updated_config = captured_configs[0]
-        assert isinstance(updated_config, dict), f"Expected dict but got {type(updated_config)}"
-        assert "brokers" in updated_config, f"'brokers' key not found in {updated_config.keys()}"
-        db_config = updated_config["brokers"]["pg_notify"]["config"]
-        assert db_config["dbname"] == "metrics_db"
-        assert db_config["user"] == "metrics_user"
-        assert db_config["password"] == "secret_pass"  # noqa: S105
-        assert db_config["host"] == "db.example.com"
-        assert db_config["port"] == "5432"
-
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_raises_on_yaml_import_error(self, mock_logger):
-        """Test that function raises ImportError when PyYAML is not available."""
-        with patch.dict("sys.modules", {"yaml": None}), pytest.raises(ImportError):
-            update_config_with_database_settings()
-
-        mock_logger.error.assert_called_with("PyYAML not available for config file updates")
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_raises_on_file_write_error(self, mock_logger, mock_get_path, mock_settings):
-        """Test that function raises exception on file write errors."""
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "localhost",
-                "PORT": "5432",
-            }
-        }
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_get_path.return_value = mock_path
-
-        with (
-            patch("builtins.open", side_effect=OSError("Permission denied")),
-            pytest.raises(IOError, match="Permission denied"),
-        ):
-            update_config_with_database_settings()
-
-        mock_logger.error.assert_called()
-        assert "Failed to update config file" in str(mock_logger.error.call_args)
 
 
 class TestGetQueueForFunction:

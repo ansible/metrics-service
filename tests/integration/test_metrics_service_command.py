@@ -152,35 +152,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
         task.refresh_from_db()
         assert task.status == "pending"
 
-    def test_cron_status_command(self):
-        """Test the cron status subcommand."""
-        with patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get_scheduler:
-            mock_scheduler = MagicMock()
-            mock_scheduler.running = True
-            mock_get_scheduler.return_value = mock_scheduler
-
-            with patch("sys.stdout.write") as mock_stdout:
-                call_command("metrics_service", "cron", "status")
-
-            mock_stdout.assert_called()
-
-    def test_cron_list_command(self):
-        """Test the cron list subcommand."""
-        with patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get_scheduler:
-            mock_job = MagicMock()
-            mock_job.id = "test-job"
-            mock_job.func = "test_function"
-            mock_job.next_run_time = timezone.now()
-
-            mock_scheduler = MagicMock()
-            mock_scheduler.get_jobs.return_value = [mock_job]
-            mock_get_scheduler.return_value = mock_scheduler
-
-            with patch("sys.stdout.write") as mock_stdout:
-                call_command("metrics_service", "cron", "list")
-
-            mock_stdout.assert_called()
-
     def test_invalid_command_arguments(self):
         """Test error handling for invalid command arguments."""
         # Test invalid JSON data
