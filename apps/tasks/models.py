@@ -182,7 +182,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
 
         # Submit the task for immediate execution if it has no scheduled time
         # and is not recurring (otherwise it will be picked up by the scheduler)
-        if not self.scheduled_time and not self.cronjob_expression:
+        if not self.scheduled_time and not self.cron_expression:
             try:
                 from .tasks_system import submit_task_to_dispatcher
 

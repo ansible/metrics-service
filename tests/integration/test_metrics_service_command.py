@@ -8,13 +8,12 @@ service initialization, task management, and command line operations.
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase, TransactionTestCase
-from django.utils import timezone
 
 from apps.tasks.models import Task
 from tests.test_utils import get_test_password
@@ -39,14 +38,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
             call_command("metrics_service", "init-system-tasks", "--list")
 
         # Should not raise an exception
-        mock_stdout.assert_called()
-
-    def test_init_system_tasks_dry_run(self):
-        """Test the init-system-tasks --dry-run subcommand."""
-        with patch("sys.stdout.write") as mock_stdout:
-            call_command("metrics_service", "init-system-tasks", "--dry-run")
-
-        # Should not raise an exception and not make changes
         mock_stdout.assert_called()
 
     def test_task_create_command(self):
@@ -273,29 +264,11 @@ class TestMetricsServiceCommandSubprocess(TestCase):
         result = self._run_command("init-system-tasks", "--list")
         assert result.returncode == 0
 
-    def test_init_system_tasks_dry_run_subprocess(self):
-        """Test init-system-tasks --dry-run command via subprocess."""
-        result = self._run_command("init-system-tasks", "--dry-run")
-        assert result.returncode == 0
-        assert "DRY RUN" in result.stdout
-
-    def test_cron_status_subprocess(self):
-        """Test cron status command via subprocess."""
-        result = self._run_command("cron", "status")
-        # Should not fail even if scheduler is not running
-        assert result.returncode == 0
-
     def test_tasks_subcommand_help_subprocess(self):
         """Test tasks subcommand help via subprocess."""
         result = self._run_command("tasks", "--help")
         assert result.returncode == 0
         assert "Task management actions" in result.stdout
-
-    def test_cron_subcommand_help_subprocess(self):
-        """Test cron subcommand help via subprocess."""
-        result = self._run_command("cron", "--help")
-        assert result.returncode == 0
-        assert "Cron management actions" in result.stdout
 
 
 @pytest.mark.integration

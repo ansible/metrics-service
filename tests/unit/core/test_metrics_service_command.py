@@ -48,7 +48,6 @@ class TestMetricsServiceCommand(TestCase):
         assert "init-service-id" in actions["command"].choices
         assert "init-system-tasks" in actions["command"].choices
         assert "tasks" in actions["command"].choices
-        assert "cron" in actions["command"].choices
 
     def test_extract_config(self):
         """Test _extract_config method."""

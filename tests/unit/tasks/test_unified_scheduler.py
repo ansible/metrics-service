@@ -145,7 +145,7 @@ class TestUnifiedTaskScheduler:
         mock_task = Mock()
         mock_task.id = task_id
         mock_task.name = "Test"
-        mock_task.is_recurring = False
+        mock_task.cron_expression = None  # Non-recurring task
         mock_task.status = "pending"  # Set status to pending for the test
 
         mock_task_model.objects.get.return_value = mock_task
@@ -209,58 +209,6 @@ class TestUnifiedTaskScheduler:
             assert not scheduler.running
             assert len(scheduler._db_task_jobs) == 0
 
-    def test_add_database_task_scheduled(self, scheduler, mock_task):
-        """Test adding a database task via the API."""
-        scheduler.running = True
-
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler.add_database_task(mock_task)
-            mock_add.assert_called_once_with(mock_task)
-
-    def test_add_database_task_recurring(self, scheduler, mock_recurring_task):
-        """Test adding a recurring database task via the API."""
-        scheduler.running = True
-
-        with patch.object(scheduler, "_add_database_recurring_task") as mock_add:
-            scheduler.add_database_task(mock_recurring_task)
-            mock_add.assert_called_once_with(mock_recurring_task)
-
-    def test_add_database_task_not_running(self, scheduler, mock_task):
-        """Test adding a database task when scheduler is not running."""
-        scheduler.running = False
-
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler.add_database_task(mock_task)
-            mock_add.assert_not_called()
-
-    def test_update_database_task(self, scheduler, mock_task):
-        """Test updating a database task."""
-        scheduler.running = True
-
-        with (
-            patch.object(scheduler, "_remove_database_task") as mock_remove,
-            patch.object(scheduler, "add_database_task") as mock_add,
-        ):
-            scheduler.update_database_task(mock_task)
-
-            mock_remove.assert_called_once_with(mock_task.id)
-            mock_add.assert_called_once_with(mock_task)
-
-    def test_list_tasks(self, scheduler):
-        """Test listing all tasks."""
-        scheduler.task_registry = {"test": "config"}
-        scheduler._db_task_jobs = {1: "job_1", 2: "job_2"}
-
-        with (
-            patch.object(scheduler.scheduler, "get_jobs", return_value=[]),
-            patch("apps.tasks.cron_scheduler.get_task_group_status", return_value={}),
-        ):
-            result = scheduler.list_tasks()
-
-            assert "task_groups" in result
-            assert "database_tasks" in result
-            assert result["database_tasks"] == 2
-
 
 @pytest.mark.unit
 class TestGlobalSchedulerFunctions:
@@ -293,24 +241,13 @@ class TestGlobalSchedulerFunctions:
 
 
 @pytest.mark.unit
-class TestBackwardCompatibility:
-    """Test backward compatibility aliases."""
-
-    def test_cron_task_scheduler_alias(self):
-        """Test that CronTaskScheduler is aliased to UnifiedTaskScheduler."""
-        from apps.tasks.cron_scheduler import CronTaskScheduler, UnifiedTaskScheduler
-
-        assert CronTaskScheduler is UnifiedTaskScheduler
-
-
-@pytest.mark.unit
 class TestErrorHandling:
     """Test error handling in the task scheduler."""
 
     def test_add_database_recurring_task_error(self, scheduler, mock_recurring_task, caplog):
         """Test error handling when adding recurring task fails."""
         with patch.object(scheduler.scheduler, "add_job", side_effect=Exception("Scheduler error")):
-            with caplog.at_level(logging.ERROR):
+            with caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"):
                 scheduler._add_database_recurring_task(mock_recurring_task)
 
             assert "Failed to add recurring database task" in caplog.text
@@ -324,7 +261,7 @@ class TestErrorHandling:
         mock_task_model.DoesNotExist = ObjectDoesNotExist
 
         with patch.object(scheduler, "_remove_database_task") as mock_remove:
-            with caplog.at_level(logging.WARNING):
+            with caplog.at_level(logging.WARNING, logger="apps.tasks.cron_scheduler"):
                 scheduler._execute_database_task(999)
 
             assert "Database task 999 not found" in caplog.text

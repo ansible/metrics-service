@@ -78,7 +78,7 @@ class TaskModelTestCase(TestCase):
         self.assertEqual(self.task.attempts, 0)
         self.assertEqual(self.task.max_attempts, 3)
         self.assertEqual(self.task.timeout_seconds, 3600)
-        self.assertFalse(self.task.is_recurring)
+        self.assertIsNone(self.task.cron_expression)  # Non-recurring task
 
     def test_task_is_ready_to_run(self):
         """Test Task is_ready_to_run method."""
