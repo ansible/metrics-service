@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from apps.tasks import utils
-from apps.tasks.models import Task, TaskDependency, TaskExecution
+from apps.tasks.models import Task, TaskExecution
 
 
 class TaskUtilsTestCase(TestCase):
@@ -112,90 +112,6 @@ class TaskUtilsTestCase(TestCase):
         self.assertEqual(task.id, self.task.id)
         self.assertIsNone(exec_result)
 
-    def test_trigger_dependent_tasks_task_not_found(self):
-        """Test triggering dependent tasks when dependent task is deleted."""
-        dependent_task = self._create_task_safely(
-            name="Dependent Task", function_name="dependent_function", task_data={}, created_by=self.user
-        )
-
-        TaskDependency.objects.create(
-            dependent_task=dependent_task, prerequisite_task=self.task, required_status="completed"
-        )
-
-        self.task.status = "completed"
-        self.task.save()
-
-        # Delete the dependent task to simulate not found
-        dependent_task.delete()
-
-        # Should not raise exception
-        utils.trigger_dependent_tasks(self.task)
-
-    def test_schedule_next_occurrence_success(self):
-        """Test scheduling next occurrence of recurring task."""
-        self.task.cron_expression = "0 0 * * *"
-        self.task.is_recurring = True
-        self.task.save()
-
-        initial_count = Task.objects.count()
-        utils.schedule_next_occurrence(self.task)
-
-        # Should create a new task
-        self.assertEqual(Task.objects.count(), initial_count + 1)
-
-        new_task = Task.objects.exclude(id=self.task.id).first()
-        self.assertTrue(new_task.name.startswith("Test Task (recurring)"))
-        self.assertEqual(new_task.function_name, self.task.function_name)
-        self.assertEqual(new_task.cron_expression, self.task.cron_expression)
-        self.assertTrue(new_task.is_recurring)
-
-    def test_schedule_next_occurrence_no_cron(self):
-        """Test scheduling next occurrence without cron expression."""
-        self.task.cron_expression = ""
-        self.task.is_recurring = True
-        self.task.save()
-
-        initial_count = Task.objects.count()
-        utils.schedule_next_occurrence(self.task)
-
-        # Should not create a new task
-        self.assertEqual(Task.objects.count(), initial_count)
-
-    @patch("apps.tasks.utils.trigger_dependent_tasks")
-    def test_handle_post_execution_completed(self, mock_trigger):
-        """Test post-execution handling for completed task."""
-        self.task.status = "completed"
-
-        utils.handle_post_execution(self.task)
-
-        mock_trigger.assert_called_once_with(self.task)
-
-    @patch("apps.tasks.utils.schedule_next_occurrence")
-    @patch("apps.tasks.utils.trigger_dependent_tasks")
-    def test_handle_post_execution_recurring_no_cron(self, mock_trigger, mock_schedule):
-        """Test post-execution handling for recurring task without cron."""
-        self.task.status = "completed"
-        self.task.is_recurring = True
-        self.task.cron_expression = ""
-
-        utils.handle_post_execution(self.task)
-
-        mock_trigger.assert_called_once_with(self.task)
-        mock_schedule.assert_called_once_with(self.task)
-
-    @patch("apps.tasks.utils.schedule_next_occurrence")
-    @patch("apps.tasks.utils.trigger_dependent_tasks")
-    def test_handle_post_execution_recurring_with_cron(self, mock_trigger, mock_schedule):
-        """Test post-execution handling for recurring task with cron."""
-        self.task.status = "completed"
-        self.task.is_recurring = True
-        self.task.cron_expression = "0 0 * * *"
-
-        utils.handle_post_execution(self.task)
-
-        mock_trigger.assert_called_once_with(self.task)
-        mock_schedule.assert_not_called()  # Should not schedule when cron is present
-
     def test_handle_task_error_with_instances(self):
         """Test error handling with task and execution instances."""
         execution = TaskExecution.objects.create(task=self.task, status="running", worker_id="test-worker")
@@ -282,66 +198,6 @@ class TaskUtilsTestCase(TestCase):
         self.assertEqual(self.task.status, "failed")
         self.assertEqual(self.task.error_message, "Test error")
         self.assertIsNotNone(self.task.completed_at)
-
-    @patch("os.getpid")
-    def test_get_or_create_execution_record_default_worker(self, mock_getpid):
-        """Test creating execution record with default worker ID."""
-        mock_getpid.return_value = 12345
-
-        execution = utils.get_or_create_execution_record(self.task)
-
-        self.assertEqual(execution.task, self.task)
-        self.assertEqual(execution.status, "pending")
-        self.assertEqual(execution.worker_id, "worker-12345")
-
-    def test_get_or_create_execution_record_custom_worker(self):
-        """Test creating execution record with custom worker ID."""
-        execution = utils.get_or_create_execution_record(self.task, "custom-worker")
-
-        self.assertEqual(execution.task, self.task)
-        self.assertEqual(execution.status, "pending")
-        self.assertEqual(execution.worker_id, "custom-worker")
-
-    def test_validate_task_data_valid(self):
-        """Test validating valid task data."""
-        data = {"field1": "value1", "field2": "value2"}
-        required_fields = ["field1", "field2"]
-
-        result = utils.validate_task_data(data, required_fields)
-
-        self.assertIsNone(result)
-
-    def test_validate_task_data_missing_fields(self):
-        """Test validating task data with missing fields."""
-        data = {"field1": "value1"}
-        required_fields = ["field1", "field2", "field3"]
-
-        result = utils.validate_task_data(data, required_fields)
-
-        self.assertIn("Missing required fields: field2, field3", result)
-
-    def test_validate_task_data_special_case_task_id(self):
-        """Test validating task data with missing task_id (special case)."""
-        data = {}
-        required_fields = ["task_id"]
-
-        result = utils.validate_task_data(data, required_fields)
-
-        self.assertEqual(result, "No task_id provided")
-
-    def test_validate_task_data_not_dict(self):
-        """Test validating non-dictionary task data."""
-        result = utils.validate_task_data("not a dict", ["field1"])
-
-        self.assertEqual(result, "Task data must be a dictionary")
-
-    def test_validate_task_data_no_required_fields(self):
-        """Test validating task data with no required fields."""
-        data = {"field1": "value1"}
-
-        result = utils.validate_task_data(data)
-
-        self.assertIsNone(result)
 
     def test_create_task_result_success(self):
         """Test creating successful task result."""

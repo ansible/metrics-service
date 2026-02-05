@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.models import Organization, Team
-from apps.tasks.models import Task, TaskChain, TaskChainMembership, TaskDependency, TaskExecution
+from apps.tasks.models import Task, TaskExecution
 from tests.test_utils import get_test_password
 
 User = get_user_model()
@@ -118,27 +118,6 @@ class TaskModelTestCase(TestCase):
         self.task.save()
         self.assertFalse(self.task.can_retry())
 
-    def test_task_dependency_creation(self):
-        """Test TaskDependency model creation."""
-        task2 = self._create_task_safely(
-            name="Dependent Task", function_name="dependent_function", created_by=self.user
-        )
-
-        dependency = TaskDependency.objects.create(
-            dependent_task=task2, prerequisite_task=self.task, required_status="completed"
-        )
-
-        self.assertEqual(str(dependency), "Dependent Task depends on Test Task")
-        self.assertEqual(dependency.required_status, "completed")
-
-        # Test that dependent task is not ready when prerequisite is pending
-        self.assertFalse(task2.is_ready_to_run())
-
-        # Test that dependent task is ready when prerequisite is completed
-        self.task.status = "completed"
-        self.task.save()
-        self.assertTrue(task2.is_ready_to_run())
-
     def test_task_execution_creation(self):
         """Test TaskExecution model creation."""
         execution = TaskExecution.objects.create(task=self.task, status="running", worker_id="worker-123")
@@ -158,28 +137,6 @@ class TaskModelTestCase(TestCase):
         )
 
         self.assertEqual(execution.execution_time_seconds, 10.0)
-
-    def test_task_chain_creation(self):
-        """Test TaskChain model creation."""
-        chain = TaskChain.objects.create(name="Test Chain", created_by=self.user)
-
-        self.assertEqual(str(chain), "Test Chain")
-        self.assertTrue(chain.is_active)
-
-        # Test task chain membership
-        task2 = self._create_task_safely(name="Task 2", function_name="function2", created_by=self.user)
-
-        membership1 = TaskChainMembership.objects.create(chain=chain, task=self.task, order=1)
-
-        membership2 = TaskChainMembership.objects.create(chain=chain, task=task2, order=2)
-
-        self.assertEqual(str(membership1), "Test Chain - Test Task (order: 1)")
-        self.assertEqual(str(membership2), "Test Chain - Task 2 (order: 2)")
-
-        # Test that tasks are in the chain
-        self.assertIn(self.task, chain.tasks.all())
-        self.assertIn(task2, chain.tasks.all())
-        self.assertEqual(chain.tasks.count(), 2)
 
 
 @pytest.mark.unit
@@ -206,29 +163,6 @@ class ModelValidationTestCase(TestCase):
         team2 = Team.objects.create(name="Different Team", organization=self.organization)
 
         self.assertNotEqual(team1.name, team2.name)
-
-    def test_task_dependency_unique_constraint(self):
-        """Test TaskDependency unique constraint."""
-        task1 = self._create_task_safely(name="Task 1", function_name="func1")
-        task2 = self._create_task_safely(name="Task 2", function_name="func2")
-
-        # First dependency should be created successfully
-        dep1 = TaskDependency.objects.create(dependent_task=task2, prerequisite_task=task1)
-
-        self.assertEqual(dep1.dependent_task, task2)
-        self.assertEqual(dep1.prerequisite_task, task1)
-
-    def test_task_chain_membership_unique_constraint(self):
-        """Test TaskChainMembership unique constraint."""
-        chain = TaskChain.objects.create(name="Test Chain")
-        task = self._create_task_safely(name="Test Task", function_name="func")
-
-        # First membership should be created successfully
-        membership1 = TaskChainMembership.objects.create(chain=chain, task=task, order=1)
-
-        self.assertEqual(membership1.chain, chain)
-        self.assertEqual(membership1.task, task)
-        self.assertEqual(membership1.order, 1)
 
 
 @pytest.mark.unit

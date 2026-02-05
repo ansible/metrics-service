@@ -202,37 +202,6 @@ class TestTimestampFieldMixin(TestCase):
         assert mixin.modified.read_only is True
 
 
-class TestApiUtilsCoverage(TestCase):
-    """Test API utils coverage."""
-
-    def test_get_count_safely_with_manager(self):
-        """Test get_count_safely with manager that has count."""
-        from apps.tasks.api_utils import get_count_safely
-
-        mock_manager = MagicMock()
-        mock_manager.count.return_value = 42
-
-        result = get_count_safely(mock_manager)
-        assert result == 42
-
-    def test_get_count_safely_with_none(self):
-        """Test get_count_safely with None."""
-        from apps.tasks.api_utils import get_count_safely
-
-        result = get_count_safely(None)
-        assert result == 0
-
-    def test_get_count_safely_with_exception(self):
-        """Test get_count_safely when count raises exception."""
-        from apps.tasks.api_utils import get_count_safely
-
-        mock_manager = MagicMock()
-        mock_manager.count.side_effect = Exception("Test error")
-
-        result = get_count_safely(mock_manager)
-        assert result == 0
-
-
 class TestMetricsServiceCommand(TestCase):
     """Test metrics_service command coverage."""
 

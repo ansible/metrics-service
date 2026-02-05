@@ -148,7 +148,7 @@ class TestCountFieldMixin(TestCase):
         serializer = self.serializer_class()
         count = serializer.get_users_count(mock_obj)
 
-        # get_count_safely should return 0 on exception
+        # Should return 0 on exception
         assert count == 0
 
 

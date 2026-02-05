@@ -109,27 +109,9 @@ class Task(NamedCommonModel, AuditableModel):
         if self.status != "pending":
             return False
 
-        # Check if dependencies are completed
-        if self.dependencies.filter(
-            prerequisite_task__status__in=["pending", "running", "waiting_for_dependencies"]
-        ).exists():
-            return False
-
         # Check if scheduled time has passed
         return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
     def can_retry(self):
         """Check if task can be retried."""
         return self.attempts < self.max_attempts and self.status == "failed"
-
-
-class TaskDependency(CommonModel):
-    """Test TaskDependency model."""
-
-    dependent_task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="dependencies")
-    prerequisite_task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="dependents")
-    required_status = models.CharField(max_length=30, choices=Task.STATUS_CHOICES, default="completed")
-
-    class Meta:
-        app_label = "tests"
-        unique_together = ["dependent_task", "prerequisite_task"]
