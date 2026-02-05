@@ -41,10 +41,10 @@ class TestURLResolution(TestCase):
         try:
             # Test URL resolution
             url = reverse("schema")
-            assert url == "/api/schema/"
+            assert url == "/api/v1/docs/schema/"
 
             # Test that the URL resolves to a view
-            resolver_match = resolve("/api/schema/")
+            resolver_match = resolve("/api/v1/docs/schema/")
             assert resolver_match is not None
             assert resolver_match.url_name == "schema"
 
@@ -169,7 +169,7 @@ class TestAPIEndpoints(TestCase):
 
     def test_api_documentation_endpoints(self):
         """Test API documentation endpoints."""
-        endpoints = ["/api/docs/", "/api/redoc/", "/api/schema/"]
+        endpoints = ["/api/docs/", "/api/redoc/", "/api/v1/docs/schema/"]
 
         for endpoint in endpoints:
             with contextlib.suppress(Exception):
@@ -270,7 +270,7 @@ class TestErrorHandling(TestCase):
     def test_method_not_allowed(self):
         """Test method not allowed handling."""
         # Test POST to GET-only endpoints
-        response = self.client.post("/api/schema/")
+        response = self.client.post("/api/v1/docs/schema/")
         assert response.status_code in [200, 404, 405]
 
     def test_malformed_urls(self):
@@ -345,7 +345,7 @@ class TestURLIntegrationWithViews(TestCase):
         get_resolver()
 
         # Test that URLs resolve to actual views
-        test_urls = ["/api/schema/", "/dashboard/", "/admin/"]
+        test_urls = ["/api/v1/docs/schema/", "/dashboard/", "/admin/"]
 
         for url in test_urls:
             try:
@@ -359,7 +359,7 @@ class TestURLIntegrationWithViews(TestCase):
     def test_view_response_through_urls(self):
         """Test that views respond correctly through URL routing."""
         # Test schema view
-        response = self.client.get("/api/schema/")
+        response = self.client.get("/api/v1/docs/schema/")
         assert response.status_code in [200, 404, 405]
 
     def test_api_view_integration(self):

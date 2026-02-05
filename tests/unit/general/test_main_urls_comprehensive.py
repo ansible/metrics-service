@@ -97,7 +97,7 @@ class TestAPISchemaURL(TestCase):
     def test_schema_url_resolution(self):
         """Test that schema URL resolves correctly."""
         try:
-            resolver_match = resolve("/api/schema/")
+            resolver_match = resolve("/api/v1/docs/schema/")
             assert resolver_match is not None
             assert resolver_match.url_name == "schema"
         except Resolver404:
@@ -108,7 +108,7 @@ class TestAPISchemaURL(TestCase):
         """Test that schema URL can be reversed."""
         try:
             url = reverse("schema")
-            assert url == "/api/schema/"
+            assert url == "/api/v1/docs/schema/"
         except NoReverseMatch:
             # Schema might not be available in test environment
             pass
@@ -116,14 +116,14 @@ class TestAPISchemaURL(TestCase):
     def test_schema_endpoint_response(self):
         """Test schema endpoint response."""
         with contextlib.suppress(Exception):
-            response = self.client.get("/api/schema/")
+            response = self.client.get("/api/v1/docs/schema/")
             # Schema should return 200 or appropriate status
             assert response.status_code in [200, 404, 405]
 
     def test_schema_content_type(self):
         """Test schema endpoint content type."""
         with contextlib.suppress(Exception):
-            response = self.client.get("/api/schema/")
+            response = self.client.get("/api/v1/docs/schema/")
             if response.status_code == 200:
                 # Schema should return appropriate content type
                 assert "content-type" in response.headers
@@ -322,7 +322,7 @@ class TestURLPerformance(TestCase):
         """Test that URL resolution is fast."""
         import time
 
-        urls_to_test = ["/api/", "/dashboard/", "/admin/", "/api/schema/", "/api/v1/", "/health/"]
+        urls_to_test = ["/api/", "/dashboard/", "/admin/", "/api/v1/docs/schema/", "/api/v1/", "/health/"]
 
         start_time = time.time()
 
@@ -348,7 +348,7 @@ class TestURLIntegrationWithViews(TestCase):
 
     def test_url_view_mapping(self):
         """Test that URLs map to actual views."""
-        test_urls = ["/api/schema/", "/health/", "/admin/"]
+        test_urls = ["/api/v1/docs/schema/", "/health/", "/admin/"]
 
         for url in test_urls:
             with contextlib.suppress(Exception):
