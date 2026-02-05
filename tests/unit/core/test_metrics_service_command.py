@@ -265,3 +265,162 @@ class TestMetricsServiceEdgeCases(TestCase):
         """Clean up test fixtures."""
         # Ensure shutdown is requested to stop any running processes
         self.command.shutdown_requested = True
+
+
+@pytest.mark.django_db
+class TestInitDefaultSettingsCommand(TestCase):
+    """Test the init-default-settings management command."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.command = Command()
+        self.out = StringIO()
+        self.err = StringIO()
+
+    def test_import_setting_model(self):
+        """Test that Setting model can be imported correctly."""
+        from apps.dynamic_settings.models import Setting
+
+        # Verify the import works and Setting is a class
+        assert Setting is not None
+        assert hasattr(Setting, "objects")
+
+    def test_import_initialize_default_settings(self):
+        """Test that initialize_default_settings function can be imported correctly."""
+        from apps.dynamic_settings.utils import initialize_default_settings
+
+        # Verify the import works and it's callable
+        assert initialize_default_settings is not None
+        assert callable(initialize_default_settings)
+
+    def test_handle_init_default_settings_creates_settings(self):
+        """Test that _handle_init_default_settings_command creates settings when they don't exist."""
+        from apps.dynamic_settings.models import Setting
+
+        # Ensure no settings exist
+        Setting.objects.all().delete()
+
+        # Run the command
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+        self.command._handle_init_default_settings_command()
+
+        # Verify settings were created
+        assert Setting.objects.count() > 0
+        assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+
+        # Check output
+        output = self.out.getvalue()
+        assert "Initialized default settings" in output
+
+    def test_handle_init_default_settings_skips_existing(self):
+        """Test that _handle_init_default_settings_command skips existing settings."""
+        from apps.dynamic_settings.models import Setting
+
+        # Create a setting first
+        Setting.objects.create(
+            setting_key="METRICS_COLLECTION_ENABLED",
+            current_value="true",
+            previous_value=None,
+            last_modified_by=None,
+        )
+        initial_count = Setting.objects.count()
+
+        # Run the command
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+        self.command._handle_init_default_settings_command()
+
+        # Verify no duplicate settings were created
+        assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").count() == 1
+        # Other settings should still be created
+        assert Setting.objects.count() > initial_count
+
+        # Check output
+        output = self.out.getvalue()
+        assert "Initialized default settings" in output
+
+    def test_handle_init_default_settings_via_handle(self):
+        """Test that init-default-settings command works via handle method."""
+        from apps.dynamic_settings.models import Setting
+
+        # Ensure no settings exist
+        Setting.objects.all().delete()
+
+        # Run via handle method
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+        options = {"command": "init-default-settings"}
+        self.command.handle(**options)
+
+        # Verify settings were created
+        assert Setting.objects.count() > 0
+
+        # Check output
+        output = self.out.getvalue()
+        assert "Initialized default settings" in output
+
+    @patch("apps.dynamic_settings.utils.initialize_default_settings")
+    def test_handle_init_default_settings_error_handling(self, mock_initialize):
+        """Test error handling in _handle_init_default_settings_command."""
+        from django.core.management.base import CommandError
+
+        # Make initialize_default_settings raise an exception
+        mock_initialize.side_effect = Exception("Database error")
+
+        # Run the command and expect CommandError
+        with pytest.raises(CommandError) as exc_info:
+            self.command._handle_init_default_settings_command()
+
+        assert "Failed to initialize default settings" in str(exc_info.value)
+        assert "Database error" in str(exc_info.value)
+
+    def test_command_includes_init_default_settings(self):
+        """Test that init-default-settings is registered as a subcommand."""
+        from argparse import ArgumentParser
+
+        parser = ArgumentParser()
+        self.command.add_arguments(parser)
+
+        # Test that subcommands are added
+        actions = {action.dest: action for action in parser._actions}
+
+        assert "command" in actions
+        assert hasattr(actions["command"], "choices")
+        assert "init-default-settings" in actions["command"].choices
+
+
+@pytest.mark.django_db
+class TestInitServiceIdCommand(TestCase):
+    """Test the init-service-id management command."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.command = Command()
+        self.out = StringIO()
+        self.err = StringIO()
+
+    def test_import_service_id_model(self):
+        """Test that ServiceID model can be imported correctly."""
+        from ansible_base.resource_registry.models.service_identifier import ServiceID
+
+        # Verify the import works and ServiceID is a class
+        assert ServiceID is not None
+        assert hasattr(ServiceID, "objects")
+
+    def test_import_base_command(self):
+        """Test that BaseCommand can be imported correctly."""
+        from django.core.management.base import BaseCommand
+
+        # Verify the import works
+        assert BaseCommand is not None
+        assert hasattr(BaseCommand, "handle")
+
+    def test_command_inherits_from_base_command(self):
+        """Test that Command class properly inherits from BaseCommand."""
+        from django.core.management.base import BaseCommand
+
+        assert issubclass(Command, BaseCommand)
+        assert hasattr(self.command, "handle")
+        assert hasattr(self.command, "help")

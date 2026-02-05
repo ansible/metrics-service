@@ -8,24 +8,12 @@ This directory contains unit tests organized by application modules for better m
 
 Tests for the core application functionality:
 
-- `test_access_control_mixin.py` - Access control mixin tests
 - `test_core_models.py` - Core model tests (User, Organization, Team)
-- `test_core_permissions.py` - Permission system tests
-- `test_core_utils.py` - Utility function tests
-- `test_init_service_id_command.py` - ServiceID initialization command tests
-- `test_metrics_service_command.py` - Unified metrics service command tests
-- `test_system_auditor_permissions.py` - System auditor permission tests
-
-### `api/` - API App Tests
-
-Tests for the REST API functionality:
-
-- `test_api_views.py` - Basic API view tests
-- `test_api_views_coverage.py` - API view coverage tests
-- `test_api_views_extended.py` - Extended API view tests
-- `test_base_views_complete.py` - Base view complete tests
-- `test_base_views_comprehensive.py` - Comprehensive base view tests
-- `test_tasks_api_comprehensive.py` - Task API comprehensive tests
+- `test_development_mode_permissions.py` - Development mode permission tests
+- `test_metrics_service_command.py` - Unified metrics service command tests (includes init-service-id and init-default-settings)
+- `test_metrics_service_helpers.py` - Metrics service helper function tests
+- `test_mixins_comprehensive.py` - Comprehensive mixin tests
+- `test_resource_api_comprehensive.py` - Resource API comprehensive tests
 
 ### `dashboard/` - Dashboard App Tests
 
@@ -37,10 +25,32 @@ Tests for the web dashboard functionality:
 
 Tests for the background task system:
 
-- `test_task_system.py` - Core task system tests
-- `test_task_management_extended.py` - Extended task management tests
-- `test_tasks_utils.py` - Task utility function tests
-- `test_tasks_views_extended.py` - Extended task view tests
+- `test_api_utils.py` - Task API utility tests
+- `test_base_views_comprehensive.py` - Comprehensive base view tests
+- `test_collector_integration.py` - Collector integration tests
+- `test_dispatcherd_config.py` - Dispatcherd configuration tests
+- `test_feature_enabled_db.py` - Feature enabled database tests
+- `test_management_commands_coverage.py` - Management command coverage tests
+- `test_mixins.py` - Task mixin tests
+- `test_models.py` - Task model tests
+- `test_run_dispatcherd_command.py` - Run dispatcherd command tests
+- `test_run_task_scheduler_comprehensive.py` - Comprehensive task scheduler tests
+- `test_services_output_formatter.py` - Service output formatter tests
+- `test_task_groups.py` - Task group tests
+- `test_tasks_api_views.py` - Task API view tests
+- `test_tasks_collector_advanced.py` - Advanced task collector tests
+- `test_tasks_collector_full_coverage.py` - Full coverage task collector tests
+- `test_tasks_system.py` - Core task system tests
+- `test_tasks_utils_comprehensive.py` - Comprehensive task utility tests
+- `test_unified_scheduler.py` - Unified scheduler tests
+- `test_v1_base_serializers.py` - V1 base serializer tests
+- `test_v1_urls.py` - V1 URL tests
+
+### `dynamic_settings/` - Dynamic Settings Tests
+
+Tests for the dynamic settings system:
+
+- `test_reload_config_command.py` - Reload configuration command tests
 
 ### `general/` - General/Integration Tests
 
@@ -48,10 +58,15 @@ Tests that span multiple apps or test general functionality:
 
 - `test_additional_coverage.py` - Additional coverage tests
 - `test_final_coverage.py` - Final coverage tests
+- `test_health_metrics.py` - Health metrics tests
 - `test_main_urls.py` - Main URL configuration tests (100% coverage)
+- `test_main_urls_comprehensive.py` - Comprehensive main URL tests
 - `test_models.py` - General model tests
-- `test_models_extended.py` - Extended model tests
 - `test_urls_basic.py` - Basic URL configuration tests
+
+### Root Level Tests
+
+- `test_dynaconf_settings.py` - Dynaconf settings configuration tests
 
 ## Running Tests
 
@@ -65,8 +80,8 @@ python -m pytest tests/unit/
 
 ```bash
 python -m pytest tests/unit/core/
-python -m pytest tests/unit/api/
 python -m pytest tests/unit/dashboard/
+python -m pytest tests/unit/dynamic_settings/
 python -m pytest tests/unit/tasks/
 python -m pytest tests/unit/general/
 ```
@@ -75,7 +90,8 @@ python -m pytest tests/unit/general/
 
 ```bash
 python -m pytest tests/unit/core/test_core_models.py
-python -m pytest tests/unit/api/test_api_views.py
+python -m pytest tests/unit/tasks/test_tasks_system.py
+python -m pytest tests/unit/general/test_main_urls.py
 ```
 
 ## Benefits of This Organization
@@ -93,10 +109,14 @@ The tests provide comprehensive coverage of:
 - Model functionality and validation
 - API endpoints and serialization
 - Permission systems and access control
-- Background task processing
-- Management commands
-- Utility functions
+- Background task processing and scheduling
+- Task collectors and metrics collection
+- Management commands and CLI tools
+- Dynamic settings and feature flags
+- Dispatcherd configuration and integration
+- Utility functions and mixins
 - URL routing and configuration
+- Dashboard views and interfaces
 
 ### Main URLs Test (`test_main_urls.py`)
 
