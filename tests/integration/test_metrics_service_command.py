@@ -396,8 +396,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
         # Test command building logic without actually running it
         manage_py = Path(__file__).parent.parent.parent / "manage.py"
-        if not manage_py.exists():
-            pytest.skip("manage.py not found")
+        assert manage_py.exists(), f"manage.py not found at {manage_py}"
 
         # Test input validation (this is what we're really testing)
         host = "127.0.0.1"

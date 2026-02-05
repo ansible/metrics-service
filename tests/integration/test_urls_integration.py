@@ -38,18 +38,14 @@ class TestURLResolution(TestCase):
 
     def test_schema_url_resolution(self):
         """Test that schema URL can be resolved and accessed."""
-        try:
-            # Test URL resolution
-            url = reverse("schema")
-            assert url == "/api/v1/docs/schema/"
+        # Test URL resolution
+        url = reverse("schema")
+        assert url == "/api/v1/docs/schema/"
 
-            # Test that the URL resolves to a view
-            resolver_match = resolve("/api/v1/docs/schema/")
-            assert resolver_match is not None
-            assert resolver_match.url_name == "schema"
-
-        except NoReverseMatch:
-            pytest.skip("Schema URL not available in test environment")
+        # Test that the URL resolves to a view
+        resolver_match = resolve("/api/v1/docs/schema/")
+        assert resolver_match is not None
+        assert resolver_match.url_name == "schema"
 
     def test_dashboard_url_resolution(self):
         """Test dashboard URL resolution."""
