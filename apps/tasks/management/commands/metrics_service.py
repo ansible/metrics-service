@@ -52,6 +52,7 @@ class Command(BaseCommand):
         self._add_run_arguments(run_parser)
 
         # Init commands
+        subparsers.add_parser("init-default-settings", help="Initialize default settings")
         subparsers.add_parser("init-service-id", help="Initialize ServiceID for ansible-base")
         init_tasks_parser = subparsers.add_parser("init-system-tasks", help="Initialize system tasks")
         self._add_init_tasks_arguments(init_tasks_parser)
@@ -154,6 +155,8 @@ class Command(BaseCommand):
         try:
             if command == "run":
                 self._handle_run_command(options)
+            elif command == "init-default-settings":
+                self._handle_init_default_settings_command()
             elif command == "init-service-id":
                 self._handle_init_service_id_command()
             elif command == "init-system-tasks":
@@ -173,7 +176,8 @@ class Command(BaseCommand):
     def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service."""
         try:
-            # auto init before run, prod has to handle this using the init-service-id and init-system-tasks subcommands, but the run command can make things easy
+            # auto init before dev run (prod has to handle this using the init-* subcommands)
+            self._handle_init_default_settings_command()
             self._handle_init_service_id_command()
             self._handle_init_system_tasks_command(options)
 
@@ -181,6 +185,16 @@ class Command(BaseCommand):
             self._start_services(config)
         except ValueError as e:
             raise CommandError(f"Configuration error: {e}") from e
+
+    def _handle_init_default_settings_command(self) -> None:
+        """Handle the init-default-settings command."""
+        try:
+            from apps.dynamic_settings.utils import initialize_default_settings
+
+            initialize_default_settings()
+            self.output.success("Initialized default settings")
+        except Exception as e:
+            raise CommandError(f"Failed to initialize default settings: {e}") from e
 
     def _handle_init_service_id_command(self) -> None:
         """Handle the init-service-id command."""

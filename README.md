@@ -57,6 +57,7 @@ cp settings.local.py.example settings.local.py
 # Set up database (configure via environment variables if needed)
 # See Configuration section below for environment variable options
 python manage.py migrate
+python manage.py metrics_service init-default-settings
 python manage.py metrics_service init-service-id
 python manage.py metrics_service init-system-tasks
 python manage.py createsuperuser
@@ -213,6 +214,9 @@ python manage.py makemigrations
 
 # Apply migrations
 python manage.py migrate
+
+# Initialize settings table with defaults
+python manage.py metrics_service init-default-settings
 
 # Initialize DAB ServiceID (required after first migration)
 python manage.py metrics_service init-service-id
@@ -398,7 +402,3 @@ This project is licensed under the Apache License - see the [LICENSE](LICENSE) f
 - **Documentation**: Check the [CLAUDE.md](CLAUDE.md) file for detailed development guidance
 - **Issues**: Report bugs and feature requests via GitHub issues
 - **API Documentation**: Interactive docs available at `/api/docs/` when running
-
-```
-
-```

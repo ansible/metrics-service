@@ -148,6 +148,7 @@ def rollback_configuration_change(change_id, user):
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
 
+# FIXME: why are these default not read from actual settings/defaults?
 def initialize_default_settings():
     """
     Initialize default feature flag settings in the database on application startup.

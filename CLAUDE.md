@@ -17,6 +17,9 @@ python manage.py migrate
 # OR with virtual environment
 .venv/bin/python manage.py migrate
 
+# Initialize Setting table with defaults
+python manage.py metrics_service init-default-settings
+
 # Initialize ServiceID for ansible-base (required)
 python manage.py metrics_service init-service-id
 
@@ -178,6 +181,9 @@ The `metrics_service` command provides centralized management with a unified ent
 # Run complete service (Django server + task dispatcher + scheduler)
 python manage.py metrics_service run
 
+# Initialize Setting table with defaults
+python manage.py metrics_service init-default-settings
+
 # Initialize ServiceID for ansible-base
 python manage.py metrics_service init-service-id
 
@@ -186,12 +192,6 @@ python manage.py metrics_service init-system-tasks
 
 # List current system tasks
 python manage.py metrics_service init-system-tasks --list
-
-# Dry run (see what would be done)
-python manage.py metrics_service init-system-tasks --dry-run
-
-# Force update all system tasks
-python manage.py metrics_service init-system-tasks --force
 
 # Task management
 python manage.py metrics_service tasks create --name "My Task" --function "cleanup_old_data"
@@ -211,6 +211,7 @@ The `metrics_service` command consolidates all service management operations int
 #### Main Commands:
 
 - **`run`** - Start the complete metrics service (Django + dispatcher + scheduler)
+- **`init-default-settings`** - Initialize the Setting DB table with feature flag defaults
 - **`init-service-id`** - Initialize ServiceID for ansible-base resource registry
 - **`init-system-tasks`** - Initialize system-defined tasks (cleanup, metrics collection)
 - **`tasks`** - Manage database tasks (create, list, show, cancel, retry)
@@ -233,9 +234,9 @@ python manage.py metrics_service tasks cancel 1
 python manage.py metrics_service tasks retry 1
 
 # System initialization
+python manage.py metrics_service init-default-settings
 python manage.py metrics_service init-service-id
-python manage.py metrics_service init-system-tasks --list
-python manage.py metrics_service init-system-tasks --dry-run
+python manage.py metrics_service init-system-tasks
 ```
 
 ## Architecture Overview
@@ -477,7 +478,7 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 
 **How It Works:**
 
-- \*\* Django logging- we use built in django logging in conjunction with Dynaconf to help us handle out logging level. The logging level is established at app start up and defaults to "INFO". If you need to change the log level, you will have to restart the app after updating the environment variable METRICS_SERVICE_LOG_LEVEL.
+- \*\* Django logging- we use built in django logging in conjunction with Dynaconf to help us handle out logging level. The logging level is established at app start up and defaults to "INFO". If you need to change the log level, you will have to restart the app after updating the environment variable `METRICS_SERVICE_LOG_LEVEL`.
 
 ### Database Configuration
 
@@ -525,6 +526,7 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 
 ### Essential Initialization Steps
 
+- **Setting**: Always run `python manage.py metrics_service init-default-settings` (optional)
 - **ServiceID**: Always run `python manage.py metrics_service init-service-id` after migrations (required for DAB)
 - **System Tasks**: Run `python manage.py metrics_service init-system-tasks` to initialize background tasks
 
