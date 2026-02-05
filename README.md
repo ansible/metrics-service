@@ -50,7 +50,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # Install dependencies
 pip install -e ".[dev]"
 
-# Configure 
+# Configure
 cp settings.local.py.example settings.local.py
 # Edit the settings.local.py file to configure your local development environment.
 
