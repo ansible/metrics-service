@@ -170,9 +170,6 @@ class TestURLResolution(TestCase):
         resolved = resolve(url)
         assert resolved.func.cls == TaskViewSet
 
-    @pytest.mark.skip(
-        reason="Router configuration - executions may be nested under tasks viewset in actual URL structure"
-    )
     def test_task_execution_list_url_resolves_to_executionviewset(self):
         """Test task execution list URL resolves to TaskExecutionViewSet."""
         url = reverse("tasks:v1:taskexecution-list")

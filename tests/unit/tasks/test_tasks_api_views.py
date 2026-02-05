@@ -513,7 +513,6 @@ class TestTaskExecutionViewSet(APITestCase):
         self.task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
         self.task.save()
 
-    @pytest.mark.skip(reason="URL routing test - executions endpoint may not be exposed in test environment")
     def test_execution_list_endpoint(self):
         """Test GET /api/v1/executions/ returns execution list."""
         self.client.force_authenticate(user=self.user)
