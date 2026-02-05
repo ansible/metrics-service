@@ -223,15 +223,12 @@ class TestTaskGroupIntegration(TestCase):
         mock_scheduler.running = True
         mock_get_scheduler.return_value = mock_scheduler
 
-        # With the task scheduler, we just verify it's running
-        # Import here to avoid issues during test discovery
-        from apps.tasks.cron_scheduler import refresh_scheduler
+        # Verify scheduler can be retrieved and is running
+        from apps.tasks.cron_scheduler import get_scheduler
 
-        result = refresh_scheduler()
-
-        # Simple scheduler doesn't have reload_task_registry, it reads from DB
-        # Just verify the function runs successfully
-        assert result is None  # refresh_scheduler doesn't return a value
+        scheduler = get_scheduler()
+        assert scheduler == mock_scheduler
+        assert scheduler.running is True
 
     @override_settings(
         FEATURE_ENABLED={

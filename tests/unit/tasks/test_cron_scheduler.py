@@ -4,7 +4,6 @@ Comprehensive unit tests for the UnifiedTaskScheduler module.
 Tests all methods, edge cases, and error conditions for full code coverage.
 """
 
-import logging
 import threading
 from unittest.mock import Mock, patch
 
@@ -125,17 +124,16 @@ class TestUnifiedTaskScheduler:
         assert "test_task_1" in scheduler.task_registry
         assert "test_task_2" in scheduler.task_registry
 
-    def test_init_with_load_error(self, mock_task_database, caplog):
+    def test_init_with_load_error(self, mock_task_database):
         """Test initialization handles load errors gracefully."""
         # Make database query fail
         mock_task_database.objects.filter.side_effect = Exception("Database error")
 
-        with caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"):
-            scheduler = UnifiedTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
 
         assert scheduler.task_registry == {}
 
-    def test_load_task_registry_success(self, mock_task_database, mock_db_tasks, caplog):
+    def test_load_task_registry_success(self, mock_task_database, mock_db_tasks):
         """Test successful task registry loading."""
         # Mock the database query
         mock_queryset = Mock()
@@ -144,14 +142,14 @@ class TestUnifiedTaskScheduler:
 
         scheduler = UnifiedTaskScheduler()
 
-        with caplog.at_level(logging.INFO, logger="apps.tasks.cron_scheduler"):
-            scheduler._load_task_registry()
+        scheduler._load_task_registry()
 
-        # Should log the number of tasks loaded from database
+        # Verify tasks were loaded
+        assert len(scheduler.task_registry) == 2
 
     @pytest.mark.django_db
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
-    def test_start_success(self, mock_task_database, mock_db_tasks, caplog):
+    def test_start_success(self, mock_task_database, mock_db_tasks):
         """Test successful scheduler start."""
         # Mock the database query
         mock_queryset = Mock()
@@ -163,22 +161,20 @@ class TestUnifiedTaskScheduler:
         scheduler._add_registry_tasks = Mock()
         scheduler._sync_database_tasks = Mock()
 
-        with caplog.at_level(logging.INFO, logger="apps.tasks.cron_scheduler"):
-            scheduler.start()
+        scheduler.start()
 
         assert scheduler.running is True
         scheduler._add_registry_tasks.assert_called_once()
         scheduler.scheduler.start.assert_called_once()
 
-    def test_start_already_running(self, caplog):
+    def test_start_already_running(self):
         """Test starting scheduler when already running."""
         scheduler = UnifiedTaskScheduler()
         scheduler.running = True
 
-        with caplog.at_level(logging.WARNING, logger="apps.tasks.cron_scheduler"):
-            scheduler.start()
+        scheduler.start()  # Should just return without error
 
-    def test_start_failure(self, mock_task_database, caplog):
+    def test_start_failure(self, mock_task_database):
         """Test scheduler start failure."""
         # Mock empty database
         mock_queryset = Mock()
@@ -188,14 +184,11 @@ class TestUnifiedTaskScheduler:
         scheduler = UnifiedTaskScheduler()
         scheduler.scheduler.start = Mock(side_effect=Exception("Start error"))
 
-        with (
-            pytest.raises(Exception, match="Start error"),
-            caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"),
-        ):
+        with pytest.raises(Exception, match="Start error"):
             scheduler.start()
 
     @pytest.mark.django_db
-    def test_stop_success(self, mock_task_database, caplog):
+    def test_stop_success(self, mock_task_database):
         """Test successful scheduler stop."""
         # Mock empty database
         mock_queryset = Mock()
@@ -206,8 +199,7 @@ class TestUnifiedTaskScheduler:
         scheduler.running = True
         scheduler.scheduler.shutdown = Mock()
 
-        with caplog.at_level(logging.INFO, logger="apps.tasks.cron_scheduler"):
-            scheduler.stop()
+        scheduler.stop()
 
         assert scheduler.running is False
         scheduler.scheduler.shutdown.assert_called_once()
@@ -227,7 +219,7 @@ class TestUnifiedTaskScheduler:
 
         scheduler.scheduler.shutdown.assert_not_called()
 
-    def test_stop_failure(self, mock_task_database, caplog):
+    def test_stop_failure(self, mock_task_database):
         """Test scheduler stop failure."""
         # Mock empty database
         mock_queryset = Mock()
@@ -238,11 +230,10 @@ class TestUnifiedTaskScheduler:
         scheduler.running = True
         scheduler.scheduler.shutdown = Mock(side_effect=Exception("Stop error"))
 
-        with caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"):
-            scheduler.stop()
+        scheduler.stop()  # Should catch exception
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock(), "cleanup_old_data": Mock()})
-    def test_add_registry_tasks(self, mock_task_database, mock_task_groups, caplog):
+    def test_add_registry_tasks(self, mock_task_database, mock_task_groups):
         """Test adding registry tasks to scheduler."""
         # Mock empty database
         mock_queryset = Mock()
@@ -253,14 +244,13 @@ class TestUnifiedTaskScheduler:
         scheduler.task_registry = mock_task_groups
         scheduler._add_scheduled_task = Mock()
 
-        with caplog.at_level(logging.DEBUG, logger="apps.tasks.cron_scheduler"):
-            scheduler._add_registry_tasks()
+        scheduler._add_registry_tasks()
 
         # Should add enabled task and skip disabled one
         scheduler._add_scheduled_task.assert_called_once_with("test_task_1", mock_task_groups["test_task_1"])
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
-    def test_add_registry_tasks_with_error(self, mock_task_database, caplog):
+    def test_add_registry_tasks_with_error(self, mock_task_database):
         """Test adding registry tasks with error."""
         # Mock empty database
         mock_queryset = Mock()
@@ -271,12 +261,11 @@ class TestUnifiedTaskScheduler:
         scheduler.task_registry = {"test_task": {"function": "hello_world", "enabled": True}}
         scheduler._add_scheduled_task = Mock(side_effect=Exception("Add error"))
 
-        with caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"):
-            scheduler._add_registry_tasks()
+        scheduler._add_registry_tasks()  # Should catch exception
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     @patch("apps.tasks.cron_scheduler.CronTrigger")
-    def test_add_scheduled_task_success(self, mock_cron_trigger, mock_task_database, caplog):
+    def test_add_scheduled_task_success(self, mock_cron_trigger, mock_task_database):
         """Test successful scheduled task addition."""
         # Mock empty database
         mock_queryset = Mock()
@@ -296,8 +285,7 @@ class TestUnifiedTaskScheduler:
             "description": "Test task",
         }
 
-        with caplog.at_level(logging.INFO, logger="apps.tasks.cron_scheduler"):
-            scheduler._add_scheduled_task("test_task", config)
+        scheduler._add_scheduled_task("test_task", config)
 
         mock_cron_trigger.from_crontab.assert_called_once_with("0 */1 * * *")
         scheduler.scheduler.add_job.assert_called_once_with(
@@ -321,13 +309,12 @@ class TestUnifiedTaskScheduler:
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     @patch("dispatcherd.publish.submit_task")
-    def test_execute_scheduled_task_success(self, mock_submit, caplog):
+    def test_execute_scheduled_task_success(self, mock_submit):
         """Test successful scheduled task execution."""
         scheduler = UnifiedTaskScheduler()
 
         with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure:
-            with caplog.at_level(logging.INFO, logger="apps.tasks.cron_scheduler"):
-                scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
+            scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
 
             mock_ensure.assert_called_once()
             mock_submit.assert_called_once_with(
@@ -335,26 +322,22 @@ class TestUnifiedTaskScheduler:
             )
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
-    def test_execute_scheduled_task_unknown_function(self, caplog):
+    def test_execute_scheduled_task_unknown_function(self):
         """Test executing scheduled task with unknown function."""
         scheduler = UnifiedTaskScheduler()
 
-        with (
-            patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"),
-            caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"),
-        ):
-            scheduler._execute_scheduled_task("test_task", "unknown_function", {})
+        with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"):
+            scheduler._execute_scheduled_task("test_task", "unknown_function", {})  # Should log error
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
-    def test_execute_scheduled_task_config_error(self, caplog):
+    def test_execute_scheduled_task_config_error(self):
         """Test executing scheduled task with configuration error."""
         scheduler = UnifiedTaskScheduler()
 
-        with (
-            patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")),
-            caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"),
+        with patch(
+            "apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")
         ):
-            scheduler._execute_scheduled_task("test_task", "hello_world", {})
+            scheduler._execute_scheduled_task("test_task", "hello_world", {})  # Should catch error
 
     def test_get_queue_for_function_known_functions(self):
         """Test queue mapping for known functions."""

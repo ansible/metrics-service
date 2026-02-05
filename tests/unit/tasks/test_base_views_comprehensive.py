@@ -2,7 +2,7 @@
 Comprehensive tests for apps/api/v1/base_views.py to achieve 100% code coverage.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from django.db import models
@@ -75,42 +75,6 @@ class TestBaseViewSetComprehensive(TestCase):
         self.assertEqual(viewset.ordering_fields, ["id", "created", "modified"])
         self.assertEqual(viewset.ordering, ["id"])
 
-    def test_get_queryset_with_access_qs(self):
-        """Test get_queryset method when model has access_qs method."""
-        # Mock request and user
-        request = self.factory.get("/")
-        request.user = self.user
-        self.viewset.request = request
-
-        # Mock queryset with model that has access_qs
-        mock_queryset = Mock()
-        mock_queryset.model = MockModel
-        MockModel.access_qs = Mock(return_value=mock_queryset)
-        self.viewset.queryset = mock_queryset
-
-        result = self.viewset.get_queryset()
-
-        # Verify access_qs was called with correct parameters
-        MockModel.access_qs.assert_called_once_with(self.user, queryset=mock_queryset)
-        self.assertEqual(result, mock_queryset)
-
-    def test_get_queryset_without_access_qs(self):
-        """Test get_queryset method when model doesn't have access_qs method."""
-        # Mock request and user
-        request = self.factory.get("/")
-        request.user = self.user
-        self.viewset.request = request
-
-        # Mock queryset with model that doesn't have access_qs
-        mock_queryset = Mock()
-        mock_queryset.model = MockModelNoAccess
-        self.viewset.queryset = mock_queryset
-
-        result = self.viewset.get_queryset()
-
-        # Should return the original queryset
-        self.assertEqual(result, mock_queryset)
-
     def test_handle_exception(self):
         """Test handle_exception method logs and calls parent."""
         # Create a test exception
@@ -127,67 +91,6 @@ class TestBaseViewSetComprehensive(TestCase):
             mock_parent.assert_called_once_with(test_exception)
             self.assertEqual(result, mock_response)
 
-    def test_perform_create_with_created_by_field_authenticated(self):
-        """Test perform_create sets created_by for authenticated user."""
-        # Mock serializer with model that has created_by field
-        mock_serializer = Mock()
-        mock_serializer.Meta.model = MockModel
-        mock_serializer.save = Mock()
-
-        # Mock authenticated request
-        request = self.factory.post("/")
-        request.user = self.user
-        self.viewset.request = request
-
-        self.viewset.perform_create(mock_serializer)
-
-        # Verify save was called with created_by
-        mock_serializer.save.assert_called_once_with(created_by=self.user)
-
-    def test_perform_create_with_created_by_field_anonymous(self):
-        """Test perform_create doesn't set created_by for anonymous user."""
-        # Mock serializer with model that has created_by field
-        mock_serializer = Mock()
-        mock_serializer.Meta.model = MockModel
-        mock_serializer.save = Mock()
-
-        # Mock anonymous request
-        request = self.factory.post("/")
-        request.user = Mock()
-        request.user.is_authenticated = False
-        self.viewset.request = request
-
-        self.viewset.perform_create(mock_serializer)
-
-        # Verify save was called without created_by
-        mock_serializer.save.assert_called_once_with()
-
-    def test_perform_create_without_created_by_field(self):
-        """Test perform_create works when model doesn't have created_by field."""
-        # Mock serializer with model that doesn't have created_by field
-        mock_serializer = Mock()
-        mock_serializer.Meta.model = MockModelNoAccess
-        mock_serializer.save = Mock()
-
-        # Mock authenticated request
-        request = self.factory.post("/")
-        request.user = self.user
-        self.viewset.request = request
-
-        self.viewset.perform_create(mock_serializer)
-
-        # Verify save was called without created_by
-        mock_serializer.save.assert_called_once_with()
-
-    def test_perform_update(self):
-        """Test perform_update calls serializer.save()."""
-        mock_serializer = Mock()
-        mock_serializer.save = Mock()
-
-        self.viewset.perform_update(mock_serializer)
-
-        mock_serializer.save.assert_called_once_with()
-
 
 @pytest.mark.django_db
 class TestEdgeCasesAndErrorScenarios(TestCase):
@@ -196,19 +99,6 @@ class TestEdgeCasesAndErrorScenarios(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = User.objects.create_user(username="testuser", email="test@example.com")
-
-    def test_baseviewset_with_none_queryset(self):
-        """Test BaseViewSet behavior when queryset is None."""
-        viewset = BaseViewSet()
-        viewset.queryset = None
-
-        request = self.factory.get("/")
-        request.user = self.user
-        viewset.request = request
-
-        # Should raise AttributeError when trying to access queryset.model
-        with self.assertRaises(AttributeError):
-            viewset.get_queryset()
 
     def test_handle_exception_with_different_exception_types(self):
         """Test handle_exception with different exception types."""

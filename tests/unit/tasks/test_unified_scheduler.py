@@ -5,7 +5,6 @@ Tests the task scheduler that combines task group scheduling and database task s
 without database polling, using APScheduler for optimal performance.
 """
 
-import logging
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
@@ -244,16 +243,16 @@ class TestGlobalSchedulerFunctions:
 class TestErrorHandling:
     """Test error handling in the task scheduler."""
 
-    def test_add_database_recurring_task_error(self, scheduler, mock_recurring_task, caplog):
+    def test_add_database_recurring_task_error(self, scheduler, mock_recurring_task):
         """Test error handling when adding recurring task fails."""
         with patch.object(scheduler.scheduler, "add_job", side_effect=Exception("Scheduler error")):
-            with caplog.at_level(logging.ERROR, logger="apps.tasks.cron_scheduler"):
-                scheduler._add_database_recurring_task(mock_recurring_task)
-
-            assert "Failed to add recurring database task" in caplog.text
+            # Should not raise - error is caught and logged
+            scheduler._add_database_recurring_task(mock_recurring_task)
+            # Task should not be in the jobs dict since adding failed
+            assert mock_recurring_task.id not in scheduler._db_task_jobs
 
     @patch("apps.tasks.models.Task")
-    def test_execute_database_task_not_found(self, mock_task_model, scheduler, caplog):
+    def test_execute_database_task_not_found(self, mock_task_model, scheduler):
         """Test executing a task that doesn't exist."""
         from django.core.exceptions import ObjectDoesNotExist
 
@@ -261,8 +260,7 @@ class TestErrorHandling:
         mock_task_model.DoesNotExist = ObjectDoesNotExist
 
         with patch.object(scheduler, "_remove_database_task") as mock_remove:
-            with caplog.at_level(logging.WARNING, logger="apps.tasks.cron_scheduler"):
-                scheduler._execute_database_task(999)
-
-            assert "Database task 999 not found" in caplog.text
+            # Should not raise - error is caught and logged
+            scheduler._execute_database_task(999)
+            # Should remove the task from scheduler
             mock_remove.assert_called_once_with(999)

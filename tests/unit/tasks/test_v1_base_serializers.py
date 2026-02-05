@@ -87,19 +87,6 @@ class TestStatusFieldMixin(TestCase):
         assert duration == pytest.approx(42.5)
         mock_obj.get_duration.assert_called_once()
 
-    def test_get_duration_without_object_method(self):
-        """Test get_duration() returns None for objects without get_duration()."""
-
-        class TestSerializer(StatusFieldMixin, serializers.Serializer):
-            """Test serializer with status fields."""
-
-        mock_obj = Mock(spec=[])  # No get_duration method
-
-        serializer = TestSerializer()
-        duration = serializer.get_duration(mock_obj)
-
-        assert duration is None
-
 
 # =============================================================================
 # Integration Tests

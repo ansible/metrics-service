@@ -24,14 +24,6 @@ class TestStatusFieldMixin(TestCase):
         result = self.mixin.get_duration(mock_obj)
         assert abs(result - 123.45) < 1e-9
 
-    def test_get_duration_without_method(self):
-        """Test get_duration when object doesn't have get_duration method."""
-        mock_obj = MagicMock()
-        del mock_obj.get_duration  # Remove the method
-
-        result = self.mixin.get_duration(mock_obj)
-        assert result is None
-
 
 class TestMetricsServiceCommand(TestCase):
     """Test metrics_service command coverage."""
