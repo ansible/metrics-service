@@ -34,3 +34,10 @@ jobs:
       - name: "Check ruff format"
         run: |
           uvx ruff format --check
+
+      - name: "Check for missing migrations"
+        run: |
+          if ! uv run ./manage.py makemigrations --check; then
+            echo "Models have changed. Run 'uv run ./manage.py makemigrations' locally and commit the updated migrations."
+            exit 1  # Fail the job
+          fi
