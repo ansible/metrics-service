@@ -49,6 +49,7 @@ jobs:
 
       - name: Validate artifact PR number against workflow run
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
         run: |
           PRS_JSON=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
@@ -60,7 +61,7 @@ jobs:
           fi
 
       - name: Get Additional PR Information
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d
         id: pr_info
         with:
           route: GET /repos/{repo}/pulls/{number}
@@ -91,7 +92,7 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v6
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_ORGANIZATION: ansible
