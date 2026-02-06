@@ -43,15 +43,48 @@ jobs:
 
       - name: "Run pytest"
         env:
-          METRICS_SERVICE_DATABASES__default__HOST: localhost
-          METRICS_SERVICE_DATABASES__default__PORT: 5432
-          METRICS_SERVICE_DATABASES__default__USER: metrics_service
-          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
-          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
-          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
-          METRICS_SERVICE_DATABASES__awx__HOST: "127.0.0.1"
-          METRICS_SERVICE_DATABASES__awx__PASSWORD: mypassword
-          DJANGO_SETTINGS_MODULE: metrics_service.settings
-          METRICS_SERVICE_MODE: test
+          METRICS_SERVICE_DB_HOST: localhost
+          METRICS_SERVICE_DB_PORT: 5432
+          METRICS_SERVICE_DB_USER: metrics_service
+          METRICS_SERVICE_DB_PASSWORD: metrics_service
+          METRICS_SERVICE_TEST_DB_NAME: metrics_service
+          METRICS_SERVICE_DB_SSLMODE: disable
+          DJANGO_SETTINGS_MODULE: metrics_service.settings.test
         run: |
           uv run pytest -s -v --cov=. --cov-report=xml
+
+      - name: "Upload code coverage report"
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+      - name: "Save off PR number"
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUM: ${{ github.event.pull_request.number }}
+        run: echo "PR $PR_NUM" > pr_number.txt
+
+      - name: "Upload PR number"
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_number
+          path: pr_number.txt
+
+      - name: "Send code coverage report to Sonar Cloud (on push)"
+        uses: SonarSource/sonarqube-scan-action@v6
+        if: github.event_name != 'pull_request'
+        env:
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_ORGANIZATION: ansible
+          SONAR_PROJECT_KEY: ansible_metrics-service
+          SONAR_TOKEN: ${{ secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.organization=ansible
+            -Dsonar.projectKey=ansible_metrics-service
+            -Dsonar.python.coverage.reportPaths=coverage.xml
