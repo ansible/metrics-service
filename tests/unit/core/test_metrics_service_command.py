@@ -79,7 +79,7 @@ class TestMetricsServiceCommand(TestCase):
     @patch("time.sleep")
     @patch("sys.exit")
     def test_signal_handlers_in_start_services(self, mock_exit, mock_sleep, mock_exists, mock_popen, mock_signal):
-        """Test that signal handlers are set up in _start_services_simple."""
+        """Test that signal handlers are set up in _start_services."""
         self.command.stdout = self.out
         self.command.output.stdout = self.out
 
@@ -90,7 +90,7 @@ class TestMetricsServiceCommand(TestCase):
 
         config = get_default_config()
 
-        # Signal handlers are set up inside _start_services_simple
+        # Signal handlers are set up inside _start_services
         # We'll verify they're called when the method runs
         with pytest.raises(SystemExit):
             self.command._start_services(config)
@@ -181,7 +181,7 @@ class TestMetricsServiceCommand(TestCase):
     @patch("time.sleep")
     @patch("sys.exit")
     def test_start_services_builds_correct_commands(self, mock_exit, mock_sleep, mock_exists, mock_popen):
-        """Test that _start_services_simple builds correct commands for all three processes."""
+        """Test that _start_services builds correct commands for all three processes."""
         import sys
 
         from apps.tasks.management.commands import metrics_service

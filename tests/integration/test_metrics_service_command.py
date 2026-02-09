@@ -347,12 +347,12 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
     @patch("time.sleep")
     @patch("sys.exit")
     def test_signal_handler_setup(self, mock_exit, mock_sleep, mock_exists, mock_popen):
-        """Test that signal handlers are properly configured in _start_services_simple."""
+        """Test that signal handlers are properly configured in _start_services."""
         command = self._create_command_instance()
         self._setup_mocks_for_start_services(mock_exists, mock_exit, mock_sleep, mock_popen)
         config = get_default_config()
 
-        # Signal handlers are set up inside _start_services_simple
+        # Signal handlers are set up inside _start_services
         with pytest.raises(SystemExit):
             command._start_services(config)
 
@@ -425,7 +425,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
     @patch("time.sleep")
     @patch("sys.exit")
     def test_dispatcher_command_building(self, mock_exit, mock_sleep, mock_exists, mock_popen):
-        """Test dispatcher command building in _start_services_simple."""
+        """Test dispatcher command building in _start_services."""
         import sys
         from pathlib import Path
 
