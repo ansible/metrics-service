@@ -1,10 +1,10 @@
-# Metrics Service
+# Metrics service
 
 A modern Django-based service built for the Ansible Automation Platform (AAP) ecosystem, featuring comprehensive task management, REST APIs, and automated background job processing.
 
 ## Features
 
-- **🚀 Modern Django Architecture** - Django 4.2+ with clean app-based structure
+- **🚀 Modern Django Architecture** - Django 5.2+ with clean app-based structure
 - **📊 Automated Task Management** - Feature-enable controlled task groups with automatic routing
 - **⚡ Smart Task Routing** - Automatic submission to dispatcherd with no manual intervention
 - **🔌 REST API** - Versioned RESTful APIs with OpenAPI documentation
@@ -142,17 +142,27 @@ No manual intervention required - create a task and it's automatically processed
 
 ### Task Groups & Feature Flags
 
-Control task execution with environment variables:
+We have these feature flags:
 
-```bash
+|flag|default|
+|-|-|
+|`ANONYMIZED_DATA_COLLECTION`|true|
+|`METRICS_COLLECTION_ENABLED`|false|
+
+You can change the default value using the `METRICS_SERVICE_FEATURE_ENABLED__` prefixed-environment variables.
+
+```sh
 # Enable/disable anonymized data collection (default: true)
-METRICS_SERVICE_ANONYMIZED_DATA=true
+METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
 
 # Enable/disable metrics collection (default: false)
-METRICS_SERVICE_METRICS_COLLECTION=false
+METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED=true
 ```
 
-These environment variables control which task groups are active in the scheduler.
+These environment variables (or their default values) are used to populate the feature flags database tables during `mangage.py metrics_service init-default-settings`.
+
+The feature flag values in the database then determine which task groups are active in the scheduler. If the value is missing from the database, the environment variables get used again.
+
 
 ## Development
 
@@ -255,8 +265,8 @@ METRICS_SERVICE_DATABASES__default__NAME=metrics_service
 METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode=prefer
 
 # Task App
-METRICS_SERVICE_ANONYMIZED_DATA="true"
-METRICS_SERVICE_METRICS_COLLECTION="false"
+METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION="true"
+METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED="false"
 DISPATCHERD_CONFIG_FILE=/app/apps/settings/dispatcherd.yaml
 DISPATCHERD_ENABLED="true"
 ```

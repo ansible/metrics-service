@@ -384,12 +384,12 @@ The system includes these built-in task functions organized by feature groups:
 - **`cleanup_old_tasks`** - Clean up completed/failed tasks
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
 
-**Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`):
+**Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION` feature flag):
 
 - **`collect_anonymous_metrics`** - Collect anonymous system metrics
 - **`collect_config_metrics`** - Collect configuration information
 
-**Metrics Collection** (controlled by `METRICS_COLLECTION_ENABLED`):
+**Metrics Collection** (controlled by `METRICS_COLLECTION_ENABLED` feature flag):
 
 - **`collect_host_metrics`** - Collect host performance data
 - **`collect_job_host_summary`** - Collect job execution statistics
@@ -415,7 +415,6 @@ Dispatcherd is permanently enabled. Other features can be controlled via the `FE
 
 ```python
 FEATURE_ENABLED = {
-    "DISPATCHERD_ENABLED": True,  # Always True, cannot be disabled
     "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled
     "METRICS_COLLECTION_ENABLED": False,  # Default disabled (customer opt-in)
 }
@@ -423,8 +422,8 @@ FEATURE_ENABLED = {
 
 **Environment Variable Mapping:**
 
-- `METRICS_SERVICE_ANONYMIZED_DATA=true/false` → Controls anonymized data collection tasks
-- `METRICS_SERVICE_METRICS_COLLECTION=true/false` → Controls metrics collection tasks
+- `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true/false` → Controls anonymized data collection tasks
+- `METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED=true/false` → Controls metrics collection tasks
 
 **Task Groups Controlled by Feature Enabled:**
 
@@ -547,7 +546,7 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 
 - **Configuration**: Use `FEATURE_ENABLED` dict in Django settings or environment variables with `METRICS_SERVICE_` prefix
 - **Task Groups**: System tasks always enabled, anonymized data default enabled, metrics collection default disabled
-- **Environment Variables**: `METRICS_SERVICE_ANONYMIZED_DATA` and `METRICS_SERVICE_METRICS_COLLECTION` control task groups
+- **Environment Variables**: `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION` and `METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED` control task groups
 - **Runtime Control**: Features can be toggled via database settings or environment variables
 
 ### Code Organization

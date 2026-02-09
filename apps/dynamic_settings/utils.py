@@ -147,8 +147,7 @@ def rollback_configuration_change(change_id, user):
         logger.error(f"Failed to rollback configuration change {change_id}: {str(e)}")
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
-
-# FIXME: why are these default not read from actual settings/defaults?
+# uv run ./manage.py metrics_service init-default-settings
 def initialize_default_settings():
     """
     Initialize default feature flag settings in the database on application startup.
@@ -158,15 +157,17 @@ def initialize_default_settings():
     """
     from django.conf import settings as django_settings
 
-    # Define default feature flags and their values
+    # Define default feature flags
+    # default_value is the fallback, set the actual default in apps/settings/defaults.py
+    # defaults ignored when already in DB
     default_settings = {
-        "METRICS_COLLECTION_ENABLED": {
-            "default_value": False,
-            "description": "Enable hourly metrics collection with daily rollup and anonymization",
-        },
         "ANONYMIZED_DATA_COLLECTION": {
             "default_value": True,
             "description": "Enable anonymous data collection for Red Hat",
+        },
+        "METRICS_COLLECTION_ENABLED": {
+            "default_value": False,
+            "description": "Enable hourly metrics collection with daily rollup",
         },
     }
 

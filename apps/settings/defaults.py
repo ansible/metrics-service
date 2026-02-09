@@ -116,9 +116,10 @@ DATABASES = {
     },
 }
 
-# Feature flags
-# TODO: convert to DAB feature flags .. but partly done with fallback on this
-# TODO how to actually trigger a feature flag without this via env?
+# Feature flag defaults
+# only used by `metrics_service init-default-settings` (and `... run`)
+# and only used when not already changed in the settings DB table
+# also used by tasks - unless set in the db.
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": True,
     "METRICS_COLLECTION_ENABLED": False,
