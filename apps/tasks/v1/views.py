@@ -62,7 +62,7 @@ class TaskViewSet(BaseViewSet):
     queryset = Task.objects.select_related("created_by").all()
     serializer_class = TaskSerializer
     permission_classes = [DeveloperModeRequired]
-    ordering_fields = ["id", "name", "status", "priority", "scheduled_time", "created", "started_at", "completed_at"]
+    ordering_fields = ["id", "name", "status", "scheduled_time", "created", "started_at", "completed_at"]
     ordering = ["-id"]
 
     @property
@@ -74,7 +74,6 @@ class TaskViewSet(BaseViewSet):
         extra_fields = {
             "function_name": self.get_text_field_filters(),
             "status": ["exact", "in"],
-            "priority": ["exact", "gte", "lte"],
             "created_by": self.get_foreign_key_filters(),
             "created_by__username": self.get_text_field_filters(),
             "scheduled_time": self.get_datetime_field_filters(),
@@ -427,7 +426,6 @@ class TaskViewSet(BaseViewSet):
                 name=serializer.validated_data.get("name", "Immediate Task"),
                 function_name=serializer.validated_data["function_name"],
                 task_data=serializer.validated_data.get("task_data", {}),
-                priority=serializer.validated_data.get("priority", 2),
                 created_by=request.user if request.user.is_authenticated else None,
                 # No scheduled_time means immediate execution
             )
@@ -460,7 +458,6 @@ class TaskViewSet(BaseViewSet):
                 name=serializer.validated_data.get("name", "Recurring Task"),
                 function_name=serializer.validated_data["function_name"],
                 task_data=serializer.validated_data.get("task_data", {}),
-                priority=serializer.validated_data.get("priority", 2),
                 cron_expression=cron_expression,
                 created_by=request.user if request.user.is_authenticated else None,
             )

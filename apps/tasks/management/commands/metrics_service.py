@@ -148,7 +148,6 @@ class Command(BaseCommand):
         create_parser.add_argument("--description", help="Task description")
         create_parser.add_argument("--scheduled-time", help="Schedule time (YYYY-MM-DD HH:MM:SS)")
         create_parser.add_argument("--cron", help="Cron expression for recurring tasks")
-        create_parser.add_argument("--priority", type=int, choices=[1, 2, 3, 4], default=2, help="Task priority")
         create_parser.add_argument("--user", help="Username of task creator")
 
         # List tasks
@@ -396,7 +395,7 @@ class Command(BaseCommand):
         self.output.write(f"    Function: {task.function_name}")
         if task.cron_expression:
             self.output.write(f"    Schedule: {task.cron_expression}")
-        self.output.write(f"    Priority: {task.priority} | Status: {task.status}")
+        self.output.write(f"    Status: {task.status}")
         self.output.write("")
 
     def _display_summary(self, total_tasks, category_names):
@@ -441,7 +440,6 @@ class Command(BaseCommand):
                 description=options.get("description", ""),
                 scheduled_time=scheduled_time,
                 cron_expression=options.get("cron"),
-                priority=options.get("priority", 2),
                 created_by=created_by,
             )
 
@@ -493,7 +491,6 @@ class Command(BaseCommand):
         self.output.write(f"Name: {task.name}")
         self.output.write(f"Function: {task.function_name}")
         self.output.write(f"Status: {task.status}")
-        self.output.write(f"Priority: {task.priority}")
         if task.description:
             self.output.write(f"Description: {task.description}")
         if task.task_data:

@@ -76,20 +76,12 @@ class Task(NamedCommonModel, AuditableModel):
         ("waiting_for_dependencies", "Waiting for Dependencies"),
     ]
 
-    PRIORITY_CHOICES = [
-        (1, "Low"),
-        (2, "Normal"),
-        (3, "High"),
-        (4, "Critical"),
-    ]
-
     function_name = models.CharField(max_length=255)
     task_data = models.JSONField(default=dict)
     scheduled_time = models.DateTimeField(null=True, blank=True)
     cron_expression = models.CharField(max_length=100, blank=True, null=True)
     is_recurring = models.BooleanField(default=False)
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
-    priority = models.IntegerField(choices=PRIORITY_CHOICES, default=2)
     attempts = models.PositiveIntegerField(default=0)
     max_attempts = models.PositiveIntegerField(default=3)
     timeout_seconds = models.PositiveIntegerField(default=3600)

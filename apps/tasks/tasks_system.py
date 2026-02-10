@@ -411,7 +411,6 @@ def _update_existing_task_from_group(
     fields_to_check = [
         ("task_data", task_data),
         ("cron_expression", config.get("cron")),
-        ("priority", config.get("priority", 5)),
         ("description", config.get("description", "")),
     ]
 
@@ -439,7 +438,6 @@ def _create_new_task_from_group(
         function_name=config["function"],
         task_data=task_data,
         cron_expression=config.get("cron"),
-        priority=config.get("priority", 2),
         is_system_task=True,
         status="pending",
     )
@@ -470,7 +468,6 @@ def get_system_task_info() -> dict[str, Any]:
             "description": task.description,
             "status": task.status,
             "cron_expression": task.cron_expression,
-            "priority": task.priority,
             "created": task.created.isoformat() if task.created else None,
             "last_run": task.completed_at.isoformat() if task.completed_at else None,
             "category": "unknown",  # FIXME .. from task_groups?

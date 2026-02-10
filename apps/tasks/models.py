@@ -69,13 +69,6 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         ("cancelled", "Cancelled"),
     ]
 
-    PRIORITY_CHOICES = [
-        (1, "Low"),
-        (2, "Normal"),
-        (3, "High"),
-        (4, "Critical"),
-    ]
-
     # Task identification and metadata
     description = models.TextField(blank=True, default="", help_text="Task description")
 
@@ -100,10 +93,6 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
 
     # Execution tracking
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
-
-    priority = models.IntegerField(
-        choices=PRIORITY_CHOICES, default=2, help_text="Task priority (higher numbers = higher priority)"
-    )
 
     attempts = models.PositiveIntegerField(default=0, help_text="Number of execution attempts")
 

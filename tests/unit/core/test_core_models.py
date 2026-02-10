@@ -74,7 +74,6 @@ class TaskModelTestCase(TestCase):
         """Test Task model creation."""
         self.assertEqual(str(self.task), "Test Task (test_function) - Pending")
         self.assertEqual(self.task.status, "pending")
-        self.assertEqual(self.task.priority, 2)  # Normal priority
         self.assertEqual(self.task.attempts, 0)
         self.assertEqual(self.task.max_attempts, 3)
         self.assertEqual(self.task.timeout_seconds, 3600)
@@ -190,20 +189,3 @@ class ModelMethodsTestCase(TestCase):
         self.user.password = ""
         self.user.save()
         # Password should be set to None for empty string
-
-    def test_task_priority_choices(self):
-        """Test Task priority choices."""
-        task = self._create_task_safely(name="Priority Test", function_name="priority_func")
-
-        valid_priorities = [1, 2, 3, 4]  # Low, Normal, High, Critical
-
-        for priority in valid_priorities:
-            task.priority = priority
-            task.save()
-            self.assertEqual(task.priority, priority)
-
-        # Test get_priority_display
-        task.priority = 1
-        self.assertEqual(task.get_priority_display(), "Low")
-        task.priority = 4
-        self.assertEqual(task.get_priority_display(), "Critical")

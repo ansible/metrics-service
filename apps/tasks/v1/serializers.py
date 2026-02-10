@@ -52,7 +52,6 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
             "cron_expression",
             "is_system_task",
             "status",
-            "priority",
             "attempts",
             "max_attempts",
             "timeout_seconds",
@@ -142,7 +141,6 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             "task_data",
             "scheduled_time",
             "cron_expression",
-            "priority",
             "max_attempts",
             "timeout_seconds",
             "user",
@@ -154,7 +152,6 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             },
             "task_data": {"required": False, "help_text": "JSON object with task parameters"},
             "cron_expression": {"required": False, "help_text": "Cron expression for recurring tasks"},
-            "priority": {"default": 2},
             "max_attempts": {"default": 3},
             "timeout_seconds": {"default": 3600},
         }
@@ -224,7 +221,6 @@ class TaskListSerializer(serializers.ModelSerializer):
 
     created_by_username = serializers.CharField(source="created_by.username", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
-    priority_display = serializers.CharField(source="get_priority_display", read_only=True)
 
     class Meta:
         model = Task
@@ -234,8 +230,6 @@ class TaskListSerializer(serializers.ModelSerializer):
             "function_name",
             "status",
             "status_display",
-            "priority",
-            "priority_display",
             "created",
             "scheduled_time",
             "created_by_username",

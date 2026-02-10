@@ -56,8 +56,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
             task_data,
             "--description",
             "Test description",
-            "--priority",
-            "2",
             "--user",
             self.user.username,
         )
@@ -67,7 +65,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
         assert task.function_name == "cleanup_old_data"
         assert task.task_data == {"test": "data"}
         assert task.description == "Test description"
-        assert task.priority == 2
         assert task.created_by == self.user
 
     def test_task_list_command(self):

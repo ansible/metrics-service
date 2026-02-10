@@ -67,7 +67,6 @@ class UnifiedTaskScheduler:
                     "cron": task.cron_expression,
                     "args": task.task_data or {},
                     "description": task.description,
-                    "priority": task.priority,
                     "enabled": True,  # All in DB are enabled
                     "task_id": task.name,
                     "db_id": task.id,
@@ -427,7 +426,6 @@ class UnifiedTaskScheduler:
                     task_data=task.task_data,
                     scheduled_time=None,  # Execute immediately
                     cron_expression=None,  # This is not a recurring task
-                    priority=task.priority,
                     max_attempts=task.max_attempts,
                     timeout_seconds=task.timeout_seconds,
                     created_by=task.created_by,

@@ -171,12 +171,6 @@ class TestDABFallback:
 class TestTaskModelEdgeCases:
     """Additional edge case tests for Task model"""
 
-    def test_task_with_all_priority_levels(self):
-        """Test Task creation with different priority levels"""
-        for priority_value, priority_name in Task.PRIORITY_CHOICES:
-            task = Task.objects.create(name=f"{priority_name} Task", function_name="test_func", priority=priority_value)
-            assert task.priority == priority_value
-
     def test_task_with_all_status_values(self):
         """Test Task creation with different status values"""
         # Use valid function name that exists in TASK_FUNCTIONS

@@ -54,7 +54,6 @@ def mock_db_tasks():
     task1.cron_expression = "0 */1 * * *"
     task1.task_data = {"message": "test"}
     task1.description = "Test task 1"
-    task1.priority = 5
     task1.status = "pending"
 
     task2 = Mock()
@@ -64,7 +63,6 @@ def mock_db_tasks():
     task2.cron_expression = "0 2 * * *"
     task2.task_data = {"days_old": 30}
     task2.description = "Test task 2"
-    task2.priority = 5
     task2.status = "pending"
 
     return [task1, task2]
@@ -462,7 +460,6 @@ class TestDatabaseTaskManagement:
         mock_task.status = "pending"
         mock_task.function_name = "test_function"
         mock_task.task_data = {}
-        mock_task.priority = 2
         mock_task.max_attempts = 3
         mock_task.timeout_seconds = 300
         mock_task.created_by = None
