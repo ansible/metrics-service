@@ -161,7 +161,7 @@ class TestTaskRegistry(TestCase):
         assert hasattr(tasks, "METRICS_UTILITY_AVAILABLE")
         assert isinstance(tasks.METRICS_UTILITY_AVAILABLE, bool)
 
-    @patch("apps.tasks.tasks_collector.logger")
+    @patch("apps.tasks.collectors.helpers.logger")
     def test_metrics_utility_import_error_handling(self, mock_logger):
         """Test handling of metrics utility import errors."""
         # Should not have warnings in successful import
@@ -252,9 +252,9 @@ class TestTaskDispatcher(TestCase):
 class TestEdgeCasesAndErrorHandling:
     """Test edge cases, error conditions, and system resilience."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.anonymized_rollups_processor")
+    @patch("apps.tasks.utils.csv_to_json")
     @patch("django.db.connections")
     def test_metrics_collection_with_django_connections(self, mock_connections, mock_csv_to_json, mock_collector):
         """Test metrics collection works with Django database connections."""
@@ -280,9 +280,9 @@ class TestEdgeCasesAndErrorHandling:
             db=mock_raw_connection, salt=ANY, since=ANY, until=ANY, ship_path=None, save_rollups=False
         )
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.anonymized_rollups_processor")
+    @patch("apps.tasks.utils.csv_to_json")
     @patch("django.db.connections")
     def test_metrics_collection_error_handling(self, mock_connections, mock_csv_to_json, mock_collector):
         """Test that metrics collection errors are handled gracefully."""

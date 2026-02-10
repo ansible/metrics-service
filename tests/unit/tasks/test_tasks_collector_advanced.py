@@ -13,14 +13,12 @@ import pytest
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.tasks.tasks_collector import (
-    collect_host_metrics_hourly,
-    collect_job_host_summary_hourly,
-    collect_main_host_hourly,
-    daily_anonymize_and_prepare,
-    daily_metrics_rollup,
-    send_anonymized_to_segment,
-)
+from apps.tasks.collectors.collect_host_metrics_hourly import collect_host_metrics_hourly
+from apps.tasks.collectors.collect_job_host_summary_hourly import collect_job_host_summary_hourly
+from apps.tasks.collectors.collect_main_host_hourly import collect_main_host_hourly
+from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
+from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
 
 
 @pytest.mark.unit
@@ -101,7 +99,7 @@ class TestAggregationHelpers(TestCase):
 
     def test_aggregate_collector_data_empty(self):
         """Test _aggregate_collector_data with empty collections."""
-        from apps.tasks.tasks_collector import _aggregate_collector_data
+        from apps.tasks.collectors.daily_metrics_rollup import _aggregate_collector_data
 
         result = _aggregate_collector_data([])
         assert result["total_records"] == 0
@@ -110,7 +108,7 @@ class TestAggregationHelpers(TestCase):
 
     def test_aggregate_collector_data_with_dict_data(self):
         """Test _aggregate_collector_data with dict data containing records."""
-        from apps.tasks.tasks_collector import _aggregate_collector_data
+        from apps.tasks.collectors.daily_metrics_rollup import _aggregate_collector_data
 
         # Create mock collections using csv_to_json format
         collection1 = Mock()
@@ -145,7 +143,7 @@ class TestAggregationHelpers(TestCase):
 
     def test_aggregate_collector_data_with_list_data(self):
         """Test _aggregate_collector_data with list data (legacy format)."""
-        from apps.tasks.tasks_collector import _aggregate_collector_data
+        from apps.tasks.collectors.daily_metrics_rollup import _aggregate_collector_data
 
         collection = Mock()
         collection.raw_data = [{"item": 1}, {"item": 2}, {"item": 3}]
@@ -160,7 +158,7 @@ class TestAggregationHelpers(TestCase):
 
     def test_aggregate_collector_data_with_other_data(self):
         """Test _aggregate_collector_data with non-dict/list data."""
-        from apps.tasks.tasks_collector import _aggregate_collector_data
+        from apps.tasks.collectors.daily_metrics_rollup import _aggregate_collector_data
 
         collection = Mock()
         collection.raw_data = "some string"
@@ -174,7 +172,7 @@ class TestAggregationHelpers(TestCase):
 
     def test_aggregate_collector_data_merges_multiple_hours(self):
         """Test _aggregate_collector_data properly merges records from multiple hours."""
-        from apps.tasks.tasks_collector import _aggregate_collector_data
+        from apps.tasks.collectors.daily_metrics_rollup import _aggregate_collector_data
 
         # Simulate 3 hourly collections with different record counts
         collections = []
@@ -201,8 +199,8 @@ class TestAggregationHelpers(TestCase):
 class TestAggregationToAnonymizationIntegration(TestCase):
     """Test that aggregated data is correctly extracted for anonymization."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.anonymize_rollup_data")
     def test_daily_anonymize_extracts_records_from_new_structure(self, mock_anonymize):
         """Test daily_anonymize_and_prepare extracts records from new aggregated structure."""
         from apps.tasks.models import DailyMetricsSummary
@@ -253,17 +251,17 @@ class TestAggregationToAnonymizationIntegration(TestCase):
 class TestHourlyCollectionTasks(TestCase):
     """Test hourly collection tasks."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", False)
     def test_collect_job_host_summary_hourly_utility_unavailable(self):
         """Test hourly collection when metrics-utility not available."""
         result = collect_job_host_summary_hourly()
         assert result["status"] == "error"
         assert "metrics-utility is not available" in result["error"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.collect_job_host_summary_hourly.job_host_summary")
+    @patch("apps.tasks.utils.get_db_connection")
+    @patch("apps.tasks.utils.csv_to_json")
     def test_collect_job_host_summary_hourly_success(self, mock_csv_to_json, mock_get_db, mock_job_host_summary):
         """Test successful hourly job_host_summary collection."""
         from apps.tasks.models import HourlyMetricsCollection
@@ -292,10 +290,10 @@ class TestHourlyCollectionTasks(TestCase):
         assert collection.collector_type == "job_host_summary"
         assert collection.status == "collected"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.main_jobevent")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.collect_host_metrics_hourly.main_jobevent")
+    @patch("apps.tasks.utils.get_db_connection")
+    @patch("apps.tasks.utils.csv_to_json")
     def test_collect_host_metrics_hourly_success(self, mock_csv_to_json, mock_get_db, mock_main_jobevent):
         """Test successful hourly main_jobevent collection."""
 
@@ -313,10 +311,10 @@ class TestHourlyCollectionTasks(TestCase):
         assert result["status"] == "success"
         assert "collection_id" in result
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.main_host")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.collect_main_host_hourly.main_host")
+    @patch("apps.tasks.utils.get_db_connection")
+    @patch("apps.tasks.utils.csv_to_json")
     def test_collect_main_host_hourly_success(self, mock_csv_to_json, mock_get_db, mock_main_host):
         """Test successful hourly main_host collection."""
         mock_db = MagicMock()
@@ -332,9 +330,9 @@ class TestHourlyCollectionTasks(TestCase):
 
         assert result["status"] == "success"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.collect_job_host_summary_hourly.job_host_summary")
+    @patch("apps.tasks.utils.get_db_connection")
     def test_collect_hourly_with_custom_timestamp(self, mock_get_db, mock_job_host_summary):
         """Test hourly collection with custom timestamp."""
         from apps.tasks.models import HourlyMetricsCollection
@@ -349,16 +347,16 @@ class TestHourlyCollectionTasks(TestCase):
         # Use specific hour timestamp
         hour_timestamp = "2024-01-15T10:00:00+00:00"
 
-        with patch("apps.tasks.tasks_collector.csv_to_json", return_value={"total_records": 0}):
+        with patch("apps.tasks.utils.csv_to_json", return_value={"total_records": 0}):
             result = collect_job_host_summary_hourly(hour_timestamp=hour_timestamp)
 
         assert result["status"] == "success"
         collection = HourlyMetricsCollection.objects.get(id=result["collection_id"])
         assert collection.collection_timestamp.hour == 10
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.collect_job_host_summary_hourly.job_host_summary")
+    @patch("apps.tasks.utils.get_db_connection")
     def test_collect_hourly_error_handling(self, mock_get_db, mock_job_host_summary):
         """Test error handling in hourly collection."""
         from apps.tasks.models import HourlyMetricsCollection
@@ -395,9 +393,9 @@ class TestDailyRollupTask(TestCase):
         assert "summary_id" in result
         assert result["hourly_collections_count"] == 0
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.collectors.daily_metrics_rollup.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.config")
+    @patch("apps.tasks.utils.get_db_connection")
     def test_daily_metrics_rollup_with_collections(self, mock_get_db, mock_config):
         """Test daily rollup with hourly collections."""
         from datetime import date
@@ -448,9 +446,9 @@ class TestDailyRollupTask(TestCase):
         # Should use yesterday's date
         assert "summary_date" in result
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.collectors.daily_metrics_rollup.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.config")
+    @patch("apps.tasks.utils.get_db_connection")
     def test_daily_metrics_rollup_missing_hours(self, mock_get_db, mock_config):
         """Test daily rollup detects missing hours."""
         from datetime import date
@@ -481,9 +479,9 @@ class TestDailyRollupTask(TestCase):
         assert result["status"] == "success"
         assert len(result["missing_hours"]) > 0  # Should detect missing hours
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.collectors.daily_metrics_rollup.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.config")
+    @patch("apps.tasks.utils.get_db_connection")
     def test_daily_metrics_rollup_config_error(self, mock_get_db, mock_config):
         """Test daily rollup handles config collection errors."""
         from datetime import date
@@ -504,8 +502,8 @@ class TestDailyRollupTask(TestCase):
 class TestAnonymizationTask(TestCase):
     """Test daily anonymization and preparation task."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.anonymize_rollup_data")
     def test_daily_anonymize_no_summary(self, mock_anonymize):
         """Test anonymization when daily summary doesn't exist."""
         from datetime import date
@@ -519,9 +517,9 @@ class TestAnonymizationTask(TestCase):
         assert result["status"] == "error"
         assert "No daily summary found" in result["error"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
-    @patch("apps.tasks.tasks_collector.generate_salt")
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.anonymize_rollup_data")
+    @patch("apps.tasks.utils.generate_salt")
     def test_daily_anonymize_success(self, mock_generate_salt, mock_anonymize):
         """Test successful anonymization."""
         from datetime import date
@@ -561,8 +559,8 @@ class TestAnonymizationTask(TestCase):
         summary.refresh_from_db()
         assert summary.status == "anonymized"
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymize_rollup_data")
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.anonymize_rollup_data")
     def test_daily_anonymize_custom_salt(self, mock_anonymize):
         """Test anonymization with custom salt."""
         from datetime import date
@@ -600,7 +598,7 @@ class TestSegmentSendingTask(TestCase):
         assert result["results"]["sent"] == 0
         assert result["total_processed"] == 0
 
-    @patch("apps.tasks.tasks_collector.send_to_segment")
+    @patch("apps.tasks.utils.send_to_segment")
     def test_send_to_segment_success(self, mock_send_to_segment):
         """Test successful sending to Segment."""
         from datetime import date
@@ -633,7 +631,7 @@ class TestSegmentSendingTask(TestCase):
         payload.refresh_from_db()
         assert payload.status == "sent"
 
-    @patch("apps.tasks.tasks_collector.send_to_segment")
+    @patch("apps.tasks.utils.send_to_segment")
     def test_send_to_segment_specific_payload(self, mock_send_to_segment):
         """Test sending specific payload by ID."""
         from datetime import date
@@ -655,7 +653,7 @@ class TestSegmentSendingTask(TestCase):
         assert result["status"] == "success"
         assert result["results"]["sent"] == 1
 
-    @patch("apps.tasks.tasks_collector.send_to_segment")
+    @patch("apps.tasks.utils.send_to_segment")
     def test_send_to_segment_retry_logic(self, mock_send_to_segment):
         """Test retry logic for failed sends."""
         from datetime import date
@@ -711,7 +709,7 @@ class TestSegmentSendingTask(TestCase):
         assert payload.status == "failed"
         assert "Max retries exceeded" in payload.error_message
 
-    @patch("apps.tasks.tasks_collector.send_to_segment")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.send_to_segment")
     def test_send_to_segment_not_available(self, mock_send_to_segment):
         """Test sending when Segment not available."""
         from datetime import date
@@ -777,8 +775,9 @@ class TestPRFixes(TestCase):
         # Verify only one payload exists
         assert AnonymizedMetricsPayload.objects.filter(daily_summary=summary).count() == 1
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    def test_transaction_rollback_on_error(self):
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.anonymize_rollup_data")
+    def test_transaction_rollback_on_error(self, mock_anonymize):
         """Test transaction rollback prevents partial state (Issue #8)."""
         from datetime import date
 
@@ -795,14 +794,13 @@ class TestPRFixes(TestCase):
         original_status = summary.status
 
         # Mock the anonymize_rollup_data function from metrics-utility to raise an error
-        with patch("apps.tasks.tasks_collector.anonymize_rollup_data") as mock_anonymize:
-            mock_anonymize.side_effect = Exception("Anonymization error")
+        mock_anonymize.side_effect = Exception("Anonymization error")
 
-            # Call the function, should fail
-            result = daily_anonymize_and_prepare(summary_date=date(2024, 1, 31).isoformat())
+        # Call the function, should fail
+        result = daily_anonymize_and_prepare(summary_date=date(2024, 1, 31).isoformat())
 
-            assert result["status"] == "error"
-            assert "Anonymization failed" in result["error"]
+        assert result["status"] == "error"
+        assert "Anonymization failed" in result["error"]
 
         # Verify summary status was NOT changed (transaction rolled back)
         summary.refresh_from_db()
@@ -819,8 +817,8 @@ class TestPRFixes(TestCase):
 
         from django.utils import timezone
 
+        from apps.tasks.cleanup.cleanup_metrics_data import cleanup_metrics_data
         from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
-        from apps.tasks.tasks_system import cleanup_metrics_data
 
         # Create old payloads with different statuses
         old_time = timezone.now() - timedelta(days=35)
@@ -872,10 +870,10 @@ class TestHourlyCollectionRetryBehavior(TestCase):
     3. Multiple attempts for the same collection period
     """
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.csv_to_json")
-    @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.utils.csv_to_json")
+    @patch("apps.tasks.collectors.collect_job_host_summary_hourly.job_host_summary")
+    @patch("apps.tasks.utils.get_db_connection")
     def test_retry_after_failure_updates_existing_record(self, mock_get_db, mock_collector_class, mock_csv_to_json):
         """
         Test that a successful retry updates the failed record instead of creating a new one.
@@ -927,10 +925,10 @@ class TestHourlyCollectionRetryBehavior(TestCase):
         assert updated_record.raw_data["total_records"] == 100
         assert updated_record.error_message == ""  # Error cleared
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.csv_to_json")
-    @patch("apps.tasks.tasks_collector.job_host_summary")
-    @patch("apps.tasks.tasks_collector.get_db_connection")
+    @patch("apps.tasks.collectors.helpers.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.utils.csv_to_json")
+    @patch("apps.tasks.collectors.collect_job_host_summary_hourly.job_host_summary")
+    @patch("apps.tasks.utils.get_db_connection")
     def test_scheduler_double_trigger_updates_existing_record(
         self, mock_get_db, mock_collector_class, mock_csv_to_json
     ):

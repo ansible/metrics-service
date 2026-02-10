@@ -16,9 +16,9 @@ from apps.tasks.tasks import collect_single_collector
 class TestCollectorDatabaseIntegration:
     """Test that collectors properly use Django database connections."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.config")
+    @patch("apps.tasks.utils.csv_to_json")
     @patch("django.db.connections")
     def test_collect_single_collector_uses_django_connection(
         self, mock_connections, mock_csv_to_json, mock_config_collector
@@ -60,8 +60,8 @@ class TestCollectorDatabaseIntegration:
         assert result["parameters_used"]["database"] == "awx"
         assert "collected_data" in result
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.config")
+    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.config")
     @patch("django.db.connections")
     def test_collect_single_collector_csv_output(self, mock_connections, mock_config_collector):
         """Test that collect_single_collector can return CSV file paths."""
@@ -84,9 +84,9 @@ class TestCollectorDatabaseIntegration:
         assert result["csv_files"] == ["/tmp/config.csv"]  # noqa: S108
         assert result["file_count"] == 1
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.config")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
+    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", True)
+    @patch("apps.tasks.collectors.helpers.config")
+    @patch("apps.tasks.utils.csv_to_json")
     @patch("django.db.connections")
     def test_collect_single_collector_handles_collector_error(
         self, mock_connections, mock_csv_to_json, mock_config_collector
@@ -110,7 +110,7 @@ class TestCollectorDatabaseIntegration:
         assert "Collection failed" in result["error"]
         assert "Database connection failed" in result["error"]
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", False)
+    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", False)
     def test_collect_single_collector_handles_missing_metrics_utility(self):
         """Test that collect_single_collector handles missing metrics-utility."""
         # Call the task function

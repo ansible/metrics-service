@@ -1,0 +1,195 @@
+"""
+Send anonymized payload to Segment.
+
+This task fetches pending anonymized payloads from the database and sends them
+to Segment.com, handling retries and stale payload recovery.
+"""
+
+import logging
+from datetime import timedelta
+from typing import Any
+
+from django.db.models import Q
+from django.utils import timezone
+
+from ..utils import (
+    create_task_result,
+    log_task_execution,
+    send_to_segment,
+    task,
+    task_execution_wrapper,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _get_payloads_to_send(payload_id: int | None, max_payloads: int, stale_threshold) -> list:
+    """
+    Get anonymized payloads ready to send.
+
+    Args:
+        payload_id: Specific payload ID to send (optional)
+        max_payloads: Maximum number of payloads to retrieve
+        stale_threshold: Datetime threshold for stale "sending" status
+
+    Returns:
+        QuerySet of AnonymizedMetricsPayload objects
+    """
+    from apps.tasks.models import AnonymizedMetricsPayload
+
+    if payload_id:
+        return AnonymizedMetricsPayload.objects.filter(
+            Q(id=payload_id) & (Q(status__in=["pending", "retry"]) | Q(status="sending", modified__lt=stale_threshold))
+        )
+    return AnonymizedMetricsPayload.objects.filter(
+        Q(status__in=["pending", "retry"]) | Q(status="sending", modified__lt=stale_threshold)
+    ).order_by("created")[:max_payloads]
+
+
+def _handle_successful_send(payload, results: dict) -> None:
+    """
+    Handle successful payload send to Segment.
+
+    Args:
+        payload: AnonymizedMetricsPayload object
+        results: Results dictionary to update
+    """
+    payload.status = "sent"
+    payload.sent_at = timezone.now()
+    payload.error_message = ""
+    payload.save()
+    results["sent"] += 1
+
+    # Update daily summary status separately (don't let this failure affect payload)
+    try:
+        if payload.daily_summary:
+            payload.daily_summary.status = "sent"
+            payload.daily_summary.save()
+    except Exception as summary_error:
+        logger.warning(f"Failed to update daily_summary for payload {payload.id}: {summary_error}")
+
+
+def _handle_failed_send(payload, segment_status: str, results: dict) -> None:
+    """
+    Handle failed payload send to Segment.
+
+    Args:
+        payload: AnonymizedMetricsPayload object
+        segment_status: Status returned from send_to_segment
+        results: Results dictionary to update
+    """
+    payload.status = "retry"
+    payload.retry_count += 1
+    payload.error_message = f"Send failed: {segment_status}"
+    payload.save()
+    results["failed"] += 1
+
+
+def _process_single_payload(payload, results: dict) -> None:
+    """
+    Process a single payload for sending to Segment.
+
+    Args:
+        payload: AnonymizedMetricsPayload object
+        results: Results dictionary to update
+    """
+    # Track if this was a recovered stale payload
+    was_stale = payload.status == "sending"
+    if was_stale:
+        results["recovered"] += 1
+        logger.info(f"Recovering stale payload {payload.id} (stuck in 'sending' status)")
+
+    # Check retry limit (for retry status or recovered stale payloads)
+    if payload.status == "retry" and not payload.can_retry():
+        payload.status = "failed"
+        payload.error_message = "Max retries exceeded"
+        payload.save()
+        results["skipped"] += 1
+        return
+
+    # Update status to sending
+    payload.status = "sending"
+    payload.save()
+
+    try:
+        segment_status = send_to_segment(
+            user_id=payload.segment_user_id,
+            event_name=payload.segment_event_name,
+            segment_data=payload.anonymized_data,
+        )
+
+        if segment_status == "success":
+            _handle_successful_send(payload, results)
+        else:
+            _handle_failed_send(payload, segment_status, results)
+
+    except Exception as e:
+        logger.error(f"Error sending payload {payload.id}: {str(e)}")
+        payload.status = "retry"
+        payload.retry_count += 1
+        payload.error_message = str(e)
+        payload.save()
+        results["failed"] += 1
+
+
+@task(queue="metrics_collectors", decorate=False)
+@task_execution_wrapper("send_anonymized_to_segment")
+def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
+    """
+    Send anonymized payload to Segment.
+
+    This task:
+    1. Fetches AnonymizedMetricsPayload records with status=pending/retry
+    2. Recovers stale "sending" payloads (stuck for > 10 minutes)
+    3. Sends to Segment using send_to_segment helper
+    4. Updates payload status based on result
+    5. Handles retries for failed sends
+
+    Args:
+        **kwargs: Task data containing:
+            - payload_id (int): Specific payload ID to send (optional)
+            - max_payloads (int): Maximum number of payloads to send (default: 5)
+            - stale_minutes (int): Minutes before "sending" status is considered stale (default: 10)
+
+    Returns:
+        dict: Task result with send statistics
+    """
+    max_payloads = kwargs.get("max_payloads", 5)
+    payload_id = kwargs.get("payload_id")
+    stale_minutes = kwargs.get("stale_minutes", 10)
+
+    log_task_execution("send_anonymized_to_segment", "processing", "Sending anonymized payloads to Segment")
+
+    try:
+        # Threshold for stale "sending" payloads (process crashed before completion)
+        stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
+
+        # Get payloads to send
+        payloads = _get_payloads_to_send(payload_id, max_payloads, stale_threshold)
+
+        # Initialize results
+        results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
+
+        # Process each payload
+        for payload in payloads:
+            _process_single_payload(payload, results)
+
+        log_task_execution(
+            "send_anonymized_to_segment",
+            "completed",
+            f"Sent: {results['sent']}, Failed: {results['failed']}, "
+            f"Skipped: {results['skipped']}, Recovered: {results['recovered']}",
+        )
+
+        return create_task_result(
+            "success",
+            {
+                "task_type": "send_anonymized_to_segment",
+                "results": results,
+                "total_processed": sum(results.values()),
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error in send_anonymized_to_segment: {str(e)}")
+        return create_task_result("error", error=f"Send task failed: {str(e)}")

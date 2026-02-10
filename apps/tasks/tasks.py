@@ -2,38 +2,40 @@
 Background tasks for metrics_service using dispatcherd.
 
 This module serves as an aggregator, importing and re-exporting tasks from
-specialized modules for backward compatibility:
-- tasks_system: System maintenance, cleanup, and communication tasks
-- tasks_collector: Metrics collection and anonymized data collection tasks
+individual task modules organized by queue:
+- simple/: Simple system tasks (metrics_tasks queue)
+- cleanup/: Cleanup and maintenance tasks (metrics_cleanup queue)
+- collectors/: Metrics collection and anonymization tasks (metrics_collectors queue)
+- tasks_system: Core task execution infrastructure and utilities
 """
 
 import logging
 
-# Import all collector tasks
-from .tasks_collector import (
-    METRICS_UTILITY_AVAILABLE,
-    anonymize_data,
-    collect_host_metrics_hourly,
-    collect_job_host_summary_hourly,
-    collect_main_host_hourly,
-    collect_metrics,
-    collect_single_collector,
-    daily_anonymize_and_prepare,
-    daily_metrics_rollup,
-    full_process,
-    full_process_anonymize,
-    send_anonymized_to_segment,
-    send_to_segment_task,
-)
+# Import cleanup tasks
+from .cleanup.cleanup_metrics_data import cleanup_metrics_data
+from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
-# Import all system tasks
+# Import collector tasks
+from .collectors.anonymize_data import anonymize_data
+from .collectors.collect_host_metrics_hourly import collect_host_metrics_hourly
+from .collectors.collect_job_host_summary_hourly import collect_job_host_summary_hourly
+from .collectors.collect_main_host_hourly import collect_main_host_hourly
+from .collectors.collect_metrics import collect_metrics
+from .collectors.collect_single_collector import collect_single_collector
+from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+from .collectors.daily_metrics_rollup import daily_metrics_rollup
+from .collectors.full_process import full_process
+from .collectors.full_process_anonymize import full_process_anonymize
+from .collectors.helpers import METRICS_UTILITY_AVAILABLE
+from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
+from .collectors.send_to_segment_task import send_to_segment_task
+
+# Import system tasks
+from .simple.hello_world import hello_world
 from .tasks_system import (
-    cleanup_metrics_data,
-    cleanup_old_tasks,
     create_system_tasks,
     execute_db_task,
     get_system_task_info,
-    hello_world,
     submit_task_to_dispatcher,
 )
 

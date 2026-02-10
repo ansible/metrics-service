@@ -69,7 +69,8 @@ pytest tests/unit/test_models.py
 
 ```bash
 # Format code (120 character line length)
-black .
+ruff format .
+.venv/bin/ruff format .
 
 # Lint code (extensive rule set including security, complexity)
 ruff check .
@@ -82,14 +83,12 @@ ruff check . --fix
 # Fix unsafe issues (use with caution)
 .venv/bin/ruff check . --unsafe-fixes --fix
 
-# Type checking (configured for gradual adoption)
+# Type checking (configured for gradual adoption - NOT actively used)
 mypy .
 
-# Sort imports (black-compatible profile)
-isort .
-
-# Run all quality checks together
-black . && ruff check . --fix && mypy . && isort .
+# Run all quality checks together (format + lint)
+ruff format . && ruff check . --fix
+.venv/bin/ruff format . && .venv/bin/ruff check . --fix
 ```
 
 ### Pre-commit Hooks and Requirements Management
@@ -128,6 +127,42 @@ python manage.py shell
 # Check dispatcherd status and logs
 docker-compose logs -f metrics-dispatcher
 ```
+
+### Running Python Commands with Django
+
+**IMPORTANT:** When running Python commands that import Django apps, you MUST use Django's environment setup.
+
+```bash
+# ❌ WRONG - Direct python -c fails with Django imports
+python -c "from apps.tasks.tasks import TASK_FUNCTIONS"
+# Error: ModuleNotFoundError: No module named 'django'
+
+# ✅ CORRECT - Use manage.py shell -c for Django imports
+python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(len(TASK_FUNCTIONS))"
+.venv/bin/python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(len(TASK_FUNCTIONS))"
+
+# ✅ CORRECT - Multi-line commands with shell -c
+.venv/bin/python manage.py shell -c "
+from apps.tasks.tasks import TASK_FUNCTIONS
+print(f'Total tasks: {len(TASK_FUNCTIONS)}')
+for name in TASK_FUNCTIONS:
+    print(f'  - {name}')
+"
+
+# ✅ CORRECT - Testing uses pytest (pytest-django handles Django setup automatically)
+.venv/bin/python -m pytest tests/unit/tasks/
+pytest tests/unit/tasks/
+
+# ✅ CORRECT - Standalone scripts that don't import Django apps
+python scripts/run_task.py hello_world
+.venv/bin/python scripts/run_task.py hello_world
+```
+
+**When to use each method:**
+- **`manage.py shell -c "..."`** - For one-off commands importing Django apps/models
+- **`pytest`** - For running tests (pytest-django plugin handles Django setup)
+- **`manage.py shell`** - For interactive Python with Django
+- **`python script.py`** - For standalone scripts without Django imports
 
 ### Background Tasks (Dispatcherd)
 
