@@ -78,7 +78,7 @@ django==5.2.7
     #   drf-spectacular
     #   metrics-service
     #   metrics-utility
-django-ansible-base @ git+https://github.com/ansible/django-ansible-base@7596a0cc12785eff647af4f7aef80c77da33eed8
+django-ansible-base @ git+https://github.com/ansible/django-ansible-base@8b53a1a4e25cd57c5b643786a7077b8bef1c381f
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
