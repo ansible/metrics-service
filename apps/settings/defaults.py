@@ -16,9 +16,9 @@ extra_applications = [
 # Default DAB applications layd out from PSF, add/remove according to the project needs,
 # adjust `pyproject` dab extra dependencies acording to apps added/removed here
 dab_applications = [
+    "ansible_base.feature_flags",  # Must be first to ensure table exists before other apps' post_migrate signals
     "ansible_base.activitystream",
     "ansible_base.api_documentation",
-    "ansible_base.feature_flags",
     "ansible_base.jwt_consumer",
     "ansible_base.rbac",
     "ansible_base.resource_registry",
