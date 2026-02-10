@@ -33,9 +33,6 @@ SERVICE_ID = "test-service-id"
 # URLs - simplified for testing to avoid oauth2 provider conflicts
 ROOT_URLCONF = "metrics_service.test_urls"
 
-# Let Django create unique test database names automatically
-DATABASES__default__TEST__NAME = None
-
 # Disable caching during tests
 CACHES = {
     "default": {
