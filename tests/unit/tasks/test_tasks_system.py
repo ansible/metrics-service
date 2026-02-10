@@ -234,7 +234,7 @@ class TestSystemTaskCreation(TestCase):
 
             # All tasks filtered out
             assert result["created"] == 0
-            assert result["updated"] == 0
+            assert result["removed"] == 0
 
 
 # =============================================================================
