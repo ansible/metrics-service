@@ -587,8 +587,10 @@ class Command(BaseCommand):
 
     def _build_service_commands(self, manage_py: str | Path, config: dict[str, Any]) -> list[list[str]]:
         """Build commands for all three services."""
+        # Use -u flag for unbuffered output so print() statements are immediately visible
         django_cmd = [
             sys.executable,
+            "-u",
             str(manage_py),
             "runserver",
             f"{config['host']}:{config['port']}",
@@ -598,6 +600,7 @@ class Command(BaseCommand):
 
         dispatcher_cmd = [
             sys.executable,
+            "-u",
             str(manage_py),
             "run_dispatcherd",
             f"--workers={config['workers']}",
@@ -608,6 +611,7 @@ class Command(BaseCommand):
 
         scheduler_cmd = [
             sys.executable,
+            "-u",
             str(manage_py),
             "run_task_scheduler",
             f"--log-level={config['log_level']}",
