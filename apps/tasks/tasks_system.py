@@ -341,40 +341,47 @@ def submit_task_to_dispatcher(task: Any) -> None:
 # runs during `manage.py metrics_service init-system-tasks`
 def create_system_tasks() -> dict[str, Any]:
     """
-    Create or update system-defined tasks from task groups in the database.
+    Create system-defined tasks from task groups in the database.
 
-    This function syncs task group definitions to the tasks_task table,
-    making the database the source of truth for all tasks.
+    This function removes all existing system tasks and recreates them from
+    task group definitions, ensuring the database always matches the code.
 
     Returns:
-        dict: Summary of tasks created, updated, and skipped
+        dict: Summary of tasks created and removed
     """
     try:
         from .models import Task
         from .task_groups import get_all_enabled_tasks
     except ImportError:
         # Handle case where Django isn't fully set up yet
-        return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "updated": 0, "skipped": 0}
+        return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "removed": 0}
 
-    results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
+    results = {"created": 0, "removed": 0, "tasks": []}
+
+    # Remove all existing system tasks
+    removed_count, _ = Task.objects.filter(is_system_task=True).delete()
+    results["removed"] = removed_count
+    if removed_count > 0:
+        results["tasks"].append(f"Removed {removed_count} existing system tasks")
+        logger.info(f"Removed {removed_count} existing system tasks")
 
     # Get all task group definitions
     task_groups = get_all_enabled_tasks()
 
-    # FIXME: this also doesn't remove tasks, should
+    # Create fresh tasks from task groups
     for task_id, config in task_groups.items():
         try:
-            _sync_task_group_to_database(task_id, config, results, Task)
+            _create_task_from_group(task_id, config, results, Task)
         except Exception as e:
             results["tasks"].append(f"Error with {task_id}: {str(e)}")
-            logger.error(f"Failed to sync task {task_id}: {e}")
+            logger.error(f"Failed to create task {task_id}: {e}")
 
     return results
 
 
-def _sync_task_group_to_database(task_id: str, config: dict[str, Any], results: dict[str, Any], task_model) -> None:
+def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[str, Any], task_model) -> None:
     """
-    Sync a single task group definition to the database.
+    Create a system task from task group definition.
 
     Args:
         task_id: Unique identifier for the task
@@ -382,56 +389,13 @@ def _sync_task_group_to_database(task_id: str, config: dict[str, Any], results: 
         results: Results dict to update
         task_model: Task model class
     """
-    # Check if task already exists (by name and function)
-    existing_task = task_model.objects.filter(
-        name=task_id, function_name=config["function"], is_system_task=True
-    ).first()
-
     # FIXME: feature_flag .. update
     # Prepare task data including feature flag for runtime checking
     task_data = config.get("args", {}).copy()
     if config.get("feature_flag"):
-        # FIXME: oh hell no, unless users can edit feature flags by posting args
+        # FIXME: no, unless users can edit feature flags by posting args .. separate field from task_data? or the task just looks itself up?
         task_data["_feature_flag"] = config["feature_flag"]
 
-    if existing_task:
-        _update_existing_task_from_group(existing_task, config, task_data, results)
-    else:
-        _create_new_task_from_group(task_id, config, task_data, results, task_model)
-
-
-# FIXME: this never changes the function?
-def _update_existing_task_from_group(
-    existing_task, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any]
-) -> None:
-    """Update an existing system task from task group definition."""
-    updated = False
-
-    # Check each field for changes
-    fields_to_check = [
-        ("task_data", task_data),
-        ("cron_expression", config.get("cron")),
-        ("description", config.get("description", "")),
-    ]
-
-    for field, new_value in fields_to_check:
-        if getattr(existing_task, field) != new_value:
-            setattr(existing_task, field, new_value)
-            updated = True
-
-    if updated:
-        existing_task.save()
-        results["updated"] += 1
-        results["tasks"].append(f"Updated: {existing_task.name}")
-    else:
-        results["skipped"] += 1
-        results["tasks"].append(f"Skipped: {existing_task.name} (no changes)")
-
-
-def _create_new_task_from_group(
-    task_id: str, config: dict[str, Any], task_data: dict[str, Any], results: dict[str, Any], task_model
-) -> None:
-    """Create a new system task from task group definition."""
     new_task = task_model.objects.create(
         name=task_id,
         description=config.get("description", ""),

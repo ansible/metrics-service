@@ -284,13 +284,11 @@ class Command(BaseCommand):
         """Display the results of system tasks initialization."""
         # Display results summary
         self.output.write("")
-        self.output.write("📊 Results:")
+        self.output.write("Results:")
+        if results.get("removed", 0) > 0:
+            self.output.write(f"  Removed: {results['removed']} tasks")
         if results.get("created", 0) > 0:
-            self.output.write(f"  ✅ Created: {results['created']} tasks")
-        if results.get("updated", 0) > 0:
-            self.output.write(f"  🔄 Updated: {results['updated']} tasks")
-        if results.get("skipped", 0) > 0:
-            self.output.write(f"  ⏭️  Skipped: {results['skipped']} tasks (no changes needed)")
+            self.output.write(f"  Created: {results['created']} tasks")
         self.output.write("")
 
         # Display task details
@@ -298,27 +296,17 @@ class Command(BaseCommand):
 
         # Display final summary
         self.output.write_separator()
-        total_processed = results.get("created", 0) + results.get("updated", 0) + results.get("skipped", 0)
-        self.output.success(f"✅ Processed {total_processed} system tasks in {elapsed_time:.2f} seconds")
-        self.output.write("💡 Run 'metric-service init-system-tasks --list' to see current status")
+        self.output.success(f"Recreated {results.get('created', 0)} system tasks in {elapsed_time:.2f} seconds")
+        self.output.write("Run 'python manage.py metrics_service init-system-tasks --list' to see current status")
 
     def _display_task_details(self, results):
         """Display detailed task information."""
         if not results.get("tasks", []):
             return
 
-        self.output.write("📋 Task Details:")
+        self.output.write("Task Details:")
         for task_info in results["tasks"]:
-            if task_info.startswith("Created:"):
-                self.output.write(f"  ✅ {task_info}")
-            elif task_info.startswith("Updated:"):
-                self.output.write(f"  🔄 {task_info}")
-            elif task_info.startswith("Skipped:"):
-                self.output.write(f"  ⏭️  {task_info}")
-            elif task_info.startswith("Error"):
-                self.output.write(f"  ❌ {task_info}")
-            else:
-                self.output.write(f"  ℹ️  {task_info}")
+            self.output.write(f"  {task_info}")
         self.output.write("")
 
     def _list_system_tasks(self):
