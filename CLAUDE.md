@@ -123,7 +123,7 @@ python manage.py shell
 # Create tasks programmatically in shell
 python manage.py shell
 >>> from apps.tasks.models import Task
->>> task = Task.objects.create(name="Test Task", function_name="cleanup_old_data")
+>>> task = Task.objects.create(name="Test Task", function_name="hello_world")
 
 # Check dispatcherd status and logs
 docker-compose logs -f metrics-dispatcher
@@ -194,7 +194,7 @@ python manage.py metrics_service init-system-tasks
 python manage.py metrics_service init-system-tasks --list
 
 # Task management
-python manage.py metrics_service tasks create --name "My Task" --function "cleanup_old_data"
+python manage.py metrics_service tasks create --name "My Task" --function "hello_world"
 python manage.py metrics_service tasks list
 python manage.py metrics_service tasks show 1
 python manage.py metrics_service tasks cancel 1
@@ -228,7 +228,7 @@ python manage.py metrics_service tasks --help
 python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4
 
 # Task management
-python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_data" --cron "0 2 * * *"
+python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_tasks" --cron "0 2 * * *"
 python manage.py metrics_service tasks list --status pending --limit 10
 python manage.py metrics_service tasks show 1
 python manage.py metrics_service tasks cancel 1
@@ -293,7 +293,7 @@ The web-based dashboard provides a centralized interface for task management:
 
 The service includes a comprehensive background task system with:
 
-- **Task functions** - `cleanup_old_data`, `cleanup_old_tasks`, `execute_db_task`, `hello_world`
+- **Task functions** - `cleanup_old_tasks`, `cleanup_metrics_data`, `execute_db_task`, `hello_world`
 - **Database-driven tasks** - Tasks defined in DB with dependency management
 - **Dispatcherd integration** - Always enabled, multi-worker task processing with health monitoring
 - **Scheduling** - Cron-like recurring tasks and dependency chains
@@ -354,8 +354,8 @@ GET /api/v1/tasks/?status=pending
 POST /api/v1/tasks/
 {
   "name": "My Task",
-  "function_name": "cleanup_old_data",
-  "task_data": {"days_old": 30},
+  "function_name": "hello_world",
+  "task_data": {},
   "scheduled_time": "2024-09-04T15:30:00Z"  // Optional
 }
 
@@ -381,9 +381,10 @@ The system includes these built-in task functions organized by feature groups:
 
 **System Tasks** (always enabled):
 
-- **`cleanup_old_data`** - Clean up old data from the system
 - **`cleanup_old_tasks`** - Clean up completed/failed tasks
+- **`cleanup_metrics_data`** - Clean up old metrics data
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
+- **`hello_world`** - Simple test task for dispatcherd integration
 
 **Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION` feature flag):
 

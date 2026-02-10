@@ -35,9 +35,9 @@ def mock_task_groups():
             "description": "Test task 1",
         },
         "test_task_2": {
-            "function": "cleanup_old_data",
+            "function": "cleanup_old_tasks",
             "cron": "0 2 * * *",
-            "args": {"days_old": 30},
+            "args": {},
             "enabled": False,
             "description": "Test task 2",
         },
@@ -59,9 +59,9 @@ def mock_db_tasks():
     task2 = Mock()
     task2.id = 2
     task2.name = "test_task_2"
-    task2.function_name = "cleanup_old_data"
+    task2.function_name = "cleanup_old_tasks"
     task2.cron_expression = "0 2 * * *"
-    task2.task_data = {"days_old": 30}
+    task2.task_data = {}
     task2.description = "Test task 2"
     task2.status = "pending"
 
@@ -120,9 +120,8 @@ def mock_task_functions():
     """Mock task functions."""
     return {
         "hello_world": Mock(),
-        "cleanup_old_data": Mock(),
+        "cleanup_old_tasks": Mock(),
         "execute_db_task": Mock(),
-        "sleep": Mock(),
     }
 
 
@@ -267,7 +266,7 @@ class TestUnifiedTaskScheduler:
 
         scheduler.stop()  # Should catch exception
 
-    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock(), "cleanup_old_data": Mock()})
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock(), "cleanup_old_tasks": Mock()})
     def test_add_registry_tasks(self, mock_task_database, mock_task_groups):
         """Test adding registry tasks to scheduler."""
         # Mock empty database
@@ -379,7 +378,7 @@ class TestUnifiedTaskScheduler:
         scheduler = UnifiedTaskScheduler()
 
         # Test specific queue mappings
-        assert scheduler._get_queue_for_function("cleanup_old_data") == "metrics_cleanup"
+        assert scheduler._get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
         assert scheduler._get_queue_for_function("collect_anonymous_metrics") == "metrics_collectors"
         assert scheduler._get_queue_for_function("gather_automation_controller_billing_data") == "metrics_utility"
 
@@ -570,9 +569,7 @@ class TestGlobalSchedulerFunctions:
         # System/general tasks
         ("hello_world", "metrics_tasks"),
         ("execute_db_task", "metrics_tasks"),
-        ("sleep", "metrics_tasks"),
         # Cleanup tasks
-        ("cleanup_old_data", "metrics_cleanup"),
         ("cleanup_old_tasks", "metrics_cleanup"),
         ("cleanup_metrics_data", "metrics_cleanup"),
         # Hourly collection tasks

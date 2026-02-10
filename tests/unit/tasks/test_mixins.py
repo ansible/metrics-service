@@ -61,7 +61,7 @@ class TestStatusTrackingMixin(TestCase):
 
     def test_get_duration_with_both_timestamps(self):
         """Test get_duration() calculates correct duration."""
-        task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task(name="Test Task", function_name="hello_world", created_by=self.user)
         task.save()
 
         # Set timestamps with known difference
@@ -79,7 +79,7 @@ class TestStatusTrackingMixin(TestCase):
 
     def test_get_duration_without_started_at(self):
         """Test get_duration() returns None when started_at is missing."""
-        task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task(name="Test Task", function_name="hello_world", created_by=self.user)
         task.save()
 
         task.completed_at = timezone.now()
@@ -91,7 +91,7 @@ class TestStatusTrackingMixin(TestCase):
 
     def test_get_duration_without_completed_at(self):
         """Test get_duration() returns None when completed_at is missing."""
-        task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task(name="Test Task", function_name="hello_world", created_by=self.user)
         task.save()
 
         task.started_at = timezone.now()
@@ -103,7 +103,7 @@ class TestStatusTrackingMixin(TestCase):
 
     def test_get_duration_without_any_timestamps(self):
         """Test get_duration() returns None when both timestamps are missing."""
-        task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task(name="Test Task", function_name="hello_world", created_by=self.user)
         task.save()
 
         duration = task.get_duration()
@@ -129,7 +129,7 @@ class TestMixinIntegration(TestCase):
 
     def test_task_model_uses_status_tracking_mixin(self):
         """Test Task model properly inherits StatusTrackingMixin functionality."""
-        task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
+        task = Task(name="Test Task", function_name="hello_world", created_by=self.user)
         task.save()
 
         # StatusTrackingMixin fields should be available

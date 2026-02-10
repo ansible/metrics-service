@@ -109,7 +109,7 @@ class TestBaseSerializerIntegration(TestCase):
                 fields = ["id", "name", "started_at", "completed_at", "error_message"]
 
         user = User.objects.create_user(username="testuser", email="test@example.com", password=get_test_password())
-        task = Task(name="Test Task", function_name="cleanup_old_data", created_by=user)
+        task = Task(name="Test Task", function_name="hello_world", created_by=user)
         task.save()
 
         serializer = StatusSerializer(task)

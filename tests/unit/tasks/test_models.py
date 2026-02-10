@@ -17,14 +17,14 @@ class TestTaskModel:
 
     def test_task_str_representation(self):
         """Test __str__ method of Task"""
-        task = Task.objects.create(name="Test Task", function_name="cleanup_old_data")
+        task = Task.objects.create(name="Test Task", function_name="hello_world")
         task.status = "pending"
         task.save()
 
         str_repr = str(task)
 
         assert "Test Task" in str_repr
-        assert "cleanup_old_data" in str_repr
+        assert "hello_world" in str_repr
         # Just check that the status is in the string representation
         assert task.get_status_display() in str_repr
 
@@ -175,12 +175,10 @@ class TestTaskModelEdgeCases:
         """Test Task creation with different status values"""
         # Use valid function name that exists in TASK_FUNCTIONS
         for status_value, status_name in Task.STATUS_CHOICES:
-            task = Task.objects.create(
-                name=f"{status_name} Task", function_name="cleanup_old_data", status=status_value
-            )
+            task = Task.objects.create(name=f"{status_name} Task", function_name="hello_world", status=status_value)
             # Check that the task was created (signals may modify status, but that's OK)
             assert task.id is not None
-            assert task.function_name == "cleanup_old_data"
+            assert task.function_name == "hello_world"
 
     def test_task_attempts_increment(self):
         """Test Task attempts can be incremented"""

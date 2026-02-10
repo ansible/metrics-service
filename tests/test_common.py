@@ -12,25 +12,14 @@ from django.conf import settings
 class BaseTaskFunctionsTest(unittest.TestCase):
     """Base test case for task functions with common test methods."""
 
-    def test_cleanup_old_data(self):
-        """Test cleanup_old_data function."""
-        from apps.tasks.tasks import cleanup_old_data
-
-        result = cleanup_old_data(days_old=30)
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["days_old"], 30)
-        self.assertIn("cleaned_count", result)
-
     def test_task_functions_registry(self):
         """Test TASK_FUNCTIONS registry."""
         from apps.tasks.tasks import TASK_FUNCTIONS
 
         expected_functions = [
-            "cleanup_old_data",
             "execute_db_task",
             "hello_world",
-            "sleep",
+            "cleanup_old_tasks",
         ]
 
         for func_name in expected_functions:

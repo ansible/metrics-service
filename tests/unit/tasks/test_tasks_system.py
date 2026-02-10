@@ -5,11 +5,9 @@ This module tests the complete task system including task functions, registry,
 system task creation, execution, and helper functions.
 
 Organized into clear test classes:
-- TestSystemTaskFunctions: Individual task functions (cleanup_old_data, etc.)
 - TestExecuteDbTask: Database task execution and error handling
 - TestTaskRegistry: TASK_FUNCTIONS and TASK_METADATA configuration
 - TestSystemTaskCreation: System task initialization and management
-- TestSystemTaskHelpers: Internal helper functions
 - TestTaskDispatcher: Task submission and dispatcher integration
 - TestEdgeCasesAndErrorHandling: Edge cases, error conditions, and resilience
 """
@@ -24,51 +22,12 @@ from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
-    cleanup_old_data,
     execute_db_task,
     submit_task_to_dispatcher,
 )
 from tests.test_utils import get_test_password
 
 User = get_user_model()
-
-
-# =============================================================================
-# System Task Functions Tests
-# =============================================================================
-
-
-@pytest.mark.unit
-class TestSystemTaskFunctions(TestCase):
-    """Test individual system task functions."""
-
-    def test_cleanup_old_data_success(self):
-        """Test cleanup_old_data function with valid parameters."""
-        result = cleanup_old_data(days_old=30)
-
-        assert result["status"] == "success"
-        assert result["days_old"] == 30
-        assert "cleaned_count" in result
-
-    def test_cleanup_old_data_with_exception(self):
-        """Test cleanup_old_data handles exceptions gracefully."""
-        with patch("apps.tasks.tasks.logger"):
-            # Test with invalid data
-            result = cleanup_old_data(days_old="invalid")
-
-            # Should still return success (handles exception internally)
-            assert result["status"] == "success"
-
-    def test_cleanup_old_data_with_none_values(self):
-        """Test cleanup_old_data with None values."""
-        result = cleanup_old_data(days_old=None)
-        assert result["status"] == "success"
-
-    def test_cleanup_old_data_with_invalid_params(self):
-        """Test cleanup_old_data with unexpected parameters."""
-        result = cleanup_old_data(invalid_param="value")
-        # Should handle gracefully without crashing
-        assert isinstance(result, dict)
 
 
 # =============================================================================
@@ -83,9 +42,7 @@ class TestExecuteDbTask(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = self._create_task_safely(
-            name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7}
-        )
+        self.task = self._create_task_safely(name="Test Task", function_name="hello_world", task_data={})
 
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
@@ -178,9 +135,9 @@ class TestTaskRegistry(TestCase):
     def test_task_functions_contains_expected_functions(self):
         """Test TASK_FUNCTIONS contains all expected task functions."""
         expected_functions = [
-            "cleanup_old_data",
             "execute_db_task",
             "hello_world",
+            "cleanup_old_tasks",
             "collect_single_collector",
             "collect_metrics",
         ]
@@ -255,7 +212,7 @@ class TestTaskDispatcher(TestCase):
         """Set up test data."""
         self.user = User.objects.create_user(username="submituser")
         # Create task without triggering signals
-        self.task = Task(name="Submit Task", function_name="cleanup_old_data", created_by=self.user)
+        self.task = Task(name="Submit Task", function_name="hello_world", created_by=self.user)
         self.task.save()
 
     @patch("apps.tasks.models.TaskExecution.objects.create")
@@ -378,7 +335,7 @@ class TestTaskRetryBehavior(TestCase):
         # Create a failed task with execution history
         task = Task(
             name="Failed Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=1,
             max_attempts=3,
@@ -412,7 +369,7 @@ class TestTaskRetryBehavior(TestCase):
         """Test that retry() clears the error message."""
         task = Task(
             name="Failed Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=1,
             max_attempts=3,
@@ -438,7 +395,7 @@ class TestTaskRetryBehavior(TestCase):
         # Create a task with max_attempts=3
         task = Task(
             name="Test Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=1,
             max_attempts=3,
@@ -497,7 +454,7 @@ class TestTaskRetryBehavior(TestCase):
         # Create a task that has already failed twice
         task = Task(
             name="Test Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=2,  # Already tried twice
             max_attempts=3,

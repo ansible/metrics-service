@@ -75,9 +75,9 @@ GET /api/v1/tasks/
 # Create a new task
 POST /api/v1/tasks/
 {
-  "name": "Data Cleanup",
-  "function_name": "cleanup_old_data",
-  "task_data": {"days_old": 30}
+  "name": "Hello World Task",
+  "function_name": "hello_world",
+  "task_data": {}
 }
 
 # Get running tasks
@@ -94,10 +94,9 @@ GET /api/v1/tasks/available_functions/
 
 **System Tasks** (always enabled):
 
-- `cleanup_old_data` - Clean up old system data
 - `cleanup_old_tasks` - Clean up completed/failed tasks
+- `cleanup_metrics_data` - Clean up old metrics data
 - `hello_world` - Simple test task for dispatcherd integration
-- `sleep` - Sleep for specified duration (testing)
 - `execute_db_task` - Execute database-defined tasks with lifecycle management
 
 **Anonymized Data Collection Tasks** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled):

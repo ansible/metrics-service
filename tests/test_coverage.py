@@ -15,14 +15,13 @@ class TestTaskFunctions(BaseTaskFunctionsTest):
     """Test task functions directly without model dependencies."""
 
     @pytest.mark.django_db
-    def test_cleanup_old_data(self):
-        """Test cleanup_old_data function."""
-        from apps.tasks.tasks import cleanup_old_data
+    def test_hello_world(self):
+        """Test hello_world function."""
+        from apps.tasks.tasks import hello_world
 
-        result = cleanup_old_data(days_old=30)
+        result = hello_world()
 
         self.assertEqual(result["status"], "success")
-        self.assertEqual(result["days_old"], 30)
 
 
 class TestTaskScheduler(BaseTaskSchedulerTest):

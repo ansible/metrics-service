@@ -64,12 +64,8 @@ class TestTaskViewSet(APITestCase):
         """Test GET /api/v1/tasks/ returns task list."""
         self.client.force_authenticate(user=self.user)
 
-        self._create_task_safely(
-            name="Task 1", function_name="cleanup_old_data", created_by=self.user, status="pending"
-        )
-        self._create_task_safely(
-            name="Task 2", function_name="cleanup_old_data", created_by=self.user, status="completed"
-        )
+        self._create_task_safely(name="Task 1", function_name="hello_world", created_by=self.user, status="pending")
+        self._create_task_safely(name="Task 2", function_name="hello_world", created_by=self.user, status="completed")
 
         url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
@@ -82,7 +78,7 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         task = self._create_task_safely(
-            name="Detail Task", function_name="cleanup_old_data", created_by=self.user, task_data={"days_old": 30}
+            name="Detail Task", function_name="hello_world", created_by=self.user, task_data={"days_old": 30}
         )
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
@@ -90,7 +86,7 @@ class TestTaskViewSet(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["name"] == "Detail Task"
-        assert response.data["function_name"] == "cleanup_old_data"
+        assert response.data["function_name"] == "hello_world"
         assert response.data["task_data"]["days_old"] == 30
 
     def test_task_detail_not_found(self):
@@ -108,12 +104,12 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         url = reverse("tasks:v1:task-list")
-        data = {"name": "New Task", "function_name": "cleanup_old_data", "task_data": {"days_old": 45}}
+        data = {"name": "New Task", "function_name": "hello_world", "task_data": {"days_old": 45}}
         response = self.client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["name"] == "New Task"
-        assert response.data["function_name"] == "cleanup_old_data"
+        assert response.data["function_name"] == "hello_world"
         assert Task.objects.filter(name="New Task").exists()
 
     def test_task_create_with_scheduled_time(self):
@@ -125,7 +121,7 @@ class TestTaskViewSet(APITestCase):
         url = reverse("tasks:v1:task-list")
         data = {
             "name": "Scheduled Task",
-            "function_name": "cleanup_old_data",
+            "function_name": "hello_world",
             "scheduled_time": future_time.isoformat(),
         }
         response = self.client.post(url, data, format="json")
@@ -161,10 +157,10 @@ class TestTaskViewSet(APITestCase):
         """Test PUT /api/v1/tasks/{id}/ updates task."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Original Task", function_name="cleanup_old_data", created_by=self.user)
+        task = self._create_task_safely(name="Original Task", function_name="hello_world", created_by=self.user)
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
-        data = {"name": "Updated Task", "function_name": "cleanup_old_data", "task_data": {"days_old": 60}}
+        data = {"name": "Updated Task", "function_name": "hello_world", "task_data": {"days_old": 60}}
         response = self.client.put(url, data, format="json")
 
         assert response.status_code == status.HTTP_200_OK
@@ -175,7 +171,7 @@ class TestTaskViewSet(APITestCase):
         """Test PATCH /api/v1/tasks/{id}/ partially updates task."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Patch Task", function_name="cleanup_old_data", created_by=self.user)
+        task = self._create_task_safely(name="Patch Task", function_name="hello_world", created_by=self.user)
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Patched Task"}
@@ -184,14 +180,14 @@ class TestTaskViewSet(APITestCase):
         assert response.status_code == status.HTTP_200_OK
         assert response.data["name"] == "Patched Task"
         # function_name should remain unchanged
-        assert response.data["function_name"] == "cleanup_old_data"
+        assert response.data["function_name"] == "hello_world"
 
     # Delete Tests
     def test_task_delete_endpoint(self):
         """Test DELETE /api/v1/tasks/{id}/ deletes task."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Delete Task", function_name="cleanup_old_data", created_by=self.user)
+        task = self._create_task_safely(name="Delete Task", function_name="hello_world", created_by=self.user)
         task_id = task.pk
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task_id})
@@ -206,10 +202,10 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         self._create_task_safely(
-            name="Running Task", function_name="cleanup_old_data", created_by=self.user, status="running"
+            name="Running Task", function_name="hello_world", created_by=self.user, status="running"
         )
         self._create_task_safely(
-            name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
+            name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
         )
 
         url = reverse("tasks:v1:task-running")
@@ -224,7 +220,7 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         self._create_task_safely(
-            name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
+            name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
         )
 
         url = reverse("tasks:v1:task-pending")
@@ -250,7 +246,7 @@ class TestTaskViewSet(APITestCase):
 
         task = self._create_task_safely(
             name="Failed Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             created_by=self.user,
             status="failed",
             attempts=1,
@@ -277,7 +273,7 @@ class TestTaskViewSet(APITestCase):
 
         task = self._create_task_safely(
             name="Failed Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             created_by=self.user,
             status="failed",
             attempts=3,
@@ -295,7 +291,7 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         task = self._create_task_safely(
-            name="Completed Task", function_name="cleanup_old_data", created_by=self.user, status="completed"
+            name="Completed Task", function_name="hello_world", created_by=self.user, status="completed"
         )
 
         url = reverse("tasks:v1:task-retry", kwargs={"pk": task.pk})
@@ -317,7 +313,7 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         task = self._create_task_safely(
-            name="Pending Task", function_name="cleanup_old_data", created_by=self.user, status="pending"
+            name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
         )
 
         url = reverse("tasks:v1:task-cancel", kwargs={"pk": task.pk})
@@ -335,7 +331,7 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         task = self._create_task_safely(
-            name="Completed Task", function_name="cleanup_old_data", created_by=self.user, status="completed"
+            name="Completed Task", function_name="hello_world", created_by=self.user, status="completed"
         )
 
         url = reverse("tasks:v1:task-cancel", kwargs={"pk": task.pk})
@@ -349,7 +345,7 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         task = self._create_task_safely(
-            name="Failed Task", function_name="cleanup_old_data", created_by=self.user, status="failed"
+            name="Failed Task", function_name="hello_world", created_by=self.user, status="failed"
         )
 
         url = reverse("tasks:v1:task-cancel", kwargs={"pk": task.pk})
@@ -370,7 +366,7 @@ class TestTaskViewSet(APITestCase):
 
         old_date = timezone.now() - timedelta(days=40)
         task = self._create_task_safely(
-            name="Old Task", function_name="cleanup_old_data", created_by=self.user, status="completed"
+            name="Old Task", function_name="hello_world", created_by=self.user, status="completed"
         )
         task.completed_at = old_date
         task.save()
@@ -393,7 +389,7 @@ class TestTaskViewSet(APITestCase):
 
         old_date = timezone.now() - timedelta(days=40)
         task = self._create_task_safely(
-            name="Old Task", function_name="cleanup_old_data", created_by=self.user, status="completed"
+            name="Old Task", function_name="hello_world", created_by=self.user, status="completed"
         )
         task.completed_at = old_date
         task.save()
@@ -422,13 +418,13 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         self._create_task_safely(
-            name="Pending Task 1", function_name="cleanup_old_data", created_by=self.user, status="pending"
+            name="Pending Task 1", function_name="hello_world", created_by=self.user, status="pending"
         )
         self._create_task_safely(
-            name="Pending Task 2", function_name="cleanup_old_data", created_by=self.user, status="pending"
+            name="Pending Task 2", function_name="hello_world", created_by=self.user, status="pending"
         )
         self._create_task_safely(
-            name="Running Task", function_name="cleanup_old_data", created_by=self.user, status="running"
+            name="Running Task", function_name="hello_world", created_by=self.user, status="running"
         )
 
         url = reverse("tasks:v1:task-list-filtered")
@@ -446,7 +442,7 @@ class TestTaskViewSet(APITestCase):
         # Create 5 tasks
         for i in range(5):
             self._create_task_safely(
-                name=f"Task {i}", function_name="cleanup_old_data", created_by=self.user, status="pending"
+                name=f"Task {i}", function_name="hello_world", created_by=self.user, status="pending"
             )
 
         url = reverse("tasks:v1:task-list-filtered")
@@ -510,7 +506,7 @@ class TestTaskExecutionViewSet(APITestCase):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
-        self.task = Task(name="Test Task", function_name="cleanup_old_data", created_by=self.user)
+        self.task = Task(name="Test Task", function_name="hello_world", created_by=self.user)
         self.task.save()
 
     def test_execution_list_endpoint(self):
@@ -561,7 +557,7 @@ class TestTaskSerializers(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
         self.task = Task(
-            name="Test Task", function_name="cleanup_old_data", task_data={"key": "value"}, created_by=self.user
+            name="Test Task", function_name="hello_world", task_data={"key": "value"}, created_by=self.user
         )
         self.task.save()
         self.factory = APIRequestFactory()
@@ -598,7 +594,7 @@ class TestTaskSerializers(TestCase):
         request.user = self.user
 
         serializer = TaskCreateSerializer(
-            data={"name": "Valid Task", "function_name": "cleanup_old_data", "task_data": {"days": 30}},
+            data={"name": "Valid Task", "function_name": "hello_world", "task_data": {"days": 30}},
             context={"request": request},
         )
 
@@ -646,11 +642,11 @@ class TestTaskFiltering(APITestCase):
 
         # Create tasks with various statuses
         for i in range(5):
-            task = Task(name=f"Task {i}", function_name="cleanup_old_data", created_by=self.user, status="pending")
+            task = Task(name=f"Task {i}", function_name="hello_world", created_by=self.user, status="pending")
             task.save()
 
         for i in range(3):
-            task = Task(name=f"Running {i}", function_name="cleanup_old_data", created_by=self.user, status="running")
+            task = Task(name=f"Running {i}", function_name="hello_world", created_by=self.user, status="running")
             task.save()
 
     def test_filter_by_status(self):
@@ -667,13 +663,13 @@ class TestTaskFiltering(APITestCase):
     def test_filter_by_function_name(self):
         """Test filtering tasks by function_name parameter."""
         url = reverse("tasks:v1:task-list")
-        response = self.client.get(url, {"function_name": "cleanup_old_data"})
+        response = self.client.get(url, {"function_name": "hello_world"})
 
         assert response.status_code == status.HTTP_200_OK
         # Handle both paginated (dict with 'results') and non-paginated (list) responses
         tasks = response.data.get("results", response.data) if isinstance(response.data, dict) else response.data
         for task in tasks:
-            assert task["function_name"] == "cleanup_old_data"
+            assert task["function_name"] == "hello_world"
 
     def test_pagination(self):
         """Test task list pagination."""
@@ -730,7 +726,7 @@ class TestTaskPermissions(APITestCase):
 
         # Test create
         url = reverse("tasks:v1:task-list")
-        data = {"name": "Admin Task", "function_name": "cleanup_old_data"}
+        data = {"name": "Admin Task", "function_name": "hello_world"}
         response = self.client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED

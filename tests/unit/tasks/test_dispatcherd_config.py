@@ -217,7 +217,6 @@ class TestGetQueueForFunction:
 
     def test_returns_correct_queue_for_cleanup_tasks(self):
         """Test that cleanup tasks are routed to metrics_cleanup queue."""
-        assert get_queue_for_function("cleanup_old_data") == "metrics_cleanup"
         assert get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
         assert get_queue_for_function("cleanup_metrics_data") == "metrics_cleanup"
 
@@ -256,7 +255,6 @@ class TestGetQueueForFunction:
         """Test that general tasks are routed to metrics_tasks queue."""
         assert get_queue_for_function("hello_world") == "metrics_tasks"
         assert get_queue_for_function("execute_db_task") == "metrics_tasks"
-        assert get_queue_for_function("sleep") == "metrics_tasks"
 
     def test_returns_default_queue_for_unknown_function(self):
         """Test that unknown functions are routed to default metrics_tasks queue."""
@@ -271,9 +269,7 @@ class TestGetQueueForFunction:
             # System/general tasks
             "hello_world": "metrics_tasks",
             "execute_db_task": "metrics_tasks",
-            "sleep": "metrics_tasks",
             # Cleanup tasks
-            "cleanup_old_data": "metrics_cleanup",
             "cleanup_old_tasks": "metrics_cleanup",
             "cleanup_metrics_data": "metrics_cleanup",
             # Hourly collection tasks

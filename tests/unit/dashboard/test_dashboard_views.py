@@ -27,7 +27,7 @@ class TestDashboardViews(TestCase):
     def test_dashboard_view_with_anonymous_user(self, mock_task_functions):
         """Test dashboard view with anonymous user."""
         # Mock TASK_FUNCTIONS
-        mock_task_functions.keys.return_value = ["cleanup_old_data"]
+        mock_task_functions.keys.return_value = ["hello_world"]
 
         # Create request with anonymous user
         request = self.factory.get("/dashboard/")
@@ -47,7 +47,7 @@ class TestDashboardViews(TestCase):
         """Test that dashboard view passes correct context to template."""
         # Mock TASK_FUNCTIONS
         mock_task_functions.keys.return_value = [
-            "cleanup_old_data",
+            "hello_world",
             "execute_db_task",
             "hello_world",
         ]
@@ -77,7 +77,7 @@ class TestDashboardViews(TestCase):
         assert context["api_base_url"] == "/api/v1/"
         assert context["user"] == self.user
         assert context["available_functions"] == [
-            "cleanup_old_data",
+            "hello_world",
             "execute_db_task",
             "hello_world",
         ]

@@ -7,7 +7,6 @@ communication, and testing tasks with proper error handling and status tracking.
 
 import logging
 import os
-import time
 from typing import Any
 
 from django.utils import timezone
@@ -64,21 +63,6 @@ def hello_world(**kwargs) -> dict[str, Any]:
             "task_type": "hello_world",
             "completed": True,
         },
-    )
-
-
-@task(queue="metrics_tasks", decorate=False)
-@task_execution_wrapper("sleep")
-def sleep(duration: int = 10) -> dict[str, Any]:
-    """
-    Sleep for a given number of seconds.
-    """
-    time.sleep(duration)
-    message = f"Slept for {duration} seconds"
-    logger.info(f"Sleep task completed: {message}")
-
-    return create_task_result(
-        "success", {"message": message, "task_type": "sleep", "duration": duration, "completed": True}
     )
 
 
@@ -197,40 +181,6 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
             "executions_found": execution_count,
             "tasks_deleted": deleted_tasks,
             "executions_deleted": deleted_executions,
-        },
-    )
-
-
-@task(queue="metrics_cleanup", decorate=False)
-@task_execution_wrapper("cleanup_old_data")
-def cleanup_old_data(**kwargs) -> dict[str, Any]:
-    """
-    Clean up old data from the system.
-
-    This task removes old data from the system based on specified age criteria.
-    It supports cleanup of various data types including activity streams, logs,
-    and other time-based data.
-
-    Args:
-        **kwargs: Task data containing cleanup parameters:
-            - days_old (int): Number of days old data should be to qualify for cleanup (default: 30)
-            - data_types (list): List of data types to clean up (optional)
-
-    Returns:
-        dict: Task result dictionary with cleanup statistics
-    """
-    days_old = kwargs.get("days_old", 30)
-    data_types = kwargs.get("data_types", ["default"])
-    cleaned_count = 0
-
-    log_task_execution("cleanup_old_data", "processing", f"Cleaning up data older than {days_old} days")
-
-    return create_task_result(
-        "success",
-        {
-            "cleaned_count": cleaned_count,
-            "days_old": days_old,
-            "data_types": data_types,
         },
     )
 

@@ -29,13 +29,11 @@ from .tasks_collector import (
 # Import all system tasks
 from .tasks_system import (
     cleanup_metrics_data,
-    cleanup_old_data,
     cleanup_old_tasks,
     create_system_tasks,
     execute_db_task,
     get_system_task_info,
     hello_world,
-    sleep,
     submit_task_to_dispatcher,
 )
 
@@ -56,11 +54,9 @@ DESC_EVENT_NAME_TRACKING = "Event name for tracking"
 TASK_FUNCTIONS = {
     # System tasks
     "hello_world": hello_world,
-    "cleanup_old_data": cleanup_old_data,
     "cleanup_old_tasks": cleanup_old_tasks,
     "cleanup_metrics_data": cleanup_metrics_data,
     "execute_db_task": execute_db_task,
-    "sleep": sleep,
     # Hourly Metrics Collection Tasks
     "collect_job_host_summary_hourly": collect_job_host_summary_hourly,
     "collect_host_metrics_hourly": collect_host_metrics_hourly,
@@ -87,47 +83,7 @@ TASK_METADATA = {
         "parameters": {},
         "examples": [{"name": "Basic Hello World", "data": {}}],
     },
-    "sleep": {
-        "category": "Testing",
-        "description": "Sleep for a specified number of seconds (useful for testing)",
-        "parameters": {
-            "duration": {
-                "type": "integer",
-                "default": 10,
-                "description": "Number of seconds to sleep",
-                "min": 1,
-                "max": 300,
-            }
-        },
-        "examples": [
-            {"name": "Sleep 10 seconds", "data": {"duration": 10}},
-            {"name": "Sleep 30 seconds", "data": {"duration": 30}},
-        ],
-    },
     # Maintenance
-    "cleanup_old_data": {
-        "category": "Maintenance",
-        "description": "Clean up old data from the system based on age criteria",
-        "parameters": {
-            "days_old": {
-                "type": "integer",
-                "default": 30,
-                "description": "Number of days old data should be to qualify for cleanup",
-                "min": 1,
-                "max": 365,
-            },
-            "data_types": {
-                "type": "array",
-                "default": ["default"],
-                "description": "List of data types to clean up",
-                "items": ["logs", "temp_files", "cache", "default"],
-            },
-        },
-        "examples": [
-            {"name": "Cleanup 30 day old data", "data": {"days_old": 30}},
-            {"name": "Cleanup logs older than 7 days", "data": {"days_old": 7, "data_types": ["logs"]}},
-        ],
-    },
     "cleanup_old_tasks": {
         "category": "Maintenance",
         "description": "Clean up old completed and failed tasks (preserves recurring tasks by default)",
@@ -336,8 +292,6 @@ TASK_METADATA = {
 __all__ = [
     # System tasks
     "hello_world",
-    "sleep",
-    "cleanup_old_data",
     "cleanup_old_tasks",
     "execute_db_task",
     "submit_task_to_dispatcher",

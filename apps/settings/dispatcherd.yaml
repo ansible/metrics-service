@@ -39,10 +39,9 @@ logging:
 # Queue routing - map task types to specific channels
 queue_routing:
   'hello_world': 'metrics_tasks'
-  'cleanup_old_data': 'metrics_cleanup'
   'cleanup_old_tasks': 'metrics_cleanup'
+  'cleanup_metrics_data': 'metrics_cleanup'
   'execute_db_task': 'metrics_tasks'
-  'sleep': 'metrics_tasks'
   'collect_anonymous_metrics': 'metrics_collectors'
   'collect_config_metrics': 'metrics_collectors'
   'collect_job_host_summary': 'metrics_collectors'

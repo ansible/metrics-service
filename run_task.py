@@ -10,7 +10,7 @@ Examples:
     uv run ./run_task.py collect_all_metrics
     uv run ./run_task.py collect_anonymous_metrics '{"database": "awx"}'
     uv run ./run_task.py cleanup_old_tasks '{"days_old": 7, "dry_run": true}'
-    uv run ./run_task.py sleep '{"duration": 5}'
+    uv run ./run_task.py hello_world
 """
 
 import json

@@ -135,15 +135,6 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "category": "maintenance",
         },
         {
-            "task_id": "weekly_data_cleanup",
-            "function": "cleanup_old_data",
-            "cron": "0 3 * * 0",  # Weekly on Sunday at 3 AM
-            "args": {"days_old": 30, "data_types": ["logs", "temp_files", "cache"]},
-            "enabled": True,
-            "description": "Weekly cleanup of old system data and temporary files",
-            "category": "maintenance",
-        },
-        {
             "task_id": "hourly_health_check",
             "function": "hello_world",
             "cron": "0 * * * *",  # Every hour

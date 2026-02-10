@@ -92,7 +92,7 @@ class TestMixinsIntegration:
 
         from apps.tasks.models import Task
 
-        task = Task.objects.create(name="Test Task", function_name="cleanup_old_data")
+        task = Task.objects.create(name="Test Task", function_name="hello_world")
 
         # Set timestamps manually to test get_duration
         task.started_at = timezone.now()

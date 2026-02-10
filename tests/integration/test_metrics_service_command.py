@@ -51,7 +51,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
             "--name",
             "Test Task",
             "--function",
-            "cleanup_old_data",
+            "hello_world",
             "--data",
             task_data,
             "--description",
@@ -62,7 +62,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
 
         # Verify task was created
         task = Task.objects.get(name="Test Task")
-        assert task.function_name == "cleanup_old_data"
+        assert task.function_name == "hello_world"
         assert task.task_data == {"test": "data"}
         assert task.description == "Test description"
         assert task.created_by == self.user
@@ -70,11 +70,9 @@ class TestMetricsServiceCommand(TransactionTestCase):
     def test_task_list_command(self):
         """Test the tasks list subcommand."""
         # Create test tasks
-        task1 = Task.objects.create(
-            name="Task 1", function_name="cleanup_old_data", status="pending", created_by=self.user
-        )
+        task1 = Task.objects.create(name="Task 1", function_name="hello_world", status="pending", created_by=self.user)
         task1.save()
-        Task.objects.create(name="Task 2", function_name="cleanup_old_data", status="completed", created_by=self.user)
+        Task.objects.create(name="Task 2", function_name="hello_world", status="completed", created_by=self.user)
 
         with patch("sys.stdout.write") as mock_stdout:
             call_command("metrics_service", "tasks", "list")
@@ -84,7 +82,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
     def test_task_list_with_status_filter(self):
         """Test tasks list with status filtering."""
         pending_task = Task.objects.create(
-            name="Pending Task", function_name="cleanup_old_data", status="pending", created_by=self.user
+            name="Pending Task", function_name="hello_world", status="pending", created_by=self.user
         )
         pending_task.save()
         Task.objects.create(
@@ -100,7 +98,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
         """Test the tasks show subcommand."""
         task = Task.objects.create(
             name="Show Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             task_data={"test": "data"},
             description="Test task for show command",
             created_by=self.user,
@@ -115,7 +113,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
         """Test the tasks cancel subcommand."""
         # Create task with completed status first to avoid signal issues, then change to pending
         task = Task.objects.create(
-            name="Cancel Task", function_name="cleanup_old_data", status="completed", created_by=self.user
+            name="Cancel Task", function_name="hello_world", status="completed", created_by=self.user
         )
         task.status = "pending"
         task.save()
@@ -130,7 +128,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
     def test_task_retry_command(self):
         """Test the tasks retry subcommand."""
         task = Task.objects.create(
-            name="Retry Task", function_name="cleanup_old_data", status="failed", created_by=self.user
+            name="Retry Task", function_name="hello_world", status="failed", created_by=self.user
         )
 
         with patch("sys.stdout.write"):
@@ -151,7 +149,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
                 "--name",
                 "Invalid Task",
                 "--function",
-                "cleanup_old_data",
+                "hello_world",
                 "--data",
                 "invalid-json",
             )
@@ -165,7 +163,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
                 "--name",
                 "Invalid Time Task",
                 "--function",
-                "cleanup_old_data",
+                "hello_world",
                 "--scheduled-time",
                 "invalid-time-format",
             )
@@ -179,7 +177,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
                 "--name",
                 "Invalid User Task",
                 "--function",
-                "cleanup_old_data",
+                "hello_world",
                 "--user",
                 "nonexistent_user",
             )
@@ -202,7 +200,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
         """Test operations on tasks in invalid states."""
         # Create completed task
         completed_task = Task.objects.create(
-            name="Completed Task", function_name="cleanup_old_data", status="completed", created_by=self.user
+            name="Completed Task", function_name="hello_world", status="completed", created_by=self.user
         )
 
         # Try to cancel completed task
@@ -215,7 +213,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
 
         # Create pending task and try to retry it
         pending_task = Task.objects.create(
-            name="Pending Task", function_name="cleanup_old_data", status="pending", created_by=self.user
+            name="Pending Task", function_name="hello_world", status="pending", created_by=self.user
         )
         pending_task.save()
 

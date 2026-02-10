@@ -142,7 +142,6 @@ class TestPredefinedTaskGroups(TestCase):
         # Check for expected system tasks
         task_ids = [task["task_id"] for task in SYSTEM_TASKS_GROUP.tasks]
         assert "daily_task_cleanup" in task_ids
-        assert "weekly_data_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
@@ -198,7 +197,6 @@ class TestTaskGroupFunctions(TestCase):
 
         # System tasks (always enabled)
         assert "daily_task_cleanup" in task_ids
-        assert "weekly_data_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
         # Anonymized data tasks (enabled) - after consolidation
