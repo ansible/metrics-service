@@ -163,47 +163,82 @@ DEFAULT_SETTINGS = {
 
 
 # uv run ./manage.py metrics_service remove-default-settings
-def remove_default_settings():
+def remove_default_settings(all_known: bool = False, all_settings: bool = False):
     """
-    Remove unchanged default feature flag settings from the database.
+    Remove default feature flag settings from the database.
 
-    This only removes settings that match the default_settings keys and have
-    previous_value=None (indicating they haven't been modified by a user).
-    Settings that have been modified (have a previous_value) are preserved.
+    Args:
+        all_known: If True, remove all known default settings (ignores previous_value logic)
+        all_settings: If True, remove all settings from database (ignores DEFAULT_SETTINGS known settings list)
+
+    Default behavior (both False):
+        Only removes settings that match DEFAULT_SETTINGS keys and have
+        previous_value=None (indicating they haven't been modified by a user).
+        Settings that have been modified (have a previous_value) are preserved.
+
+    With all_known=True:
+        Removes all settings in DEFAULT_SETTINGS, even if they have been modified.
+
+    With all_settings=True:
+        Removes ALL settings from the database, not just those in DEFAULT_SETTINGS.
+        Takes precedence over all_known.
     """
     removed_count = 0
 
-    for setting_key in DEFAULT_SETTINGS:
-        # Only remove settings that haven't been modified (previous_value is None)
-        deleted_count, _ = Setting.objects.filter(setting_key=setting_key, previous_value=None).delete()
+    # If all_settings is True, remove everything
+    if all_settings:
+        deleted_count, _ = Setting.objects.all().delete()
         if deleted_count > 0:
-            logger.info(f"Removed unchanged setting '{setting_key}'")
-            removed_count += deleted_count
+            logger.warning(f"Removed ALL {deleted_count} settings from database (--all-settings)")
+        else:
+            logger.debug("No settings found to remove")
+        return deleted_count
+
+    # If all_known is True, remove all known defaults regardless of modification status
+    if all_known:
+        for setting_key in DEFAULT_SETTINGS:
+            deleted_count, _ = Setting.objects.filter(setting_key=setting_key).delete()
+            if deleted_count > 0:
+                logger.info(f"Removed setting '{setting_key}' (--all-known)")
+                removed_count += deleted_count
+    else:
+        # Default behavior: only remove unchanged settings
+        for setting_key in DEFAULT_SETTINGS:
+            # Only remove settings that haven't been modified (previous_value is None)
+            deleted_count, _ = Setting.objects.filter(setting_key=setting_key, previous_value=None).delete()
+            if deleted_count > 0:
+                logger.info(f"Removed unchanged setting '{setting_key}'")
+                removed_count += deleted_count
 
     if removed_count > 0:
-        logger.info(f"Removed {removed_count} unchanged default settings from database")
+        logger.info(f"Removed {removed_count} settings from database")
     else:
-        logger.debug("No unchanged default settings found to remove")
+        logger.debug("No settings found to remove")
 
     return removed_count
 
 
 # uv run ./manage.py metrics_service init-default-settings
-def initialize_default_settings():
+def initialize_default_settings(overwrite: bool = False):
     """
     Initialize or update default feature flag settings in the database.
 
+    Args:
+        overwrite: If True, remove all known default settings before reinitializing
+                   (passes all_known=True to remove_default_settings)
+
     This function removes unchanged default settings (those with previous_value=None)
     and recreates them with current values from configuration. Modified settings
-    (those with a previous_value) are preserved and never overwritten.
+    (those with a previous_value) are preserved and never overwritten, unless
+    overwrite=True is specified.
 
     This ensures default settings stay in sync with configuration while respecting
     user modifications.
     """
     from django.conf import settings as django_settings
 
-    # Remove existing unchanged defaults
-    remove_default_settings()
+    # Remove existing defaults (all known if overwrite=True, otherwise just unchanged)
+    remove_default_settings(all_known=overwrite)
 
     created_count = 0
     skipped_count = 0

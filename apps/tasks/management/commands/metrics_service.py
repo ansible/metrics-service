@@ -52,8 +52,10 @@ class Command(BaseCommand):
         self._add_run_arguments(run_parser)
 
         # Init commands
-        subparsers.add_parser("init-default-settings", help="Initialize default settings")
-        subparsers.add_parser("remove-default-settings", help="Remove default settings")
+        init_settings_parser = subparsers.add_parser("init-default-settings", help="Initialize default settings")
+        self._add_init_settings_arguments(init_settings_parser)
+        remove_settings_parser = subparsers.add_parser("remove-default-settings", help="Remove default settings")
+        self._add_remove_settings_arguments(remove_settings_parser)
         subparsers.add_parser("init-service-id", help="Initialize ServiceID for ansible-base")
         init_tasks_parser = subparsers.add_parser("init-system-tasks", help="Initialize system tasks")
         self._add_init_tasks_arguments(init_tasks_parser)
@@ -103,6 +105,27 @@ class Command(BaseCommand):
             type=int,
             default=60,
             help="Task scheduler check interval in seconds (default: 60)",
+        )
+
+    def _add_init_settings_arguments(self, parser):
+        """Add arguments for the init-default-settings command."""
+        parser.add_argument(
+            "--overwrite",
+            action="store_true",
+            help="Remove all known default settings before reinitializing (passes all_known=True to remove)",
+        )
+
+    def _add_remove_settings_arguments(self, parser):
+        """Add arguments for the remove-default-settings command."""
+        parser.add_argument(
+            "--all-known",
+            action="store_true",
+            help="Remove all known default settings (ignores previous_value logic, removes even modified settings)",
+        )
+        parser.add_argument(
+            "--all-settings",
+            action="store_true",
+            help="Remove all settings from database (ignores DEFAULT_SETTINGS known settings list)",
         )
 
     def _add_init_tasks_arguments(self, parser):
@@ -157,9 +180,9 @@ class Command(BaseCommand):
             if command == "run":
                 self._handle_run_command(options)
             elif command == "init-default-settings":
-                self._handle_init_default_settings_command()
+                self._handle_init_default_settings_command(options)
             elif command == "remove-default-settings":
-                self._handle_remove_default_settings_command()
+                self._handle_remove_default_settings_command(options)
             elif command == "init-service-id":
                 self._handle_init_service_id_command()
             elif command == "init-system-tasks":
@@ -189,23 +212,27 @@ class Command(BaseCommand):
         except ValueError as e:
             raise CommandError(f"Configuration error: {e}") from e
 
-    def _handle_init_default_settings_command(self) -> None:
+    def _handle_init_default_settings_command(self, options: dict[str, Any] | None = None) -> None:
         """Handle the init-default-settings command."""
         try:
             from apps.dynamic_settings.utils import initialize_default_settings
 
-            initialize_default_settings()
+            overwrite = options.get("overwrite", False) if options else False
+            initialize_default_settings(overwrite=overwrite)
             self.output.success("Initialized default settings")
         except Exception as e:
             raise CommandError(f"Failed to initialize default settings: {e}") from e
 
-    def _handle_remove_default_settings_command(self) -> None:
+    def _handle_remove_default_settings_command(self, options: dict[str, Any]) -> None:
         """Handle the remove-default-settings command."""
         try:
             from apps.dynamic_settings.utils import remove_default_settings
 
-            removed_count = remove_default_settings()
-            self.output.success(f"Removed {removed_count} default settings")
+            all_known = options.get("all_known", False)
+            all_settings = options.get("all_settings", False)
+
+            removed_count = remove_default_settings(all_known=all_known, all_settings=all_settings)
+            self.output.success(f"Removed {removed_count} settings")
         except Exception as e:
             raise CommandError(f"Failed to remove default settings: {e}") from e
 
