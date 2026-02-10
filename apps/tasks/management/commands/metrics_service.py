@@ -53,6 +53,7 @@ class Command(BaseCommand):
 
         # Init commands
         subparsers.add_parser("init-default-settings", help="Initialize default settings")
+        subparsers.add_parser("remove-default-settings", help="Remove default settings")
         subparsers.add_parser("init-service-id", help="Initialize ServiceID for ansible-base")
         init_tasks_parser = subparsers.add_parser("init-system-tasks", help="Initialize system tasks")
         self._add_init_tasks_arguments(init_tasks_parser)
@@ -157,6 +158,8 @@ class Command(BaseCommand):
                 self._handle_run_command(options)
             elif command == "init-default-settings":
                 self._handle_init_default_settings_command()
+            elif command == "remove-default-settings":
+                self._handle_remove_default_settings_command()
             elif command == "init-service-id":
                 self._handle_init_service_id_command()
             elif command == "init-system-tasks":
@@ -195,6 +198,16 @@ class Command(BaseCommand):
             self.output.success("Initialized default settings")
         except Exception as e:
             raise CommandError(f"Failed to initialize default settings: {e}") from e
+
+    def _handle_remove_default_settings_command(self) -> None:
+        """Handle the remove-default-settings command."""
+        try:
+            from apps.dynamic_settings.utils import remove_default_settings
+
+            removed_count = remove_default_settings()
+            self.output.success(f"Removed {removed_count} default settings")
+        except Exception as e:
+            raise CommandError(f"Failed to remove default settings: {e}") from e
 
     def _handle_init_service_id_command(self) -> None:
         """Handle the init-service-id command."""

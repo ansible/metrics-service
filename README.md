@@ -159,7 +159,7 @@ METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
 METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED=true
 ```
 
-These environment variables (or their default values) are used to populate the feature flags database tables during `mangage.py metrics_service init-default-settings`.
+These environment variables (or their default values) are used to populate the feature flags database tables during `mangage.py metrics_service init-default-settings`. You can also use `python manage.py metrics_service remove-default-settings` to remove these settings from the database.
 
 The feature flag values in the database then determine which task groups are active in the scheduler. If the value is missing from the database, the environment variables get used again.
 
@@ -225,8 +225,11 @@ python manage.py makemigrations
 # Apply migrations
 python manage.py migrate
 
-# Initialize settings table with defaults
+# Initialize settings table with feature flag defaults
 python manage.py metrics_service init-default-settings
+
+# Remove feature flags from settings
+python manage.py metrics_service remove-default-settings
 
 # Initialize DAB ServiceID (required after first migration)
 python manage.py metrics_service init-service-id

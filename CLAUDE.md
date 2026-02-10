@@ -212,6 +212,7 @@ The `metrics_service` command consolidates all service management operations int
 
 - **`run`** - Start the complete metrics service (Django + dispatcher + scheduler)
 - **`init-default-settings`** - Initialize the Setting DB table with feature flag defaults
+- **`remove-default-settings`** - Remove default settings from the Setting DB table
 - **`init-service-id`** - Initialize ServiceID for ansible-base resource registry
 - **`init-system-tasks`** - Initialize system-defined tasks (cleanup, metrics collection)
 - **`tasks`** - Manage database tasks (create, list, show, cancel, retry)
@@ -433,9 +434,12 @@ FEATURE_ENABLED = {
 
 **Automatic Database Initialization:**
 
-Feature flags are automatically created in the `dynamic_settings_setting` table on application startup:
-- If a setting doesn't exist, it's created with the default value from `FEATURE_ENABLED`
-- If a setting already exists, it's not modified (preserves user changes)
+Feature flags are managed in the `dynamic_settings_setting` table:
+- Use `python manage.py metrics_service init-default-settings` to initialize or update default settings
+- The init command updates unchanged defaults to match current configuration but preserves modified settings
+- Modified settings (those with a `previous_value`) are never overwritten by init
+- Use `python manage.py metrics_service remove-default-settings` to remove unchanged default settings from the database
+- The remove command only removes settings that haven't been modified (those without a `previous_value`)
 - Settings can be queried/modified via SQL, Django shell, or API
 
 **Runtime Feature Flag Checking:**

@@ -314,18 +314,51 @@ class TestInitDefaultSettingsCommand(TestCase):
         output = self.out.getvalue()
         assert "Initialized default settings" in output
 
-    def test_handle_init_default_settings_skips_existing(self):
-        """Test that _handle_init_default_settings_command skips existing settings."""
+    def test_handle_init_default_settings_updates_unchanged_defaults(self):
+        """Test that init updates unchanged default settings to match current config."""
+        import json
+
         from apps.dynamic_settings.models import Setting
 
-        # Create a setting first
+        # Create an unchanged default setting with non-default value
         Setting.objects.create(
             setting_key="METRICS_COLLECTION_ENABLED",
-            current_value="true",
-            previous_value=None,
+            current_value=json.dumps(True),  # Custom value: True
+            previous_value=None,  # Unchanged - will be updated
             last_modified_by=None,
         )
-        initial_count = Setting.objects.count()
+
+        # Run the command
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+        self.command._handle_init_default_settings_command()
+
+        # Verify setting was updated to default value (False)
+        assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").count() == 1
+        setting = Setting.objects.get(setting_key="METRICS_COLLECTION_ENABLED")
+        # Value should be reset to default (False)
+        assert json.loads(setting.current_value) is False
+
+        # All default settings should be present
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+
+        # Check output
+        output = self.out.getvalue()
+        assert "Initialized default settings" in output
+
+    def test_handle_init_default_settings_skips_modified_settings(self):
+        """Test that init preserves modified settings (those with previous_value)."""
+        import json
+
+        from apps.dynamic_settings.models import Setting
+
+        # Create a modified setting (has previous_value)
+        Setting.objects.create(
+            setting_key="METRICS_COLLECTION_ENABLED",
+            current_value=json.dumps(True),  # Modified value
+            previous_value=json.dumps(False),  # Has previous_value - should be preserved
+            last_modified_by=None,
+        )
 
         # Run the command
         self.command.stdout = self.out
@@ -334,8 +367,14 @@ class TestInitDefaultSettingsCommand(TestCase):
 
         # Verify no duplicate settings were created
         assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").count() == 1
-        # Other settings should still be created
-        assert Setting.objects.count() > initial_count
+        setting = Setting.objects.get(setting_key="METRICS_COLLECTION_ENABLED")
+        # Modified value should remain unchanged (True)
+        assert json.loads(setting.current_value) is True
+        # previous_value should still be present
+        assert json.loads(setting.previous_value) is False
+
+        # Other default settings should still be created
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
 
         # Check output
         output = self.out.getvalue()
@@ -389,6 +428,128 @@ class TestInitDefaultSettingsCommand(TestCase):
         assert "command" in actions
         assert hasattr(actions["command"], "choices")
         assert "init-default-settings" in actions["command"].choices
+
+    def test_command_includes_remove_default_settings(self):
+        """Test that remove-default-settings is registered as a subcommand."""
+        from argparse import ArgumentParser
+
+        parser = ArgumentParser()
+        self.command.add_arguments(parser)
+
+        # Test that subcommands are added
+        actions = {action.dest: action for action in parser._actions}
+
+        assert "command" in actions
+        assert hasattr(actions["command"], "choices")
+        assert "remove-default-settings" in actions["command"].choices
+
+    def test_handle_remove_default_settings_removes_unchanged_settings(self):
+        """Test that _handle_remove_default_settings_command only removes unchanged default settings."""
+        import json
+
+        from apps.dynamic_settings.models import Setting
+
+        # Create unchanged default setting (previous_value is None)
+        Setting.objects.create(
+            setting_key="METRICS_COLLECTION_ENABLED",
+            current_value=json.dumps(False),
+            previous_value=None,  # Unchanged
+            last_modified_by=None,
+        )
+
+        # Create modified default setting (has previous_value)
+        Setting.objects.create(
+            setting_key="ANONYMIZED_DATA_COLLECTION",
+            current_value=json.dumps(False),  # Changed from default True
+            previous_value=json.dumps(True),  # Modified - should NOT be removed
+            last_modified_by=None,
+        )
+
+        # Create a non-default setting
+        Setting.objects.create(
+            setting_key="CUSTOM_SETTING",
+            current_value=json.dumps("test"),
+            previous_value=None,
+            last_modified_by=None,
+        )
+
+        initial_count = Setting.objects.count()
+        assert initial_count == 3
+
+        # Run the command
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+        self.command._handle_remove_default_settings_command()
+
+        # Verify only unchanged default settings were removed
+        assert Setting.objects.count() == 2
+        assert not Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
+        # Modified default setting should remain
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        # Custom setting should remain
+        assert Setting.objects.filter(setting_key="CUSTOM_SETTING").exists()
+
+        # Check output
+        output = self.out.getvalue()
+        assert "Removed 1 default settings" in output
+
+    def test_handle_remove_default_settings_when_none_exist(self):
+        """Test that _handle_remove_default_settings_command handles no settings gracefully."""
+        from apps.dynamic_settings.models import Setting
+
+        # Ensure no settings exist
+        Setting.objects.all().delete()
+
+        # Run the command
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+        self.command._handle_remove_default_settings_command()
+
+        # Check output
+        output = self.out.getvalue()
+        assert "Removed 0 default settings" in output
+
+    def test_handle_remove_default_settings_via_handle(self):
+        """Test that remove-default-settings command works via handle method."""
+        import json
+
+        from apps.dynamic_settings.models import Setting
+
+        # Create a default setting
+        Setting.objects.create(
+            setting_key="METRICS_COLLECTION_ENABLED",
+            current_value=json.dumps(False),
+            previous_value=None,
+            last_modified_by=None,
+        )
+
+        # Run via handle method
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+        options = {"command": "remove-default-settings"}
+        self.command.handle(**options)
+
+        # Verify setting was removed
+        assert not Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
+
+        # Check output
+        output = self.out.getvalue()
+        assert "Removed" in output
+
+    @patch("apps.dynamic_settings.utils.remove_default_settings")
+    def test_handle_remove_default_settings_error_handling(self, mock_remove):
+        """Test error handling in _handle_remove_default_settings_command."""
+        from django.core.management.base import CommandError
+
+        # Make remove_default_settings raise an exception
+        mock_remove.side_effect = Exception("Database error")
+
+        # Run the command and expect CommandError
+        with pytest.raises(CommandError) as exc_info:
+            self.command._handle_remove_default_settings_command()
+
+        assert "Failed to remove default settings" in str(exc_info.value)
+        assert "Database error" in str(exc_info.value)
 
 
 @pytest.mark.django_db

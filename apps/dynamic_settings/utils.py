@@ -147,34 +147,68 @@ def rollback_configuration_change(change_id, user):
         logger.error(f"Failed to rollback configuration change {change_id}: {str(e)}")
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
+
+# Define default feature flags - same as in initialize_default_settings
+# default_value is the fallback, set the actual default in apps/settings/defaults.py
+DEFAULT_SETTINGS = {
+    "ANONYMIZED_DATA_COLLECTION": {
+        "default_value": True,
+        "description": "Enable anonymous data collection for Red Hat",
+    },
+    "METRICS_COLLECTION_ENABLED": {
+        "default_value": False,
+        "description": "Enable hourly metrics collection with daily rollup",
+    },
+}
+
+
+# uv run ./manage.py metrics_service remove-default-settings
+def remove_default_settings():
+    """
+    Remove unchanged default feature flag settings from the database.
+
+    This only removes settings that match the default_settings keys and have
+    previous_value=None (indicating they haven't been modified by a user).
+    Settings that have been modified (have a previous_value) are preserved.
+    """
+    removed_count = 0
+
+    for setting_key in DEFAULT_SETTINGS:
+        # Only remove settings that haven't been modified (previous_value is None)
+        deleted_count, _ = Setting.objects.filter(setting_key=setting_key, previous_value=None).delete()
+        if deleted_count > 0:
+            logger.info(f"Removed unchanged setting '{setting_key}'")
+            removed_count += deleted_count
+
+    if removed_count > 0:
+        logger.info(f"Removed {removed_count} unchanged default settings from database")
+    else:
+        logger.debug("No unchanged default settings found to remove")
+
+    return removed_count
+
+
 # uv run ./manage.py metrics_service init-default-settings
 def initialize_default_settings():
     """
-    Initialize default feature flag settings in the database on application startup.
+    Initialize or update default feature flag settings in the database.
 
-    This ensures that all feature flags are visible in the database and can be
-    easily discovered and modified by administrators.
+    This function removes unchanged default settings (those with previous_value=None)
+    and recreates them with current values from configuration. Modified settings
+    (those with a previous_value) are preserved and never overwritten.
+
+    This ensures default settings stay in sync with configuration while respecting
+    user modifications.
     """
     from django.conf import settings as django_settings
 
-    # Define default feature flags
-    # default_value is the fallback, set the actual default in apps/settings/defaults.py
-    # defaults ignored when already in DB
-    default_settings = {
-        "ANONYMIZED_DATA_COLLECTION": {
-            "default_value": True,
-            "description": "Enable anonymous data collection for Red Hat",
-        },
-        "METRICS_COLLECTION_ENABLED": {
-            "default_value": False,
-            "description": "Enable hourly metrics collection with daily rollup",
-        },
-    }
+    # Remove existing unchanged defaults
+    remove_default_settings()
 
     created_count = 0
     skipped_count = 0
 
-    for setting_key, config in default_settings.items():
+    for setting_key, config in DEFAULT_SETTINGS.items():
         # Check if setting already exists
         existing = Setting.objects.filter(setting_key=setting_key).first()
 
