@@ -2,6 +2,8 @@
 Integration tests for apps.core.management.commands.metrics_service module.
 """
 
+import json
+from argparse import ArgumentParser
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -13,8 +15,8 @@ from apps.tasks.management.commands.metrics_service import Command
 from tests.unit.core.test_metrics_service_helpers import create_mock_processes_with_exit, get_default_config
 
 
-class TestMetricsServiceCommand(TestCase):
-    """Test metrics_service management command."""
+class BaseCommandTestCase(TestCase):
+    """Base test class with common setup/teardown for command tests."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -28,26 +30,45 @@ class TestMetricsServiceCommand(TestCase):
         # Ensure shutdown is requested to stop any running processes
         self.command.shutdown_requested = True
 
+    def setup_command_output(self):
+        """Configure command to use test stdout."""
+        self.command.stdout = self.out
+        self.command.output.stdout = self.out
+
+    def assert_subcommand_exists(self, parser, subcommand_name):
+        """Assert that a subcommand exists in the parser."""
+        actions = {action.dest: action for action in parser._actions}
+        assert "command" in actions
+        assert hasattr(actions["command"], "choices")
+        assert subcommand_name in actions["command"].choices
+
+    def create_test_setting(self, key, current_value, previous_value=None, last_modified_by=None):
+        """Create a test Setting object with given parameters."""
+        from apps.dynamic_settings.models import Setting
+
+        return Setting.objects.create(
+            setting_key=key,
+            current_value=json.dumps(current_value),
+            previous_value=json.dumps(previous_value) if previous_value is not None else None,
+            last_modified_by=last_modified_by,
+        )
+
+
+class TestMetricsServiceCommand(BaseCommandTestCase):
+    """Test metrics_service management command."""
+
     def test_command_help_text(self):
         """Test command has proper help text."""
         assert self.command.help == "Metrics service management - unified entry point for all service operations"
 
     def test_add_arguments(self):
         """Test add_arguments method configures parser correctly."""
-        from argparse import ArgumentParser
-
         parser = ArgumentParser()
         self.command.add_arguments(parser)
 
         # Test that subcommands are added
-        actions = {action.dest: action for action in parser._actions}
-
-        assert "command" in actions
-        assert hasattr(actions["command"], "choices")
-        assert "run" in actions["command"].choices
-        assert "init-service-id" in actions["command"].choices
-        assert "init-system-tasks" in actions["command"].choices
-        assert "tasks" in actions["command"].choices
+        for subcommand in ["run", "init-service-id", "init-system-tasks", "tasks"]:
+            self.assert_subcommand_exists(parser, subcommand)
 
     def test_extract_config(self):
         """Test _extract_config method."""
@@ -73,6 +94,14 @@ class TestMetricsServiceCommand(TestCase):
             "check_interval": 120,
         }
 
+    def _setup_start_services_mocks(self, mock_exit, mock_sleep, mock_exists, mock_popen):
+        """Helper to set up common mocks for start_services tests."""
+        self.setup_command_output()
+        mock_exists.return_value = True
+        mock_exit.side_effect = SystemExit
+        mock_sleep.return_value = None
+        mock_popen.side_effect = create_mock_processes_with_exit()
+
     @patch("signal.signal")
     @patch("subprocess.Popen")
     @patch("pathlib.Path.exists")
@@ -80,14 +109,7 @@ class TestMetricsServiceCommand(TestCase):
     @patch("sys.exit")
     def test_signal_handlers_in_start_services(self, mock_exit, mock_sleep, mock_exists, mock_popen, mock_signal):
         """Test that signal handlers are set up in _start_services."""
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
-
-        mock_exists.return_value = True
-        mock_exit.side_effect = SystemExit
-        mock_sleep.return_value = None
-        mock_popen.side_effect = create_mock_processes_with_exit()
-
+        self._setup_start_services_mocks(mock_exit, mock_sleep, mock_exists, mock_popen)
         config = get_default_config()
 
         # Signal handlers are set up inside _start_services
@@ -105,14 +127,7 @@ class TestMetricsServiceCommand(TestCase):
     @patch("sys.exit")
     def test_start_services_success(self, mock_exit, mock_sleep, mock_exists, mock_signal, mock_popen):
         """Test _start_services method success path."""
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
-
-        mock_exists.return_value = True
-        mock_exit.side_effect = SystemExit
-        mock_sleep.return_value = None
-        mock_popen.side_effect = create_mock_processes_with_exit()
-
+        self._setup_start_services_mocks(mock_exit, mock_sleep, mock_exists, mock_popen)
         config = get_default_config()
 
         # sys.exit will raise SystemExit, which we need to catch
@@ -136,9 +151,7 @@ class TestMetricsServiceCommand(TestCase):
     @patch("sys.exit")
     def test_start_services_exception(self, mock_exit, mock_exists, mock_popen):
         """Test _start_services handles exceptions."""
-        self.command.stdout = self.out
-        # Update the output formatter to use the test stdout
-        self.command.output.stdout = self.out
+        self.setup_command_output()
 
         # Mock Path.exists to raise an exception (simulating an error during startup)
         mock_exists.side_effect = Exception("Test error")
@@ -147,15 +160,7 @@ class TestMetricsServiceCommand(TestCase):
         # Prevent subprocess.Popen from actually creating processes
         mock_popen.side_effect = Exception("Test error")
 
-        config = {
-            "host": "127.0.0.1",
-            "port": "8000",
-            "workers": 4,
-            "log_level": "INFO",
-            "timeout": 3600,
-            "max_tasks": 100,
-            "check_interval": 60,
-        }
+        config = get_default_config()
 
         # The exception should be caught and sys.exit(1) should be called
         with pytest.raises(SystemExit):
@@ -186,19 +191,13 @@ class TestMetricsServiceCommand(TestCase):
 
         from apps.tasks.management.commands import metrics_service
 
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self._setup_start_services_mocks(mock_exit, mock_sleep, mock_exists, mock_popen)
 
         manage_py = Path(__file__).parent.parent.parent.parent / "manage.py"
         # Patch sys.argv[0] in the metrics_service module to point to manage.py
         # so the command finds it correctly when it uses sys.argv[0]
         original_argv = metrics_service.sys.argv
         metrics_service.sys.argv = [str(manage_py)]
-
-        mock_exists.return_value = True
-        mock_exit.side_effect = SystemExit
-        mock_sleep.return_value = None
-        mock_popen.side_effect = create_mock_processes_with_exit()
 
         config = get_default_config(log_level="DEBUG")
 
@@ -242,40 +241,17 @@ class TestMetricsServiceCommand(TestCase):
         assert "--check-interval=60" in scheduler_cmd
 
 
-class TestMetricsServiceSignalHandling(TestCase):
+class TestMetricsServiceSignalHandling(BaseCommandTestCase):
     """Test signal handling functionality."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.command = Command()
-        self.command.stdout = StringIO()
 
-
-class TestMetricsServiceEdgeCases(TestCase):
+class TestMetricsServiceEdgeCases(BaseCommandTestCase):
     """Test edge cases and error conditions."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.command = Command()
-        self.out = StringIO()
-        self.command.stdout = self.out
-        self.command.shutdown_requested = False
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        # Ensure shutdown is requested to stop any running processes
-        self.command.shutdown_requested = True
 
 
 @pytest.mark.django_db
-class TestInitDefaultSettingsCommand(TestCase):
+class TestInitDefaultSettingsCommand(BaseCommandTestCase):
     """Test the init-default-settings management command."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.command = Command()
-        self.out = StringIO()
-        self.err = StringIO()
 
     def test_import_setting_model(self):
         """Test that Setting model can be imported correctly."""
@@ -301,8 +277,7 @@ class TestInitDefaultSettingsCommand(TestCase):
         Setting.objects.all().delete()
 
         # Run the command
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         self.command._handle_init_default_settings_command()
 
         # Verify settings were created
@@ -316,21 +291,13 @@ class TestInitDefaultSettingsCommand(TestCase):
 
     def test_handle_init_default_settings_updates_unchanged_defaults(self):
         """Test that init updates unchanged default settings to match current config."""
-        import json
-
         from apps.dynamic_settings.models import Setting
 
         # Create an unchanged default setting with non-default value
-        Setting.objects.create(
-            setting_key="METRICS_COLLECTION_ENABLED",
-            current_value=json.dumps(True),  # Custom value: True
-            previous_value=None,  # Unchanged - will be updated
-            last_modified_by=None,
-        )
+        self.create_test_setting("METRICS_COLLECTION_ENABLED", True, None)
 
         # Run the command
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         self.command._handle_init_default_settings_command()
 
         # Verify setting was updated to default value (False)
@@ -348,21 +315,13 @@ class TestInitDefaultSettingsCommand(TestCase):
 
     def test_handle_init_default_settings_skips_modified_settings(self):
         """Test that init preserves modified settings (those with previous_value)."""
-        import json
-
         from apps.dynamic_settings.models import Setting
 
         # Create a modified setting (has previous_value)
-        Setting.objects.create(
-            setting_key="METRICS_COLLECTION_ENABLED",
-            current_value=json.dumps(True),  # Modified value
-            previous_value=json.dumps(False),  # Has previous_value - should be preserved
-            last_modified_by=None,
-        )
+        self.create_test_setting("METRICS_COLLECTION_ENABLED", True, False)
 
         # Run the command
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         self.command._handle_init_default_settings_command()
 
         # Verify no duplicate settings were created
@@ -388,8 +347,7 @@ class TestInitDefaultSettingsCommand(TestCase):
         Setting.objects.all().delete()
 
         # Run via handle method
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         options = {"command": "init-default-settings"}
         self.command.handle(**options)
 
@@ -417,21 +375,13 @@ class TestInitDefaultSettingsCommand(TestCase):
 
     def test_handle_init_default_settings_with_overwrite(self):
         """Test that _handle_init_default_settings_command with --overwrite removes even modified settings."""
-        import json
-
         from apps.dynamic_settings.models import Setting
 
         # Create a modified default setting (has previous_value)
-        Setting.objects.create(
-            setting_key="METRICS_COLLECTION_ENABLED",
-            current_value=json.dumps(True),  # Modified value
-            previous_value=json.dumps(False),  # Has previous_value - WILL be removed with --overwrite
-            last_modified_by=None,
-        )
+        self.create_test_setting("METRICS_COLLECTION_ENABLED", True, False)
 
         # Run the command with --overwrite
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         options = {"overwrite": True}
         self.command._handle_init_default_settings_command(options)
 
@@ -448,68 +398,34 @@ class TestInitDefaultSettingsCommand(TestCase):
 
     def test_command_includes_init_default_settings(self):
         """Test that init-default-settings is registered as a subcommand."""
-        from argparse import ArgumentParser
-
         parser = ArgumentParser()
         self.command.add_arguments(parser)
-
-        # Test that subcommands are added
-        actions = {action.dest: action for action in parser._actions}
-
-        assert "command" in actions
-        assert hasattr(actions["command"], "choices")
-        assert "init-default-settings" in actions["command"].choices
+        self.assert_subcommand_exists(parser, "init-default-settings")
 
     def test_command_includes_remove_default_settings(self):
         """Test that remove-default-settings is registered as a subcommand."""
-        from argparse import ArgumentParser
-
         parser = ArgumentParser()
         self.command.add_arguments(parser)
-
-        # Test that subcommands are added
-        actions = {action.dest: action for action in parser._actions}
-
-        assert "command" in actions
-        assert hasattr(actions["command"], "choices")
-        assert "remove-default-settings" in actions["command"].choices
+        self.assert_subcommand_exists(parser, "remove-default-settings")
 
     def test_handle_remove_default_settings_removes_unchanged_settings(self):
         """Test that _handle_remove_default_settings_command only removes unchanged default settings."""
-        import json
-
         from apps.dynamic_settings.models import Setting
 
         # Create unchanged default setting (previous_value is None)
-        Setting.objects.create(
-            setting_key="METRICS_COLLECTION_ENABLED",
-            current_value=json.dumps(False),
-            previous_value=None,  # Unchanged
-            last_modified_by=None,
-        )
+        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
 
         # Create modified default setting (has previous_value)
-        Setting.objects.create(
-            setting_key="ANONYMIZED_DATA_COLLECTION",
-            current_value=json.dumps(False),  # Changed from default True
-            previous_value=json.dumps(True),  # Modified - should NOT be removed
-            last_modified_by=None,
-        )
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
 
         # Create a non-default setting
-        Setting.objects.create(
-            setting_key="CUSTOM_SETTING",
-            current_value=json.dumps("test"),
-            previous_value=None,
-            last_modified_by=None,
-        )
+        self.create_test_setting("CUSTOM_SETTING", "test", None)
 
         initial_count = Setting.objects.count()
         assert initial_count == 3
 
         # Run the command
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         options = {"all_known": False, "all_settings": False}
         self.command._handle_remove_default_settings_command(options)
 
@@ -533,8 +449,7 @@ class TestInitDefaultSettingsCommand(TestCase):
         Setting.objects.all().delete()
 
         # Run the command
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         options = {"all_known": False, "all_settings": False}
         self.command._handle_remove_default_settings_command(options)
 
@@ -544,21 +459,13 @@ class TestInitDefaultSettingsCommand(TestCase):
 
     def test_handle_remove_default_settings_via_handle(self):
         """Test that remove-default-settings command works via handle method."""
-        import json
-
         from apps.dynamic_settings.models import Setting
 
         # Create a default setting
-        Setting.objects.create(
-            setting_key="METRICS_COLLECTION_ENABLED",
-            current_value=json.dumps(False),
-            previous_value=None,
-            last_modified_by=None,
-        )
+        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
 
         # Run via handle method
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         options = {"command": "remove-default-settings", "all_known": False, "all_settings": False}
         self.command.handle(**options)
 
@@ -587,40 +494,22 @@ class TestInitDefaultSettingsCommand(TestCase):
 
     def test_handle_remove_default_settings_with_all_known(self):
         """Test that _handle_remove_default_settings_command with --all-known removes even modified settings."""
-        import json
-
         from apps.dynamic_settings.models import Setting
 
         # Create unchanged default setting
-        Setting.objects.create(
-            setting_key="METRICS_COLLECTION_ENABLED",
-            current_value=json.dumps(False),
-            previous_value=None,  # Unchanged
-            last_modified_by=None,
-        )
+        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
 
         # Create modified default setting (has previous_value)
-        Setting.objects.create(
-            setting_key="ANONYMIZED_DATA_COLLECTION",
-            current_value=json.dumps(False),  # Changed from default True
-            previous_value=json.dumps(True),  # Modified - WILL be removed with --all-known
-            last_modified_by=None,
-        )
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
 
         # Create a non-default setting
-        Setting.objects.create(
-            setting_key="CUSTOM_SETTING",
-            current_value=json.dumps("test"),
-            previous_value=None,
-            last_modified_by=None,
-        )
+        self.create_test_setting("CUSTOM_SETTING", "test", None)
 
         initial_count = Setting.objects.count()
         assert initial_count == 3
 
         # Run the command with --all-known
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         options = {"all_known": True, "all_settings": False}
         self.command._handle_remove_default_settings_command(options)
 
@@ -637,38 +526,18 @@ class TestInitDefaultSettingsCommand(TestCase):
 
     def test_handle_remove_default_settings_with_all_settings(self):
         """Test that _handle_remove_default_settings_command with --all-settings removes all settings."""
-        import json
-
         from apps.dynamic_settings.models import Setting
 
         # Create various settings
-        Setting.objects.create(
-            setting_key="METRICS_COLLECTION_ENABLED",
-            current_value=json.dumps(False),
-            previous_value=None,
-            last_modified_by=None,
-        )
-
-        Setting.objects.create(
-            setting_key="ANONYMIZED_DATA_COLLECTION",
-            current_value=json.dumps(False),
-            previous_value=json.dumps(True),
-            last_modified_by=None,
-        )
-
-        Setting.objects.create(
-            setting_key="CUSTOM_SETTING",
-            current_value=json.dumps("test"),
-            previous_value=None,
-            last_modified_by=None,
-        )
+        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
+        self.create_test_setting("CUSTOM_SETTING", "test", None)
 
         initial_count = Setting.objects.count()
         assert initial_count == 3
 
         # Run the command with --all-settings
-        self.command.stdout = self.out
-        self.command.output.stdout = self.out
+        self.setup_command_output()
         options = {"all_known": False, "all_settings": True}
         self.command._handle_remove_default_settings_command(options)
 
@@ -681,14 +550,8 @@ class TestInitDefaultSettingsCommand(TestCase):
 
 
 @pytest.mark.django_db
-class TestInitServiceIdCommand(TestCase):
+class TestInitServiceIdCommand(BaseCommandTestCase):
     """Test the init-service-id management command."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.command = Command()
-        self.out = StringIO()
-        self.err = StringIO()
 
     def test_import_service_id_model(self):
         """Test that ServiceID model can be imported correctly."""
