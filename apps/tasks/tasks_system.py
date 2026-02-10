@@ -129,7 +129,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     # Exclude recurring tasks if preserve_recurring is True (default)
     if preserve_recurring:
-        old_tasks_filter["cron_expression__isnull"] = False
+        old_tasks_filter["cron_expression__isnull"] = True
 
     old_tasks = Task.objects.filter(**old_tasks_filter)
 
@@ -142,7 +142,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     # Exclude recurring tasks if preserve_recurring is True (default)
     if preserve_recurring:
-        old_tasks_fallback_filter["cron_expression__isnull"] = False
+        old_tasks_fallback_filter["cron_expression__isnull"] = True
 
     old_tasks_fallback = Task.objects.filter(**old_tasks_fallback_filter)
 
@@ -164,12 +164,16 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
         if include_executions:
             # Delete executions first (foreign key constraint)
-            deleted_executions, _ = TaskExecution.objects.filter(task__in=old_tasks).delete()
-            deleted_executions = deleted_executions - task_count  # Subtract the task count to get just executions
+            _, deletion_info = TaskExecution.objects.filter(task__in=old_tasks).delete()
+            deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
 
         # Delete the tasks
-        deleted_tasks, _ = old_tasks.delete()
-        deleted_tasks = deleted_tasks - deleted_executions  # Get just the task count
+        _, deletion_info = old_tasks.delete()
+        deleted_tasks = deletion_info.get("tasks.Task", 0)
+
+        # If we didn't manually delete executions, they were cascade deleted
+        if not include_executions:
+            deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
 
         message = f"Deleted {deleted_tasks} tasks and {deleted_executions} executions"
         if preserve_recurring:
