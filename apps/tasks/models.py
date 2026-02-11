@@ -435,6 +435,9 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         verbose_name = "Hourly Metrics Collection"
         verbose_name_plural = "Hourly Metrics Collections"
 
+    # Exclude large data from activity stream (prevents JSONB size limit errors)
+    activity_stream_excluded_field_names = ["raw_data"]
+
     COLLECTOR_TYPE_CHOICES = [
         ("job_host_summary", "Job Host Summary"),
         ("main_host", "Main Host"),
@@ -526,6 +529,9 @@ class DailyMetricsSummary(CommonModel, AuditableModel):
         unique_together = ["summary_date"]
         verbose_name = "Daily Metrics Summary"
         verbose_name_plural = "Daily Metrics Summaries"
+
+    # Exclude large data from activity stream (prevents JSONB size limit errors)
+    activity_stream_excluded_field_names = ["aggregated_metrics", "config_data", "hourly_collection_ids"]
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -625,6 +631,9 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
         ]
         verbose_name = "Anonymized Metrics Payload"
         verbose_name_plural = "Anonymized Metrics Payloads"
+
+    # Exclude large data from activity stream (prevents JSONB size limit errors)
+    activity_stream_excluded_field_names = ["anonymized_data"]
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
