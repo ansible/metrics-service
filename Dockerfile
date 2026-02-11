@@ -44,10 +44,10 @@ EXPOSE 8000
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
 
-LABEL com.redhat.component="metrics-utility" \
-    name="metrics-utility" \
+LABEL com.redhat.component="metrics-service" \
+    name="metrics-service" \
     version="1.0.0" \
-    summary="Metrics Utility" \
+    summary="Metrics Service" \
     description="Backend utility for Ansible Automation Platform" \
-    cpe="cpe:/a:redhat:metrics_utility:1.0::rhel9" \
+    cpe="cpe:/a:redhat:metrics-service:1.0::rhel9" \
     org.opencontainers.image.created="${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}"
