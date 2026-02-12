@@ -10,9 +10,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Force pip to build from source (no binary wheels)
-    PIP_NO_BINARY=:all:
+    PIP_DISABLE_PIP_VERSION_CHECK=1 
+
 
 # Install system dependencies required for building Python packages from source
 # These include compilers and development headers for:
@@ -60,7 +59,7 @@ USER 1001
 RUN if [ -f /cachi2/cachi2.env ]; then \
         source /cachi2/cachi2.env; \
     fi && \
-    pip install --no-cache-dir --no-binary :all: -r requirements-build.txt
+    pip install --no-cache-dir -r requirements-build.txt
 
 # Copy and set up entrypoint script
 USER root
