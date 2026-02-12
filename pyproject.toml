@@ -337,4 +337,5 @@ with open('.copier-answers.yml') as f:
 """
 
 [tool.uv.sources]
-django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "devel" }
+# Use resolved commit (not branch "devel") so uv pip compile sees a single ref and does not conflict with requirements-pinned.txt. After uv lock, update this to match the commit in uv.lock for django-ansible-base.
+django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "7596a0cc12785eff647af4f7aef80c77da33eed8" }
