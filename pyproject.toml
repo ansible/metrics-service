@@ -17,7 +17,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3.12",
     "Framework :: Django",
-    "Framework :: Django :: 5.2.8",
+    "Framework :: Django :: 5.2.7",
 ]
 dynamic = ["version"]
 
