@@ -32,13 +32,13 @@ spec:
     - linux/x86_64
     - linux/arm64
   - name: dockerfile
-    value: Dockerfile.backend
+    value: Dockerfile
   - name: path-context
     value: .
   - name: hermetic
     value: "true"
   - name: prefetch-input
-    value: '[{"type": "pip", "path": ".", "allow_binary": true, "requirements_files": ["requirements-build.txt"]}, {"type": "rpm", "path": "."}]'
+    value: '[{"type": "pip", "path": ".", "allow_binary": false, "requirements_files": ["requirements-build.txt"]}, {"type": "rpm", "path": "."}]'
   - name: build-source-image
     value: "true"
   pipelineSpec:

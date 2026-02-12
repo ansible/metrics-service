@@ -102,9 +102,9 @@ cryptography==45.0.6 \
     --hash=sha256:ee411a1b977f40bd075392c80c10b58025ee5c6b47a822a33c1198598a7a5f05 \
     --hash=sha256:f4028f29a9f38a2025abedb2e409973709c660d44319c61762202206ed577c42
     # via django-ansible-base
-dispatcherd==2025.5.21 \
-    --hash=sha256:4a7f0e85da1691c85491275f2b7333f31dcd44f1bc47077a9653551bdc704bad \
-    --hash=sha256:6869a7639317252c9b4bb5fc421bc9e6f19c3fb3f4544c844d5368129755408d
+dispatcherd==2026.1.27 \
+    --hash=sha256:27468085045a4c90e1b3c6e9fb21c988d6c055b8b8fa797c9805c9b1c6b4fcff \
+    --hash=sha256:3ddd9c29eb17ff3eff1c2ebff97563d943a302743f7be9653829303e284fddcc
     # via metrics-service
 distro==1.9.0 \
     --hash=sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed \
@@ -248,31 +248,12 @@ psycopg==3.2.10 \
     # via
     #   metrics-service
     #   metrics-utility
-psycopg-binary==3.2.10 ; implementation_name != 'pypy' \
-    --hash=sha256:14bcbcac0cab465d88b2581e43ec01af4b01c9833e663f1352e05cb41be19e44 \
-    --hash=sha256:1dee2f4d2adc9adacbfecf8254bd82f6ac95cff707e1b9b99aa721cd1ef16b47 \
-    --hash=sha256:299834cce3eec0c48aae5a5207fc8f0c558fd65f2ceab1a36693329847da956b \
-    --hash=sha256:3bb4046973264ebc8cb7e20a83882d68577c1f26a6f8ad4fe52e4468cd9a8eee \
-    --hash=sha256:484d2b1659afe0f8f1cef5ea960bb640e96fa864faf917086f9f833f5c7a8034 \
-    --hash=sha256:70bb7f665587dfd79e69f48b34efe226149454d7aab138ed22d5431d703de2f6 \
-    --hash=sha256:8b45e65383da9c4a42a56f817973e521e893f4faae897fe9f1a971f9fe799742 \
-    --hash=sha256:d2fe9eaa367f6171ab1a21a7dcb335eb2398be7f8bb7e04a20e2260aedc6f782 \
-    --hash=sha256:e037aac8dc894d147ef33056fc826ee5072977107a3fdf06122224353a057598
+psycopg-c==3.2.10 ; implementation_name != 'pypy' \
+    --hash=sha256:30183897f5fe7ff4375b7dfcec9d44dfe8a5e009080addc1626889324a9eb1ed
     # via psycopg
-psycopg2-binary==2.9.10 \
-    --hash=sha256:155e69561d54d02b3c3209545fb08938e27889ff5a10c19de8d23eb5a41be8a5 \
-    --hash=sha256:18c5ee682b9c6dd3696dad6e54cc7ff3a1a9020df6a5c0f861ef8bfd338c3ca0 \
-    --hash=sha256:4b3df0e6990aa98acda57d983942eff13d824135fe2250e6522edaa782a06de2 \
-    --hash=sha256:6dc08420625b5a20b53551c50deae6e231e6371194fa0651dbe0fb206452ae1f \
-    --hash=sha256:7b2c956c028ea5de47ff3a8d6b3cc3330ab45cf0b7c3da35a2d6ff8420896526 \
-    --hash=sha256:880845dfe1f85d9d5f7c412efea7a08946a46894537e4e5d091732eb1d34d9a0 \
-    --hash=sha256:8cd9b4f2cfab88ed4a9106192de509464b75a906462fb846b936eabe45c2063e \
-    --hash=sha256:9440fa522a79356aaa482aa4ba500b65f28e5d0e63b801abf6aa152a29bd842a \
-    --hash=sha256:c3cc28a6fd5a4a26224007712e79b81dbaee2ffb90ff406256158ec4d7b52b47 \
-    --hash=sha256:d7cd730dfa7c36dbe8724426bf5612798734bff2d3c3857f36f2733f5bfc7c00 \
-    --hash=sha256:e3923c1d9870c49a2d44f795df0c889a22380d36ef92440ff618ec315757e539 \
-    --hash=sha256:ec8a77f521a17506a24a5f626cb2aee7850f9b69a0afe704586f63a464f3cd64 \
-    --hash=sha256:f758ed67cab30b9a8d2833609513ce4d3bd027641673d4ebc9c067e4d208eec1
+psycopg2==2.9.11 \
+    --hash=sha256:964d31caf728e217c697ff77ea69c2ba0865fa41ec20bb00f0977e62fdcc52e3 \
+    --hash=sha256:e03e4a6dbe87ff81540b434f2e5dc2bddad10296db5eea7bdc995bf5f4162938
     # via metrics-service
 pyasn1==0.6.1 \
     --hash=sha256:0d632f46f2ba09143da3a8afe9e33fb6f92fa2320ab7e886e2d0f7672af84629 \
