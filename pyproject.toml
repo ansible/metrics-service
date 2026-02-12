@@ -24,7 +24,9 @@ dynamic = ["version"]
 dependencies = [
     "Django==5.2.7",
     "djangorestframework>=3.15",
-    "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]==2026.1.26",
+    # >=2025.12.12 accepts both PyPI releases and the git override (2025.12.16.0.dev4 in uv.lock).
+    # Use `uv sync` so [tool.uv.sources] applies; plain `pip install .` will use latest from PyPI.
+    "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]>=2025.12.12",
     "psycopg[c]>=3.1",  # Use 'c' extra for source compilation instead of binary
     "psycopg2>=2.9.0",  # Required for dispatcherd PostgreSQL LISTEN/NOTIFY (source build)
     "dynaconf>=3.1.0",
