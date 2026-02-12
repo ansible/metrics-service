@@ -48,39 +48,8 @@ def update_peak(process, peak_memory_mb):
     return max(current, peak_memory_mb)
 
 
-def run_collection_rollup_benchmark():
-    # Get test date from env or use default
-    test_date_str = os.environ.get("TEST_DATE", "2024-01-25")
-    test_date = datetime.fromisoformat(test_date_str).replace(hour=0, minute=0, second=0, microsecond=0)
-
-    print(f"\n{'=' * 80}")
-    print("  Metrics Collection & Rollup Performance Test")
-    print(f"  Test Date: {test_date.date()}")
-    print(f"{'=' * 80}\n")
-
-    # Clean up any existing hourly collections or daily summaries first
-    print("Cleaning old collections...")
-    HourlyMetricsCollection.objects.all().delete()
-    DailyMetricsSummary.objects.all().delete()
-    print("Done\n")
-
-    process = psutil.Process()
-    baseline_memory_mb = get_memory_mb(process)
-    peak_memory_mb = baseline_memory_mb
-
-    hourly_collectors = [
-        ("job_host_summary", collect_job_host_summary_hourly),
-        ("main_jobevent", collect_host_metrics_hourly),
-    ]
-
-    # Per-collector timing and memory accumulators
-    collector_totals = {name: 0.0 for name, _ in hourly_collectors}
-    collector_peak_memory = {name: baseline_memory_mb for name, _ in hourly_collectors}
-    # Per-hour timing
-    hour_timings = []
-
-    # PHASE 1: Snapshot collector (once)
-
+def run_snapshot_phase(test_date, process, peak_memory_mb):
+    """Phase 1: Run snapshot collector (main_host) once."""
     print("Phase 1: Snapshot collector (main_host) — run once")
     snapshot_start = time.time()
     try:
@@ -91,8 +60,19 @@ def run_collection_rollup_benchmark():
     peak_memory_mb = update_peak(process, peak_memory_mb)
     print(f"  Duration: {snapshot_duration:.2f}s")
     print(f"  Memory: {get_memory_mb(process):.1f} MB\n")
+    return snapshot_duration, peak_memory_mb
 
-    # PHASE 2: Hourly collectors (24 iterations)
+
+def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
+    """Phase 2: Run hourly collectors for each hour in a 24-hour period."""
+    hourly_collectors = [
+        ("job_host_summary", collect_job_host_summary_hourly),
+        ("main_jobevent", collect_host_metrics_hourly),
+    ]
+
+    collector_totals = {name: 0.0 for name, _ in hourly_collectors}
+    collector_peak_memory = {name: baseline_memory_mb for name, _ in hourly_collectors}
+    hour_timings = []
 
     print("Phase 2: Hourly collectors — 24 hours")
     print(f"  {'Hour':<6} {'job_host_summary':>18} {'main_jobevent':>15} {'Total':>10} {'Memory MB':>11}")
@@ -127,7 +107,6 @@ def run_collection_rollup_benchmark():
 
     hourly_collection_duration = time.time() - hourly_collection_start
 
-    # Check what was collected
     collections = HourlyMetricsCollection.objects.all()
     total_size = sum(c.data_size_bytes for c in collections)
 
@@ -143,8 +122,11 @@ def run_collection_rollup_benchmark():
         print(f"    Fastest hour: {min(hour_timings):.2f}s (hour {hour_timings.index(min(hour_timings))})")
     print()
 
-    # PHASE 3: Daily rollup
+    return hourly_collection_duration, peak_memory_mb, collector_totals, collector_peak_memory
 
+
+def run_rollup_phase(test_date, process, peak_memory_mb):
+    """Phase 3: Run daily rollup."""
     print("Phase 3: Daily rollup")
 
     rollup_start = time.time()
@@ -168,9 +150,20 @@ def run_collection_rollup_benchmark():
         peak_memory_mb = update_peak(process, peak_memory_mb)
         print()
 
-    # -------------------------------------------------------------------------
-    # FINAL SUMMARY
-    # -------------------------------------------------------------------------
+    return rollup_duration, peak_memory_mb
+
+
+def print_final_summary(
+    snapshot_duration,
+    hourly_collection_duration,
+    rollup_duration,
+    collector_totals,
+    collector_peak_memory,
+    baseline_memory_mb,
+    peak_memory_mb,
+    process,
+):
+    """Print the final benchmark results."""
     total_duration = snapshot_duration + hourly_collection_duration + rollup_duration
 
     print(f"{'=' * 80}")
@@ -187,6 +180,47 @@ def run_collection_rollup_benchmark():
     print(f"  Peak memory:     {peak_memory_mb:.1f} MB")
     print(f"  Delta:           {peak_memory_mb - baseline_memory_mb:.1f} MB")
     print()
+
+
+def run_collection_rollup_benchmark():
+    test_date_str = os.environ.get("TEST_DATE", "2024-01-25")
+    test_date = datetime.fromisoformat(test_date_str).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    print(f"\n{'=' * 80}")
+    print("  Metrics Collection & Rollup Performance Test")
+    print(f"  Test Date: {test_date.date()}")
+    print(f"{'=' * 80}\n")
+
+    print("Cleaning old collections...")
+    HourlyMetricsCollection.objects.all().delete()
+    DailyMetricsSummary.objects.all().delete()
+    print("Done\n")
+
+    process = psutil.Process()
+    baseline_memory_mb = get_memory_mb(process)
+    peak_memory_mb = baseline_memory_mb
+
+    snapshot_duration, peak_memory_mb = run_snapshot_phase(test_date, process, peak_memory_mb)
+
+    hourly_collection_duration, peak_memory_mb, collector_totals, collector_peak_memory = run_hourly_phase(
+        test_date,
+        process,
+        peak_memory_mb,
+        baseline_memory_mb,
+    )
+
+    rollup_duration, peak_memory_mb = run_rollup_phase(test_date, process, peak_memory_mb)
+
+    print_final_summary(
+        snapshot_duration,
+        hourly_collection_duration,
+        rollup_duration,
+        collector_totals,
+        collector_peak_memory,
+        baseline_memory_mb,
+        peak_memory_mb,
+        process,
+    )
 
 
 if __name__ == "__main__":
