@@ -1,15 +1,5 @@
 # Simple Performance Test
 
-Takes time measurement in seconds to:
-
-1. Collect metrics for 24 hours. 3 collectors * 24 hrs = 72 collections total
-
-- collect_job_host_summary_hourly
-- collect_host_metrics_hourly
-- collect_main_host_hourly
-
-1. Roll up those collections into daily summaries
-
 ## Prerequisites
 
 **Start the db**
@@ -107,7 +97,7 @@ export TEST_DATE=2024-01-25 # (1,264,938 events on that day)
 
 
 # Run the test
-.venv/bin/python tools/performance_tests/collection_rollup_benchmark_hourly.py
+.venv/bin/python metrics_service/tools/performance_tests/collection_rollup_benchmark_hourly.py
 ```
 
 ## Reporting

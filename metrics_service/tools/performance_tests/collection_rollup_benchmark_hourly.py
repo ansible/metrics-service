@@ -9,6 +9,7 @@ rollup.
 The daily benchmark (collection_rollup_benchmark_daily.py) can be used to benchmark
 the snapshot collector in isolation.
 """
+
 # ruff: noqa: T201, E402
 import os
 import sys
@@ -78,7 +79,6 @@ def run_collection_rollup_benchmark():
     # Per-hour timing
     hour_timings = []
 
-
     # PHASE 1: Snapshot collector (once)
 
     print("Phase 1: Snapshot collector (main_host) — run once")
@@ -92,12 +92,10 @@ def run_collection_rollup_benchmark():
     print(f"  Duration: {snapshot_duration:.2f}s")
     print(f"  Memory: {get_memory_mb(process):.1f} MB\n")
 
-
     # PHASE 2: Hourly collectors (24 iterations)
 
     print("Phase 2: Hourly collectors — 24 hours")
     print(f"  {'Hour':<6} {'job_host_summary':>18} {'main_jobevent':>15} {'Total':>10} {'Memory MB':>11}")
-
 
     hourly_collection_start = time.time()
 
@@ -116,8 +114,7 @@ def run_collection_rollup_benchmark():
             hour_collector_times[collector_name] = collector_duration
             collector_totals[collector_name] += collector_duration
             collector_memory = get_memory_mb(process)
-            if collector_memory > collector_peak_memory[collector_name]:
-                collector_peak_memory[collector_name] = collector_memory
+            collector_peak_memory[collector_name] = max(collector_peak_memory[collector_name], collector_memory)
 
         peak_memory_mb = update_peak(process, peak_memory_mb)
         hour_total = time.time() - hour_start
@@ -145,7 +142,6 @@ def run_collection_rollup_benchmark():
         print(f"    Slowest hour: {max(hour_timings):.2f}s (hour {hour_timings.index(max(hour_timings))})")
         print(f"    Fastest hour: {min(hour_timings):.2f}s (hour {hour_timings.index(min(hour_timings))})")
     print()
-
 
     # PHASE 3: Daily rollup
 
