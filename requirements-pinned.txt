@@ -224,6 +224,10 @@ openpyxl==3.1.2 \
     --hash=sha256:a6f5977418eff3b2d5500d54d9db50c8277a368436f4e4f8ddb1be3422870184 \
     --hash=sha256:f91456ead12ab3c6c2e9491cf33ba6d08357d802192379bb482f1033ade496f5
     # via metrics-utility
+packaging==25.0 \
+    --hash=sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484 \
+    --hash=sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f
+    # via metrics-service
 pandas==2.3.3 \
     --hash=sha256:371a4ab48e950033bcf52b6527eccb564f52dc826c02afd9a1bc0ab731bba084 \
     --hash=sha256:3fd2f887589c7aa868e02632612ba39acb0b8948faf5cc58f0850e165bd46f35 \
