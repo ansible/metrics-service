@@ -1202,6 +1202,9 @@
             }
 
             function getTaskTimeDisplay(task) {
+                if (task.cron_expression) {
+                    return `🔄 ${task.cron_expression}`;
+                }
                 if (task.scheduled_time) {
                     return formatDateTime(task.scheduled_time);
                 }
