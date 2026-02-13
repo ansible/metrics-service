@@ -50,20 +50,71 @@ jobs:
           fi
           echo "PR_NUMBER=$VALID_PR" >> $GITHUB_ENV
 
-      - name: Validate artifact PR number against workflow run
+      - name: Check if PR is open
+        id: pr_state_check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
         run: |
-          PRS_JSON=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/pulls")
-          PR_NUMS=$(echo "$PRS_JSON" | jq -r '.[].number | tostring')
-          if ! echo "$PR_NUMS" | grep -qx "$PR_NUMBER"; then
-            echo "Artifact PR number ($PR_NUMBER) does not match PR(s) for this workflow run: $PR_NUMS"
+          # Use -f flag to fail on HTTP errors, and check for valid response
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o pr_response.json -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Error: GitHub API returned HTTP $HTTP_CODE when checking PR state"
+            cat pr_response.json
             exit 1
           fi
+          
+          PR_STATE=$(jq -r '.state // "not_found"' pr_response.json)
+          echo "PR $PR_NUMBER state: $PR_STATE"
+          echo "state=$PR_STATE" >> $GITHUB_OUTPUT
+          
+          if [ "$PR_STATE" = "not_found" ]; then
+            echo "Cannot determine PR state from API response"
+            exit 1
+          fi
+          
+          if [ "$PR_STATE" != "open" ]; then
+            echo "PR is not open (state: $PR_STATE) - skipping SonarCloud scan"
+            exit 0
+          fi
+
+      - name: Validate artifact PR number against workflow run
+        if: steps.pr_state_check.outputs.state == 'open'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+        run: |
+          # Check API response for errors
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o prs_response.json -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/pulls")
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Error: GitHub API returned HTTP $HTTP_CODE when fetching PRs for commit"
+            cat prs_response.json
+            exit 1
+          fi
+          
+          PR_NUMS=$(jq -r '.[].number | tostring' prs_response.json)
+          
+          # For an open PR, the commit MUST be associated with at least one PR
+          # Empty response indicates an API issue or security concern
+          if [ -z "$PR_NUMS" ]; then
+            echo "Error: No PRs associated with commit ${{ github.event.workflow_run.head_sha }}"
+            exit 1
+          fi
+          
+          # Verify the PR number from artifact matches one of the PRs for this commit
+          if ! echo "$PR_NUMS" | grep -qx "$PR_NUMBER"; then
+            echo "Error: Artifact PR number ($PR_NUMBER) does not match PR(s) for this workflow $PR_NUMS"
+            exit 1
+          fi
+          
+          echo "Validation successful: PR $PR_NUMBER is associated with commit ${{ github.event.workflow_run.head_sha }}"
 
       - name: Get Additional PR Information
+        if: steps.pr_state_check.outputs.state == 'open'
         uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d
         id: pr_info
         with:
@@ -74,6 +125,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set Additional PR Information
+        if: steps.pr_state_check.outputs.state == 'open'
         env:
           PR_BASE: ${{ fromJson(steps.pr_info.outputs.data).base.ref }}
           PR_HEAD: ${{ fromJson(steps.pr_info.outputs.data).head.ref }}
@@ -88,6 +140,7 @@ jobs:
           echo "${delim}" >> $GITHUB_ENV
 
       - name: Checkout Code for PR
+        if: steps.pr_state_check.outputs.state == 'open'
         run: |
           gh pr checkout "$PR_NUMBER"
         env:
@@ -95,6 +148,7 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
 
       - name: SonarCloud Scan
+        if: steps.pr_state_check.outputs.state == 'open'
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         env:
           SONAR_HOST_URL: https://sonarcloud.io
