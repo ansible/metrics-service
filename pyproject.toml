@@ -37,6 +37,7 @@ dependencies = [
     "django-prometheus>=2.3.1",
     "django-extensions>=3.2",
     "pip>=25.2",
+    "packaging>=20.0",  # Required for setuptools-scm during source builds
 ]
 
 [project.optional-dependencies]
