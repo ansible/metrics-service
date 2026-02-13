@@ -66,6 +66,24 @@ python manage.py createsuperuser
 python manage.py metrics_service run
 ```
 
+### Option 3: Local development, with uv and metrics-utility from sources
+
+Edit `pyproject.toml` such that:
+
+```diff
+ [tool.uv.sources]
+ django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "devel" }
++metrics-utility = { path = "../metrics-utility", editable = true }
+```
+
+```
+uv sync
+uv run ./manage.py migrate
+uv run ./manage.py createsuperuser
+uv run ./manage.py metrics_service run
+uv run ./scripts/run_task.py hello_world # debugging individual tasks
+```
+
 ### Endpoints
 
 ```bash
