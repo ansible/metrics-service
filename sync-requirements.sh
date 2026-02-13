@@ -19,4 +19,8 @@ uv export --format requirements.txt --only-dev -o dev-requirements.txt
 echo "Generating requirements-build.txt..."
 uv pip compile --output-file=requirements-build.txt requirements-pinned.txt
 
+# Prepend pip directive so Cachi2/prefetch uses only source distributions (no binary wheels).
+# This avoids "hermeto:pip:package:binary" verification violations in Konflux hermetic builds.
+{ echo '--no-binary :all:'; cat requirements-build.txt; } > requirements-build.txt.tmp && mv requirements-build.txt.tmp requirements-build.txt
+
 echo "Requirements files synced successfully!"
