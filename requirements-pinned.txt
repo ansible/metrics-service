@@ -123,7 +123,7 @@ django==5.2.7 \
     #   drf-spectacular
     #   metrics-service
     #   metrics-utility
-django-ansible-base @ git+https://github.com/ansible/django-ansible-base@8b53a1a4e25cd57c5b643786a7077b8bef1c381f
+django-ansible-base @ git+https://github.com/ansible/django-ansible-base@7596a0cc12785eff647af4f7aef80c77da33eed8
     # via metrics-service
 django-crum==0.7.9 \
     --hash=sha256:037cc8b822975bb1d41cd24269b59a512cc77448fadc3f34ab9a17b229b4b471 \
