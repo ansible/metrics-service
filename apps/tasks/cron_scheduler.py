@@ -154,12 +154,11 @@ class UnifiedTaskScheduler:
         # Create trigger based on cron expression
         trigger = CronTrigger.from_crontab(config["cron"])
 
-        # Add job to scheduler with feature flag info
-        # FIXME - no longer pass feature flags
+        # Add job to scheduler (feature flag is checked at runtime via args['_feature_flag'])
         self.scheduler.add_job(
             func=self._execute_scheduled_task,
             trigger=trigger,
-            args=[task_id, function_name, config.get("args", {}), config.get("feature_flag")],
+            args=[task_id, function_name, config.get("args", {})],
             id=task_id,
             name=config.get("description", task_id),
             replace_existing=True,
@@ -168,9 +167,7 @@ class UnifiedTaskScheduler:
 
         logger.info(f"Added scheduled task: {task_id} ({config['cron']})")
 
-    def _execute_scheduled_task(
-        self, task_id: str, function_name: str, args: dict[str, Any], feature_flag: str | None = None
-    ):
+    def _execute_scheduled_task(self, task_id: str, function_name: str, args: dict[str, Any]):
         """
         Execute a scheduled task by submitting it to dispatcherd.
 
@@ -181,14 +178,13 @@ class UnifiedTaskScheduler:
             task_id: Unique identifier for the task
             function_name: Name of the function to execute
             args: Arguments to pass to the function (may contain _feature_flag)
-            feature_flag: Optional feature flag name to check before execution (deprecated, use args['_feature_flag'])
         """
         try:
             # FIXME: probably doesn't make sense here at all? why only scheduled?
-            # ..enabled_setting TaskGroup, but ignored because wrong type
+            # ..feature_flag TaskGroup, but ignored because wrong type
 
-            # Check feature flag - either from args or parameter (for backward compatibility)
-            feature_flag_to_check = args.get("_feature_flag") or feature_flag
+            # Check feature flag from args
+            feature_flag_to_check = args.get("_feature_flag")
 
             if feature_flag_to_check:
                 from .task_groups import get_feature_enabled_from_db

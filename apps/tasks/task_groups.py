@@ -58,16 +58,18 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
 
 class TaskGroup:
     """
-    Represents a group of related tasks with feature enabled control.
+    Represents a group of related tasks with optional feature flag control.
+
+    Task groups can have a feature_flag that controls all tasks in the group.
+    Individual tasks can be disabled via the 'enabled' field regardless of the group's feature flag.
     """
 
     def __init__(
         self,
         name: str,
         description: str,
-        enabled_setting: str = None,
-        default_enabled: bool = True,
         tasks: list[dict[str, Any]] = None,
+        feature_flag: str | None = None,
     ):
         """
         Initialize a task group.
@@ -75,50 +77,40 @@ class TaskGroup:
         Args:
             name: Unique name for the task group
             description: Human-readable description
-            enabled_setting: Feature enabled setting name to control this group
-            default_enabled: Default state if feature enabled setting not set
             tasks: List of task configurations in this group
+            feature_flag: Optional feature flag name that controls this entire group
         """
         self.name = name
         self.description = description
-        self.enabled_setting = enabled_setting
-        self.default_enabled = default_enabled
         self.tasks = tasks or []
-
-    def is_enabled(self) -> bool:
-        """
-        Check if this task group is enabled based on feature enabled settings.
-
-        Feature enabled settings are read from database first, with fallback to
-        Django settings if not found in database.
-
-        Returns:
-            bool: True if group is enabled, False otherwise
-        """
-        if not self.enabled_setting:
-            return self.default_enabled
-
-        return get_feature_enabled_from_db(self.enabled_setting, self.default_enabled)
+        self.feature_flag = feature_flag
 
     def get_enabled_tasks(self) -> list[dict[str, Any]]:
         """
         Get all tasks in this group that should be active.
 
+        First checks the group-level feature flag (if present).
+        Then filters out tasks with enabled=False.
+
+        Feature flag defaults are defined in Django settings (FEATURE_ENABLED dict).
+
         Returns:
-            List of task configurations if group is enabled, empty list otherwise
+            List of task configurations that are enabled
         """
-        if not self.is_enabled():
+        # Check group-level feature flag first
+        if self.feature_flag and not get_feature_enabled_from_db(self.feature_flag):
             return []
 
-        return [task for task in self.tasks if task.get("enabled", True)]
+        # Filter tasks by their individual enabled field
+        enabled_tasks = [task for task in self.tasks if task.get("enabled", True)]
+
+        return enabled_tasks
 
 
 # System Tasks Group - Always enabled, core system maintenance
 SYSTEM_TASKS_GROUP = TaskGroup(
     name="system_tasks",
     description="Core system maintenance tasks that are always enabled",
-    enabled_setting=None,  # Always enabled
-    default_enabled=True,
     tasks=[
         {
             "task_id": "daily_task_cleanup",
@@ -146,50 +138,13 @@ SYSTEM_TASKS_GROUP = TaskGroup(
     ],
 )
 
-# Anonymized Data Collection Group - Controlled by feature enabled setting
-ANONYMIZED_DATA_GROUP = TaskGroup(
-    name="anonymized_data",
-    description="Anonymized data collection tasks",
-    enabled_setting="ANONYMIZED_DATA_COLLECTION",
-    default_enabled=True,  # Default enabled but can be controlled
-    tasks=[
-        {
-            "task_id": "full_process_anonymize",
-            "function": "full_process_anonymize",
-            "cron": "0 */12 * * *",  # Every 12 hours
-            "args": {},
-            "enabled": True,
-            "description": "Collect anonymized metrics and send directly to Segment.com",
-            "category": "anonymous_metrics",
-        },
-    ],
-)
-
-# Metrics Collection Group - Customer controlled
+# Metrics Collection Group - Controlled by ANONYMIZED_DATA_COLLECTION
+# All metrics tasks (collection, rollup, anonymization, sending) are controlled by a single flag
+# since anonymization requires the collected data to work.
 METRICS_COLLECTION_GROUP = TaskGroup(
     name="metrics_collection",
-    description="Customer-controlled metrics collection tasks",
-    enabled_setting="METRICS_COLLECTION_ENABLED",
-    default_enabled=False,  # Customers must explicitly enable
-    tasks=[
-        {
-            "task_id": "collect_all_metrics_daily",
-            "function": "collect_metrics",  # Changed from collect_all_metrics to collect_metrics
-            "cron": "0 1 * * *",  # Daily at 1 AM
-            "args": {"collectors": ["anonymized_rollups", "config", "job_host_summary", "main_host", "main_jobevent"]},
-            "enabled": True,
-            "description": "Daily comprehensive metrics collection using all collectors",
-            "category": "metrics_collection",
-        },
-    ],
-)
-
-# Hourly Metrics Collection Group - Customer controlled, hourly granularity with daily rollup
-HOURLY_METRICS_GROUP = TaskGroup(
-    name="hourly_metrics",
-    description="Hourly metrics collection with daily rollup and anonymization",
-    enabled_setting="METRICS_COLLECTION_ENABLED",
-    default_enabled=False,  # Disabled by default, customer opt-in required
+    description="Metrics collection, rollup, anonymization, and transmission to Red Hat",
+    feature_flag="ANONYMIZED_DATA_COLLECTION",
     tasks=[
         # Hourly Collection Tasks
         {
@@ -219,7 +174,7 @@ HOURLY_METRICS_GROUP = TaskGroup(
             "description": "Collect main_host metrics every hour",
             "category": "hourly_collection",
         },
-        # Daily Rollup Tasks
+        # Daily Rollup
         {
             "task_id": "daily_metrics_rollup",
             "function": "daily_metrics_rollup",
@@ -229,6 +184,7 @@ HOURLY_METRICS_GROUP = TaskGroup(
             "description": "Create daily rollup from hourly collections",
             "category": "daily_rollup",
         },
+        # Anonymization and Sending
         {
             "task_id": "daily_anonymize",
             "function": "daily_anonymize_and_prepare",
@@ -267,9 +223,7 @@ HOURLY_METRICS_GROUP = TaskGroup(
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
-    ANONYMIZED_DATA_GROUP,
     METRICS_COLLECTION_GROUP,
-    HOURLY_METRICS_GROUP,
 ]
 
 
@@ -279,7 +233,7 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
 
     Returns:
         Dictionary mapping task_id to task configuration for all enabled tasks.
-        Each task config includes the feature_flag from its group for runtime checking.
+        Each task config includes the group's feature_flag (if any) for runtime checking.
     """
     all_tasks = {}
 
@@ -290,8 +244,9 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
             task_config = task.copy()
             task_config["group"] = group.name
             task_config["group_description"] = group.description
-            # Add feature flag for runtime checking
-            task_config["feature_flag"] = group.enabled_setting
+            # Add group's feature flag for runtime checking
+            if group.feature_flag:
+                task_config["feature_flag"] = group.feature_flag
             all_tasks[task_id] = task_config
 
     return all_tasks

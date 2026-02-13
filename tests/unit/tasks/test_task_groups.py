@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 
 from apps.tasks.task_groups import (
-    ANONYMIZED_DATA_GROUP,
     METRICS_COLLECTION_GROUP,
     SYSTEM_TASKS_GROUP,
     TaskGroup,
@@ -26,8 +25,6 @@ class TestTaskGroup(TestCase):
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_setting="TEST_FLAG",
-            default_enabled=True,
             tasks=[
                 {
                     "task_id": "test_task",
@@ -41,47 +38,65 @@ class TestTaskGroup(TestCase):
 
         assert group.name == "test_group"
         assert group.description == "Test group"
-        assert group.enabled_setting == "TEST_FLAG"
-        assert group.default_enabled is True
         assert len(group.tasks) == 1
 
     @override_settings(FEATURE_ENABLED={"TEST_FLAG": True})
-    def test_is_enabled_with_flag_true(self):
-        """Test task group enabled when feature enable is True."""
+    def test_get_enabled_tasks_with_flag_true(self):
+        """Test tasks are enabled when group's feature flag is True."""
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_setting="TEST_FLAG",
-            default_enabled=False,
+            feature_flag="TEST_FLAG",
+            tasks=[
+                {
+                    "task_id": "test_task",
+                    "function": "test_function",
+                    "enabled": True,
+                }
+            ],
         )
 
-        assert group.is_enabled() is True
+        enabled_tasks = group.get_enabled_tasks()
+        assert len(enabled_tasks) == 1
 
     @override_settings(FEATURE_ENABLED={"TEST_FLAG": False})
-    def test_is_enabled_with_flag_false(self):
-        """Test task group disabled when feature enable is False."""
+    def test_get_enabled_tasks_with_flag_false(self):
+        """Test tasks are disabled when group's feature flag is False."""
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_setting="TEST_FLAG",
-            default_enabled=True,
+            feature_flag="TEST_FLAG",
+            tasks=[
+                {
+                    "task_id": "test_task",
+                    "function": "test_function",
+                    "enabled": True,
+                }
+            ],
         )
 
-        assert group.is_enabled() is False
+        enabled_tasks = group.get_enabled_tasks()
+        assert len(enabled_tasks) == 0
 
-    def test_is_enabled_no_flag(self):
-        """Test task group uses default when no feature enable."""
+    def test_get_enabled_tasks_no_flag(self):
+        """Test groups without feature flags return all enabled tasks."""
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_setting=None,
-            default_enabled=True,
+            tasks=[
+                {
+                    "task_id": "test_task",
+                    "function": "test_function",
+                    "enabled": True,
+                }
+            ],
         )
 
-        assert group.is_enabled() is True
+        enabled_tasks = group.get_enabled_tasks()
+        assert len(enabled_tasks) == 1
 
-    def test_get_enabled_tasks_when_enabled(self):
-        """Test getting enabled tasks when group is enabled."""
+    def test_get_enabled_tasks_respects_enabled_field(self):
+        """Test getting enabled tasks respects the enabled field."""
         tasks = [
             {
                 "task_id": "task1",
@@ -98,8 +113,6 @@ class TestTaskGroup(TestCase):
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_setting=None,
-            default_enabled=True,
             tasks=tasks,
         )
 
@@ -107,36 +120,41 @@ class TestTaskGroup(TestCase):
         assert len(enabled_tasks) == 1
         assert enabled_tasks[0]["task_id"] == "task1"
 
-    def test_get_enabled_tasks_when_disabled(self):
-        """Test getting enabled tasks when group is disabled."""
+    @override_settings(FEATURE_ENABLED={"TEST_FLAG": True})
+    def test_get_enabled_tasks_with_task_enabled_false(self):
+        """Test that individual tasks can be disabled via enabled field."""
         tasks = [
             {
                 "task_id": "task1",
                 "function": "function1",
                 "enabled": True,
-            }
+            },
+            {
+                "task_id": "task2",
+                "function": "function2",
+                "enabled": False,  # Manually disabled
+            },
         ]
 
         group = TaskGroup(
             name="test_group",
             description="Test group",
-            enabled_setting=None,
-            default_enabled=False,
+            feature_flag="TEST_FLAG",
             tasks=tasks,
         )
 
         enabled_tasks = group.get_enabled_tasks()
-        assert len(enabled_tasks) == 0
+        assert len(enabled_tasks) == 1
+        assert enabled_tasks[0]["task_id"] == "task1"
 
 
 class TestPredefinedTaskGroups(TestCase):
     """Test the predefined task groups."""
 
     def test_system_tasks_group(self):
-        """Test system tasks group is always enabled."""
+        """Test system tasks group has no feature flag (always enabled)."""
         assert SYSTEM_TASKS_GROUP.name == "system_tasks"
-        assert SYSTEM_TASKS_GROUP.enabled_setting is None
-        assert SYSTEM_TASKS_GROUP.is_enabled() is True
+        assert SYSTEM_TASKS_GROUP.feature_flag is None
         assert len(SYSTEM_TASKS_GROUP.tasks) > 0
 
         # Check for expected system tasks
@@ -145,65 +163,49 @@ class TestPredefinedTaskGroups(TestCase):
         assert "hourly_health_check" in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
-    def test_anonymized_data_group_enabled(self):
-        """Test anonymized data group when enabled."""
-        assert ANONYMIZED_DATA_GROUP.name == "anonymized_data"
-        assert ANONYMIZED_DATA_GROUP.enabled_setting == "ANONYMIZED_DATA_COLLECTION"
-        assert ANONYMIZED_DATA_GROUP.is_enabled() is True
-
-        task_ids = [task["task_id"] for task in ANONYMIZED_DATA_GROUP.get_enabled_tasks()]
-        # After consolidation, only full_process_anonymize remains
-        assert "full_process_anonymize" in task_ids
-
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
-    def test_anonymized_data_group_disabled(self):
-        """Test anonymized data group when disabled."""
-        assert ANONYMIZED_DATA_GROUP.is_enabled() is False
-        assert len(ANONYMIZED_DATA_GROUP.get_enabled_tasks()) == 0
-
-    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION_ENABLED": True})
     def test_metrics_collection_group_enabled(self):
-        """Test metrics collection group when enabled."""
+        """Test metrics collection group when feature flag is enabled."""
         assert METRICS_COLLECTION_GROUP.name == "metrics_collection"
-        assert METRICS_COLLECTION_GROUP.enabled_setting == "METRICS_COLLECTION_ENABLED"
-        assert METRICS_COLLECTION_GROUP.is_enabled() is True
+        assert METRICS_COLLECTION_GROUP.feature_flag == "ANONYMIZED_DATA_COLLECTION"
 
         task_ids = [task["task_id"] for task in METRICS_COLLECTION_GROUP.get_enabled_tasks()]
-        # After consolidation, only the daily collection task remains
-        assert "collect_all_metrics_daily" in task_ids
+        # Should have all tasks when flag is enabled
+        assert len(task_ids) > 0
+        assert "hourly_job_host_summary" in task_ids
+        assert "hourly_host_metrics" in task_ids
+        assert "daily_metrics_rollup" in task_ids
+        assert "daily_anonymize" in task_ids
+        assert "send_to_segment_daily" in task_ids
+        assert "cleanup_metrics_data" in task_ids
 
-    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION_ENABLED": False})
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_metrics_collection_group_disabled(self):
-        """Test metrics collection group when disabled."""
-        assert METRICS_COLLECTION_GROUP.is_enabled() is False
-        assert len(METRICS_COLLECTION_GROUP.get_enabled_tasks()) == 0
+        """Test metrics collection group when feature flag is disabled."""
+        enabled_tasks = METRICS_COLLECTION_GROUP.get_enabled_tasks()
+        assert len(enabled_tasks) == 0
 
 
 class TestTaskGroupFunctions(TestCase):
     """Test utility functions for task groups."""
 
-    @override_settings(
-        FEATURE_ENABLED={
-            "ANONYMIZED_DATA_COLLECTION": True,
-            "METRICS_COLLECTION_ENABLED": False,
-        }
-    )
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_get_all_enabled_tasks(self):
         """Test getting all enabled tasks from all groups."""
         all_tasks = get_all_enabled_tasks()
 
-        # Should have system tasks and anonymized data tasks, but not metrics collection
+        # Should have only system tasks when metrics collection is disabled
         task_ids = list(all_tasks.keys())
 
         # System tasks (always enabled)
         assert "daily_task_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
-        # Anonymized data tasks (enabled) - after consolidation
-        assert "full_process_anonymize" in task_ids
-
-        # Metrics collection tasks (disabled) - after consolidation
-        assert "collect_all_metrics_daily" not in task_ids
+        # Metrics collection tasks (disabled)
+        assert "hourly_job_host_summary" not in task_ids
+        assert "hourly_host_metrics" not in task_ids
+        assert "daily_metrics_rollup" not in task_ids
+        assert "daily_anonymize" not in task_ids
+        assert "send_to_segment_daily" not in task_ids
 
         # Check that group information is added to tasks
         for _task_id, task_config in all_tasks.items():
@@ -228,14 +230,9 @@ class TestTaskGroupIntegration(TestCase):
         assert scheduler == mock_scheduler
         assert scheduler.running is True
 
-    @override_settings(
-        FEATURE_ENABLED={
-            "ANONYMIZED_DATA_COLLECTION": True,
-            "METRICS_COLLECTION_ENABLED": True,
-        }
-    )
-    def test_all_groups_enabled(self):
-        """Test when all groups are enabled."""
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
+    def test_all_flags_enabled(self):
+        """Test when metrics collection feature flag is enabled."""
         all_tasks = get_all_enabled_tasks()
 
         # Should have tasks from all groups
@@ -244,18 +241,15 @@ class TestTaskGroupIntegration(TestCase):
         # System tasks
         assert any("cleanup" in task_id for task_id in task_ids)
 
-        # Anonymized data tasks - after consolidation, only full_process_anonymize remains
-        assert any("anonymize" in task_id for task_id in task_ids)
+        # Metrics collection tasks
+        assert any("hourly" in task_id for task_id in task_ids)
+        assert "daily_metrics_rollup" in task_ids
 
-        # Metrics collection tasks - after consolidation, only daily collection remains
-        assert any("metrics" in task_id for task_id in task_ids)
+        # Anonymization tasks
+        assert "daily_anonymize" in task_ids
+        assert "send_to_segment_daily" in task_ids
 
-    @override_settings(
-        FEATURE_ENABLED={
-            "ANONYMIZED_DATA_COLLECTION": False,
-            "METRICS_COLLECTION_ENABLED": False,
-        }
-    )
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_minimal_system_only(self):
         """Test when only system tasks are enabled."""
         all_tasks = get_all_enabled_tasks()
@@ -264,8 +258,6 @@ class TestTaskGroupIntegration(TestCase):
         task_ids = list(all_tasks.keys())
         # System tasks should be present
         assert any("cleanup" in task_id for task_id in task_ids)
-        # Feature-controlled tasks should not be present
-        assert not any("full_process_anonymize" in task_id for task_id in task_ids)
 
         # Should only have system tasks
         task_ids = list(all_tasks.keys())
