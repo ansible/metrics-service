@@ -70,7 +70,6 @@ DISPATCHERD_ENABLED = False
 # ...and on init-default-settings never happening during tests. If it does, @override_setings won't work.
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": False,
-    "METRICS_COLLECTION_ENABLED": False,
 }
 
 # REST Framework settings for tests

@@ -117,16 +117,18 @@ GET /api/v1/tasks/available_functions/
 - `hello_world` - Simple test task for dispatcherd integration
 - `execute_db_task` - Execute database-defined tasks with lifecycle management
 
-**Anonymized Data Collection Tasks** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled):
+**Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled, customer opt-out):
 
-- `collect_anonymous_metrics` - Collect anonymous system metrics
-- `collect_config_metrics` - Collect configuration information
+**Hourly Collection Tasks**:
+- `collect_job_host_summary_hourly` - Collect job/host summary metrics every hour
+- `collect_host_metrics_hourly` - Collect host event module metrics every hour
+- `collect_main_host_hourly` - Collect host inventory snapshot every hour
 
-**Metrics Collection Tasks** (controlled by `METRICS_COLLECTION_ENABLED`, default: disabled):
+**Daily Rollup and Anonymization Tasks**:
 
-- `collect_job_host_summary` - Collect job execution statistics
-- `collect_host_metrics` - Collect host performance data
-- `collect_all_metrics` - Run multiple collectors in sequence
+- `daily_metrics_rollup` - Merge hourly collections and collect daily snapshots
+- `daily_anonymize_and_prepare` - Anonymize daily rollup and prepare for transmission
+- `send_anonymized_to_segment` - Send anonymized metrics to Segment.com
 
 ## Background Tasks
 
@@ -164,16 +166,12 @@ We have these feature flags:
 |flag|default|
 |-|-|
 |`ANONYMIZED_DATA_COLLECTION`|true|
-|`METRICS_COLLECTION_ENABLED`|false|
 
 You can change the default value using the `METRICS_SERVICE_FEATURE_ENABLED__` prefixed-environment variables.
 
 ```sh
 # Enable/disable anonymized data collection (default: true)
 METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
-
-# Enable/disable metrics collection (default: false)
-METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED=true
 ```
 
 These environment variables (or their default values) are used to populate the feature flags database tables during `mangage.py metrics_service init-default-settings`. You can also use `python manage.py metrics_service remove-default-settings` to remove these settings from the database.
@@ -286,7 +284,6 @@ METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode=prefer
 
 # Task App
 METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION="true"
-METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED="false"
 DISPATCHERD_CONFIG_FILE=/app/apps/settings/dispatcherd.yaml
 DISPATCHERD_ENABLED="true"
 ```

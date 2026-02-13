@@ -153,11 +153,7 @@ def rollback_configuration_change(change_id, user):
 DEFAULT_SETTINGS = {
     "ANONYMIZED_DATA_COLLECTION": {
         "default_value": True,
-        "description": "Enable anonymous data collection for Red Hat",
-    },
-    "METRICS_COLLECTION_ENABLED": {
-        "default_value": False,
-        "description": "Enable hourly metrics collection with daily rollup",
+        "description": "Enable anonymized data collection and transmission to Red Hat (includes metrics collection, rollup, anonymization, and sending)",
     },
 }
 

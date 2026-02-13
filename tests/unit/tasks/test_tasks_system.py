@@ -12,7 +12,7 @@ Organized into clear test classes:
 - TestEdgeCasesAndErrorHandling: Edge cases, error conditions, and resilience
 """
 
-from unittest.mock import ANY, MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -138,8 +138,6 @@ class TestTaskRegistry(TestCase):
             "execute_db_task",
             "hello_world",
             "cleanup_old_tasks",
-            "collect_single_collector",
-            "collect_metrics",
         ]
 
         for func_name in expected_functions:
@@ -155,11 +153,6 @@ class TestTaskRegistry(TestCase):
                 assert "status" in result, f"{func.__name__} result missing 'status' key"
             except Exception as e:
                 pytest.fail(f"Function {func.__name__} raised exception: {e}")
-
-    def test_metrics_utility_available_flag(self):
-        """Test that METRICS_UTILITY_AVAILABLE flag is properly set."""
-        assert hasattr(tasks, "METRICS_UTILITY_AVAILABLE")
-        assert isinstance(tasks.METRICS_UTILITY_AVAILABLE, bool)
 
     @patch("apps.tasks.collectors.helpers.logger")
     def test_metrics_utility_import_error_handling(self, mock_logger):
@@ -251,53 +244,6 @@ class TestTaskDispatcher(TestCase):
 @pytest.mark.unit
 class TestEdgeCasesAndErrorHandling:
     """Test edge cases, error conditions, and system resilience."""
-
-    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.collectors.helpers.anonymized_rollups_processor")
-    @patch("apps.tasks.utils.csv_to_json")
-    @patch("django.db.connections")
-    def test_metrics_collection_with_django_connections(self, mock_connections, mock_csv_to_json, mock_collector):
-        """Test metrics collection works with Django database connections."""
-        # Setup mock database connection with .connection attribute
-        mock_raw_connection = object()
-        mock_db_connection = MagicMock()
-        mock_db_connection.connection = mock_raw_connection
-        mock_connections.__getitem__.return_value = mock_db_connection
-
-        # Setup mock collector return value
-        mock_collector.return_value = {"anonymized": "data"}
-
-        # Call collector
-        result = tasks.collect_single_collector(collector_type="anonymized_rollups")
-
-        # Verify success
-        assert result["status"] == "success"
-        assert result["collector_type"] == "anonymized_rollups"
-
-        # Verify Django connections were used
-        mock_connections.__getitem__.assert_called_once_with("awx")
-        mock_collector.assert_called_once_with(
-            db=mock_raw_connection, salt=ANY, since=ANY, until=ANY, ship_path=None, save_rollups=False
-        )
-
-    @patch("apps.tasks.collectors.collect_single_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.collectors.helpers.anonymized_rollups_processor")
-    @patch("apps.tasks.utils.csv_to_json")
-    @patch("django.db.connections")
-    def test_metrics_collection_error_handling(self, mock_connections, mock_csv_to_json, mock_collector):
-        """Test that metrics collection errors are handled gracefully."""
-        # Setup mocks
-        mock_raw_connection = object()
-        mock_db_connection = MagicMock()
-        mock_db_connection.connection = mock_raw_connection
-        mock_connections.__getitem__.return_value = mock_db_connection
-
-        # Make collector raise error
-        mock_collector.side_effect = Exception("Test error")
-
-        # Call should handle error gracefully
-        result = tasks.collect_single_collector(collector_type="anonymized_rollups")
-        assert result["status"] == "error"
 
 
 # =============================================================================

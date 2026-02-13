@@ -325,7 +325,7 @@ class TestUnifiedTaskScheduler:
         scheduler.scheduler.add_job.assert_called_once_with(
             func=scheduler._execute_scheduled_task,
             trigger=mock_trigger,
-            args=["test_task", "hello_world", {"message": "test"}, None],  # Include feature_flag parameter
+            args=["test_task", "hello_world", {"message": "test"}],
             id="test_task",
             name="Test task",
             replace_existing=True,

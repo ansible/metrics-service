@@ -282,7 +282,6 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
 
         # Verify settings were created
         assert Setting.objects.count() > 0
-        assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
         assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
 
         # Check output
@@ -294,20 +293,17 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         from apps.dynamic_settings.models import Setting
 
         # Create an unchanged default setting with non-default value
-        self.create_test_setting("METRICS_COLLECTION_ENABLED", True, None)
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, None)
 
         # Run the command
         self.setup_command_output()
         self.command._handle_init_default_settings_command()
 
-        # Verify setting was updated to default value (False)
-        assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").count() == 1
-        setting = Setting.objects.get(setting_key="METRICS_COLLECTION_ENABLED")
-        # Value should be reset to default (False)
-        assert json.loads(setting.current_value) is False
-
-        # All default settings should be present
-        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        # Verify setting was updated to default value (True)
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").count() == 1
+        setting = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
+        # Value should be reset to default (True)
+        assert json.loads(setting.current_value) is True
 
         # Check output
         output = self.out.getvalue()
@@ -318,22 +314,19 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         from apps.dynamic_settings.models import Setting
 
         # Create a modified setting (has previous_value)
-        self.create_test_setting("METRICS_COLLECTION_ENABLED", True, False)
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
 
         # Run the command
         self.setup_command_output()
         self.command._handle_init_default_settings_command()
 
         # Verify no duplicate settings were created
-        assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").count() == 1
-        setting = Setting.objects.get(setting_key="METRICS_COLLECTION_ENABLED")
-        # Modified value should remain unchanged (True)
-        assert json.loads(setting.current_value) is True
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").count() == 1
+        setting = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
+        # Modified value should remain unchanged (False)
+        assert json.loads(setting.current_value) is False
         # previous_value should still be present
-        assert json.loads(setting.previous_value) is False
-
-        # Other default settings should still be created
-        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        assert json.loads(setting.previous_value) is True
 
         # Check output
         output = self.out.getvalue()
@@ -378,7 +371,7 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         from apps.dynamic_settings.models import Setting
 
         # Create a modified default setting (has previous_value)
-        self.create_test_setting("METRICS_COLLECTION_ENABLED", True, False)
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
 
         # Run the command with --overwrite
         self.setup_command_output()
@@ -386,10 +379,10 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         self.command._handle_init_default_settings_command(options)
 
         # Verify setting was recreated with default value
-        assert Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
-        setting = Setting.objects.get(setting_key="METRICS_COLLECTION_ENABLED")
-        # Value should be reset to default (False) and previous_value should be None
-        assert json.loads(setting.current_value) is False
+        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        setting = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
+        # Value should be reset to default (True) and previous_value should be None
+        assert json.loads(setting.current_value) is True
         assert setting.previous_value is None
 
         # Check output
@@ -413,16 +406,13 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         from apps.dynamic_settings.models import Setting
 
         # Create unchanged default setting (previous_value is None)
-        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
-
-        # Create modified default setting (has previous_value)
-        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
 
         # Create a non-default setting
         self.create_test_setting("CUSTOM_SETTING", "test", None)
 
         initial_count = Setting.objects.count()
-        assert initial_count == 3
+        assert initial_count == 2
 
         # Run the command
         self.setup_command_output()
@@ -430,10 +420,8 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         self.command._handle_remove_default_settings_command(options)
 
         # Verify only unchanged default settings were removed
-        assert Setting.objects.count() == 2
-        assert not Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
-        # Modified default setting should remain
-        assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        assert Setting.objects.count() == 1
+        assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
         # Custom setting should remain
         assert Setting.objects.filter(setting_key="CUSTOM_SETTING").exists()
 
@@ -462,7 +450,7 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         from apps.dynamic_settings.models import Setting
 
         # Create a default setting
-        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
 
         # Run via handle method
         self.setup_command_output()
@@ -470,7 +458,7 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         self.command.handle(**options)
 
         # Verify setting was removed
-        assert not Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
+        assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
 
         # Check output
         output = self.out.getvalue()
@@ -497,44 +485,39 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         from apps.dynamic_settings.models import Setting
 
         # Create unchanged default setting
-        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
-
-        # Create modified default setting (has previous_value)
-        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
+        self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
 
         # Create a non-default setting
         self.create_test_setting("CUSTOM_SETTING", "test", None)
 
         initial_count = Setting.objects.count()
-        assert initial_count == 3
+        assert initial_count == 2
 
         # Run the command with --all-known
         self.setup_command_output()
         options = {"all_known": True, "all_settings": False}
         self.command._handle_remove_default_settings_command(options)
 
-        # Verify both default settings were removed (even the modified one)
+        # Verify default setting was removed
         assert Setting.objects.count() == 1
-        assert not Setting.objects.filter(setting_key="METRICS_COLLECTION_ENABLED").exists()
         assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
         # Custom setting should remain
         assert Setting.objects.filter(setting_key="CUSTOM_SETTING").exists()
 
         # Check output
         output = self.out.getvalue()
-        assert "Removed 2 settings" in output
+        assert "Removed 1 settings" in output
 
     def test_handle_remove_default_settings_with_all_settings(self):
         """Test that _handle_remove_default_settings_command with --all-settings removes all settings."""
         from apps.dynamic_settings.models import Setting
 
         # Create various settings
-        self.create_test_setting("METRICS_COLLECTION_ENABLED", False, None)
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
         self.create_test_setting("CUSTOM_SETTING", "test", None)
 
         initial_count = Setting.objects.count()
-        assert initial_count == 3
+        assert initial_count == 2
 
         # Run the command with --all-settings
         self.setup_command_output()
@@ -546,7 +529,7 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
 
         # Check output
         output = self.out.getvalue()
-        assert "Removed 3 settings" in output
+        assert "Removed 2 settings" in output
 
 
 @pytest.mark.django_db

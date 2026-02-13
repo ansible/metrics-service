@@ -421,16 +421,14 @@ The system includes these built-in task functions organized by feature groups:
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
 - **`hello_world`** - Simple test task for dispatcherd integration
 
-**Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION` feature flag):
+**Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION` feature flag):
 
-- **`collect_anonymous_metrics`** - Collect anonymous system metrics
-- **`collect_config_metrics`** - Collect configuration information
-
-**Metrics Collection** (controlled by `METRICS_COLLECTION_ENABLED` feature flag):
-
-- **`collect_host_metrics`** - Collect host performance data
-- **`collect_job_host_summary`** - Collect job execution statistics
-- **`collect_all_metrics`** - Run multiple collectors in sequence
+- **`collect_job_host_summary_hourly`** - Collect job/host summary metrics every hour
+- **`collect_host_metrics_hourly`** - Collect host event module metrics every hour
+- **`collect_main_host_hourly`** - Collect host inventory snapshot every hour
+- **`daily_metrics_rollup`** - Merge hourly collections and collect daily snapshots
+- **`daily_anonymize_and_prepare`** - Anonymize daily rollup and prepare for transmission
+- **`send_anonymized_to_segment`** - Send anonymized metrics to Segment.com
 
 ## Development Notes
 
@@ -452,21 +450,28 @@ Dispatcherd is permanently enabled. Other features can be controlled via the `FE
 
 ```python
 FEATURE_ENABLED = {
-    "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled
-    "METRICS_COLLECTION_ENABLED": False,  # Default disabled (customer opt-in)
+    "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled (customer opt-out)
 }
 ```
 
 **Environment Variable Mapping:**
 
-- `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true/false` → Controls anonymized data collection tasks
-- `METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED=true/false` → Controls metrics collection tasks
+- `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true/false` → Controls all metrics collection and transmission
 
-**Task Groups Controlled by Feature Enabled:**
+**Task Groups and Feature Flags:**
 
-- **System Tasks** - Always enabled (cleanup, maintenance)
-- **Anonymized Data Collection** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: enabled)
-- **Metrics Collection** - Controlled by `METRICS_COLLECTION_ENABLED` (default: disabled)
+- **System Tasks** - Always enabled (no feature flag required)
+  - `cleanup_old_tasks` - Daily cleanup of old completed/failed tasks
+  - `hello_world` - Hourly health check
+
+- **Metrics Collection Group** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: **enabled**, customer opt-out)
+  - Hourly collection: `collect_job_host_summary_hourly`, `collect_host_metrics_hourly`, `collect_main_host_hourly`
+  - Daily rollup: `daily_metrics_rollup`
+  - Anonymization: `daily_anonymize_and_prepare`
+  - Transmission to Segment: `send_anonymized_to_segment`
+  - Data cleanup: `cleanup_metrics_data`
+
+Note: All metrics tasks are controlled by a single flag since anonymization requires collected data to work. This is an opt-out feature that sends anonymized usage data to Red Hat.
 
 **Automatic Database Initialization:**
 
@@ -585,9 +590,11 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 ### Feature Enabled System
 
 - **Configuration**: Use `FEATURE_ENABLED` dict in Django settings or environment variables with `METRICS_SERVICE_` prefix
-- **Task Groups**: System tasks always enabled, anonymized data default enabled, metrics collection default disabled
-- **Environment Variables**: `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION` and `METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION_ENABLED` control task groups
-- **Runtime Control**: Features can be toggled via database settings or environment variables
+- **Group-Level Control**: Feature flags are applied at the task group level. All tasks in a group share the same feature flag.
+- **Task-Level Override**: Individual tasks can be disabled via `enabled: false` field regardless of the group's feature flag status.
+- **Environment Variables**:
+  - `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION` controls all metrics collection, rollup, anonymization, and transmission (default: **enabled**, customer opt-out)
+- **Runtime Control**: Features can be toggled via database settings or environment variables without service restart
 
 ### Code Organization
 

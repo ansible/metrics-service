@@ -7,10 +7,10 @@ Usage:
     uv run scripts/run_task.py <task_name> [task_params_json]
 
 Examples:
-    uv run scripts/run_task.py collect_all_metrics
-    uv run scripts/run_task.py collect_anonymous_metrics '{"database": "awx"}'
-    uv run scripts/run_task.py cleanup_old_tasks '{"days_old": 7, "dry_run": true}'
     uv run scripts/run_task.py hello_world
+    uv run scripts/run_task.py daily_metrics_rollup '{"summary_date": "2024-01-01"}'
+    uv run scripts/run_task.py cleanup_old_tasks '{"days_old": 7, "dry_run": true}'
+    uv run scripts/run_task.py collect_job_host_summary_hourly '{"hour_timestamp": "2024-01-01T00:00:00Z"}'
 """
 
 import json
