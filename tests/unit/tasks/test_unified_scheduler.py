@@ -374,18 +374,18 @@ class TestUnifiedTaskScheduler:
             scheduler._execute_scheduled_task("test_task", "hello_world", {})  # Should catch error
 
     def test_get_queue_for_function_known_functions(self):
-        """Test queue mapping for known functions."""
-        scheduler = UnifiedTaskScheduler()
+        """Test queue mapping for known functions (now using shared function from dispatcherd_config)."""
+        from apps.tasks.dispatcherd_config import get_queue_for_function
 
         # Test specific queue mappings
-        assert scheduler._get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
-        assert scheduler._get_queue_for_function("collect_anonymous_metrics") == "metrics_collectors"
-        assert scheduler._get_queue_for_function("gather_automation_controller_billing_data") == "metrics_utility"
+        assert get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
+        assert get_queue_for_function("daily_metrics_rollup") == "metrics_collectors"
 
     def test_get_queue_for_function_unknown_function(self):
-        """Test queue mapping for unknown function."""
-        scheduler = UnifiedTaskScheduler()
-        assert scheduler._get_queue_for_function("unknown_function") == "metrics_tasks"
+        """Test queue mapping for unknown function (now using shared function from dispatcherd_config)."""
+        from apps.tasks.dispatcherd_config import get_queue_for_function
+
+        assert get_queue_for_function("unknown_function") == "metrics_tasks"
 
 
 @pytest.mark.unit
@@ -580,29 +580,12 @@ class TestGlobalSchedulerFunctions:
         ("daily_metrics_rollup", "metrics_collectors"),
         ("daily_anonymize_and_prepare", "metrics_collectors"),
         ("send_anonymized_to_segment", "metrics_collectors"),
-        # Unified collector tasks
-        ("collect_single_collector", "metrics_collectors"),
-        ("collect_metrics", "metrics_collectors"),
-        ("anonymize_data", "metrics_collectors"),
-        ("send_to_segment", "metrics_collectors"),
-        ("full_process", "metrics_collectors"),
-        ("full_process_anonymize", "metrics_collectors"),
-        # Legacy metrics collection task names (backward compatibility)
-        ("collect_anonymous_metrics", "metrics_collectors"),
-        ("collect_config_metrics", "metrics_collectors"),
-        ("collect_job_host_summary", "metrics_collectors"),
-        ("collect_host_metrics", "metrics_collectors"),
-        ("collect_all_metrics", "metrics_collectors"),
-        # Metrics-utility tasks
-        ("gather_automation_controller_billing_data", "metrics_utility"),
-        ("build_metrics_report", "metrics_utility"),
-        ("metrics_utility_health_check", "metrics_utility"),
-        ("metrics_utility_custom_command", "metrics_utility"),
         # Unknown function (default)
         ("unknown_function", "metrics_tasks"),
     ],
 )
 def test_queue_mapping_parametrized(function_name, expected_queue):
-    """Test queue mapping for all known functions."""
-    scheduler = UnifiedTaskScheduler()
-    assert scheduler._get_queue_for_function(function_name) == expected_queue
+    """Test queue mapping for all known functions (now using shared function from dispatcherd_config)."""
+    from apps.tasks.dispatcherd_config import get_queue_for_function
+
+    assert get_queue_for_function(function_name) == expected_queue

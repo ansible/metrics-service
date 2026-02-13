@@ -230,26 +230,6 @@ class TestGetQueueForFunction:
         assert get_queue_for_function("daily_metrics_rollup") == "metrics_collectors"
         assert get_queue_for_function("daily_anonymize_and_prepare") == "metrics_collectors"
         assert get_queue_for_function("send_anonymized_to_segment") == "metrics_collectors"
-        # Unified collector tasks
-        assert get_queue_for_function("collect_single_collector") == "metrics_collectors"
-        assert get_queue_for_function("collect_metrics") == "metrics_collectors"
-        assert get_queue_for_function("anonymize_data") == "metrics_collectors"
-        assert get_queue_for_function("send_to_segment") == "metrics_collectors"
-        assert get_queue_for_function("full_process") == "metrics_collectors"
-        assert get_queue_for_function("full_process_anonymize") == "metrics_collectors"
-        # Legacy task names (backward compatibility)
-        assert get_queue_for_function("collect_anonymous_metrics") == "metrics_collectors"
-        assert get_queue_for_function("collect_config_metrics") == "metrics_collectors"
-        assert get_queue_for_function("collect_job_host_summary") == "metrics_collectors"
-        assert get_queue_for_function("collect_host_metrics") == "metrics_collectors"
-        assert get_queue_for_function("collect_all_metrics") == "metrics_collectors"
-
-    def test_returns_correct_queue_for_utility_tasks(self):
-        """Test that metrics-utility tasks are routed to metrics_utility queue."""
-        assert get_queue_for_function("gather_automation_controller_billing_data") == "metrics_utility"
-        assert get_queue_for_function("build_metrics_report") == "metrics_utility"
-        assert get_queue_for_function("metrics_utility_health_check") == "metrics_utility"
-        assert get_queue_for_function("metrics_utility_custom_command") == "metrics_utility"
 
     def test_returns_correct_queue_for_general_tasks(self):
         """Test that general tasks are routed to metrics_tasks queue."""
@@ -280,24 +260,6 @@ class TestGetQueueForFunction:
             "daily_metrics_rollup": "metrics_collectors",
             "daily_anonymize_and_prepare": "metrics_collectors",
             "send_anonymized_to_segment": "metrics_collectors",
-            # Unified collector tasks
-            "collect_single_collector": "metrics_collectors",
-            "collect_metrics": "metrics_collectors",
-            "anonymize_data": "metrics_collectors",
-            "send_to_segment": "metrics_collectors",
-            "full_process": "metrics_collectors",
-            "full_process_anonymize": "metrics_collectors",
-            # Legacy metrics collection task names (backward compatibility)
-            "collect_anonymous_metrics": "metrics_collectors",
-            "collect_config_metrics": "metrics_collectors",
-            "collect_job_host_summary": "metrics_collectors",
-            "collect_host_metrics": "metrics_collectors",
-            "collect_all_metrics": "metrics_collectors",
-            # Metrics-utility tasks
-            "gather_automation_controller_billing_data": "metrics_utility",
-            "build_metrics_report": "metrics_utility",
-            "metrics_utility_health_check": "metrics_utility",
-            "metrics_utility_custom_command": "metrics_utility",
         }
 
         for function_name, expected_queue in function_queue_map.items():

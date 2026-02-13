@@ -36,20 +36,4 @@ logging:
   level: INFO
   format: '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 
-# Queue routing - map task types to specific channels
-queue_routing:
-  'hello_world': 'metrics_tasks'
-  'cleanup_old_tasks': 'metrics_cleanup'
-  'cleanup_metrics_data': 'metrics_cleanup'
-  'execute_db_task': 'metrics_tasks'
-  'collect_anonymous_metrics': 'metrics_collectors'
-  'collect_config_metrics': 'metrics_collectors'
-  'collect_job_host_summary': 'metrics_collectors'
-  'collect_host_metrics': 'metrics_collectors'
-  'collect_all_metrics': 'metrics_collectors'
-
-  # Metrics-utility tasks
-  'gather_automation_controller_billing_data': 'metrics_utility'
-  'build_metrics_report': 'metrics_utility'
-  'metrics_utility_health_check': 'metrics_utility'
-  'metrics_utility_custom_command': 'metrics_utility'
+# NOTE: Queue routing is handled in apps/tasks/dispatcherd_config.py::get_queue_for_function()

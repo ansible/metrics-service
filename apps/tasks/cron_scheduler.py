@@ -215,7 +215,9 @@ class UnifiedTaskScheduler:
                 raise ValueError(f"Unknown task function: {function_name}")
 
             # Determine queue based on function name
-            queue = self._get_queue_for_function(function_name)
+            from .dispatcherd_config import get_queue_for_function
+
+            queue = get_queue_for_function(function_name)
 
             # Submit to dispatcherd using string reference for consistency
             submit_task(f"apps.tasks.tasks.{function_name}", kwargs=task_args, queue=queue)
@@ -224,46 +226,6 @@ class UnifiedTaskScheduler:
 
         except Exception as e:
             logger.error(f"Failed to execute scheduled task {task_id}: {str(e)}")
-
-    # FIXME: duplicates @task && dispatcherd_config
-    def _get_queue_for_function(self, function_name: str) -> str:
-        """Determine the appropriate queue for a function."""
-        queue_mapping = {
-            # System/general tasks
-            "hello_world": "metrics_tasks",
-            "execute_db_task": "metrics_tasks",
-            # Cleanup tasks
-            "cleanup_old_tasks": "metrics_cleanup",
-            "cleanup_metrics_data": "metrics_cleanup",
-            # Hourly collection tasks
-            "collect_job_host_summary_hourly": "metrics_collectors",
-            "collect_host_metrics_hourly": "metrics_collectors",
-            "collect_main_host_hourly": "metrics_collectors",
-            # Daily rollup and anonymization tasks
-            "daily_metrics_rollup": "metrics_collectors",
-            "daily_anonymize_and_prepare": "metrics_collectors",
-            "send_anonymized_to_segment": "metrics_collectors",
-            # Unified collector tasks
-            "collect_single_collector": "metrics_collectors",
-            "collect_metrics": "metrics_collectors",
-            "anonymize_data": "metrics_collectors",
-            "send_to_segment": "metrics_collectors",
-            "full_process": "metrics_collectors",
-            "full_process_anonymize": "metrics_collectors",
-            # Legacy metrics collection task names (backward compatibility)
-            "collect_anonymous_metrics": "metrics_collectors",
-            "collect_config_metrics": "metrics_collectors",
-            "collect_job_host_summary": "metrics_collectors",
-            "collect_host_metrics": "metrics_collectors",
-            "collect_all_metrics": "metrics_collectors",
-            # Metrics-utility tasks
-            "gather_automation_controller_billing_data": "metrics_utility",
-            "build_metrics_report": "metrics_utility",
-            "metrics_utility_health_check": "metrics_utility",
-            "metrics_utility_custom_command": "metrics_utility",
-        }
-
-        return queue_mapping.get(function_name, "metrics_tasks")
 
     # FIXME: is this what does it, or is it all apscheduler now?
     # FIXME: sync_database_tasks vs periodic_database_sync

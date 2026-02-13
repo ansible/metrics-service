@@ -198,7 +198,6 @@ def ensure_dispatcherd_configured() -> None:
         raise
 
 
-# FIXME duplicate impls
 def get_queue_for_function(function_name: str) -> str:
     """
     Get the appropriate queue name for a task function.
@@ -224,24 +223,6 @@ def get_queue_for_function(function_name: str) -> str:
         "daily_metrics_rollup": "metrics_collectors",
         "daily_anonymize_and_prepare": "metrics_collectors",
         "send_anonymized_to_segment": "metrics_collectors",
-        # Unified collector tasks
-        "collect_single_collector": "metrics_collectors",
-        "collect_metrics": "metrics_collectors",
-        "anonymize_data": "metrics_collectors",
-        "send_to_segment": "metrics_collectors",
-        "full_process": "metrics_collectors",
-        "full_process_anonymize": "metrics_collectors",
-        # Legacy metrics collection task names (backward compatibility)
-        "collect_anonymous_metrics": "metrics_collectors",
-        "collect_config_metrics": "metrics_collectors",
-        "collect_job_host_summary": "metrics_collectors",
-        "collect_host_metrics": "metrics_collectors",
-        "collect_all_metrics": "metrics_collectors",
-        # Metrics-utility tasks
-        "gather_automation_controller_billing_data": "metrics_utility",
-        "build_metrics_report": "metrics_utility",
-        "metrics_utility_health_check": "metrics_utility",
-        "metrics_utility_custom_command": "metrics_utility",
     }
 
     return queue_mapping.get(function_name, "metrics_tasks")
