@@ -1,0 +1,45 @@
+# Dockerfile.dev - Fast local build using binary wheels (no Rust/C compiles).
+# Use for local development only. Production/Konflux should use the main Dockerfile.
+
+FROM registry.access.redhat.com/ubi9/python-312:latest
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Minimal runtime deps only (psycopg needs libpq at runtime). No gcc/rust/-devel.
+USER root
+RUN dnf install -y postgresql-libs && dnf clean all && rm -rf /var/cache/dnf
+
+RUN mkdir -p /app && chown -R 1001:1001 /app
+
+COPY --chown=1001:1001 . /app/
+
+USER 1001
+
+# Use binary wheels only (strip --no-binary so no cryptography/psycopg source builds).
+RUN sed '/^--no-binary/d' requirements-build.txt > /tmp/requirements-dev.txt && \
+    pip install --no-cache-dir -r /tmp/requirements-dev.txt && \
+    pip install --no-cache-dir .
+
+USER root
+COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
+
+# STATIC_ROOT in Django is staticfiles; collectstatic in entrypoint must write there
+RUN mkdir -p /app/logs /app/staticfiles && \
+    chown -R 1001:1001 /app && \
+    chmod -R a-w /app && \
+    chmod 555 /app && \
+    chmod 755 /app/logs /app/staticfiles
+USER 1001
+
+EXPOSE 8000
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
+
+LABEL name="metrics-service-dev" \
+    summary="Metrics Service (dev build, binary wheels only)"
