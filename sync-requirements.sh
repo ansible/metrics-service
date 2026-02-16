@@ -24,4 +24,7 @@ uv pip compile --output-file=requirements-build.txt requirements-pinned.txt requ
 # Only force source for crypto/psycopg; binaries allowed for Django, pandas, numpy, etc.
 { echo '--no-binary cryptography'; echo '--no-binary psycopg'; echo '--no-binary psycopg2'; echo '--no-binary psycopg-c'; cat requirements-build.txt; } > requirements-build.txt.tmp && mv requirements-build.txt.tmp requirements-build.txt
 
+# Remove -e . so Hermeto/Cachi2 can parse this file; app is installed separately via "pip install ."
+grep -v "^-e \\.$" requirements-build.txt > requirements-build.txt.tmp && mv requirements-build.txt.tmp requirements-build.txt
+
 echo "Requirements files synced successfully!"

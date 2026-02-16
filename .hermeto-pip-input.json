@@ -1,0 +1,1 @@
+[{"type": "pip", "path": ".", "allow_binary": true, "requirements_files": ["requirements-build.txt"]}]
