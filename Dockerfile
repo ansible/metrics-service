@@ -58,13 +58,16 @@ USER 1001
 # Set up cachi2/hermeto environment for hermetic builds (if available).
 # Cachi2 provides cachi2.env; Hermeto provides deps/pip and uses PIP_FIND_LINKS + PIP_NO_INDEX.
 # requirements-build.txt has no -e .; we always install deps then "pip install .".
+# Hermetic path: rewrite any django-ansible-base git+https line to file:// using captured commit
+# so the same Dockerfile works when requirements-build.txt is updated to a new revision.
 RUN if [ -f /cachi2/cachi2.env ]; then \
         set -a && . /cachi2/cachi2.env && set +a && \
         pip install --no-cache-dir -r requirements-build.txt && pip install --no-cache-dir . ; \
     elif [ -d /cachi2/deps/pip ]; then \
         export PIP_NO_INDEX=1 PIP_FIND_LINKS=/cachi2/deps/pip && \
         pip install --no-cache-dir wheel setuptools && \
-        sed -e '/^--no-binary/d' -e 's|django-ansible-base @ git+https://github.com/ansible/django-ansible-base@7596a0cc12785eff647af4f7aef80c77da33eed8|django-ansible-base @ file:///cachi2/deps/pip/django-ansible-base-gitcommit-7596a0cc12785eff647af4f7aef80c77da33eed8.tar.gz|' requirements-build.txt > /tmp/requirements-hermetic.txt && \
+        sed -e '/^--no-binary/d' -e 's|django-ansible-base @ git+https://github.com/ansible/django-ansible-base@\([a-f0-9]\+\)|django-ansible-base @ file:///cachi2/deps/pip/django-ansible-base-gitcommit-\1.tar.gz|' requirements-build.txt > /tmp/requirements-hermetic.txt && \
+        (grep -q 'django-ansible-base @ git+https' /tmp/requirements-hermetic.txt && { echo "ERROR: django-ansible-base git URL was not rewritten for hermetic build; prefetch may use a different rev than requirements-build.txt" >&2; exit 1; }) || true && \
         pip install --no-cache-dir --no-build-isolation -r /tmp/requirements-hermetic.txt && pip install --no-cache-dir --no-deps --no-build-isolation . ; \
     else \
         pip install --no-cache-dir -r requirements-build.txt && pip install --no-cache-dir . ; \
