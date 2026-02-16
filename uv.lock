@@ -736,6 +736,7 @@ wheels = [
 
 [[package]]
 name = "metrics-service"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -818,7 +819,7 @@ requires-dist = [
     { name = "croniter", specifier = ">=1.3.0" },
     { name = "dispatcherd", specifier = ">=2026.1.27" },
     { name = "django", specifier = "==5.2.7" },
-    { name = "django-ansible-base", extras = ["api-documentation", "feature-flags", "jwt-consumer", "rbac", "resource-registry", "rest-filters"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
+    { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-debug-toolbar", marker = "extra == 'dev'", specifier = ">=4.2" },
     { name = "django-extensions", specifier = ">=3.2" },

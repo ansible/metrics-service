@@ -1,0 +1,5 @@
+# Build-time-only dependencies for PEP 517 and legacy setup.py builds.
+# Required so Cachi2/prefetch-dependencies includes them in the offline cache.
+# Packages like django-crum use pytest-runner in setup; metrics-service uses setuptools-scm in pyproject.
+pytest-runner>=6.0
+setuptools-scm>=8.0

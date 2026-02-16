@@ -15,12 +15,13 @@ uv export --format requirements.txt --no-dev -o requirements-pinned.txt
 echo "Generating dev-requirements.txt..."
 uv export --format requirements.txt --only-dev -o dev-requirements.txt
 
-# Generate build requirements from pinned requirements
+# Generate build requirements from pinned requirements + build-time deps (pytest-runner, setuptools-scm).
+# Build-time deps are needed so Cachi2 prefetches them for hermetic builds (e.g. django-crum needs pytest-runner).
 echo "Generating requirements-build.txt..."
-uv pip compile --output-file=requirements-build.txt requirements-pinned.txt
+uv pip compile --output-file=requirements-build.txt requirements-pinned.txt requirements-build-extra.txt
 
-# Prepend pip directive so Cachi2/prefetch uses only source distributions (no binary wheels).
-# This avoids "hermeto:pip:package:binary" verification violations in Konflux hermetic builds.
-{ echo '--no-binary :all:'; cat requirements-build.txt; } > requirements-build.txt.tmp && mv requirements-build.txt.tmp requirements-build.txt
+# Prepend pip no-binary directives (one per line for Cachi2/prefetch compatibility).
+# Only force source for crypto/psycopg; binaries allowed for Django, pandas, numpy, etc.
+{ echo '--no-binary cryptography'; echo '--no-binary psycopg'; echo '--no-binary psycopg2'; echo '--no-binary psycopg-c'; cat requirements-build.txt; } > requirements-build.txt.tmp && mv requirements-build.txt.tmp requirements-build.txt
 
 echo "Requirements files synced successfully!"

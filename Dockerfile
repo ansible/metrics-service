@@ -1,5 +1,6 @@
 # Dockerfile - Konflux/AppStudio compliant build
-# Builds all Python dependencies from source for SBOM compliance
+# Builds Python dependencies; source-only for crypto/psycopg, binaries allowed for Django/pandas.
+# Konflux: if using RHEL registration, configure Environment secrets for /activation-key/org and /entitlement.
 
 FROM registry.access.redhat.com/ubi9/python-312:latest
 
