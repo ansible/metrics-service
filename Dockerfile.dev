@@ -27,9 +27,13 @@ RUN sed '/^--no-binary/d' requirements-build.txt > /tmp/requirements-dev.txt && 
 
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /app/logs /app/static && chown -R 1001:1001 /app
+RUN mkdir -p /app/logs /app/static && \
+    chown -R 1001:1001 /app && \
+    chmod -R a-w /app && \
+    chmod 555 /app && \
+    chmod 755 /app/logs /app/static
 USER 1001
 
 EXPOSE 8000

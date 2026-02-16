@@ -70,14 +70,17 @@ RUN if [ -f /cachi2/cachi2.env ]; then \
         pip install --no-cache-dir -r requirements-build.txt && pip install --no-cache-dir . ; \
     fi
 
-# Copy and set up entrypoint script
+# Copy and set up entrypoint script (read+execute only, no write)
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
 
 # Create necessary directories and files with proper permissions
 RUN mkdir -p /app/logs /app/static && \
-    chown -R 1001:1001 /app
+    chown -R 1001:1001 /app && \
+    chmod -R a-w /app && \
+    chmod 555 /app && \
+    chmod 755 /app/logs /app/static
 USER 1001
 
 # Expose port
