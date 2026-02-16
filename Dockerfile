@@ -62,8 +62,8 @@ RUN if [ -f /cachi2/cachi2.env ]; then \
         set -a && . /cachi2/cachi2.env && set +a && \
         pip install --no-cache-dir -r requirements-build.txt && pip install --no-cache-dir . ; \
     elif [ -d /cachi2/deps/pip ]; then \
-        pip install --no-cache-dir wheel setuptools && \
         export PIP_NO_INDEX=1 PIP_FIND_LINKS=/cachi2/deps/pip && \
+        pip install --no-cache-dir wheel setuptools && \
         sed -e '/^--no-binary/d' -e 's|django-ansible-base @ git+https://github.com/ansible/django-ansible-base@7596a0cc12785eff647af4f7aef80c77da33eed8|django-ansible-base @ file:///cachi2/deps/pip/django-ansible-base-gitcommit-7596a0cc12785eff647af4f7aef80c77da33eed8.tar.gz|' requirements-build.txt > /tmp/requirements-hermetic.txt && \
         pip install --no-cache-dir --no-build-isolation -r /tmp/requirements-hermetic.txt && pip install --no-cache-dir --no-deps --no-build-isolation . ; \
     else \
@@ -76,11 +76,12 @@ COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
 
 # Create necessary directories and files with proper permissions
-RUN mkdir -p /app/logs /app/static && \
+# STATIC_ROOT in Django is staticfiles; collectstatic in entrypoint must write there
+RUN mkdir -p /app/logs /app/staticfiles && \
     chown -R 1001:1001 /app && \
     chmod -R a-w /app && \
     chmod 555 /app && \
-    chmod 755 /app/logs /app/static
+    chmod 755 /app/logs /app/staticfiles
 USER 1001
 
 # Expose port

@@ -29,11 +29,12 @@ USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /app/logs /app/static && \
+# STATIC_ROOT in Django is staticfiles; collectstatic in entrypoint must write there
+RUN mkdir -p /app/logs /app/staticfiles && \
     chown -R 1001:1001 /app && \
     chmod -R a-w /app && \
     chmod 555 /app && \
-    chmod 755 /app/logs /app/static
+    chmod 755 /app/logs /app/staticfiles
 USER 1001
 
 EXPOSE 8000
