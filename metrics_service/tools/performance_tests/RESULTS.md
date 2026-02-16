@@ -1,6 +1,6 @@
 # Metrics-Service Performance Test Results
 
-**Date of test run:** 2026-02-02
+**Date of test run:** 2026-02-16
 
 **Test Date Selected:**
 
@@ -11,13 +11,13 @@
 ## Results
 
 Collections
-Snapshot (main_host): 0.56s
-Hourly collection total: 510.2s (8.5 min)
-    job_host_summary: 3.9s total, peak 1124.1 MB
-    main_jobevent: 506.3s total, peak 1122.0 MB
+Snapshot (main_host): 0.96s
+Hourly collection total: 555.6s (9.3 min)
+    job_host_summary: 5.7s total, peak 1869.1 MB
+    main_jobevent: 549.9s total, peak 2001.1 MB
 
-Rollup:     218.80s, 626.6 MB after
-Total (collections + rollup):      729.5s (12.2 min)
-Baseline memory: 982.3 MB
-Peak memory:     1122.1 MB
-Delta:           139.7 MB
+Rollup:     94.63s, 4762.7 MB after
+Total (collections + rollup):      651.2s (10.9 min)
+Baseline memory: 1204.8 MB
+Peak memory:     4747.0 MB
+Delta:           3542.2 MB

@@ -6,11 +6,11 @@ Runs the snapshot collector (main_host) once, then runs the two time-scoped coll
 (job_host_summary, main_jobevent) once per hour for 24 hours, then triggers the daily
 rollup.
 
-The daily benchmark (collection_rollup_benchmark_daily.py) can be used to benchmark
-the snapshot collector in isolation.
 """
 
 # ruff: noqa: T201, E402
+import contextlib
+import gc
 import os
 import sys
 import time
@@ -65,6 +65,8 @@ def run_snapshot_phase(test_date, process, peak_memory_mb):
 
 def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
     """Phase 2: Run hourly collectors for each hour in a 24-hour period."""
+    from django.db.models import Count, Sum
+
     hourly_collectors = [
         ("job_host_summary", collect_job_host_summary_hourly),
         ("main_jobevent", collect_host_metrics_hourly),
@@ -72,7 +74,7 @@ def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
 
     collector_totals = {name: 0.0 for name, _ in hourly_collectors}
     collector_peak_memory = {name: baseline_memory_mb for name, _ in hourly_collectors}
-    hour_timings = []
+    hour_timings, failed_hours = [], []
 
     print("Phase 2: Hourly collectors — 24 hours")
     print(f"  {'Hour':<6} {'job_host_summary':>18} {'main_jobevent':>15} {'Total':>10} {'Memory MB':>11}")
@@ -83,12 +85,15 @@ def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
         hour_timestamp = (test_date + timedelta(hours=hour)).isoformat()
         hour_start = time.time()
         hour_collector_times = {}
+        hour_had_error = False
 
         for collector_name, collector_func in hourly_collectors:
             collector_start = time.time()
             try:
                 collector_func(hour_timestamp=hour_timestamp, database="awx")
             except Exception as e:
+                hour_had_error = True
+                failed_hours.append(f"{collector_name}:hour_{hour}")
                 print(f"  Error at hour {hour}, {collector_name}: {e}")
             collector_duration = time.time() - collector_start
             hour_collector_times[collector_name] = collector_duration
@@ -103,23 +108,31 @@ def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
 
         jhs_time = hour_collector_times.get("job_host_summary", 0)
         mje_time = hour_collector_times.get("main_jobevent", 0)
-        print(f"  {hour:>4}   {jhs_time:>17.2f}s {mje_time:>14.2f}s {hour_total:>9.2f}s {current_memory:>10.1f}")
+        err_flag = " *" if hour_had_error else ""
+        print(
+            f"  {hour:>4}   {jhs_time:>17.2f}s {mje_time:>14.2f}s {hour_total:>9.2f}s {current_memory:>10.1f}{err_flag}"
+        )
 
     hourly_collection_duration = time.time() - hourly_collection_start
 
-    collections = HourlyMetricsCollection.objects.all()
-    total_size = sum(c.data_size_bytes for c in collections)
+    stats = HourlyMetricsCollection.objects.aggregate(total_size=Sum("data_size_bytes"), count=Count("id"))
+    total_size = stats["total_size"] or 0
+    collections_count = stats["count"]
 
     print()
     print("  Hourly Collection Summary:")
     print(f"    Total duration: {hourly_collection_duration:.1f}s ({hourly_collection_duration / 60:.1f} min)")
-    print(f"    Collections created: {collections.count()}")
+    print(f"    Collections created: {collections_count}")
     print(f"    Total data size: {total_size / 1024 / 1024:.2f} MB")
     for name, total in collector_totals.items():
         print(f"    {name} total: {total:.1f}s")
     if hour_timings:
         print(f"    Slowest hour: {max(hour_timings):.2f}s (hour {hour_timings.index(max(hour_timings))})")
         print(f"    Fastest hour: {min(hour_timings):.2f}s (hour {hour_timings.index(min(hour_timings))})")
+    if failed_hours:
+        print(f"    Failed collections: {len(failed_hours)} (* in table above)")
+        for failure in failed_hours:
+            print(f"      - {failure}")
     print()
 
     return hourly_collection_duration, peak_memory_mb, collector_totals, collector_peak_memory
@@ -146,7 +159,8 @@ def run_rollup_phase(test_date, process, peak_memory_mb):
         print()
 
     except Exception as e:
-        print(f"  Rollup failed: {e}")
+        rollup_duration = time.time() - rollup_start
+        print(f"  Rollup failed after {rollup_duration:.2f}s: {e}")
         peak_memory_mb = update_peak(process, peak_memory_mb)
         print()
 
@@ -196,11 +210,25 @@ def run_collection_rollup_benchmark():
     DailyMetricsSummary.objects.all().delete()
     print("Done\n")
 
+    print("Warm-up: running throwaway collector call to initialize DB connections and caches...")
+    with contextlib.suppress(Exception):
+        collect_main_host_hourly(hour_timestamp=test_date.isoformat(), database="awx")
+    HourlyMetricsCollection.objects.all().delete()
+    gc.collect()
+    print("Done\n")
+
     process = psutil.Process()
     baseline_memory_mb = get_memory_mb(process)
     peak_memory_mb = baseline_memory_mb
 
+    gc.collect()
+    gc.disable()
+
     snapshot_duration, peak_memory_mb = run_snapshot_phase(test_date, process, peak_memory_mb)
+
+    gc.enable()
+    gc.collect()
+    gc.disable()
 
     hourly_collection_duration, peak_memory_mb, collector_totals, collector_peak_memory = run_hourly_phase(
         test_date,
@@ -209,7 +237,13 @@ def run_collection_rollup_benchmark():
         baseline_memory_mb,
     )
 
+    gc.enable()
+    gc.collect()
+    gc.disable()
+
     rollup_duration, peak_memory_mb = run_rollup_phase(test_date, process, peak_memory_mb)
+
+    gc.enable()
 
     print_final_summary(
         snapshot_duration,

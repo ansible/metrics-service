@@ -30,7 +30,7 @@ cd metrics-utility
     --host-count=1000 \
     --task-count=50
 
-# Add data around specific test data (Jan 24 2026)
+# Add data around specific test data (Jan 25 2026)
   .venv/bin/python tools/anonymized_db_perf_data/fill_perf_db_data.py \
       --date=2024-01-24 \
       --job-count=20 \
@@ -92,7 +92,7 @@ export METRICS_SERVICE_DATABASES__awx__PASSWORD=metrics_service
 # Run tests with warning level, not debug level
 export METRICS_SERVICE_LOG_LEVEL=WARNING
 
-# Set the date (Defaults to 2024-01-16)
+t# Set the date (Defaults to 2024-01-16)
 export TEST_DATE=2024-01-25 # (1,264,938 events on that day)
 
 
