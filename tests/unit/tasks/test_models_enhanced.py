@@ -450,7 +450,7 @@ class TestDailyMetricsSummary:
 
         # Assert
         assert collections.count() == 2
-        collection_ids = set(c.id for c in collections)
+        collection_ids = {c.id for c in collections}
         assert coll1.id in collection_ids
         assert coll2.id in collection_ids
 

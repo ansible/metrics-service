@@ -208,7 +208,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         """
         return not self.is_system_task
 
-    def get_next_run_time(self) -> str:
+    def get_next_run_time(self) -> str | None:
         """
         Calculate next run time for recurring tasks.
 

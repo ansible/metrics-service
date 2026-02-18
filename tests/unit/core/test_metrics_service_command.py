@@ -258,7 +258,6 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         from apps.dynamic_settings.models import Setting
 
         # Verify the import works and Setting is a class
-        assert Setting is not None
         assert hasattr(Setting, "objects")
 
     def test_import_initialize_default_settings(self):

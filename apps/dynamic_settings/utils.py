@@ -158,7 +158,30 @@ DEFAULT_SETTINGS = {
 }
 
 
-# uv run ./manage.py metrics_service remove-default-settings
+def _remove_all_settings():
+    deleted_count, _ = Setting.objects.all().delete()
+    return deleted_count
+
+
+def _remove_known_settings(including_changed=False):
+    removed_count = 0
+
+    for setting_key in DEFAULT_SETTINGS:
+        if including_changed:
+            # remove all known defaults regardless of modification status
+            deleted_count, _ = Setting.objects.filter(setting_key=setting_key).delete()
+        else:
+            # default: only remove unchanged settings
+            deleted_count, _ = Setting.objects.filter(setting_key=setting_key, previous_value=None).delete()
+
+        if deleted_count > 0:
+            logger.info(f"Removed setting '{setting_key}'")
+            removed_count += deleted_count
+
+    return removed_count
+
+
+# uv run ./manage.py metrics_service remove-default-settings [--all-known] [--all-settings]
 def remove_default_settings(all_known: bool = False, all_settings: bool = False):
     """
     Remove default feature flag settings from the database.
@@ -179,32 +202,7 @@ def remove_default_settings(all_known: bool = False, all_settings: bool = False)
         Removes ALL settings from the database, not just those in DEFAULT_SETTINGS.
         Takes precedence over all_known.
     """
-    removed_count = 0
-
-    # If all_settings is True, remove everything
-    if all_settings:
-        deleted_count, _ = Setting.objects.all().delete()
-        if deleted_count > 0:
-            logger.warning(f"Removed ALL {deleted_count} settings from database (--all-settings)")
-        else:
-            logger.debug("No settings found to remove")
-        return deleted_count
-
-    # If all_known is True, remove all known defaults regardless of modification status
-    if all_known:
-        for setting_key in DEFAULT_SETTINGS:
-            deleted_count, _ = Setting.objects.filter(setting_key=setting_key).delete()
-            if deleted_count > 0:
-                logger.info(f"Removed setting '{setting_key}' (--all-known)")
-                removed_count += deleted_count
-    else:
-        # Default behavior: only remove unchanged settings
-        for setting_key in DEFAULT_SETTINGS:
-            # Only remove settings that haven't been modified (previous_value is None)
-            deleted_count, _ = Setting.objects.filter(setting_key=setting_key, previous_value=None).delete()
-            if deleted_count > 0:
-                logger.info(f"Removed unchanged setting '{setting_key}'")
-                removed_count += deleted_count
+    removed_count = _remove_all_settings() if all_settings else _remove_known_settings(all_known)
 
     if removed_count > 0:
         logger.info(f"Removed {removed_count} settings from database")

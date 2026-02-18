@@ -98,7 +98,7 @@ class TestMergeRollupDataframes:
         call_arg = mock_processor.merge.call_args[0][1]
         assert call_arg["total"] == 100
         assert call_arg["count"] == 5
-        assert call_arg["average"] == 20.5
+        assert call_arg["average"] == pytest.approx(20.5)
 
     def test_handles_empty_collections(self):
         """Test handles empty collections list."""
