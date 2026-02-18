@@ -851,6 +851,53 @@ class TestTaskSerializers(TestCase):
         assert "name" in data
         assert "status" in data
 
+    def test_task_create_serializer_normalizes_empty_cron_expression(self):
+        """Test TaskCreateSerializer normalizes empty cron_expression to None."""
+        request = self.factory.post("/api/v1/tasks/")
+        request.user = self.user
+
+        # Test with empty string
+        serializer = TaskCreateSerializer(
+            data={
+                "name": "Task with empty cron",
+                "function_name": "hello_world",
+                "cron_expression": "",  # Empty string should become None
+            },
+            context={"request": request},
+        )
+
+        assert serializer.is_valid(), serializer.errors
+        task = serializer.save()
+        assert task.cron_expression is None
+
+        # Test with whitespace-only string
+        serializer2 = TaskCreateSerializer(
+            data={
+                "name": "Task with whitespace cron",
+                "function_name": "hello_world",
+                "cron_expression": "   ",  # Whitespace-only should become None
+            },
+            context={"request": request},
+        )
+
+        assert serializer2.is_valid(), serializer2.errors
+        task2 = serializer2.save()
+        assert task2.cron_expression is None
+
+        # Test with valid cron expression
+        serializer3 = TaskCreateSerializer(
+            data={
+                "name": "Task with valid cron",
+                "function_name": "hello_world",
+                "cron_expression": "0 * * * *",  # Valid cron should be preserved
+            },
+            context={"request": request},
+        )
+
+        assert serializer3.is_valid(), serializer3.errors
+        task3 = serializer3.save()
+        assert task3.cron_expression == "0 * * * *"
+
 
 # =============================================================================
 # Filtering and Pagination Tests

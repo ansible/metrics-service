@@ -166,14 +166,18 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_cron_expression(self, value):
-        """Validate cron expression format."""
-        if value:
-            try:
-                from croniter import croniter
+        """Validate cron expression format and normalize empty strings to None."""
+        # Normalize empty strings to None to ensure consistent NULL values in database
+        # This ensures cron_expression__isnull filters work correctly for cleanup
+        if not value:
+            return None
 
-                croniter(value)
-            except (ValueError, TypeError) as e:
-                raise serializers.ValidationError(f"Invalid cron expression: {e}") from e
+        try:
+            from croniter import croniter
+
+            croniter(value)
+        except (ValueError, TypeError) as e:
+            raise serializers.ValidationError(f"Invalid cron expression: {e}") from e
         return value
 
     def validate_task_data(self, value):
