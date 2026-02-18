@@ -162,7 +162,8 @@ def create_system_tasks() -> dict[str, Any]:
     results = {"created": 0, "removed": 0, "tasks": []}
 
     # Remove all existing system tasks
-    removed_count, _ = Task.objects.filter(is_system_task=True).delete()
+    _, deletion_info = Task.objects.filter(is_system_task=True).delete()
+    removed_count = deletion_info.get("tasks.Task", 0)
     results["removed"] = removed_count
     if removed_count > 0:
         results["tasks"].append(f"Removed {removed_count} existing system tasks")

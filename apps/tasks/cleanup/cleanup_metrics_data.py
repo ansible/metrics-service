@@ -72,8 +72,8 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
         results["daily_summaries"]["found"] = old_daily.count()
 
         if not dry_run and results["daily_summaries"]["found"] > 0:
-            deleted_count, _ = old_daily.delete()
-            results["daily_summaries"]["deleted"] = deleted_count
+            _, deletion_info = old_daily.delete()
+            results["daily_summaries"]["deleted"] = deletion_info.get("tasks.DailyMetricsSummary", 0)
 
         # Cleanup sent payloads older than retention period
         # Keep unsent/failed/pending payloads longer (30 days) for retry/debugging
