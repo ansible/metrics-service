@@ -551,9 +551,11 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
     # Relationships
     daily_summary = models.ForeignKey(
         "DailyMetricsSummary",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="anonymized_payloads",
-        help_text="Daily summary this payload was created from",
+        help_text="DailyMetricsSummary used to create this payload",
     )
 
     anonymization_task_execution = models.ForeignKey(
