@@ -25,18 +25,6 @@ Operations:
     Retry Tasks: POST /api/v1/tasks/{id}/retry/ for failed tasks
     Cancel Tasks: POST /api/v1/tasks/{id}/cancel/ for pending/running tasks
     Cleanup Tasks: POST /api/v1/tasks/cleanup/ to remove old completed tasks
-
-Task Functions:
-    Supports all registered task functions including:
-    - cleanup_old_data: System maintenance tasks
-    - cleanup_old_tasks: Task cleanup
-    - execute_db_task: Database operations
-    - hello_world: Test task
-
-Security:
-    - Input validation for all task parameters
-    - Safe task function execution with proper isolation
-    - Audit logging for all task operations
 """
 
 from datetime import timedelta
@@ -74,7 +62,7 @@ class TaskViewSet(BaseViewSet):
     queryset = Task.objects.select_related("created_by").all()
     serializer_class = TaskSerializer
     permission_classes = [DeveloperModeRequired]
-    ordering_fields = ["id", "name", "status", "priority", "scheduled_time", "created", "started_at", "completed_at"]
+    ordering_fields = ["id", "name", "status", "scheduled_time", "created", "started_at", "completed_at"]
     ordering = ["-id"]
 
     @property
@@ -86,8 +74,6 @@ class TaskViewSet(BaseViewSet):
         extra_fields = {
             "function_name": self.get_text_field_filters(),
             "status": ["exact", "in"],
-            "priority": ["exact", "gte", "lte"],
-            "is_recurring": self.get_boolean_field_filters(),
             "created_by": self.get_foreign_key_filters(),
             "created_by__username": self.get_text_field_filters(),
             "scheduled_time": self.get_datetime_field_filters(),
@@ -103,12 +89,6 @@ class TaskViewSet(BaseViewSet):
         elif self.action == "list_filtered":
             return TaskListSerializer
         return self.serializer_class
-
-    def create(self, request, *args, **kwargs):
-        """Create task - APScheduler will handle all task submission via polling."""
-        # All tasks (immediate, scheduled, recurring) are now handled by APScheduler polling
-        # This eliminates cross-process communication issues and provides unified task submission
-        return super().create(request, *args, **kwargs)
 
     @action(detail=False, methods=["get"], url_path="list")
     def list_filtered(self, request: HttpRequest) -> Response:
@@ -341,7 +321,7 @@ class TaskViewSet(BaseViewSet):
         instance = serializer.instance
         if instance and instance.is_system_task:
             # Allow limited modifications for system tasks
-            protected_fields = {"function_name", "is_system_task", "cron_expression", "is_recurring"}
+            protected_fields = {"function_name", "is_system_task", "cron_expression"}
 
             # Check if any protected fields are being modified
             if any(field in serializer.validated_data for field in protected_fields):
@@ -410,14 +390,8 @@ class TaskViewSet(BaseViewSet):
 
             scheduler = get_scheduler()
 
-            # Get scheduled and recurring tasks from database
-            scheduled_tasks = Task.objects.filter(status="pending", scheduled_time__isnull=False).count()
-
-            recurring_tasks = (
-                Task.objects.filter(status="pending", is_recurring=True, cron_expression__isnull=False)
-                .exclude(cron_expression="")
-                .count()
-            )
+            scheduled_tasks = Task.scheduled_tasks().count()
+            recurring_tasks = Task.recurring_tasks().count()
 
             return Response(
                 {
@@ -452,7 +426,6 @@ class TaskViewSet(BaseViewSet):
                 name=serializer.validated_data.get("name", "Immediate Task"),
                 function_name=serializer.validated_data["function_name"],
                 task_data=serializer.validated_data.get("task_data", {}),
-                priority=serializer.validated_data.get("priority", 2),
                 created_by=request.user if request.user.is_authenticated else None,
                 # No scheduled_time means immediate execution
             )
@@ -485,9 +458,7 @@ class TaskViewSet(BaseViewSet):
                 name=serializer.validated_data.get("name", "Recurring Task"),
                 function_name=serializer.validated_data["function_name"],
                 task_data=serializer.validated_data.get("task_data", {}),
-                priority=serializer.validated_data.get("priority", 2),
                 cron_expression=cron_expression,
-                is_recurring=True,
                 created_by=request.user if request.user.is_authenticated else None,
             )
 

@@ -1,10 +1,10 @@
-# Metrics Service
+# Metrics service
 
 A modern Django-based service built for the Ansible Automation Platform (AAP) ecosystem, featuring comprehensive task management, REST APIs, and automated background job processing.
 
 ## Features
 
-- **🚀 Modern Django Architecture** - Django 4.2+ with clean app-based structure
+- **🚀 Modern Django Architecture** - Django 5.2+ with clean app-based structure
 - **📊 Automated Task Management** - Feature-enable controlled task groups with automatic routing
 - **⚡ Smart Task Routing** - Automatic submission to dispatcherd with no manual intervention
 - **🔌 REST API** - Versioned RESTful APIs with OpenAPI documentation
@@ -50,19 +50,38 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # Install dependencies
 pip install -e ".[dev]"
 
-# Configure 
+# Configure
 cp settings.local.py.example settings.local.py
 # Edit the settings.local.py file to configure your local development environment.
 
 # Set up database (configure via environment variables if needed)
 # See Configuration section below for environment variable options
 python manage.py migrate
+python manage.py metrics_service init-default-settings
 python manage.py metrics_service init-service-id
 python manage.py metrics_service init-system-tasks
 python manage.py createsuperuser
 
 # Start complete service (Django + dispatcher + scheduler)
 python manage.py metrics_service run
+```
+
+### Option 3: Local development, with uv and metrics-utility from sources
+
+Edit `pyproject.toml` such that:
+
+```diff
+ [tool.uv.sources]
+ django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "devel" }
++metrics-utility = { path = "../metrics-utility", editable = true }
+```
+
+```
+uv sync
+uv run ./manage.py migrate
+uv run ./manage.py createsuperuser
+uv run ./manage.py metrics_service run
+uv run ./scripts/run_task.py hello_world # debugging individual tasks
 ```
 
 ### Endpoints
@@ -74,9 +93,9 @@ GET /api/v1/tasks/
 # Create a new task
 POST /api/v1/tasks/
 {
-  "name": "Data Cleanup",
-  "function_name": "cleanup_old_data",
-  "task_data": {"days_old": 30}
+  "name": "Hello World Task",
+  "function_name": "hello_world",
+  "task_data": {}
 }
 
 # Get running tasks
@@ -93,22 +112,23 @@ GET /api/v1/tasks/available_functions/
 
 **System Tasks** (always enabled):
 
-- `cleanup_old_data` - Clean up old system data
 - `cleanup_old_tasks` - Clean up completed/failed tasks
+- `cleanup_metrics_data` - Clean up old metrics data
 - `hello_world` - Simple test task for dispatcherd integration
-- `sleep` - Sleep for specified duration (testing)
 - `execute_db_task` - Execute database-defined tasks with lifecycle management
 
-**Anonymized Data Collection Tasks** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled):
+**Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled, customer opt-out):
 
-- `collect_anonymous_metrics` - Collect anonymous system metrics
-- `collect_config_metrics` - Collect configuration information
+**Hourly Collection Tasks**:
+- `collect_job_host_summary_hourly` - Collect job/host summary metrics every hour
+- `collect_host_metrics_hourly` - Collect host event module metrics every hour
+- `collect_main_host_hourly` - Collect host inventory snapshot every hour
 
-**Metrics Collection Tasks** (controlled by `METRICS_COLLECTION_ENABLED`, default: disabled):
+**Daily Rollup and Anonymization Tasks**:
 
-- `collect_job_host_summary` - Collect job execution statistics
-- `collect_host_metrics` - Collect host performance data
-- `collect_all_metrics` - Run multiple collectors in sequence
+- `daily_metrics_rollup` - Merge hourly collections and collect daily snapshots
+- `daily_anonymize_and_prepare` - Anonymize daily rollup and prepare for transmission
+- `send_anonymized_to_segment` - Send anonymized metrics to Segment.com
 
 ## Background Tasks
 
@@ -117,15 +137,16 @@ The service includes an automated background task system with intelligent routin
 ### Unified Service Management
 
 ```bash
-# Start complete service (Django + dispatcher + scheduler)
+# Start complete service (init*, then Django + dispatcher + scheduler)
 python manage.py metrics_service run
 
 # Start with custom configuration
 python manage.py metrics_service run --workers 4
 
-# Individual components (for development)
-python manage.py run_dispatcherd --workers 2
-python manage.py metrics_service cron start
+# Individual components
+python manage.py runserver 0.0.0.0:8000  # web
+python manage.py run_dispatcherd --workers 2  # worker
+python manage.py run_task_scheduler  # scheduler
 ```
 
 ### Automatic Task Routing
@@ -140,17 +161,23 @@ No manual intervention required - create a task and it's automatically processed
 
 ### Task Groups & Feature Flags
 
-Control task execution with environment variables:
+We have these feature flags:
 
-```bash
+|flag|default|
+|-|-|
+|`ANONYMIZED_DATA_COLLECTION`|true|
+
+You can change the default value using the `METRICS_SERVICE_FEATURE_ENABLED__` prefixed-environment variables.
+
+```sh
 # Enable/disable anonymized data collection (default: true)
-METRICS_SERVICE_ANONYMIZED_DATA=true
-
-# Enable/disable metrics collection (default: false)
-METRICS_SERVICE_METRICS_COLLECTION=false
+METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
 ```
 
-These environment variables control which task groups are active in the scheduler.
+These environment variables (or their default values) are used to populate the feature flags database tables during `mangage.py metrics_service init-default-settings`. You can also use `python manage.py metrics_service remove-default-settings` to remove these settings from the database.
+
+The feature flag values in the database then determine which task groups are active in the scheduler. If the value is missing from the database, the environment variables get used again.
+
 
 ## Development
 
@@ -213,6 +240,12 @@ python manage.py makemigrations
 # Apply migrations
 python manage.py migrate
 
+# Initialize settings table with feature flag defaults
+python manage.py metrics_service init-default-settings
+
+# Remove feature flags from settings
+python manage.py metrics_service remove-default-settings
+
 # Initialize DAB ServiceID (required after first migration)
 python manage.py metrics_service init-service-id
 
@@ -250,8 +283,7 @@ METRICS_SERVICE_DATABASES__default__NAME=metrics_service
 METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode=prefer
 
 # Task App
-METRICS_SERVICE_ANONYMIZED_DATA="true"
-METRICS_SERVICE_METRICS_COLLECTION="false"
+METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION="true"
 DISPATCHERD_CONFIG_FILE=/app/apps/settings/dispatcherd.yaml
 DISPATCHERD_ENABLED="true"
 ```
@@ -397,7 +429,3 @@ This project is licensed under the Apache License - see the [LICENSE](LICENSE) f
 - **Documentation**: Check the [CLAUDE.md](CLAUDE.md) file for detailed development guidance
 - **Issues**: Report bugs and feature requests via GitHub issues
 - **API Documentation**: Interactive docs available at `/api/docs/` when running
-
-```
-
-```

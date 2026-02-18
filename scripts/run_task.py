@@ -4,13 +4,13 @@
 Run tasks directly from the command line.
 
 Usage:
-    uv run ./run_task.py <task_name> [task_params_json]
+    uv run scripts/run_task.py <task_name> [task_params_json]
 
 Examples:
-    uv run ./run_task.py collect_all_metrics
-    uv run ./run_task.py collect_anonymous_metrics '{"database": "awx"}'
-    uv run ./run_task.py cleanup_old_tasks '{"days_old": 7, "dry_run": true}'
-    uv run ./run_task.py sleep '{"duration": 5}'
+    uv run scripts/run_task.py hello_world
+    uv run scripts/run_task.py daily_metrics_rollup '{"summary_date": "2024-01-01"}'
+    uv run scripts/run_task.py cleanup_old_tasks '{"days_old": 7, "dry_run": true}'
+    uv run scripts/run_task.py collect_job_host_summary_hourly '{"hour_timestamp": "2024-01-01T00:00:00Z"}'
 """
 
 import json
@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 # Add project root to Python path
-project_root = Path(__file__).resolve().parent
+project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 

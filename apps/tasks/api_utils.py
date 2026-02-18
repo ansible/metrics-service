@@ -12,27 +12,6 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
-def get_count_safely(queryset_or_manager: Any) -> int:
-    """
-    Safely get count from a queryset or manager.
-
-    This function provides a safe way to get counts that handles
-    potential errors, reducing duplication in count operations.
-
-    Args:
-        queryset_or_manager: QuerySet or Manager to count
-
-    Returns:
-        int: Count of objects, 0 if error
-    """
-    try:
-        count_result = queryset_or_manager.count()
-        return int(count_result)
-    except Exception as e:
-        logger.warning(f"Error getting count: {e}")
-        return 0
-
-
 def build_error_response(message: str, details: dict[str, Any] | None = None, status_code: int = 400) -> dict[str, Any]:
     """
     Build a standardized error response dictionary.

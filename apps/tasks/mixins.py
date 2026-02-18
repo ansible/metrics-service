@@ -5,21 +5,6 @@ Common mixins for task-related models.
 from django.db import models
 
 
-class TimestampMixin(models.Model):
-    """
-    Abstract mixin to add created and modified timestamp fields.
-
-    This mixin provides standardized timestamp functionality that can be
-    used across multiple models.
-    """
-
-    created = models.DateTimeField(auto_now_add=True, help_text="When this object was created")
-    modified = models.DateTimeField(auto_now=True, help_text="When this object was last modified")
-
-    class Meta:
-        abstract = True
-
-
 class StatusTrackingMixin(models.Model):
     """
     Abstract mixin for models that need status tracking with timestamps.
@@ -35,41 +20,8 @@ class StatusTrackingMixin(models.Model):
     class Meta:
         abstract = True
 
-    def mark_started(self) -> None:
-        """
-        Mark the process as started with current timestamp.
-
-        Returns:
-            None
-        """
-        from django.utils import timezone
-
-        self.started_at = timezone.now()
-        self.save(update_fields=["started_at"])
-
-    def mark_completed(self, error_message: str = "") -> None:
-        """
-        Mark the process as completed with current timestamp.
-
-        Args:
-            error_message (str): Optional error message if the process failed
-
-        Returns:
-            None
-        """
-        from django.utils import timezone
-
-        self.completed_at = timezone.now()
-        self.error_message = error_message
-        self.save(update_fields=["completed_at", "error_message"])
-
     def get_duration(self) -> float | None:
-        """
-        Calculate the duration of the process in seconds.
+        if not self.started_at or not self.completed_at:
+            return None
 
-        Returns:
-            float: Duration in seconds, or None if not completed
-        """
-        if self.started_at and self.completed_at:
-            return (self.completed_at - self.started_at).total_seconds()
-        return None
+        return (self.completed_at - self.started_at).total_seconds()

@@ -76,20 +76,12 @@ class Task(NamedCommonModel, AuditableModel):
         ("waiting_for_dependencies", "Waiting for Dependencies"),
     ]
 
-    PRIORITY_CHOICES = [
-        (1, "Low"),
-        (2, "Normal"),
-        (3, "High"),
-        (4, "Critical"),
-    ]
-
     function_name = models.CharField(max_length=255)
     task_data = models.JSONField(default=dict)
     scheduled_time = models.DateTimeField(null=True, blank=True)
     cron_expression = models.CharField(max_length=100, blank=True, null=True)
     is_recurring = models.BooleanField(default=False)
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
-    priority = models.IntegerField(choices=PRIORITY_CHOICES, default=2)
     attempts = models.PositiveIntegerField(default=0)
     max_attempts = models.PositiveIntegerField(default=3)
     timeout_seconds = models.PositiveIntegerField(default=3600)
@@ -109,27 +101,9 @@ class Task(NamedCommonModel, AuditableModel):
         if self.status != "pending":
             return False
 
-        # Check if dependencies are completed
-        if self.dependencies.filter(
-            prerequisite_task__status__in=["pending", "running", "waiting_for_dependencies"]
-        ).exists():
-            return False
-
         # Check if scheduled time has passed
         return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
     def can_retry(self):
         """Check if task can be retried."""
         return self.attempts < self.max_attempts and self.status == "failed"
-
-
-class TaskDependency(CommonModel):
-    """Test TaskDependency model."""
-
-    dependent_task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="dependencies")
-    prerequisite_task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="dependents")
-    required_status = models.CharField(max_length=30, choices=Task.STATUS_CHOICES, default="completed")
-
-    class Meta:
-        app_label = "tests"
-        unique_together = ["dependent_task", "prerequisite_task"]

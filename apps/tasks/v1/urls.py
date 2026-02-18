@@ -18,6 +18,11 @@ app_name = "tasks_v1"
 # Create DRF router for task endpoints
 router = DefaultRouter()
 
+# Task execution monitoring endpoints (register BEFORE task to avoid route conflict)
+# /api/v1/tasks/executions/ - View task execution history
+# Must be registered first because more specific pattern 'executions' must match before catch-all ''
+router.register(r"executions", TaskExecutionViewSet, basename="taskexecution")
+
 # Main task management endpoints
 # /api/v1/tasks/ - CRUD operations for tasks
 # /api/v1/tasks/list/ - Custom filtered list (manage_tasks list)
@@ -26,11 +31,6 @@ router = DefaultRouter()
 # /api/v1/tasks/cleanup/ - Cleanup old tasks (manage_tasks cleanup)
 # /api/v1/tasks/available_functions/ - Get available task functions
 router.register(r"", TaskViewSet, basename="task")
-
-
-# Task execution monitoring endpoints
-# /api/v1/tasks/executions/ - View task execution history
-router.register(r"executions", TaskExecutionViewSet, basename="taskexecution")
 
 urlpatterns = [
     # Include all router URLs
@@ -54,4 +54,3 @@ urlpatterns = [
 # POST   /api/v1/tasks/{id}/cancel/         - Cancel task (manage_tasks cancel)
 # POST   /api/v1/tasks/cleanup/             - Cleanup old tasks (manage_tasks cleanup)
 # GET    /api/v1/tasks/available_functions/ - Get available task functions
-#

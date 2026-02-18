@@ -5,16 +5,14 @@ This module tests the complete task system including task functions, registry,
 system task creation, execution, and helper functions.
 
 Organized into clear test classes:
-- TestSystemTaskFunctions: Individual task functions (cleanup_old_data, etc.)
 - TestExecuteDbTask: Database task execution and error handling
 - TestTaskRegistry: TASK_FUNCTIONS and TASK_METADATA configuration
 - TestSystemTaskCreation: System task initialization and management
-- TestSystemTaskHelpers: Internal helper functions
 - TestTaskDispatcher: Task submission and dispatcher integration
 - TestEdgeCasesAndErrorHandling: Edge cases, error conditions, and resilience
 """
 
-from unittest.mock import ANY, MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -24,51 +22,12 @@ from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
-    cleanup_old_data,
     execute_db_task,
     submit_task_to_dispatcher,
 )
 from tests.test_utils import get_test_password
 
 User = get_user_model()
-
-
-# =============================================================================
-# System Task Functions Tests
-# =============================================================================
-
-
-@pytest.mark.unit
-class TestSystemTaskFunctions(TestCase):
-    """Test individual system task functions."""
-
-    def test_cleanup_old_data_success(self):
-        """Test cleanup_old_data function with valid parameters."""
-        result = cleanup_old_data(days_old=30)
-
-        assert result["status"] == "success"
-        assert result["days_old"] == 30
-        assert "cleaned_count" in result
-
-    def test_cleanup_old_data_with_exception(self):
-        """Test cleanup_old_data handles exceptions gracefully."""
-        with patch("apps.tasks.tasks.logger"):
-            # Test with invalid data
-            result = cleanup_old_data(days_old="invalid")
-
-            # Should still return success (handles exception internally)
-            assert result["status"] == "success"
-
-    def test_cleanup_old_data_with_none_values(self):
-        """Test cleanup_old_data with None values."""
-        result = cleanup_old_data(days_old=None)
-        assert result["status"] == "success"
-
-    def test_cleanup_old_data_with_invalid_params(self):
-        """Test cleanup_old_data with unexpected parameters."""
-        result = cleanup_old_data(invalid_param="value")
-        # Should handle gracefully without crashing
-        assert isinstance(result, dict)
 
 
 # =============================================================================
@@ -83,9 +42,7 @@ class TestExecuteDbTask(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = self._create_task_safely(
-            name="Test Task", function_name="cleanup_old_data", task_data={"days_old": 7}
-        )
+        self.task = self._create_task_safely(name="Test Task", function_name="hello_world", task_data={})
 
     def _create_task_safely(self, **kwargs):
         """Create a task without triggering signals."""
@@ -178,11 +135,9 @@ class TestTaskRegistry(TestCase):
     def test_task_functions_contains_expected_functions(self):
         """Test TASK_FUNCTIONS contains all expected task functions."""
         expected_functions = [
-            "cleanup_old_data",
             "execute_db_task",
             "hello_world",
-            "collect_single_collector",
-            "collect_metrics",
+            "cleanup_old_tasks",
         ]
 
         for func_name in expected_functions:
@@ -199,37 +154,7 @@ class TestTaskRegistry(TestCase):
             except Exception as e:
                 pytest.fail(f"Function {func.__name__} raised exception: {e}")
 
-    def test_system_tasks_configuration(self):
-        """Test SYSTEM_TASKS configuration structure."""
-        assert hasattr(tasks_system, "SYSTEM_TASKS")
-        assert isinstance(tasks_system.SYSTEM_TASKS, list)
-
-        # Each system task should have required fields
-        required_fields = [
-            "name",
-            "description",
-            "function_name",
-            "task_data",
-            "cron_expression",
-            "is_recurring",
-            "priority",
-        ]
-
-        for system_task in tasks_system.SYSTEM_TASKS:
-            for field in required_fields:
-                assert field in system_task, f"System task missing field: {field}"
-
-            # Function should exist in TASK_FUNCTIONS
-            assert system_task["function_name"] in tasks.TASK_FUNCTIONS, (
-                f"Function {system_task['function_name']} not in TASK_FUNCTIONS"
-            )
-
-    def test_metrics_utility_available_flag(self):
-        """Test that METRICS_UTILITY_AVAILABLE flag is properly set."""
-        assert hasattr(tasks, "METRICS_UTILITY_AVAILABLE")
-        assert isinstance(tasks.METRICS_UTILITY_AVAILABLE, bool)
-
-    @patch("apps.tasks.tasks_collector.logger")
+    @patch("apps.tasks.collectors.helpers.logger")
     def test_metrics_utility_import_error_handling(self, mock_logger):
         """Test handling of metrics utility import errors."""
         # Should not have warnings in successful import
@@ -259,190 +184,12 @@ class TestSystemTaskCreation(TestCase):
 
             # All tasks filtered out
             assert result["created"] == 0
-            assert result["updated"] == 0
-
-    def test_create_system_tasks_exception_handling(self):
-        """Test exception handling during system task creation."""
-        with patch(
-            "apps.tasks.tasks_system.SYSTEM_TASKS",
-            [
-                {
-                    "name": "Test Task",
-                    "description": "Test task",
-                    "function_name": "test_function",
-                    "task_data": {},
-                    "cron_expression": "invalid_cron",
-                    "is_recurring": True,
-                    "priority": 2,
-                    "is_enabled": True,
-                }
-            ],
-        ):
-            result = tasks_system.create_system_tasks()
-            # Should handle exceptions gracefully
-            assert "tasks" in result
+            assert result["removed"] == 0
 
 
 # =============================================================================
 # System Task Helper Functions Tests
 # =============================================================================
-
-
-@pytest.mark.unit
-class TestSystemTaskHelpers(TestCase):
-    """Test internal helper functions for system task management."""
-
-    def setUp(self):
-        """Set up test environment."""
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password=get_test_password()
-        )
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
-    def test_process_system_task_creates_new_task(self):
-        """Test _process_system_task creates new task when none exists."""
-        system_task_config = {
-            "name": "Test System Task",
-            "description": "Test description",
-            "function_name": "test_function",
-            "task_data": {"test": "data"},
-            "cron_expression": "0 0 * * *",
-            "is_recurring": True,
-            "priority": 2,
-        }
-        results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
-
-        tasks_system._process_system_task(system_task_config, results, Task)
-
-        assert results["created"] == 1
-        assert len(results["tasks"]) == 1
-        assert "Created: Test System Task" in results["tasks"][0]
-
-    def test_process_system_task_updates_existing_task(self):
-        """Test _process_system_task updates existing task when config changes."""
-        # Create existing task
-        self._create_task_safely(
-            name="Test System Task",
-            description="Old description",
-            function_name="test_function",
-            task_data={"old": "data"},
-            cron_expression="0 0 * * *",
-            is_recurring=True,
-            priority=1,
-            is_system_task=True,
-            status="pending",
-        )
-
-        system_task_config = {
-            "name": "Test System Task",
-            "description": "New description",
-            "function_name": "test_function",
-            "task_data": {"new": "data"},
-            "cron_expression": "0 1 * * *",
-            "is_recurring": True,
-            "priority": 2,
-        }
-        results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
-
-        tasks_system._process_system_task(system_task_config, results, Task)
-
-        assert results["updated"] == 1
-        assert "Updated: Test System Task" in results["tasks"][0]
-
-    def test_process_system_task_skips_unchanged_task(self):
-        """Test _process_system_task skips task when no changes needed."""
-        system_task_config = {
-            "name": "Test System Task",
-            "description": "Test description",
-            "function_name": "test_function",
-            "task_data": {"test": "data"},
-            "cron_expression": "0 0 * * *",
-            "is_recurring": True,
-            "priority": 2,
-        }
-
-        # Create task matching config exactly
-        self._create_task_safely(
-            name=system_task_config["name"],
-            description=system_task_config["description"],
-            function_name=system_task_config["function_name"],
-            task_data=system_task_config["task_data"],
-            cron_expression=system_task_config["cron_expression"],
-            is_recurring=system_task_config["is_recurring"],
-            priority=system_task_config["priority"],
-            is_system_task=True,
-            status="pending",
-        )
-
-        results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
-
-        tasks_system._process_system_task(system_task_config, results, Task)
-
-        assert results["skipped"] == 1
-        assert "Skipped: Test System Task (no changes)" in results["tasks"][0]
-
-    def test_update_existing_system_task_multiple_fields(self):
-        """Test _update_existing_system_task updates multiple fields correctly."""
-        existing_task = self._create_task_safely(
-            name="Test Task",
-            description="Old description",
-            function_name="test_function",
-            task_data={"old": "data"},
-            cron_expression="0 0 * * *",
-            priority=1,
-            is_system_task=True,
-            status="pending",
-        )
-
-        system_task_config = {
-            "task_data": {"new": "data"},
-            "cron_expression": "0 1 * * *",
-            "priority": 2,
-            "description": "New description",
-        }
-        results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
-
-        tasks_system._update_existing_system_task(existing_task, system_task_config, results)
-
-        assert results["updated"] == 1
-        assert results["skipped"] == 0
-
-        # Verify all changes were applied
-        existing_task.refresh_from_db()
-        assert existing_task.task_data == {"new": "data"}
-        assert existing_task.cron_expression == "0 1 * * *"
-        assert existing_task.priority == 2
-        assert existing_task.description == "New description"
-
-    def test_create_new_system_task(self):
-        """Test _create_new_system_task creates task with correct attributes."""
-        system_task_config = {
-            "name": "New System Task",
-            "description": "New task description",
-            "function_name": "new_function",
-            "task_data": {"key": "value"},
-            "cron_expression": "0 2 * * *",
-            "is_recurring": True,
-            "priority": 3,
-        }
-        results = {"created": 0, "updated": 0, "skipped": 0, "tasks": []}
-
-        tasks_system._create_new_system_task(system_task_config, results, Task)
-
-        assert results["created"] == 1
-        assert "Created: New System Task" in results["tasks"][0]
-
-        # Verify task attributes
-        task = Task.objects.get(name="New System Task")
-        assert task.is_system_task is True
-        assert task.status == "pending"
-        assert task.function_name == "new_function"
-        assert task.task_data == {"key": "value"}
 
 
 # =============================================================================
@@ -458,7 +205,7 @@ class TestTaskDispatcher(TestCase):
         """Set up test data."""
         self.user = User.objects.create_user(username="submituser")
         # Create task without triggering signals
-        self.task = Task(name="Submit Task", function_name="cleanup_old_data", created_by=self.user)
+        self.task = Task(name="Submit Task", function_name="hello_world", created_by=self.user)
         self.task.save()
 
     @patch("apps.tasks.models.TaskExecution.objects.create")
@@ -498,53 +245,6 @@ class TestTaskDispatcher(TestCase):
 class TestEdgeCasesAndErrorHandling:
     """Test edge cases, error conditions, and system resilience."""
 
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
-    @patch("django.db.connections")
-    def test_metrics_collection_with_django_connections(self, mock_connections, mock_csv_to_json, mock_collector):
-        """Test metrics collection works with Django database connections."""
-        # Setup mock database connection with .connection attribute
-        mock_raw_connection = object()
-        mock_db_connection = MagicMock()
-        mock_db_connection.connection = mock_raw_connection
-        mock_connections.__getitem__.return_value = mock_db_connection
-
-        # Setup mock collector return value
-        mock_collector.return_value = {"anonymized": "data"}
-
-        # Call collector
-        result = tasks.collect_single_collector(collector_type="anonymized_rollups")
-
-        # Verify success
-        assert result["status"] == "success"
-        assert result["collector_type"] == "anonymized_rollups"
-
-        # Verify Django connections were used
-        mock_connections.__getitem__.assert_called_once_with("awx")
-        mock_collector.assert_called_once_with(
-            db=mock_raw_connection, salt=ANY, since=ANY, until=ANY, ship_path=None, save_rollups=False
-        )
-
-    @patch("apps.tasks.tasks_collector.METRICS_UTILITY_AVAILABLE", True)
-    @patch("apps.tasks.tasks_collector.anonymized_rollups_processor")
-    @patch("apps.tasks.tasks_collector.csv_to_json")
-    @patch("django.db.connections")
-    def test_metrics_collection_error_handling(self, mock_connections, mock_csv_to_json, mock_collector):
-        """Test that metrics collection errors are handled gracefully."""
-        # Setup mocks
-        mock_raw_connection = object()
-        mock_db_connection = MagicMock()
-        mock_db_connection.connection = mock_raw_connection
-        mock_connections.__getitem__.return_value = mock_db_connection
-
-        # Make collector raise error
-        mock_collector.side_effect = Exception("Test error")
-
-        # Call should handle error gracefully
-        result = tasks.collect_single_collector(collector_type="anonymized_rollups")
-        assert result["status"] == "error"
-
 
 # =============================================================================
 # Task Retry and Error Handling Tests
@@ -581,7 +281,7 @@ class TestTaskRetryBehavior(TestCase):
         # Create a failed task with execution history
         task = Task(
             name="Failed Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=1,
             max_attempts=3,
@@ -615,7 +315,7 @@ class TestTaskRetryBehavior(TestCase):
         """Test that retry() clears the error message."""
         task = Task(
             name="Failed Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=1,
             max_attempts=3,
@@ -641,7 +341,7 @@ class TestTaskRetryBehavior(TestCase):
         # Create a task with max_attempts=3
         task = Task(
             name="Test Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=1,
             max_attempts=3,
@@ -700,7 +400,7 @@ class TestTaskRetryBehavior(TestCase):
         # Create a task that has already failed twice
         task = Task(
             name="Test Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             status="failed",
             attempts=2,  # Already tried twice
             max_attempts=3,
@@ -859,38 +559,6 @@ class TestTaskRetryBehavior(TestCase):
         assert task.attempts == 3
         assert task.can_retry() is False, "Task should not be retryable after max_attempts reached"
 
-    def test_handle_task_error_with_waiting_for_dependencies_status(self):
-        """
-        Test that handle_task_error increments attempts for a task in
-        "waiting_for_dependencies" status that fails.
-        """
-        from apps.tasks.utils import handle_task_error
-
-        task = Task(
-            name="Test Task",
-            function_name="test_func",
-            status="waiting_for_dependencies",
-            attempts=0,
-            max_attempts=3,
-            created_by=self.user,
-        )
-        task.save()
-
-        execution = TaskExecution.objects.create(task=task, status="pending", worker_id="test-worker")
-
-        # Simulate an error
-        handle_task_error(
-            task_instance=task,
-            execution_instance=execution,
-            error_message="Dependency check failed",
-        )
-
-        task.refresh_from_db()
-
-        # Verify attempts was incremented
-        assert task.attempts == 1, "Attempts should be incremented for waiting_for_dependencies status"
-        assert task.status == "failed"
-
     def test_handle_task_error_with_task_id_and_execution_id(self):
         """
         Test that handle_task_error works correctly when called with
@@ -924,3 +592,273 @@ class TestTaskRetryBehavior(TestCase):
         assert task.status == "failed"
         assert task.error_message == "Task failed with exception"
         assert result["status"] == "error"
+
+
+# =============================================================================
+# Additional Coverage Tests - Merged from Enhanced Test File
+# =============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestImportErrorFallback(TestCase):
+    """Test ImportError fallback for dispatcherd decorator."""
+
+    def test_fallback_decorator_when_dispatcherd_not_available(self):
+        """Test task decorator fallback when dispatcherd.publish is not available."""
+        # The fallback decorator is defined in lines 28-34 of tasks_system.py
+        # It should just return the function unchanged
+
+        # Import with dispatcherd available would use the real decorator
+        # But when ImportError occurs, it uses the fallback
+        # The fallback is already imported in tasks_system module
+
+        # Test that the fallback decorator works
+        @tasks_system.task()
+        def dummy_task():
+            return "executed"
+
+        result = dummy_task()
+        assert result == "executed"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestSubmitTaskToDispatcherSuccess(TestCase):
+    """Test submit_task_to_dispatcher success path."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="testuser_submit", email="test@example.com", password=get_test_password()
+        )
+
+    @patch("dispatcherd.publish.submit_task")
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    def test_submit_task_success_path(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """Test successful task submission to dispatcher."""
+        # Arrange
+        task = Task.objects.create(
+            name="Test Task",
+            function_name="hello_world",
+            task_data={},
+            created_by=self.user,
+        )
+        mock_get_queue.return_value = "metrics_tasks"
+
+        # Act
+        submit_task_to_dispatcher(task)
+
+        # Assert
+        # Verify dispatcherd was configured
+        mock_ensure_config.assert_called_once()
+
+        # Verify queue was determined
+        mock_get_queue.assert_called_once_with("hello_world")
+
+        # Verify task was submitted to dispatcherd
+        mock_submit.assert_called_once()
+        call_kwargs = mock_submit.call_args.kwargs
+        assert call_kwargs["kwargs"]["task_id"] == task.id
+        assert call_kwargs["queue"] == "metrics_tasks"
+
+        # Verify task status updated
+        task.refresh_from_db()
+        assert task.status == "pending"
+
+        # Verify execution record created
+        assert TaskExecution.objects.filter(task=task).exists()
+
+    @patch("dispatcherd.publish.submit_task")
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    def test_submit_task_handles_submission_error(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """Test submit_task_to_dispatcher handles submission errors."""
+        # Arrange
+        task = Task.objects.create(
+            name="Test Task",
+            function_name="hello_world",
+            created_by=self.user,
+        )
+        mock_get_queue.return_value = "metrics_tasks"
+        mock_submit.side_effect = Exception("Submission failed")
+
+        # Act
+        submit_task_to_dispatcher(task)
+
+        # Assert
+        task.refresh_from_db()
+        assert task.status == "failed"
+        assert "Failed to submit to dispatcher" in task.error_message
+        assert "Submission failed" in task.error_message
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestCreateSystemTasksExceptionHandling(TestCase):
+    """Test create_system_tasks exception handling per task."""
+
+    def setUp(self):
+        """Set up test environment."""
+        self.user = User.objects.create_user(
+            username="testuser_exception", email="test@example.com", password=get_test_password()
+        )
+
+    @patch("apps.tasks.tasks_system._create_task_from_group")
+    @patch("apps.tasks.task_groups.get_all_enabled_tasks")
+    def test_handles_exception_creating_individual_task(self, mock_get_tasks, mock_create_task):
+        """Test create_system_tasks handles exceptions per task."""
+        # Arrange
+        mock_get_tasks.return_value = {
+            "task1": {"function": "hello_world", "cron": "0 * * * *"},
+            "task2": {"function": "cleanup_old_tasks", "cron": "0 2 * * *"},
+        }
+
+        # First task fails, second succeeds
+        mock_create_task.side_effect = [
+            Exception("Creation failed for task1"),
+            None,  # Second task succeeds
+        ]
+
+        # Act
+        result = tasks_system.create_system_tasks()
+
+        # Assert
+        # Should have attempted both tasks
+        assert mock_create_task.call_count == 2
+
+        # Result should contain error for failed task
+        assert any("Error with task1" in msg for msg in result["tasks"])
+        assert any("Creation failed" in msg for msg in result["tasks"])
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestGetSystemTaskInfo(TestCase):
+    """Test get_system_task_info function."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="testuser_sysinfo", email="test@example.com", password=get_test_password()
+        )
+
+    def test_returns_system_task_info(self):
+        """Test get_system_task_info returns information about system tasks."""
+        from django.utils import timezone
+
+        from apps.tasks.tasks_system import get_system_task_info
+
+        # Create system tasks
+        Task.objects.create(
+            name="System Task 1",
+            function_name="cleanup_old_tasks",
+            description="Clean up old tasks",
+            status="pending",
+            cron_expression="0 2 * * *",
+            is_system_task=True,
+            created_by=self.user,
+        )
+
+        Task.objects.create(
+            name="System Task 2",
+            function_name="hello_world",
+            description="Test task",
+            status="completed",
+            cron_expression="0 * * * *",
+            is_system_task=True,
+            created_by=self.user,
+            completed_at=timezone.now(),
+        )
+
+        # Create non-system task (should be excluded)
+        Task.objects.create(
+            name="Regular Task",
+            function_name="hello_world",
+            is_system_task=False,
+            created_by=self.user,
+        )
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        assert "system_tasks" in result
+        assert "total_count" in result
+        assert "categories" in result
+
+        assert result["total_count"] == 2
+        assert len(result["system_tasks"]) == 2
+
+        # Verify task info structure
+        task_info = result["system_tasks"][0]
+        assert "id" in task_info
+        assert "name" in task_info
+        assert "function_name" in task_info
+        assert "description" in task_info
+        assert "status" in task_info
+        assert "cron_expression" in task_info
+        assert "created" in task_info
+        assert "last_run" in task_info
+        assert "category" in task_info
+
+    def test_returns_empty_when_no_system_tasks(self):
+        """Test get_system_task_info returns empty list when no system tasks."""
+        from apps.tasks.tasks_system import get_system_task_info
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        assert result["total_count"] == 0
+        assert len(result["system_tasks"]) == 0
+
+    def test_formats_datetime_fields_correctly(self):
+        """Test get_system_task_info formats datetime fields as ISO strings."""
+        from django.utils import timezone
+
+        from apps.tasks.tasks_system import get_system_task_info
+
+        completed_time = timezone.now()
+        Task.objects.create(
+            name="System Task",
+            function_name="hello_world",
+            is_system_task=True,
+            created_by=self.user,
+            completed_at=completed_time,
+        )
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        task_info = result["system_tasks"][0]
+        assert task_info["created"] is not None
+        assert isinstance(task_info["created"], str)  # ISO format string
+        assert task_info["last_run"] is not None
+        assert isinstance(task_info["last_run"], str)  # ISO format string
+
+    def test_orders_tasks_by_name(self):
+        """Test get_system_task_info orders tasks alphabetically by name."""
+        from apps.tasks.tasks_system import get_system_task_info
+
+        Task.objects.create(
+            name="Zebra Task",
+            function_name="hello_world",
+            is_system_task=True,
+            created_by=self.user,
+        )
+        Task.objects.create(
+            name="Alpha Task",
+            function_name="hello_world",
+            is_system_task=True,
+            created_by=self.user,
+        )
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        assert result["system_tasks"][0]["name"] == "Alpha Task"
+        assert result["system_tasks"][1]["name"] == "Zebra Task"

@@ -43,8 +43,3 @@ class OutputFormatter:
     def write_separator(self, char: str = "=", length: int = 50) -> None:
         """Write a separator line."""
         self.stdout.write(char * length)
-
-    def write_header(self, title: str, char: str = "=", length: int = 50) -> None:
-        """Write a formatted header."""
-        self.stdout.write(f"{title}")
-        self.stdout.write(char * length)

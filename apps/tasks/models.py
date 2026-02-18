@@ -1,8 +1,8 @@
 """
 Task models for metrics_service.
 
-This module contains all task-related models including task definitions,
-executions, dependencies, and task chains for workflow management.
+This module contains task-related models: task definitions and executions,
+and FIXME: split out - also models for collects, rollups and anonymized
 """
 
 import logging
@@ -53,7 +53,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
     Database model for scheduled tasks with enhanced tracking capabilities.
 
     This model provides comprehensive task scheduling and execution tracking
-    with support for dependencies, recurring tasks, and detailed status monitoring.
+    with support for detailed status monitoring.
     """
 
     class Meta:
@@ -67,14 +67,6 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         ("completed", "Completed"),
         ("failed", "Failed"),
         ("cancelled", "Cancelled"),
-        ("waiting_for_dependencies", "Waiting for Dependencies"),
-    ]
-
-    PRIORITY_CHOICES = [
-        (1, "Low"),
-        (2, "Normal"),
-        (3, "High"),
-        (4, "Critical"),
     ]
 
     # Task identification and metadata
@@ -95,20 +87,12 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         max_length=100, null=True, blank=True, help_text="Cron expression for recurring tasks (e.g., '0 2 * * *')"
     )
 
-    is_recurring = models.BooleanField(
-        default=False, help_text="Whether this task should repeat based on cron_expression"
-    )
-
     is_system_task = models.BooleanField(
         default=False, help_text="Whether this is a system-defined task that cannot be easily deleted"
     )
 
     # Execution tracking
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
-
-    priority = models.IntegerField(
-        choices=PRIORITY_CHOICES, default=2, help_text="Task priority (higher numbers = higher priority)"
-    )
 
     attempts = models.PositiveIntegerField(default=0, help_text="Number of execution attempts")
 
@@ -148,12 +132,6 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         if self.status != "pending":
             return False
 
-        # Check if dependencies are completed
-        if self.dependencies.filter(
-            prerequisite_task__status__in=["pending", "running", "waiting_for_dependencies"]
-        ).exists():
-            return False
-
         # Check if scheduled time has passed
         return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
@@ -187,12 +165,13 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         # NOTE: Do NOT reset attempts to 0 here. The attempts counter must persist
         # across retries to properly enforce the max_attempts limit. Without this,
         # users could bypass max_attempts by repeatedly calling retry().
+        # FIXME: users SHOULD be able to ignore max_attempts when manually retrying???
 
         self.save()
 
         # Submit the task for immediate execution if it has no scheduled time
         # and is not recurring (otherwise it will be picked up by the scheduler)
-        if not self.scheduled_time and not self.is_recurring:
+        if not self.scheduled_time and not self.cron_expression:
             try:
                 from .tasks_system import submit_task_to_dispatcher
 
@@ -229,70 +208,37 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         """
         return not self.is_system_task
 
-    def get_next_run_time(self) -> datetime | None:
+    def get_next_run_time(self) -> str | None:
         """
         Calculate next run time for recurring tasks.
 
         Returns:
             datetime or None: Next run time for recurring tasks, None if not recurring
         """
-        if not self.is_recurring or not self.cron_expression:
+        if not self.cron_expression:
             return None
 
         try:
-            from datetime import datetime
-
             from croniter import croniter
 
             cron = croniter(self.cron_expression, timezone.now())
-            return cron.get_next(datetime)
+            return cron.get_next(datetime).isoformat()
         except ImportError:
-            # croniter not available, return None
-            return None
+            return "croniter not available"
         except Exception:
-            # Invalid cron expression
-            return None
+            return "Invalid cron_expression"
 
+    @classmethod
+    def immediate_tasks(cls):
+        return cls.objects.filter(status="pending", scheduled_time__isnull=True, cron_expression__isnull=True)
 
-class TaskDependency(CommonModel):
-    """
-    Model to define task dependencies for chaining.
+    @classmethod
+    def scheduled_tasks(cls):
+        return cls.objects.filter(status="pending", scheduled_time__isnull=False)
 
-    This model allows creating dependencies between tasks to ensure
-    proper execution order in complex workflows.
-    """
-
-    class Meta:
-        app_label = "tasks"
-        unique_together = ["dependent_task", "prerequisite_task"]
-        verbose_name_plural = "Task Dependencies"
-
-    dependent_task = models.ForeignKey(
-        Task, on_delete=models.CASCADE, related_name="dependencies", help_text="Task that depends on another task"
-    )
-
-    prerequisite_task = models.ForeignKey(
-        Task,
-        on_delete=models.CASCADE,
-        related_name="dependents",
-        help_text="Task that must complete before dependent_task can run",
-    )
-
-    required_status = models.CharField(
-        max_length=30,
-        choices=Task.STATUS_CHOICES,
-        default="completed",
-        help_text="Required status of prerequisite task",
-    )
-
-    def __str__(self):
-        """
-        Return string representation of the task dependency.
-
-        Returns:
-            str: Dependency relationship description
-        """
-        return f"{self.dependent_task.name} depends on {self.prerequisite_task.name}"
+    @classmethod
+    def recurring_tasks(cls):
+        return cls.objects.filter(status="pending", cron_expression__isnull=False)
 
 
 class TaskExecution(CommonModel, AuditableModel):
@@ -352,66 +298,6 @@ class TaskExecution(CommonModel, AuditableModel):
         if self.completed_at and self.started_at:
             self.execution_time_seconds = (self.completed_at - self.started_at).total_seconds()
         super().save(*args, **kwargs)
-
-
-class TaskChain(NamedCommonModel, AuditableModel):
-    """
-    Model to define named task chains for complex workflows.
-
-    This model allows grouping tasks into ordered chains for executing
-    complex workflows with specific sequencing requirements.
-    """
-
-    class Meta:
-        app_label = "tasks"
-        ordering = ["id"]
-
-    tasks = models.ManyToManyField(
-        Task, through="TaskChainMembership", related_name="chains", help_text="Tasks in this chain"
-    )
-
-    is_active = models.BooleanField(default=True, help_text="Whether this chain is active")
-
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_chains"
-    )
-
-    def __str__(self):
-        """
-        Return string representation of the task chain.
-
-        Returns:
-            str: Task chain name
-        """
-        return self.name
-
-
-class TaskChainMembership(CommonModel):
-    """
-    Through model for TaskChain to Task relationship with ordering.
-
-    This model defines the order and relationship between tasks within
-    a task chain, allowing for proper sequencing of workflow execution.
-    """
-
-    class Meta:
-        app_label = "tasks"
-        unique_together = ["chain", "task"]
-        ordering = ["order"]
-
-    chain = models.ForeignKey(TaskChain, on_delete=models.CASCADE)
-    task = models.ForeignKey(Task, on_delete=models.CASCADE)
-
-    order = models.PositiveIntegerField(help_text="Order of task in the chain (lower numbers run first)")
-
-    def __str__(self):
-        """
-        Return string representation of the task chain membership.
-
-        Returns:
-            str: Chain name, task name, and order
-        """
-        return f"{self.chain.name} - {self.task.name} (order: {self.order})"
 
 
 class HourlyMetricsCollection(CommonModel, AuditableModel):
@@ -665,9 +551,11 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
     # Relationships
     daily_summary = models.ForeignKey(
         "DailyMetricsSummary",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="anonymized_payloads",
-        help_text="Daily summary this payload was created from",
+        help_text="DailyMetricsSummary used to create this payload",
     )
 
     anonymization_task_execution = models.ForeignKey(

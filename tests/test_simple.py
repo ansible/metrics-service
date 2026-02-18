@@ -12,11 +12,11 @@ from .test_common import (
 class TestTaskFunctions(BaseTaskFunctionsTest):
     """Test task functions directly."""
 
-    def test_cleanup_old_data_default_values(self):
-        """Test cleanup_old_data with default values."""
-        from apps.tasks.tasks import cleanup_old_data
+    def test_hello_world(self):
+        """Test hello_world task function."""
+        from apps.tasks.tasks import hello_world
 
-        result = cleanup_old_data()
+        result = hello_world()
 
         self.assertEqual(result["status"], "success")
 

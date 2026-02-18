@@ -148,31 +148,96 @@ def rollback_configuration_change(change_id, user):
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
 
-def initialize_default_settings():
-    """
-    Initialize default feature flag settings in the database on application startup.
+# Define default feature flags - same as in initialize_default_settings
+# default_value is the fallback, set the actual default in apps/settings/defaults.py
+DEFAULT_SETTINGS = {
+    "ANONYMIZED_DATA_COLLECTION": {
+        "default_value": True,
+        "description": "Enable anonymized data collection and transmission to Red Hat (includes metrics collection, rollup, anonymization, and sending)",
+    },
+}
 
-    This ensures that all feature flags are visible in the database and can be
-    easily discovered and modified by administrators.
+
+def _remove_all_settings():
+    deleted_count, _ = Setting.objects.all().delete()
+    return deleted_count
+
+
+def _remove_known_settings(including_changed=False):
+    removed_count = 0
+
+    for setting_key in DEFAULT_SETTINGS:
+        if including_changed:
+            # remove all known defaults regardless of modification status
+            deleted_count, _ = Setting.objects.filter(setting_key=setting_key).delete()
+        else:
+            # default: only remove unchanged settings
+            deleted_count, _ = Setting.objects.filter(setting_key=setting_key, previous_value=None).delete()
+
+        if deleted_count > 0:
+            logger.info(f"Removed setting '{setting_key}'")
+            removed_count += deleted_count
+
+    return removed_count
+
+
+# uv run ./manage.py metrics_service remove-default-settings [--all-known] [--all-settings]
+def remove_default_settings(all_known: bool = False, all_settings: bool = False):
+    """
+    Remove default feature flag settings from the database.
+
+    Args:
+        all_known: If True, remove all known default settings (ignores previous_value logic)
+        all_settings: If True, remove all settings from database (ignores DEFAULT_SETTINGS known settings list)
+
+    Default behavior (both False):
+        Only removes settings that match DEFAULT_SETTINGS keys and have
+        previous_value=None (indicating they haven't been modified by a user).
+        Settings that have been modified (have a previous_value) are preserved.
+
+    With all_known=True:
+        Removes all settings in DEFAULT_SETTINGS, even if they have been modified.
+
+    With all_settings=True:
+        Removes ALL settings from the database, not just those in DEFAULT_SETTINGS.
+        Takes precedence over all_known.
+    """
+    removed_count = _remove_all_settings() if all_settings else _remove_known_settings(all_known)
+
+    if removed_count > 0:
+        logger.info(f"Removed {removed_count} settings from database")
+    else:
+        logger.debug("No settings found to remove")
+
+    return removed_count
+
+
+# uv run ./manage.py metrics_service init-default-settings
+def initialize_default_settings(overwrite: bool = False):
+    """
+    Initialize or update default feature flag settings in the database.
+
+    Args:
+        overwrite: If True, remove all known default settings before reinitializing
+                   (passes all_known=True to remove_default_settings)
+
+    This function removes unchanged default settings (those with previous_value=None)
+    and recreates them with current values from configuration. Modified settings
+    (those with a previous_value) are preserved and never overwritten, unless
+    overwrite=True is specified.
+
+    This ensures default settings stay in sync with configuration while respecting
+    user modifications.
     """
     from django.conf import settings as django_settings
 
-    # Define default feature flags and their values
-    default_settings = {
-        "METRICS_COLLECTION_ENABLED": {
-            "default_value": False,
-            "description": "Enable hourly metrics collection with daily rollup and anonymization",
-        },
-        "ANONYMIZED_DATA_COLLECTION": {
-            "default_value": True,
-            "description": "Enable anonymous data collection for Red Hat",
-        },
-    }
+    # Remove existing defaults (all known if overwrite=True, otherwise just unchanged)
+    remove_default_settings(all_known=overwrite)
 
     created_count = 0
     skipped_count = 0
 
-    for setting_key, config in default_settings.items():
+    for setting_key, config in DEFAULT_SETTINGS.items():
         # Check if setting already exists
         existing = Setting.objects.filter(setting_key=setting_key).first()
 

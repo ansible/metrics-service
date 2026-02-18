@@ -151,7 +151,7 @@ kubernetes==34.1.0
     # via
     #   -r requirements-pinned.txt
     #   metrics-utility
-metrics-utility==0.7.20251112
+metrics-utility==0.7.20260218
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
@@ -185,12 +185,12 @@ prometheus-client==0.23.1
     # via
     #   -r requirements-pinned.txt
     #   django-prometheus
-psycopg==3.2.10
+psycopg==3.3.0
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
     #   metrics-utility
-psycopg-c==3.2.10
+psycopg-c==3.3.0
     # via
     #   -r requirements-pinned.txt
     #   psycopg

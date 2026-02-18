@@ -45,8 +45,7 @@ services:
       METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: prefer
       METRICS_SERVICE_ALLOWED_HOSTS: '["localhost","127.0.0.1","metrics-service","0.0.0.0"]'
       METRICS_SERVICE_DEBUG: "true"
-      METRICS_SERVICE_ANONYMIZED_DATA: "true"
-      METRICS_SERVICE_METRICS_COLLECTION: "false"
+      METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION: "true"
       DJANGO_SETTINGS_MODULE: metrics_service.settings
       DISPATCHERD_CONFIG_FILE: /app/apps/settings/dispatcherd.yaml
       DISPATCHERD_ENABLED: "true"

@@ -33,9 +33,6 @@ SERVICE_ID = "test-service-id"
 # URLs - simplified for testing to avoid oauth2 provider conflicts
 ROOT_URLCONF = "metrics_service.test_urls"
 
-# Let Django create unique test database names automatically
-DATABASES__default__TEST__NAME = None
-
 # Disable caching during tests
 CACHES = {
     "default": {
@@ -69,9 +66,10 @@ LOGGING = {
 DISPATCHERD_ENABLED = False
 
 # Disable feature enables during tests
+# NOTE: relies on get_feature_enabled_from_db falling back to directly using these settings when not in DB...
+# ...and on init-default-settings never happening during tests. If it does, @override_setings won't work.
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": False,
-    "METRICS_COLLECTION_ENABLED": False,
 }
 
 # REST Framework settings for tests

@@ -42,38 +42,38 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
 
     class Meta:
         model = Task
-        fields = BaseModelSerializer.build_common_fields(
-            [
-                "name",
-                "function_name",
-                "task_data",
-                "scheduled_time",
-                "cron_expression",
-                "is_recurring",
-                "is_system_task",
-                "status",
-                "priority",
-                "attempts",
-                "max_attempts",
-                "timeout_seconds",
-                "result_data",
-                "started_at",
-                "completed_at",
-                "error_message",
-                "created_by",
-            ],
-            [
-                "created_by_username",
-                "executions_count",
-                "duration",
-                "can_retry",
-                "can_delete",
-                "can_modify",
-                "is_ready_to_run",
-                "next_run_time",
-            ],
-        )
+        fields = [
+            "id",
+            "url",
+            "name",
+            "function_name",
+            "task_data",
+            "scheduled_time",
+            "cron_expression",
+            "is_system_task",
+            "status",
+            "attempts",
+            "max_attempts",
+            "timeout_seconds",
+            "result_data",
+            "started_at",
+            "completed_at",
+            "error_message",
+            "created_by",
+            "created_by_username",
+            "executions_count",
+            "duration",
+            "can_retry",
+            "can_delete",
+            "can_modify",
+            "is_ready_to_run",
+            "next_run_time",
+            "created",
+            "modified",
+        ]
         read_only_fields = [
+            "id",
+            "url",
             "created_by_username",
             "executions_count",
             "duration",
@@ -89,24 +89,18 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
             "started_at",
             "completed_at",
             "error_message",
+            "created",
+            "modified",
         ]
-        extra_kwargs = BaseModelSerializer.build_extra_kwargs(
-            "tasks:v1:task-detail",
-            {
-                "scheduled_time": {"help_text": "ISO 8601 format datetime when task should run"},
-                "task_data": {"help_text": "JSON data to pass to the task function"},
-            },
-        )
+        extra_kwargs = {
+            "url": {"view_name": "tasks:v1:task-detail"},
+            "scheduled_time": {"help_text": "ISO 8601 format datetime when task should run"},
+            "task_data": {"help_text": "JSON data to pass to the task function"},
+        }
 
     def get_executions_count(self, obj) -> int:
         """Get count of task executions."""
         return obj.executions.count()
-
-    def get_duration(self, obj) -> float | None:
-        """Get task duration in seconds."""
-        if hasattr(obj, "get_duration"):
-            return obj.get_duration()
-        return None
 
     def get_can_retry(self, obj) -> bool:
         """Check if task can be retried."""
@@ -124,10 +118,9 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
         """Check if task is ready to run."""
         return obj.is_ready_to_run()
 
-    def get_next_run_time(self, obj):
+    def get_next_run_time(self, obj) -> str:
         """Get next run time for recurring tasks."""
-        next_time = obj.get_next_run_time()
-        return next_time.isoformat() if next_time else None
+        return obj.get_next_run_time()
 
 
 class TaskCreateSerializer(serializers.ModelSerializer):
@@ -148,8 +141,6 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             "task_data",
             "scheduled_time",
             "cron_expression",
-            "is_recurring",
-            "priority",
             "max_attempts",
             "timeout_seconds",
             "user",
@@ -161,8 +152,6 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             },
             "task_data": {"required": False, "help_text": "JSON object with task parameters"},
             "cron_expression": {"required": False, "help_text": "Cron expression for recurring tasks"},
-            "is_recurring": {"default": False},
-            "priority": {"default": 2},
             "max_attempts": {"default": 3},
             "timeout_seconds": {"default": 3600},
         }
@@ -177,14 +166,18 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_cron_expression(self, value):
-        """Validate cron expression format."""
-        if value:
-            try:
-                from croniter import croniter
+        """Validate cron expression format and normalize empty strings to None."""
+        # Normalize empty strings to None to ensure consistent NULL values in database
+        # This ensures cron_expression__isnull filters work correctly for cleanup
+        if not value:
+            return None
 
-                croniter(value)
-            except (ValueError, TypeError) as e:
-                raise serializers.ValidationError(f"Invalid cron expression: {e}") from e
+        try:
+            from croniter import croniter
+
+            croniter(value)
+        except (ValueError, TypeError) as e:
+            raise serializers.ValidationError(f"Invalid cron expression: {e}") from e
         return value
 
     def validate_task_data(self, value):
@@ -232,7 +225,6 @@ class TaskListSerializer(serializers.ModelSerializer):
 
     created_by_username = serializers.CharField(source="created_by.username", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
-    priority_display = serializers.CharField(source="get_priority_display", read_only=True)
 
     class Meta:
         model = Task
@@ -242,8 +234,6 @@ class TaskListSerializer(serializers.ModelSerializer):
             "function_name",
             "status",
             "status_display",
-            "priority",
-            "priority_display",
             "created",
             "scheduled_time",
             "created_by_username",
@@ -272,33 +262,39 @@ class TaskExecutionSerializer(BaseModelSerializer):
 
     class Meta:
         model = TaskExecution
-        fields = BaseModelSerializer.build_common_fields(
-            [
-                "task",
-                "status",
-                "started_at",
-                "completed_at",
-                "worker_id",
-                "result_data",
-                "error_message",
-                "execution_time_seconds",
-            ],
-            ["task_name", "task_function", "duration"],
-        )
+        fields = [
+            "id",
+            "url",
+            "task",
+            "status",
+            "started_at",
+            "completed_at",
+            "worker_id",
+            "result_data",
+            "error_message",
+            "execution_time_seconds",
+            "task_name",
+            "task_function",
+            "duration",
+            "created",
+            "modified",
+        ]
         read_only_fields = [
+            "id",
+            "url",
             "task_name",
             "task_function",
             "duration",
             "started_at",
             "completed_at",
             "execution_time_seconds",
+            "created",
+            "modified",
         ]
-        extra_kwargs = BaseModelSerializer.build_extra_kwargs(
-            "tasks:v1:taskexecution-detail",
-            {
-                "task": {"view_name": "tasks:v1:task-detail"},
-            },
-        )
+        extra_kwargs = {
+            "url": {"view_name": "tasks:v1:taskexecution-detail"},
+            "task": {"view_name": "tasks:v1:task-detail"},
+        }
 
     def get_duration(self, obj) -> float | None:
         """Get execution duration in seconds."""

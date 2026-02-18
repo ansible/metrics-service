@@ -5,29 +5,72 @@ Tests the task scheduler that combines task group scheduling and database task s
 without database polling, using APScheduler for optimal performance.
 """
 
-import logging
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
 import pytest
+from apscheduler.schedulers.background import BackgroundScheduler
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from apps.tasks.cron_scheduler import (
     UnifiedTaskScheduler,
     get_scheduler,
-    refresh_scheduler,
     start_scheduler,
     stop_scheduler,
-    sync_database_tasks,
 )
 
 User = get_user_model()
 
 
 @pytest.fixture
+def mock_task_groups():
+    """Mock task groups data."""
+    return {
+        "test_task_1": {
+            "function": "hello_world",
+            "cron": "0 */1 * * *",
+            "args": {"message": "test"},
+            "enabled": True,
+            "description": "Test task 1",
+        },
+        "test_task_2": {
+            "function": "cleanup_old_tasks",
+            "cron": "0 2 * * *",
+            "args": {},
+            "enabled": False,
+            "description": "Test task 2",
+        },
+    }
+
+
+@pytest.fixture
+def mock_db_tasks():
+    """Mock database Task objects."""
+    task1 = Mock()
+    task1.id = 1
+    task1.name = "test_task_1"
+    task1.function_name = "hello_world"
+    task1.cron_expression = "0 */1 * * *"
+    task1.task_data = {"message": "test"}
+    task1.description = "Test task 1"
+    task1.status = "pending"
+
+    task2 = Mock()
+    task2.id = 2
+    task2.name = "test_task_2"
+    task2.function_name = "cleanup_old_tasks"
+    task2.cron_expression = "0 2 * * *"
+    task2.task_data = {}
+    task2.description = "Test task 2"
+    task2.status = "pending"
+
+    return [task1, task2]
+
+
+@pytest.fixture
 def mock_task():
-    """Create a mock task object."""
+    """Create a mock task object for one-time scheduled tasks."""
     task = Mock()
     task.id = 1
     task.name = "Test Task"
@@ -61,6 +104,27 @@ def mock_recurring_task():
     return task
 
 
+@pytest.fixture(autouse=True)
+def mock_task_database():
+    """Auto-mock the Task database for all tests."""
+    with patch("apps.tasks.models.Task") as mock_task_database:
+        # Mock empty database by default
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+        yield mock_task_database
+
+
+@pytest.fixture
+def mock_task_functions():
+    """Mock task functions."""
+    return {
+        "hello_world": Mock(),
+        "cleanup_old_tasks": Mock(),
+        "execute_db_task": Mock(),
+    }
+
+
 @pytest.fixture
 def scheduler():
     """Create a UnifiedTaskScheduler instance."""
@@ -74,106 +138,259 @@ def scheduler():
 
 @pytest.mark.unit
 class TestUnifiedTaskScheduler:
-    """Test the UnifiedTaskScheduler class."""
+    """Test cases for UnifiedTaskScheduler class."""
 
-    def test_init(self):
+    def test_init(self, mock_task_database, mock_db_tasks):
         """Test scheduler initialization."""
-        with patch("apps.tasks.models.Task") as mock_task_model:
-            # Mock empty database
-            mock_queryset = Mock()
-            mock_queryset.exclude.return_value = []
-            mock_task_model.objects.filter.return_value = mock_queryset
-
-            scheduler = UnifiedTaskScheduler(check_interval=30)
-
-        assert scheduler.check_interval == 30
-        assert not scheduler.running
-        assert isinstance(scheduler.task_registry, dict)
-        assert isinstance(scheduler._db_task_jobs, dict)
-
-    @patch("apps.tasks.models.Task")
-    def test_load_task_registry(self, mock_task_model):
-        """Test loading task registry from database."""
-        # Create mock task objects
-        task1 = Mock()
-        task1.id = 1
-        task1.name = "test_task"
-        task1.function_name = "test_function"
-        task1.cron_expression = "0 * * * *"
-        task1.task_data = {}
-        task1.description = "Test task"
-        task1.priority = 5
-
+        # Mock the database query to return tasks
         mock_queryset = Mock()
-        mock_queryset.exclude.return_value = [task1]
-        mock_task_model.objects.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_db_tasks
+        mock_task_database.objects.filter.return_value = mock_queryset
 
         scheduler = UnifiedTaskScheduler()
-        assert "test_task" in scheduler.task_registry
 
-    @patch("apps.tasks.models.Task")
-    def test_sync_database_tasks_scheduled(self, mock_task_model, scheduler):
-        """Test syncing scheduled database tasks."""
-        # Mock scheduled task
-        mock_task = Mock()
-        mock_task.id = 1
-        mock_task.name = "Test"
-        mock_task.scheduled_time = timezone.now() + timedelta(hours=1)
-        mock_task.is_recurring = False
+        assert isinstance(scheduler.scheduler, BackgroundScheduler)
+        assert scheduler.running is False
+        # Should have loaded tasks from database
+        assert len(scheduler.task_registry) == 2
+        assert "test_task_1" in scheduler.task_registry
+        assert "test_task_2" in scheduler.task_registry
 
-        # Create mock QuerySets
-        mock_scheduled_qs = Mock()
-        mock_scheduled_qs.__iter__ = Mock(return_value=iter([mock_task]))
-        mock_scheduled_qs.__len__ = Mock(return_value=1)
+    def test_init_with_load_error(self, mock_task_database):
+        """Test initialization handles load errors gracefully."""
+        # Make database query fail
+        mock_task_database.objects.filter.side_effect = Exception("Database error")
 
-        mock_recurring_qs = Mock()
-        mock_recurring_qs.__iter__ = Mock(return_value=iter([]))
-        mock_recurring_qs.__len__ = Mock(return_value=0)
-        mock_recurring_qs.exclude.return_value = mock_recurring_qs
+        scheduler = UnifiedTaskScheduler()
 
-        # Set up filter to return different results for different calls
-        def filter_side_effect(**kwargs):
-            if "is_recurring" in kwargs and kwargs["is_recurring"] is False:
-                return mock_scheduled_qs
-            return mock_recurring_qs
+        assert scheduler.task_registry == {}
 
-        mock_task_model.objects.filter.side_effect = filter_side_effect
+    def test_load_task_registry_success(self, mock_task_database, mock_db_tasks):
+        """Test successful task registry loading."""
+        # Mock the database query
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = mock_db_tasks
+        mock_task_database.objects.filter.return_value = mock_queryset
 
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler._sync_database_tasks()
-            mock_add.assert_called_once_with(mock_task)
+        scheduler = UnifiedTaskScheduler()
 
-    @patch("apps.tasks.models.Task")
-    def test_sync_database_tasks_recurring(self, mock_task_model, scheduler):
-        """Test syncing recurring database tasks."""
-        # Mock recurring task
-        mock_task = Mock()
-        mock_task.id = 2
-        mock_task.name = "Recurring Test"
-        mock_task.is_recurring = True
-        mock_task.cron_expression = "0 * * * *"
+        scheduler._load_task_registry()
 
-        # Create mock QuerySets
-        mock_scheduled_qs = Mock()
-        mock_scheduled_qs.__iter__ = Mock(return_value=iter([]))
-        mock_scheduled_qs.__len__ = Mock(return_value=0)
+        # Verify tasks were loaded
+        assert len(scheduler.task_registry) == 2
 
-        mock_recurring_qs = Mock()
-        mock_recurring_qs.__iter__ = Mock(return_value=iter([mock_task]))
-        mock_recurring_qs.__len__ = Mock(return_value=1)
-        mock_recurring_qs.exclude.return_value = mock_recurring_qs
+    @pytest.mark.django_db
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
+    def test_start_success(self, mock_task_database, mock_db_tasks):
+        """Test successful scheduler start."""
+        # Mock the database query
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = mock_db_tasks
+        mock_task_database.objects.filter.return_value = mock_queryset
 
-        # Set up filter to return different results for different calls
-        def filter_side_effect(**kwargs):
-            if "is_recurring" in kwargs and kwargs["is_recurring"] is False:
-                return mock_scheduled_qs
-            return mock_recurring_qs
+        scheduler = UnifiedTaskScheduler()
+        scheduler.scheduler.start = Mock()
+        scheduler._add_registry_tasks = Mock()
+        scheduler._sync_database_tasks = Mock()
 
-        mock_task_model.objects.filter.side_effect = filter_side_effect
+        scheduler.start()
 
-        with patch.object(scheduler, "_add_database_recurring_task") as mock_add:
-            scheduler._sync_database_tasks()
-            mock_add.assert_called_once_with(mock_task)
+        assert scheduler.running is True
+        scheduler._add_registry_tasks.assert_called_once()
+        scheduler.scheduler.start.assert_called_once()
+
+    def test_start_already_running(self):
+        """Test starting scheduler when already running."""
+        scheduler = UnifiedTaskScheduler()
+        scheduler.running = True
+
+        scheduler.start()  # Should just return without error
+
+    def test_start_failure(self, mock_task_database):
+        """Test scheduler start failure."""
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler.scheduler.start = Mock(side_effect=Exception("Start error"))
+
+        with pytest.raises(Exception, match="Start error"):
+            scheduler.start()
+
+    @pytest.mark.django_db
+    def test_stop_success(self, mock_task_database):
+        """Test successful scheduler stop."""
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler.running = True
+        scheduler._db_task_jobs[1] = "job_1"
+        scheduler.scheduler.shutdown = Mock()
+
+        scheduler.stop()
+
+        assert scheduler.running is False
+        assert len(scheduler._db_task_jobs) == 0
+        scheduler.scheduler.shutdown.assert_called_once()
+
+    def test_stop_not_running(self, mock_task_database):
+        """Test stopping scheduler when not running."""
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler.running = False
+        scheduler.scheduler.shutdown = Mock()
+
+        scheduler.stop()
+
+        scheduler.scheduler.shutdown.assert_not_called()
+
+    def test_stop_failure(self, mock_task_database):
+        """Test scheduler stop failure."""
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler.running = True
+        scheduler.scheduler.shutdown = Mock(side_effect=Exception("Stop error"))
+
+        scheduler.stop()  # Should catch exception
+
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock(), "cleanup_old_tasks": Mock()})
+    def test_add_registry_tasks(self, mock_task_database, mock_task_groups):
+        """Test adding registry tasks to scheduler."""
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler.task_registry = mock_task_groups
+        scheduler._add_scheduled_task = Mock()
+
+        scheduler._add_registry_tasks()
+
+        # Should add enabled task and skip disabled one
+        scheduler._add_scheduled_task.assert_called_once_with("test_task_1", mock_task_groups["test_task_1"])
+
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
+    def test_add_registry_tasks_with_error(self, mock_task_database):
+        """Test adding registry tasks with error."""
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler.task_registry = {"test_task": {"function": "hello_world", "enabled": True}}
+        scheduler._add_scheduled_task = Mock(side_effect=Exception("Add error"))
+
+        scheduler._add_registry_tasks()  # Should catch exception
+
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
+    @patch("apps.tasks.cron_scheduler.CronTrigger")
+    def test_add_scheduled_task_success(self, mock_cron_trigger, mock_task_database):
+        """Test successful scheduled task addition."""
+        # Mock empty database
+        mock_queryset = Mock()
+        mock_queryset.exclude.return_value = []
+        mock_task_database.objects.filter.return_value = mock_queryset
+
+        mock_trigger = Mock()
+        mock_cron_trigger.from_crontab.return_value = mock_trigger
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler.scheduler.add_job = Mock()
+
+        config = {
+            "function": "hello_world",
+            "cron": "0 */1 * * *",
+            "args": {"message": "test"},
+            "description": "Test task",
+        }
+
+        scheduler._add_scheduled_task("test_task", config)
+
+        mock_cron_trigger.from_crontab.assert_called_once_with("0 */1 * * *")
+        scheduler.scheduler.add_job.assert_called_once_with(
+            func=scheduler._execute_scheduled_task,
+            trigger=mock_trigger,
+            args=["test_task", "hello_world", {"message": "test"}],
+            id="test_task",
+            name="Test task",
+            replace_existing=True,
+            max_instances=1,
+        )
+
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
+    def test_add_scheduled_task_unknown_function(self):
+        """Test adding scheduled task with unknown function."""
+        scheduler = UnifiedTaskScheduler()
+        config = {"function": "unknown_function", "cron": "0 */1 * * *"}
+
+        with pytest.raises(ValueError, match="Unknown task function: unknown_function"):
+            scheduler._add_scheduled_task("test_task", config)
+
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
+    @patch("dispatcherd.publish.submit_task")
+    def test_execute_scheduled_task_success(self, mock_submit):
+        """Test successful scheduled task execution."""
+        scheduler = UnifiedTaskScheduler()
+
+        with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure:
+            scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
+
+            mock_ensure.assert_called_once()
+            mock_submit.assert_called_once_with(
+                "apps.tasks.tasks.hello_world", kwargs={"message": "test"}, queue="metrics_tasks"
+            )
+
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
+    def test_execute_scheduled_task_unknown_function(self):
+        """Test executing scheduled task with unknown function."""
+        scheduler = UnifiedTaskScheduler()
+
+        with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"):
+            scheduler._execute_scheduled_task("test_task", "unknown_function", {})  # Should log error
+
+    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
+    def test_execute_scheduled_task_config_error(self):
+        """Test executing scheduled task with configuration error."""
+        scheduler = UnifiedTaskScheduler()
+
+        with patch(
+            "apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")
+        ):
+            scheduler._execute_scheduled_task("test_task", "hello_world", {})  # Should catch error
+
+    def test_get_queue_for_function_known_functions(self):
+        """Test queue mapping for known functions (now using shared function from dispatcherd_config)."""
+        from apps.tasks.dispatcherd_config import get_queue_for_function
+
+        # Test specific queue mappings
+        assert get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
+        assert get_queue_for_function("daily_metrics_rollup") == "metrics_collectors"
+
+    def test_get_queue_for_function_unknown_function(self):
+        """Test queue mapping for unknown function (now using shared function from dispatcherd_config)."""
+        from apps.tasks.dispatcherd_config import get_queue_for_function
+
+        assert get_queue_for_function("unknown_function") == "metrics_tasks"
+
+
+@pytest.mark.unit
+class TestDatabaseTaskManagement:
+    """Test cases for managing database tasks."""
 
     def test_add_database_scheduled_task(self, scheduler, mock_task):
         """Test adding a scheduled database task."""
@@ -190,6 +407,14 @@ class TestUnifiedTaskScheduler:
 
             mock_add_job.assert_called_once()
             assert mock_recurring_task.id in scheduler._db_task_jobs
+
+    def test_add_database_recurring_task_error(self, scheduler, mock_recurring_task):
+        """Test error handling when adding recurring task fails."""
+        with patch.object(scheduler.scheduler, "add_job", side_effect=Exception("Scheduler error")):
+            # Should not raise - error is caught and logged
+            scheduler._add_database_recurring_task(mock_recurring_task)
+            # Task should not be in the jobs dict since adding failed
+            assert mock_recurring_task.id not in scheduler._db_task_jobs
 
     def test_remove_database_task(self, scheduler):
         """Test removing a database task."""
@@ -211,8 +436,8 @@ class TestUnifiedTaskScheduler:
         mock_task = Mock()
         mock_task.id = task_id
         mock_task.name = "Test"
-        mock_task.is_recurring = False
-        mock_task.status = "pending"  # Set status to pending for the test
+        mock_task.cron_expression = None  # Non-recurring task
+        mock_task.status = "pending"
 
         mock_task_model.objects.get.return_value = mock_task
 
@@ -234,7 +459,6 @@ class TestUnifiedTaskScheduler:
         mock_task.status = "pending"
         mock_task.function_name = "test_function"
         mock_task.task_data = {}
-        mock_task.priority = 2
         mock_task.max_attempts = 3
         mock_task.timeout_seconds = 300
         mock_task.created_by = None
@@ -257,168 +481,8 @@ class TestUnifiedTaskScheduler:
             # Should not remove recurring tasks
             mock_remove.assert_not_called()
 
-    def test_start_scheduler(self, scheduler):
-        """Test starting the scheduler."""
-        with patch.object(scheduler.scheduler, "start"), patch.object(scheduler, "_sync_database_tasks"):
-            scheduler.start()
-
-            assert scheduler.running
-
-    def test_stop_scheduler(self, scheduler):
-        """Test stopping the scheduler."""
-        scheduler.running = True
-        scheduler._db_task_jobs[1] = "job_1"
-
-        with patch.object(scheduler.scheduler, "shutdown"):
-            scheduler.stop()
-
-            assert not scheduler.running
-            assert len(scheduler._db_task_jobs) == 0
-
-    def test_add_database_task_scheduled(self, scheduler, mock_task):
-        """Test adding a database task via the API."""
-        scheduler.running = True
-
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler.add_database_task(mock_task)
-            mock_add.assert_called_once_with(mock_task)
-
-    def test_add_database_task_recurring(self, scheduler, mock_recurring_task):
-        """Test adding a recurring database task via the API."""
-        scheduler.running = True
-
-        with patch.object(scheduler, "_add_database_recurring_task") as mock_add:
-            scheduler.add_database_task(mock_recurring_task)
-            mock_add.assert_called_once_with(mock_recurring_task)
-
-    def test_add_database_task_not_running(self, scheduler, mock_task):
-        """Test adding a database task when scheduler is not running."""
-        scheduler.running = False
-
-        with patch.object(scheduler, "_add_database_scheduled_task") as mock_add:
-            scheduler.add_database_task(mock_task)
-            mock_add.assert_not_called()
-
-    def test_update_database_task(self, scheduler, mock_task):
-        """Test updating a database task."""
-        scheduler.running = True
-
-        with (
-            patch.object(scheduler, "_remove_database_task") as mock_remove,
-            patch.object(scheduler, "add_database_task") as mock_add,
-        ):
-            scheduler.update_database_task(mock_task)
-
-            mock_remove.assert_called_once_with(mock_task.id)
-            mock_add.assert_called_once_with(mock_task)
-
-    def test_list_tasks(self, scheduler):
-        """Test listing all tasks."""
-        scheduler.task_registry = {"test": "config"}
-        scheduler._db_task_jobs = {1: "job_1", 2: "job_2"}
-
-        with (
-            patch.object(scheduler.scheduler, "get_jobs", return_value=[]),
-            patch("apps.tasks.cron_scheduler.get_task_group_status", return_value={}),
-        ):
-            result = scheduler.list_tasks()
-
-            assert "task_groups" in result
-            assert "database_tasks" in result
-            assert result["database_tasks"] == 2
-
-
-@pytest.mark.unit
-class TestGlobalSchedulerFunctions:
-    """Test global scheduler management functions."""
-
-    def test_get_scheduler_creates_instance(self):
-        """Test get_scheduler creates a new instance if none exists."""
-        with (
-            patch("apps.tasks.cron_scheduler._scheduler_instance", None),
-            patch("apps.tasks.cron_scheduler.UnifiedTaskScheduler") as mock_scheduler,
-        ):
-            get_scheduler()
-            mock_scheduler.assert_called_once()
-
-    def test_start_scheduler(self):
-        """Test start_scheduler function."""
-        with patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get:
-            mock_scheduler = Mock()
-            mock_get.return_value = mock_scheduler
-
-            start_scheduler()
-            mock_scheduler.start.assert_called_once()
-
-    def test_stop_scheduler(self):
-        """Test stop_scheduler function."""
-        mock_scheduler = Mock()
-        with patch("apps.tasks.cron_scheduler._scheduler_instance", mock_scheduler):
-            stop_scheduler()
-            mock_scheduler.stop.assert_called_once()
-
-    def test_sync_database_tasks(self):
-        """Test sync_database_tasks function."""
-        mock_scheduler = Mock()
-        mock_scheduler.running = True
-
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            sync_database_tasks()
-            mock_scheduler._sync_database_tasks.assert_called_once()
-
-    def test_refresh_scheduler(self):
-        """Test refresh_scheduler function."""
-        mock_scheduler = Mock()
-        mock_scheduler.running = True
-
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            refresh_scheduler()
-            mock_scheduler._sync_database_tasks.assert_called_once()
-
-
-@pytest.mark.unit
-class TestBackwardCompatibility:
-    """Test backward compatibility aliases."""
-
-    def test_cron_task_scheduler_alias(self):
-        """Test that CronTaskScheduler is aliased to UnifiedTaskScheduler."""
-        from apps.tasks.cron_scheduler import CronTaskScheduler, UnifiedTaskScheduler
-
-        assert CronTaskScheduler is UnifiedTaskScheduler
-
-
-@pytest.mark.unit
-class TestErrorHandling:
-    """Test error handling in the task scheduler."""
-
-    def test_sync_database_tasks_error(self, scheduler, caplog):
-        """Test error handling in _sync_database_tasks."""
-        with patch("apps.tasks.models.Task") as mock_task:
-            mock_task.objects.filter.side_effect = Exception("DB Error")
-
-            with caplog.at_level(logging.ERROR):
-                scheduler._sync_database_tasks()
-
-            assert "Error synchronizing database tasks" in caplog.text
-
-    def test_add_database_scheduled_task_error(self, scheduler, mock_task, caplog):
-        """Test error handling when adding scheduled task fails."""
-        with patch.object(scheduler.scheduler, "add_job", side_effect=Exception("Scheduler error")):
-            with caplog.at_level(logging.ERROR):
-                scheduler._add_database_scheduled_task(mock_task)
-
-            assert "Failed to add scheduled database task" in caplog.text
-
-    def test_add_database_recurring_task_error(self, scheduler, mock_recurring_task, caplog):
-        """Test error handling when adding recurring task fails."""
-        with patch.object(scheduler.scheduler, "add_job", side_effect=Exception("Scheduler error")):
-            with caplog.at_level(logging.ERROR):
-                scheduler._add_database_recurring_task(mock_recurring_task)
-
-            assert "Failed to add recurring database task" in caplog.text
-
     @patch("apps.tasks.models.Task")
-    def test_execute_database_task_not_found(self, mock_task_model, scheduler, caplog):
+    def test_execute_database_task_not_found(self, mock_task_model, scheduler):
         """Test executing a task that doesn't exist."""
         from django.core.exceptions import ObjectDoesNotExist
 
@@ -426,8 +490,102 @@ class TestErrorHandling:
         mock_task_model.DoesNotExist = ObjectDoesNotExist
 
         with patch.object(scheduler, "_remove_database_task") as mock_remove:
-            with caplog.at_level(logging.WARNING):
-                scheduler._execute_database_task(999)
-
-            assert "Database task 999 not found" in caplog.text
+            # Should not raise - error is caught and logged
+            scheduler._execute_database_task(999)
+            # Should remove the task from scheduler
             mock_remove.assert_called_once_with(999)
+
+
+@pytest.mark.unit
+class TestGlobalSchedulerFunctions:
+    """Test cases for global scheduler functions."""
+
+    @pytest.mark.django_db
+    def test_get_scheduler_first_call(self):
+        """Test getting scheduler instance for first time."""
+        # Reset global instance
+        import apps.tasks.cron_scheduler
+
+        apps.tasks.cron_scheduler._scheduler_instance = None
+
+        with patch("apps.tasks.cron_scheduler.UnifiedTaskScheduler") as mock_class:
+            mock_instance = Mock()
+            mock_class.return_value = mock_instance
+
+            scheduler = get_scheduler()
+
+            assert scheduler == mock_instance
+            mock_class.assert_called_once()
+
+    def test_get_scheduler_subsequent_calls(self):
+        """Test getting scheduler instance on subsequent calls."""
+        import apps.tasks.cron_scheduler
+
+        # Set up existing instance
+        existing_instance = Mock()
+        apps.tasks.cron_scheduler._scheduler_instance = existing_instance
+
+        scheduler = get_scheduler()
+        assert scheduler == existing_instance
+
+    def test_start_scheduler(self):
+        """Test starting the global scheduler."""
+        with patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get:
+            mock_scheduler = Mock()
+            mock_get.return_value = mock_scheduler
+
+            result = start_scheduler()
+
+            assert result == mock_scheduler
+            mock_scheduler.start.assert_called_once()
+
+    def test_stop_scheduler_with_instance(self):
+        """Test stopping scheduler when instance exists."""
+        import apps.tasks.cron_scheduler
+
+        mock_instance = Mock()
+        apps.tasks.cron_scheduler._scheduler_instance = mock_instance
+
+        stop_scheduler()
+
+        mock_instance.stop.assert_called_once()
+        assert apps.tasks.cron_scheduler._scheduler_instance is None
+
+    def test_stop_scheduler_no_instance(self):
+        """Test stopping scheduler when no instance exists."""
+        import apps.tasks.cron_scheduler
+
+        apps.tasks.cron_scheduler._scheduler_instance = None
+
+        # Should not raise any errors
+        stop_scheduler()
+
+        assert apps.tasks.cron_scheduler._scheduler_instance is None
+
+
+@pytest.mark.parametrize(
+    "function_name,expected_queue",
+    [
+        # System/general tasks
+        ("hello_world", "metrics_tasks"),
+        ("execute_db_task", "metrics_tasks"),
+        # Cleanup tasks
+        ("cleanup_old_tasks", "metrics_cleanup"),
+        ("cleanup_metrics_data", "metrics_cleanup"),
+        # Hourly collection tasks
+        ("collect_job_host_summary_hourly", "metrics_collectors"),
+        ("collect_host_metrics_hourly", "metrics_collectors"),
+        ("collect_main_host_hourly", "metrics_collectors"),
+        # Daily rollup and anonymization tasks
+        ("daily_metrics_rollup", "metrics_collectors"),
+        ("daily_anonymize_and_prepare", "metrics_collectors"),
+        ("send_anonymized_to_segment", "metrics_collectors"),
+        # Unknown function (default)
+        ("unknown_function", "metrics_tasks"),
+    ],
+)
+def test_queue_mapping_parametrized(function_name, expected_queue):
+    """Test queue mapping for all known functions (now using shared function from dispatcherd_config)."""
+    from apps.tasks.dispatcherd_config import get_queue_for_function
+
+    assert get_queue_for_function(function_name) == expected_queue

@@ -8,13 +8,12 @@ service initialization, task management, and command line operations.
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase, TransactionTestCase
-from django.utils import timezone
 
 from apps.tasks.models import Task
 from tests.test_utils import get_test_password
@@ -41,14 +40,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
         # Should not raise an exception
         mock_stdout.assert_called()
 
-    def test_init_system_tasks_dry_run(self):
-        """Test the init-system-tasks --dry-run subcommand."""
-        with patch("sys.stdout.write") as mock_stdout:
-            call_command("metrics_service", "init-system-tasks", "--dry-run")
-
-        # Should not raise an exception and not make changes
-        mock_stdout.assert_called()
-
     def test_task_create_command(self):
         """Test the tasks create subcommand."""
         task_data = '{"test": "data"}'
@@ -60,33 +51,28 @@ class TestMetricsServiceCommand(TransactionTestCase):
             "--name",
             "Test Task",
             "--function",
-            "cleanup_old_data",
+            "hello_world",
             "--data",
             task_data,
             "--description",
             "Test description",
-            "--priority",
-            "2",
             "--user",
             self.user.username,
         )
 
         # Verify task was created
         task = Task.objects.get(name="Test Task")
-        assert task.function_name == "cleanup_old_data"
+        assert task.function_name == "hello_world"
         assert task.task_data == {"test": "data"}
         assert task.description == "Test description"
-        assert task.priority == 2
         assert task.created_by == self.user
 
     def test_task_list_command(self):
         """Test the tasks list subcommand."""
         # Create test tasks
-        task1 = Task.objects.create(
-            name="Task 1", function_name="cleanup_old_data", status="pending", created_by=self.user
-        )
+        task1 = Task.objects.create(name="Task 1", function_name="hello_world", status="pending", created_by=self.user)
         task1.save()
-        Task.objects.create(name="Task 2", function_name="cleanup_old_data", status="completed", created_by=self.user)
+        Task.objects.create(name="Task 2", function_name="hello_world", status="completed", created_by=self.user)
 
         with patch("sys.stdout.write") as mock_stdout:
             call_command("metrics_service", "tasks", "list")
@@ -96,7 +82,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
     def test_task_list_with_status_filter(self):
         """Test tasks list with status filtering."""
         pending_task = Task.objects.create(
-            name="Pending Task", function_name="cleanup_old_data", status="pending", created_by=self.user
+            name="Pending Task", function_name="hello_world", status="pending", created_by=self.user
         )
         pending_task.save()
         Task.objects.create(
@@ -112,7 +98,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
         """Test the tasks show subcommand."""
         task = Task.objects.create(
             name="Show Task",
-            function_name="cleanup_old_data",
+            function_name="hello_world",
             task_data={"test": "data"},
             description="Test task for show command",
             created_by=self.user,
@@ -127,7 +113,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
         """Test the tasks cancel subcommand."""
         # Create task with completed status first to avoid signal issues, then change to pending
         task = Task.objects.create(
-            name="Cancel Task", function_name="cleanup_old_data", status="completed", created_by=self.user
+            name="Cancel Task", function_name="hello_world", status="completed", created_by=self.user
         )
         task.status = "pending"
         task.save()
@@ -142,7 +128,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
     def test_task_retry_command(self):
         """Test the tasks retry subcommand."""
         task = Task.objects.create(
-            name="Retry Task", function_name="cleanup_old_data", status="failed", created_by=self.user
+            name="Retry Task", function_name="hello_world", status="failed", created_by=self.user
         )
 
         with patch("sys.stdout.write"):
@@ -151,35 +137,6 @@ class TestMetricsServiceCommand(TransactionTestCase):
         # Verify task was reset to pending
         task.refresh_from_db()
         assert task.status == "pending"
-
-    def test_cron_status_command(self):
-        """Test the cron status subcommand."""
-        with patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get_scheduler:
-            mock_scheduler = MagicMock()
-            mock_scheduler.running = True
-            mock_get_scheduler.return_value = mock_scheduler
-
-            with patch("sys.stdout.write") as mock_stdout:
-                call_command("metrics_service", "cron", "status")
-
-            mock_stdout.assert_called()
-
-    def test_cron_list_command(self):
-        """Test the cron list subcommand."""
-        with patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get_scheduler:
-            mock_job = MagicMock()
-            mock_job.id = "test-job"
-            mock_job.func = "test_function"
-            mock_job.next_run_time = timezone.now()
-
-            mock_scheduler = MagicMock()
-            mock_scheduler.get_jobs.return_value = [mock_job]
-            mock_get_scheduler.return_value = mock_scheduler
-
-            with patch("sys.stdout.write") as mock_stdout:
-                call_command("metrics_service", "cron", "list")
-
-            mock_stdout.assert_called()
 
     def test_invalid_command_arguments(self):
         """Test error handling for invalid command arguments."""
@@ -192,7 +149,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
                 "--name",
                 "Invalid Task",
                 "--function",
-                "cleanup_old_data",
+                "hello_world",
                 "--data",
                 "invalid-json",
             )
@@ -206,7 +163,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
                 "--name",
                 "Invalid Time Task",
                 "--function",
-                "cleanup_old_data",
+                "hello_world",
                 "--scheduled-time",
                 "invalid-time-format",
             )
@@ -220,7 +177,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
                 "--name",
                 "Invalid User Task",
                 "--function",
-                "cleanup_old_data",
+                "hello_world",
                 "--user",
                 "nonexistent_user",
             )
@@ -243,7 +200,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
         """Test operations on tasks in invalid states."""
         # Create completed task
         completed_task = Task.objects.create(
-            name="Completed Task", function_name="cleanup_old_data", status="completed", created_by=self.user
+            name="Completed Task", function_name="hello_world", status="completed", created_by=self.user
         )
 
         # Try to cancel completed task
@@ -256,7 +213,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
 
         # Create pending task and try to retry it
         pending_task = Task.objects.create(
-            name="Pending Task", function_name="cleanup_old_data", status="pending", created_by=self.user
+            name="Pending Task", function_name="hello_world", status="pending", created_by=self.user
         )
         pending_task.save()
 
@@ -302,29 +259,11 @@ class TestMetricsServiceCommandSubprocess(TestCase):
         result = self._run_command("init-system-tasks", "--list")
         assert result.returncode == 0
 
-    def test_init_system_tasks_dry_run_subprocess(self):
-        """Test init-system-tasks --dry-run command via subprocess."""
-        result = self._run_command("init-system-tasks", "--dry-run")
-        assert result.returncode == 0
-        assert "DRY RUN" in result.stdout
-
-    def test_cron_status_subprocess(self):
-        """Test cron status command via subprocess."""
-        result = self._run_command("cron", "status")
-        # Should not fail even if scheduler is not running
-        assert result.returncode == 0
-
     def test_tasks_subcommand_help_subprocess(self):
         """Test tasks subcommand help via subprocess."""
         result = self._run_command("tasks", "--help")
         assert result.returncode == 0
         assert "Task management actions" in result.stdout
-
-    def test_cron_subcommand_help_subprocess(self):
-        """Test cron subcommand help via subprocess."""
-        result = self._run_command("cron", "--help")
-        assert result.returncode == 0
-        assert "Cron management actions" in result.stdout
 
 
 @pytest.mark.integration
@@ -403,12 +342,12 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
     @patch("time.sleep")
     @patch("sys.exit")
     def test_signal_handler_setup(self, mock_exit, mock_sleep, mock_exists, mock_popen):
-        """Test that signal handlers are properly configured in _start_services_simple."""
+        """Test that signal handlers are properly configured in _start_services."""
         command = self._create_command_instance()
         self._setup_mocks_for_start_services(mock_exists, mock_exit, mock_sleep, mock_popen)
         config = get_default_config()
 
-        # Signal handlers are set up inside _start_services_simple
+        # Signal handlers are set up inside _start_services
         with pytest.raises(SystemExit):
             command._start_services(config)
 
@@ -452,8 +391,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
         # Test command building logic without actually running it
         manage_py = Path(__file__).parent.parent.parent / "manage.py"
-        if not manage_py.exists():
-            pytest.skip("manage.py not found")
+        assert manage_py.exists(), f"manage.py not found at {manage_py}"
 
         # Test input validation (this is what we're really testing)
         host = "127.0.0.1"
@@ -482,7 +420,7 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
     @patch("time.sleep")
     @patch("sys.exit")
     def test_dispatcher_command_building(self, mock_exit, mock_sleep, mock_exists, mock_popen):
-        """Test dispatcher command building in _start_services_simple."""
+        """Test dispatcher command building in _start_services."""
         import sys
         from pathlib import Path
 

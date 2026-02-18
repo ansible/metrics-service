@@ -16,9 +16,9 @@ extra_applications = [
 # Default DAB applications layd out from PSF, add/remove according to the project needs,
 # adjust `pyproject` dab extra dependencies acording to apps added/removed here
 dab_applications = [
+    "ansible_base.feature_flags",  # Must be first to ensure table exists before other apps' post_migrate signals
     "ansible_base.activitystream",
     "ansible_base.api_documentation",
-    "ansible_base.feature_flags",
     "ansible_base.jwt_consumer",
     "ansible_base.rbac",
     "ansible_base.resource_registry",
@@ -116,11 +116,12 @@ DATABASES = {
     },
 }
 
-# Feature flags
-# TODO: convert to DAB feature flags
+# Feature flag defaults
+# only used by `metrics_service init-default-settings` (and `... run`)
+# and only used when not already changed in the settings DB table
+# also used by tasks - unless set in the db.
 FEATURE_ENABLED = {
-    "ANONYMIZED_DATA_COLLECTION": True,
-    "METRICS_COLLECTION_ENABLED": False,
+    "ANONYMIZED_DATA_COLLECTION": True,  # Controls all metrics collection, rollup, anonymization, and sending
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"

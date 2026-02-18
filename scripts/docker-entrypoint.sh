@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Metrics Service container..."
+echo "Starting Metrics Service container..."
 
 # Wait for database to be ready
-echo "⏳ Waiting for database to be ready..."
+echo "Waiting for database to be ready..."
 python -c "
 import os, time, psycopg
 host = os.environ.get('METRICS_SERVICE_DATABASES__default__HOST', 'postgres')
@@ -38,21 +38,29 @@ else:
 "
 
 # Run database migrations
-echo "🔄 Running database migrations..."
+echo "Running database migrations..."
 python manage.py migrate --noinput
 
+# Initialize default settings (puts defaults in the Setting DB table)
+echo "Initializing default settings..."
+python manage.py metrics_service init-default-settings
+
 # Initialize ServiceID for Django-Ansible-Base
-echo "🔧 Initializing ServiceID..."
+echo "Initializing ServiceID..."
 python manage.py metrics_service init-service-id
 
+# Initialize system tasks (puts TASK_GROUPS in the Task DB table)
+echo "Initializing system tasks..."
+python manage.py metrics_service init-system-tasks
+
 # Collect static files (if needed)
-echo "📦 Collecting static files..."
-python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection failed (continuing...)"
+echo "Collecting static files..."
+python manage.py collectstatic --noinput --clear || echo "⚠️ Static files collection failed (continuing...)"
 
 # Create logs directory if it doesn't exist (ignore permission errors for bind mounts)
 mkdir -p /app/logs 2>/dev/null || true
 
-echo "🎉 Initialization complete! Starting application..."
+echo "Initialization complete! Starting application..."
 
 # Execute the command passed to the container
 exec "$@"

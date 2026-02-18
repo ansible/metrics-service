@@ -67,92 +67,13 @@ def get_task_and_execution(task_id: int, execution_id: int | None) -> tuple[Any,
     from .models import Task, TaskExecution
 
     with transaction.atomic():
-        task = Task.objects.select_for_update().get(id=task_id)
+        task = Task.objects.get(id=task_id)
         execution = None
 
         if execution_id:
             execution = TaskExecution.objects.get(id=execution_id)
 
     return task, execution
-
-
-def trigger_dependent_tasks(completed_task: Any) -> None:
-    """
-    Trigger tasks that depend on the completed task.
-
-    Args:
-        completed_task: The task that just completed
-    """
-    from .models import Task, TaskDependency
-
-    try:
-        # Find tasks that depend on this completed task
-        dependent_task_ids = TaskDependency.objects.filter(
-            prerequisite_task=completed_task, required_status=completed_task.status
-        ).values_list("dependent_task_id", flat=True)
-
-        # Check each dependent task to see if all its dependencies are satisfied
-        for task_id in dependent_task_ids:
-            try:
-                task = Task.objects.get(id=task_id)
-                if task.is_ready_to_run():
-                    # Import here to avoid circular import
-                    from .tasks import submit_task_to_dispatcher
-
-                    submit_task_to_dispatcher(task)
-                    logger.info(f"Triggered dependent task: {task.name} (ID: {task.id})")
-
-            except Task.DoesNotExist:
-                logger.warning(f"Dependent task {task_id} not found")
-                continue
-
-    except Exception as e:
-        logger.error(f"Error triggering dependent tasks: {str(e)}")
-
-
-def schedule_next_occurrence(task: Any) -> None:
-    """
-    Schedule the next occurrence of a recurring task.
-
-    Args:
-        task: The recurring task to schedule
-    """
-    from .models import Task
-
-    try:
-        if not task.cron_expression:
-            logger.warning(f"Task {task.name} has no cron expression for recurring schedule")
-            return
-
-        # Create a new task instance for the next occurrence
-        next_task = Task.objects.create(
-            name=f"{task.name} (recurring)",
-            function_name=task.function_name,
-            task_data=task.task_data,
-            cron_expression=task.cron_expression,
-            is_recurring=True,
-            priority=task.priority,
-            max_attempts=task.max_attempts,
-            timeout_seconds=task.timeout_seconds,
-            created_by=task.created_by,
-        )
-
-        logger.info(f"Scheduled next occurrence: {next_task.name} (ID: {next_task.id})")
-
-    except Exception as e:
-        logger.error(f"Error scheduling next occurrence for task {task.name}: {str(e)}")
-
-
-def handle_post_execution(task: Any) -> None:
-    """Handle post-execution tasks like dependencies and recurring tasks."""
-    if task.status == "completed":
-        trigger_dependent_tasks(task)
-
-    # For recurring tasks managed via cron scheduler, we don't need to create new instances
-    # The cron scheduler will handle the recurring executions automatically
-    # Only create next occurrences for one-time scheduled recurring tasks
-    if task.is_recurring and task.status == "completed" and not task.cron_expression:
-        schedule_next_occurrence(task)
 
 
 def handle_task_error(
@@ -219,7 +140,7 @@ def handle_task_error(
                 # Increment attempts if the task failed before reaching "running" status
                 # This handles errors that occur during task initialization/validation
                 # If the task reached "running" status, attempts was already incremented
-                if previous_status in ["pending", "waiting_for_dependencies"]:
+                if previous_status in ["pending"]:
                     task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
 
                 task_instance.save()
@@ -299,67 +220,6 @@ def update_task_status(
             if status in ["completed", "failed"]:
                 execution_instance.completed_at = timezone.now()
             execution_instance.save()
-
-
-def get_or_create_execution_record(task_instance: Any, worker_id: str | None = None) -> Any:
-    """
-    Get or create a task execution record.
-
-    This function provides a standardized way to create execution records
-    for tasks, reducing duplication in task execution functions.
-
-    Args:
-        task_instance: The task model instance
-        worker_id (str): Optional worker identifier
-
-    Returns:
-        TaskExecution: The execution record instance
-    """
-    import os
-
-    from .models import TaskExecution
-
-    if worker_id is None:
-        worker_id = f"worker-{os.getpid()}"
-
-    execution = TaskExecution.objects.create(task=task_instance, status="pending", worker_id=worker_id)
-
-    logger.info(f"Created execution record {execution.id} for task {task_instance.id}")
-    return execution
-
-
-def validate_task_data(data: dict[str, Any], required_fields: list[str] | None = None) -> str | None:
-    """
-    Validate task data against required fields.
-
-    This function provides a standardized way to validate task data,
-    reducing duplication across task functions.
-
-    Args:
-        data (dict): The task data to validate
-        required_fields (list): List of required field names
-
-    Returns:
-        str or None: Error message if validation fails, None if valid
-    """
-    if required_fields is None:
-        required_fields = []
-
-    if not isinstance(data, dict):
-        return "Task data must be a dictionary"
-
-    missing_fields = []
-    for field in required_fields:
-        if field not in data or data[field] is None:
-            missing_fields.append(field)
-
-    if missing_fields:
-        # For backwards compatibility, handle special case of task_id
-        if len(missing_fields) == 1 and missing_fields[0] == "task_id":
-            return "No task_id provided"
-        return f"Missing required fields: {', '.join(missing_fields)}"
-
-    return None
 
 
 def create_task_result(status: str, data: dict[str, Any] | None = None, error: str = "") -> dict[str, Any]:

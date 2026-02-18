@@ -86,22 +86,6 @@ class OutputFormatterTestCase(TestCase):
         output = self.stdout.getvalue()
         self.assertEqual(output.strip(), "-" * 20)
 
-    def test_write_header_default(self):
-        """Test write header with default parameters."""
-        self.formatter.write_header("Test Header")
-
-        output = self.stdout.getvalue()
-        lines = output.strip().split("\n")
-        self.assertEqual(lines[0], "Test Header==================================================")
-
-    def test_write_header_custom(self):
-        """Test write header with custom parameters."""
-        self.formatter.write_header("Custom Header", "*", 30)
-
-        output = self.stdout.getvalue()
-        lines = output.strip().split("\n")
-        self.assertEqual(lines[0], "Custom Header******************************")
-
     def test_multiple_messages(self):
         """Test multiple message formatting."""
         self.formatter.success("Success 1")

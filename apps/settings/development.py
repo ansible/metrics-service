@@ -28,19 +28,12 @@ LOGGING__loggers__metrics_service__level = "DEBUG"
 LOGGING__loggers__ansible_base__level = "DEBUG"
 LOGGING__loggers = {
     "dynaconf_merge": True,
-    "apps.tasks.apps": {
-        "handlers": [],
-        "level": "CRITICAL",
-        "propagate": False,
+    # disable autoreload DEBUG - lists all watched files
+    "django.utils.autoreload": {
+        "level": "INFO",
     },
-    "apps.core.apps": {
-        "handlers": [],
-        "level": "CRITICAL",
-        "propagate": False,
-    },
-    "django.template": {
-        "handlers": [],
-        "level": "CRITICAL",
-        "propagate": False,
+    # disable db DEBUG - shows sql for all queries
+    "django.db.backends": {
+        "level": "INFO",
     },
 }

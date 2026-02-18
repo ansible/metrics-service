@@ -17,6 +17,9 @@ python manage.py migrate
 # OR with virtual environment
 .venv/bin/python manage.py migrate
 
+# Initialize Setting table with defaults
+python manage.py metrics_service init-default-settings
+
 # Initialize ServiceID for ansible-base (required)
 python manage.py metrics_service init-service-id
 
@@ -62,11 +65,36 @@ pytest tests/unit/test_models.py
 .venv/bin/python -m pytest --cov=apps --cov=metrics_service --cov-report=term-missing -v
 ```
 
+#### Coverage Measurement Best Practices
+
+**IMPORTANT**: When checking coverage for specific files, always run the FULL test suite (or at least the full test directory) with coverage on the MODULE, not on individual file paths.
+
+```bash
+# ❌ WRONG - Reports 0% or incorrect coverage because module isn't imported
+pytest tests/unit/tasks/test_models.py --cov=apps/tasks/models.py
+
+# ✅ CORRECT - Run all tests in directory with module-level coverage
+uv run pytest tests/unit/tasks/ --cov=apps.tasks
+
+# ✅ CORRECT - Check specific file coverage from full test run
+uv run pytest tests/unit/tasks/ --cov=apps.tasks --cov-report=term-missing | grep "models.py"
+
+# ✅ CORRECT - Full project coverage
+uv run pytest --cov=apps --cov=metrics_service --cov-report=term-missing
+```
+
+**Why this matters:**
+- Coverage tools need the module to be imported during test execution
+- Running isolated tests may not import the target module, resulting in "module not imported" warnings
+- Always use module names (e.g., `apps.tasks`) not file paths (e.g., `apps/tasks/models.py`) in --cov
+- Run comprehensive test suites, not individual test files, when measuring coverage
+
 ### Code Quality
 
 ```bash
 # Format code (120 character line length)
-black .
+ruff format .
+.venv/bin/ruff format .
 
 # Lint code (extensive rule set including security, complexity)
 ruff check .
@@ -79,14 +107,12 @@ ruff check . --fix
 # Fix unsafe issues (use with caution)
 .venv/bin/ruff check . --unsafe-fixes --fix
 
-# Type checking (configured for gradual adoption)
+# Type checking (configured for gradual adoption - NOT actively used)
 mypy .
 
-# Sort imports (black-compatible profile)
-isort .
-
-# Run all quality checks together
-black . && ruff check . --fix && mypy . && isort .
+# Run all quality checks together (format + lint)
+ruff format . && ruff check . --fix
+.venv/bin/ruff format . && .venv/bin/ruff check . --fix
 ```
 
 ### Pre-commit Hooks and Requirements Management
@@ -120,11 +146,47 @@ python manage.py shell
 # Create tasks programmatically in shell
 python manage.py shell
 >>> from apps.tasks.models import Task
->>> task = Task.objects.create(name="Test Task", function_name="cleanup_old_data")
+>>> task = Task.objects.create(name="Test Task", function_name="hello_world")
 
 # Check dispatcherd status and logs
 docker-compose logs -f metrics-dispatcher
 ```
+
+### Running Python Commands with Django
+
+**IMPORTANT:** When running Python commands that import Django apps, you MUST use Django's environment setup.
+
+```bash
+# ❌ WRONG - Direct python -c fails with Django imports
+python -c "from apps.tasks.tasks import TASK_FUNCTIONS"
+# Error: ModuleNotFoundError: No module named 'django'
+
+# ✅ CORRECT - Use manage.py shell -c for Django imports
+python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(len(TASK_FUNCTIONS))"
+.venv/bin/python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(len(TASK_FUNCTIONS))"
+
+# ✅ CORRECT - Multi-line commands with shell -c
+.venv/bin/python manage.py shell -c "
+from apps.tasks.tasks import TASK_FUNCTIONS
+print(f'Total tasks: {len(TASK_FUNCTIONS)}')
+for name in TASK_FUNCTIONS:
+    print(f'  - {name}')
+"
+
+# ✅ CORRECT - Testing uses pytest (pytest-django handles Django setup automatically)
+.venv/bin/python -m pytest tests/unit/tasks/
+pytest tests/unit/tasks/
+
+# ✅ CORRECT - Standalone scripts that don't import Django apps
+python scripts/run_task.py hello_world
+.venv/bin/python scripts/run_task.py hello_world
+```
+
+**When to use each method:**
+- **`manage.py shell -c "..."`** - For one-off commands importing Django apps/models
+- **`pytest`** - For running tests (pytest-django plugin handles Django setup)
+- **`manage.py shell`** - For interactive Python with Django
+- **`python script.py`** - For standalone scripts without Django imports
 
 ### Background Tasks (Dispatcherd)
 
@@ -178,6 +240,9 @@ The `metrics_service` command provides centralized management with a unified ent
 # Run complete service (Django server + task dispatcher + scheduler)
 python manage.py metrics_service run
 
+# Initialize Setting table with defaults
+python manage.py metrics_service init-default-settings
+
 # Initialize ServiceID for ansible-base
 python manage.py metrics_service init-service-id
 
@@ -187,24 +252,12 @@ python manage.py metrics_service init-system-tasks
 # List current system tasks
 python manage.py metrics_service init-system-tasks --list
 
-# Dry run (see what would be done)
-python manage.py metrics_service init-system-tasks --dry-run
-
-# Force update all system tasks
-python manage.py metrics_service init-system-tasks --force
-
 # Task management
-python manage.py metrics_service tasks create --name "My Task" --function "cleanup_old_data"
+python manage.py metrics_service tasks create --name "My Task" --function "hello_world"
 python manage.py metrics_service tasks list
 python manage.py metrics_service tasks show 1
 python manage.py metrics_service tasks cancel 1
 python manage.py metrics_service tasks retry 1
-
-# Cron scheduler management
-python manage.py metrics_service cron start
-python manage.py metrics_service cron stop
-python manage.py metrics_service cron status
-python manage.py metrics_service cron list
 
 # Custom service configuration
 python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 8
@@ -217,10 +270,11 @@ The `metrics_service` command consolidates all service management operations int
 #### Main Commands:
 
 - **`run`** - Start the complete metrics service (Django + dispatcher + scheduler)
+- **`init-default-settings`** - Initialize the Setting DB table with feature flag defaults
+- **`remove-default-settings`** - Remove default settings from the Setting DB table
 - **`init-service-id`** - Initialize ServiceID for ansible-base resource registry
 - **`init-system-tasks`** - Initialize system-defined tasks (cleanup, metrics collection)
 - **`tasks`** - Manage database tasks (create, list, show, cancel, retry)
-- **`cron`** - Manage cron-based task scheduler (start, stop, status, list, add, remove)
 
 #### Command Examples:
 
@@ -228,22 +282,21 @@ The `metrics_service` command consolidates all service management operations int
 # Get help for any command
 python manage.py metrics_service --help
 python manage.py metrics_service tasks --help
-python manage.py metrics_service cron --help
 
 # Run service with custom configuration
 python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4
 
 # Task management
-python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_data" --cron "0 2 * * *"
+python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_tasks" --cron "0 2 * * *"
 python manage.py metrics_service tasks list --status pending --limit 10
 python manage.py metrics_service tasks show 1
 python manage.py metrics_service tasks cancel 1
 python manage.py metrics_service tasks retry 1
 
 # System initialization
+python manage.py metrics_service init-default-settings
 python manage.py metrics_service init-service-id
-python manage.py metrics_service init-system-tasks --list
-python manage.py metrics_service init-system-tasks --dry-run
+python manage.py metrics_service init-system-tasks
 ```
 
 ## Architecture Overview
@@ -299,7 +352,7 @@ The web-based dashboard provides a centralized interface for task management:
 
 The service includes a comprehensive background task system with:
 
-- **Task functions** - `cleanup_old_data`, `cleanup_old_tasks`, `execute_db_task`, `hello_world`
+- **Task functions** - `cleanup_old_tasks`, `cleanup_metrics_data`, `execute_db_task`, `hello_world`
 - **Database-driven tasks** - Tasks defined in DB with dependency management
 - **Dispatcherd integration** - Always enabled, multi-worker task processing with health monitoring
 - **Scheduling** - Cron-like recurring tasks and dependency chains
@@ -360,8 +413,8 @@ GET /api/v1/tasks/?status=pending
 POST /api/v1/tasks/
 {
   "name": "My Task",
-  "function_name": "cleanup_old_data",
-  "task_data": {"days_old": 30},
+  "function_name": "hello_world",
+  "task_data": {},
   "scheduled_time": "2024-09-04T15:30:00Z"  // Optional
 }
 
@@ -387,20 +440,19 @@ The system includes these built-in task functions organized by feature groups:
 
 **System Tasks** (always enabled):
 
-- **`cleanup_old_data`** - Clean up old data from the system
 - **`cleanup_old_tasks`** - Clean up completed/failed tasks
+- **`cleanup_metrics_data`** - Clean up old metrics data
 - **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
+- **`hello_world`** - Simple test task for dispatcherd integration
 
-**Anonymized Data Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`):
+**Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION` feature flag):
 
-- **`collect_anonymous_metrics`** - Collect anonymous system metrics
-- **`collect_config_metrics`** - Collect configuration information
-
-**Metrics Collection** (controlled by `METRICS_COLLECTION_ENABLED`):
-
-- **`collect_host_metrics`** - Collect host performance data
-- **`collect_job_host_summary`** - Collect job execution statistics
-- **`collect_all_metrics`** - Run multiple collectors in sequence
+- **`collect_job_host_summary_hourly`** - Collect job/host summary metrics every hour
+- **`collect_host_metrics_hourly`** - Collect host event module metrics every hour
+- **`collect_main_host_hourly`** - Collect host inventory snapshot every hour
+- **`daily_metrics_rollup`** - Merge hourly collections and collect daily snapshots
+- **`daily_anonymize_and_prepare`** - Anonymize daily rollup and prepare for transmission
+- **`send_anonymized_to_segment`** - Send anonymized metrics to Segment.com
 
 ## Development Notes
 
@@ -422,28 +474,37 @@ Dispatcherd is permanently enabled. Other features can be controlled via the `FE
 
 ```python
 FEATURE_ENABLED = {
-    "DISPATCHERD_ENABLED": True,  # Always True, cannot be disabled
-    "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled
-    "METRICS_COLLECTION_ENABLED": False,  # Default disabled (customer opt-in)
+    "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled (customer opt-out)
 }
 ```
 
 **Environment Variable Mapping:**
 
-- `METRICS_SERVICE_ANONYMIZED_DATA=true/false` → Controls anonymized data collection tasks
-- `METRICS_SERVICE_METRICS_COLLECTION=true/false` → Controls metrics collection tasks
+- `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true/false` → Controls all metrics collection and transmission
 
-**Task Groups Controlled by Feature Enabled:**
+**Task Groups and Feature Flags:**
 
-- **System Tasks** - Always enabled (cleanup, maintenance)
-- **Anonymized Data Collection** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: enabled)
-- **Metrics Collection** - Controlled by `METRICS_COLLECTION_ENABLED` (default: disabled)
+- **System Tasks** - Always enabled (no feature flag required)
+  - `cleanup_old_tasks` - Daily cleanup of old completed/failed tasks
+  - `hello_world` - Hourly health check
+
+- **Metrics Collection Group** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: **enabled**, customer opt-out)
+  - Hourly collection: `collect_job_host_summary_hourly`, `collect_host_metrics_hourly`, `collect_main_host_hourly`
+  - Daily rollup: `daily_metrics_rollup`
+  - Anonymization: `daily_anonymize_and_prepare`
+  - Transmission to Segment: `send_anonymized_to_segment`
+  - Data cleanup: `cleanup_metrics_data`
+
+Note: All metrics tasks are controlled by a single flag since anonymization requires collected data to work. This is an opt-out feature that sends anonymized usage data to Red Hat.
 
 **Automatic Database Initialization:**
 
-Feature flags are automatically created in the `dynamic_settings_setting` table on application startup:
-- If a setting doesn't exist, it's created with the default value from `FEATURE_ENABLED`
-- If a setting already exists, it's not modified (preserves user changes)
+Feature flags are managed in the `dynamic_settings_setting` table:
+- Use `python manage.py metrics_service init-default-settings` to initialize or update default settings
+- The init command updates unchanged defaults to match current configuration but preserves modified settings
+- Modified settings (those with a `previous_value`) are never overwritten by init
+- Use `python manage.py metrics_service remove-default-settings` to remove unchanged default settings from the database
+- The remove command only removes settings that haven't been modified (those without a `previous_value`)
 - Settings can be queried/modified via SQL, Django shell, or API
 
 **Runtime Feature Flag Checking:**
@@ -485,7 +546,7 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 
 **How It Works:**
 
-- \*\* Django logging- we use built in django logging in conjunction with Dynaconf to help us handle out logging level. The logging level is established at app start up and defaults to "INFO". If you need to change the log level, you will have to restart the app after updating the environment variable METRICS_SERVICE_LOG_LEVEL.
+- \*\* Django logging- we use built in django logging in conjunction with Dynaconf to help us handle out logging level. The logging level is established at app start up and defaults to "INFO". If you need to change the log level, you will have to restart the app after updating the environment variable `METRICS_SERVICE_LOG_LEVEL`.
 
 ### Database Configuration
 
@@ -533,6 +594,7 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 
 ### Essential Initialization Steps
 
+- **Setting**: Always run `python manage.py metrics_service init-default-settings` (optional)
 - **ServiceID**: Always run `python manage.py metrics_service init-service-id` after migrations (required for DAB)
 - **System Tasks**: Run `python manage.py metrics_service init-system-tasks` to initialize background tasks
 
@@ -552,9 +614,11 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
 ### Feature Enabled System
 
 - **Configuration**: Use `FEATURE_ENABLED` dict in Django settings or environment variables with `METRICS_SERVICE_` prefix
-- **Task Groups**: System tasks always enabled, anonymized data default enabled, metrics collection default disabled
-- **Environment Variables**: `METRICS_SERVICE_ANONYMIZED_DATA` and `METRICS_SERVICE_METRICS_COLLECTION` control task groups
-- **Runtime Control**: Features can be toggled via database settings or environment variables
+- **Group-Level Control**: Feature flags are applied at the task group level. All tasks in a group share the same feature flag.
+- **Task-Level Override**: Individual tasks can be disabled via `enabled: false` field regardless of the group's feature flag status.
+- **Environment Variables**:
+  - `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION` controls all metrics collection, rollup, anonymization, and transmission (default: **enabled**, customer opt-out)
+- **Runtime Control**: Features can be toggled via database settings or environment variables without service restart
 
 ### Code Organization
 

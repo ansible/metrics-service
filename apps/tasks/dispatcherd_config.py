@@ -198,60 +198,6 @@ def ensure_dispatcherd_configured() -> None:
         raise
 
 
-def update_config_with_database_settings() -> None:
-    """
-    Update the dispatcherd YAML config file with current Django database settings.
-
-    This function reads the current Django database configuration and updates
-    the dispatcherd.yaml file with the correct database connection parameters.
-    """
-    try:
-        import yaml
-        from django.conf import settings as django_settings
-
-        config_file = get_config_file_path()
-
-        # Read existing config
-        if config_file.exists():
-            with open(config_file) as f:
-                config = yaml.safe_load(f)
-        else:
-            config = {}
-
-        # Get Django database settings
-        db_config = django_settings.DATABASES["default"]
-
-        # Update database connection in config
-        if "brokers" not in config:
-            config["brokers"] = {}
-        if "pg_notify" not in config["brokers"]:
-            config["brokers"]["pg_notify"] = {}
-
-        config["brokers"]["pg_notify"]["config"] = {
-            "dbname": db_config["NAME"],
-            "user": db_config["USER"],
-            "password": db_config["PASSWORD"],
-            "host": db_config["HOST"],
-            "port": db_config["PORT"],
-        }
-
-        # Ensure config directory exists
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write updated config
-        with open(config_file, "w") as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-
-        logger.info(f"Updated dispatcherd config file: {config_file}")
-
-    except ImportError:
-        logger.error("PyYAML not available for config file updates")
-        raise
-    except Exception as e:
-        logger.error(f"Failed to update config file: {e}")
-        raise
-
-
 def get_queue_for_function(function_name: str) -> str:
     """
     Get the appropriate queue name for a task function.
@@ -266,9 +212,7 @@ def get_queue_for_function(function_name: str) -> str:
         # System/general tasks
         "hello_world": "metrics_tasks",
         "execute_db_task": "metrics_tasks",
-        "sleep": "metrics_tasks",
         # Cleanup tasks
-        "cleanup_old_data": "metrics_cleanup",
         "cleanup_old_tasks": "metrics_cleanup",
         "cleanup_metrics_data": "metrics_cleanup",
         # Hourly collection tasks
@@ -279,24 +223,6 @@ def get_queue_for_function(function_name: str) -> str:
         "daily_metrics_rollup": "metrics_collectors",
         "daily_anonymize_and_prepare": "metrics_collectors",
         "send_anonymized_to_segment": "metrics_collectors",
-        # Unified collector tasks
-        "collect_single_collector": "metrics_collectors",
-        "collect_metrics": "metrics_collectors",
-        "anonymize_data": "metrics_collectors",
-        "send_to_segment": "metrics_collectors",
-        "full_process": "metrics_collectors",
-        "full_process_anonymize": "metrics_collectors",
-        # Legacy metrics collection task names (backward compatibility)
-        "collect_anonymous_metrics": "metrics_collectors",
-        "collect_config_metrics": "metrics_collectors",
-        "collect_job_host_summary": "metrics_collectors",
-        "collect_host_metrics": "metrics_collectors",
-        "collect_all_metrics": "metrics_collectors",
-        # Metrics-utility tasks
-        "gather_automation_controller_billing_data": "metrics_utility",
-        "build_metrics_report": "metrics_utility",
-        "metrics_utility_health_check": "metrics_utility",
-        "metrics_utility_custom_command": "metrics_utility",
     }
 
     return queue_mapping.get(function_name, "metrics_tasks")

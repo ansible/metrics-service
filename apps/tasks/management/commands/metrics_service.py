@@ -26,10 +26,6 @@ from apps.tasks.services import OutputFormatter
 
 User = get_user_model()
 
-# Constants for repeated messages
-MSG_CRON_NOT_AVAILABLE = "⚠️ Cron scheduler module not available"
-LABEL_TASK_ID = "Task ID"
-
 
 class Command(BaseCommand):
     """
@@ -45,7 +41,6 @@ class Command(BaseCommand):
         """Initialize the command with service instances."""
         super().__init__(*args, **kwargs)
         self.output = OutputFormatter(self.stdout, self.style)
-        self.shutdown_requested = False
 
     def add_arguments(self, parser):
         """Add command line arguments."""
@@ -57,6 +52,10 @@ class Command(BaseCommand):
         self._add_run_arguments(run_parser)
 
         # Init commands
+        init_settings_parser = subparsers.add_parser("init-default-settings", help="Initialize default settings")
+        self._add_init_settings_arguments(init_settings_parser)
+        remove_settings_parser = subparsers.add_parser("remove-default-settings", help="Remove default settings")
+        self._add_remove_settings_arguments(remove_settings_parser)
         subparsers.add_parser("init-service-id", help="Initialize ServiceID for ansible-base")
         init_tasks_parser = subparsers.add_parser("init-system-tasks", help="Initialize system tasks")
         self._add_init_tasks_arguments(init_tasks_parser)
@@ -64,10 +63,6 @@ class Command(BaseCommand):
         # Task management
         tasks_parser = subparsers.add_parser("tasks", help="Manage database tasks")
         self._add_task_management_arguments(tasks_parser)
-
-        # Cron management
-        cron_parser = subparsers.add_parser("cron", help="Manage cron-based task scheduler")
-        self._add_cron_management_arguments(cron_parser)
 
     def _add_run_arguments(self, parser):
         """Add arguments for the run command."""
@@ -112,22 +107,33 @@ class Command(BaseCommand):
             help="Task scheduler check interval in seconds (default: 60)",
         )
 
+    def _add_init_settings_arguments(self, parser):
+        """Add arguments for the init-default-settings command."""
+        parser.add_argument(
+            "--overwrite",
+            action="store_true",
+            help="Remove all known default settings before reinitializing (passes all_known=True to remove)",
+        )
+
+    def _add_remove_settings_arguments(self, parser):
+        """Add arguments for the remove-default-settings command."""
+        parser.add_argument(
+            "--all-known",
+            action="store_true",
+            help="Remove all known default settings (ignores previous_value logic, removes even modified settings)",
+        )
+        parser.add_argument(
+            "--all-settings",
+            action="store_true",
+            help="Remove all settings from database (ignores DEFAULT_SETTINGS known settings list)",
+        )
+
     def _add_init_tasks_arguments(self, parser):
         """Add arguments for the init_system_tasks command."""
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Show what would be done without making changes",
-        )
         parser.add_argument(
             "--list",
             action="store_true",
             help="List current system tasks",
-        )
-        parser.add_argument(
-            "--force",
-            action="store_true",
-            help="Force update all system tasks even if no changes detected",
         )
 
     def _add_task_management_arguments(self, parser):
@@ -142,8 +148,6 @@ class Command(BaseCommand):
         create_parser.add_argument("--description", help="Task description")
         create_parser.add_argument("--scheduled-time", help="Schedule time (YYYY-MM-DD HH:MM:SS)")
         create_parser.add_argument("--cron", help="Cron expression for recurring tasks")
-        create_parser.add_argument("--recurring", action="store_true", help="Mark as recurring")
-        create_parser.add_argument("--priority", type=int, choices=[1, 2, 3, 4], default=2, help="Task priority")
         create_parser.add_argument("--user", help="Username of task creator")
 
         # List tasks
@@ -153,43 +157,15 @@ class Command(BaseCommand):
 
         # Show task details
         show_parser = task_subparsers.add_parser("show", help="Show task details")
-        show_parser.add_argument("task_id", type=int, help=LABEL_TASK_ID)
+        show_parser.add_argument("task_id", type=int, help="Task ID")
 
         # Cancel task
         cancel_parser = task_subparsers.add_parser("cancel", help="Cancel a task")
-        cancel_parser.add_argument("task_id", type=int, help=LABEL_TASK_ID)
+        cancel_parser.add_argument("task_id", type=int, help="Task ID")
 
         # Retry task
         retry_parser = task_subparsers.add_parser("retry", help="Retry a failed task")
-        retry_parser.add_argument("task_id", type=int, help=LABEL_TASK_ID)
-
-    def _add_cron_management_arguments(self, parser):
-        """Add arguments for cron management."""
-        cron_subparsers = parser.add_subparsers(dest="cron_action", help="Cron management actions", required=True)
-
-        # Start scheduler
-        cron_subparsers.add_parser("start", help="Start cron scheduler")
-
-        # Stop scheduler
-        cron_subparsers.add_parser("stop", help="Stop cron scheduler")
-
-        # Show status
-        cron_subparsers.add_parser("status", help="Show cron scheduler status")
-
-        # List tasks
-        cron_subparsers.add_parser("list", help="List cron tasks")
-
-        # Add task
-        add_parser = cron_subparsers.add_parser("add", help="Add a cron task")
-        add_parser.add_argument("--task-id", help="Task ID for add operation")
-        add_parser.add_argument("--function", help="Function name for add operation")
-        add_parser.add_argument("--cron", help="Cron expression for add operation")
-        add_parser.add_argument("--args", help="JSON string of arguments for add operation")
-        add_parser.add_argument("--description", help="Description for add operation")
-
-        # Remove task
-        remove_parser = cron_subparsers.add_parser("remove", help="Remove a cron task")
-        remove_parser.add_argument("--task-id", help="Task ID for remove operation")
+        retry_parser.add_argument("task_id", type=int, help="Task ID")
 
     def handle(self, *args, **options):
         """
@@ -202,14 +178,16 @@ class Command(BaseCommand):
         try:
             if command == "run":
                 self._handle_run_command(options)
+            elif command == "init-default-settings":
+                self._handle_init_default_settings_command(options)
+            elif command == "remove-default-settings":
+                self._handle_remove_default_settings_command(options)
             elif command == "init-service-id":
                 self._handle_init_service_id_command()
             elif command == "init-system-tasks":
                 self._handle_init_system_tasks_command(options)
             elif command == "tasks":
                 self._handle_task_management_command(options)
-            elif command == "cron":
-                self._handle_cron_management_command(options)
             else:
                 self.output.error(f"Unknown command: {command}")
                 sys.exit(1)
@@ -223,10 +201,39 @@ class Command(BaseCommand):
     def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service."""
         try:
+            # auto init before dev run (prod has to handle this using the init-* subcommands)
+            self._handle_init_default_settings_command()
+            self._handle_init_service_id_command()
+            self._handle_init_system_tasks_command(options)
+
             config = self._extract_config(options)
             self._start_services(config)
         except ValueError as e:
             raise CommandError(f"Configuration error: {e}") from e
+
+    def _handle_init_default_settings_command(self, options: dict[str, Any] | None = None) -> None:
+        """Handle the init-default-settings command."""
+        try:
+            from apps.dynamic_settings.utils import initialize_default_settings
+
+            overwrite = options.get("overwrite", False) if options else False
+            initialize_default_settings(overwrite=overwrite)
+            self.output.success("Initialized default settings")
+        except Exception as e:
+            raise CommandError(f"Failed to initialize default settings: {e}") from e
+
+    def _handle_remove_default_settings_command(self, options: dict[str, Any]) -> None:
+        """Handle the remove-default-settings command."""
+        try:
+            from apps.dynamic_settings.utils import remove_default_settings
+
+            all_known = options.get("all_known", False)
+            all_settings = options.get("all_settings", False)
+
+            removed_count = remove_default_settings(all_known=all_known, all_settings=all_settings)
+            self.output.success(f"Removed {removed_count} settings")
+        except Exception as e:
+            raise CommandError(f"Failed to remove default settings: {e}") from e
 
     def _handle_init_service_id_command(self) -> None:
         """Handle the init-service-id command."""
@@ -248,45 +255,28 @@ class Command(BaseCommand):
 
     def _handle_init_system_tasks_command(self, options: dict[str, Any]) -> None:
         """Handle the init_system_tasks command."""
-        try:
-            from apps.tasks.tasks import create_system_tasks
-        except ImportError as e:
-            raise CommandError(f"Failed to import system tasks module: {e}") from e
-
         # Handle --list option
         if options.get("list", False):
             self._list_system_tasks()
             return
 
-        # Handle dry-run option
-        if options.get("dry_run", False):
-            self._handle_dry_run_system_tasks()
-            return
-
         # Execute the initialization
-        self._execute_system_tasks_initialization(create_system_tasks)
-
-    def _handle_dry_run_system_tasks(self):
-        """Handle dry run mode for system tasks initialization."""
-        self.output.warning("🔧 System Tasks Initialization (DRY RUN)")
-        self.output.write_separator()
-        self.output.write("📝 This is a dry run - no changes will be made")
-        self.output.write("")
-        self._list_system_tasks()
-
-    def _execute_system_tasks_initialization(self, create_system_tasks):
-        """Execute the actual system tasks initialization."""
-        self.output.success("🔧 System Tasks Initialization")
-        self.output.write_separator()
+        self.output.info("System Tasks Initialization")
 
         try:
             import time
+
+            from apps.tasks.tasks import create_system_tasks
 
             start_time = time.time()
             results = create_system_tasks()
             elapsed_time = time.time() - start_time
 
             self._display_system_tasks_results(results, elapsed_time)
+            if results.get("error"):
+                raise CommandError(results["error"])
+        except ImportError as e:
+            raise CommandError(f"Failed to import system tasks module: {e}") from e
         except Exception as e:
             raise CommandError(f"❌ Failed to initialize system tasks: {e}") from e
 
@@ -294,13 +284,11 @@ class Command(BaseCommand):
         """Display the results of system tasks initialization."""
         # Display results summary
         self.output.write("")
-        self.output.write("📊 Results:")
+        self.output.write("Results:")
+        if results.get("removed", 0) > 0:
+            self.output.write(f"  Removed: {results['removed']} tasks")
         if results.get("created", 0) > 0:
-            self.output.write(f"  ✅ Created: {results['created']} tasks")
-        if results.get("updated", 0) > 0:
-            self.output.write(f"  🔄 Updated: {results['updated']} tasks")
-        if results.get("skipped", 0) > 0:
-            self.output.write(f"  ⏭️  Skipped: {results['skipped']} tasks (no changes needed)")
+            self.output.write(f"  Created: {results['created']} tasks")
         self.output.write("")
 
         # Display task details
@@ -308,27 +296,17 @@ class Command(BaseCommand):
 
         # Display final summary
         self.output.write_separator()
-        total_processed = results.get("created", 0) + results.get("updated", 0) + results.get("skipped", 0)
-        self.output.success(f"✅ Processed {total_processed} system tasks in {elapsed_time:.2f} seconds")
-        self.output.write("💡 Run 'metric-service init-system-tasks --list' to see current status")
+        self.output.success(f"Recreated {results.get('created', 0)} system tasks in {elapsed_time:.2f} seconds")
+        self.output.write("Run 'python manage.py metrics_service init-system-tasks --list' to see current status")
 
     def _display_task_details(self, results):
         """Display detailed task information."""
         if not results.get("tasks", []):
             return
 
-        self.output.write("📋 Task Details:")
+        self.output.write("Task Details:")
         for task_info in results["tasks"]:
-            if task_info.startswith("Created:"):
-                self.output.write(f"  ✅ {task_info}")
-            elif task_info.startswith("Updated:"):
-                self.output.write(f"  🔄 {task_info}")
-            elif task_info.startswith("Skipped:"):
-                self.output.write(f"  ⏭️  {task_info}")
-            elif task_info.startswith("Error"):
-                self.output.write(f"  ❌ {task_info}")
-            else:
-                self.output.write(f"  ℹ️  {task_info}")
+            self.output.write(f"  {task_info}")
         self.output.write("")
 
     def _list_system_tasks(self):
@@ -352,6 +330,7 @@ class Command(BaseCommand):
         except Exception as e:
             self.output.error(f"❌ Failed to list system tasks: {e}")
 
+    # FIXME
     def _categorize_tasks(self, tasks):
         """Categorize tasks based on their function names."""
         categories = {}
@@ -362,6 +341,7 @@ class Command(BaseCommand):
             categories[category].append(task)
         return categories
 
+    # FIXME
     def _get_task_category(self, task):
         """Determine the category for a task based on its function name."""
         if "cleanup" in task.function_name:
@@ -399,13 +379,11 @@ class Command(BaseCommand):
         else:
             status_icon = "❌"
 
-        recurring_icon = "🔄" if task.is_recurring else "➡️"
-
-        self.output.write(f"  {status_icon} {recurring_icon} {task.name}")
+        self.output.write(f"  {status_icon} {task.name}")
         self.output.write(f"    Function: {task.function_name}")
         if task.cron_expression:
             self.output.write(f"    Schedule: {task.cron_expression}")
-        self.output.write(f"    Priority: {task.priority} | Status: {task.status}")
+        self.output.write(f"    Status: {task.status}")
         self.output.write("")
 
     def _display_summary(self, total_tasks, category_names):
@@ -450,8 +428,6 @@ class Command(BaseCommand):
                 description=options.get("description", ""),
                 scheduled_time=scheduled_time,
                 cron_expression=options.get("cron"),
-                is_recurring=options.get("recurring", False),
-                priority=options.get("priority", 2),
                 created_by=created_by,
             )
 
@@ -503,7 +479,6 @@ class Command(BaseCommand):
         self.output.write(f"Name: {task.name}")
         self.output.write(f"Function: {task.function_name}")
         self.output.write(f"Status: {task.status}")
-        self.output.write(f"Priority: {task.priority}")
         if task.description:
             self.output.write(f"Description: {task.description}")
         if task.task_data:
@@ -546,85 +521,7 @@ class Command(BaseCommand):
         else:
             self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be retried")
 
-    def _handle_cron_start(self) -> None:
-        """Handle cron scheduler start."""
-        try:
-            from apps.tasks.cron_scheduler import start_scheduler
-
-            start_scheduler()
-            self.output.success("✅ Cron scheduler started")
-        except ImportError:
-            self.output.warning(MSG_CRON_NOT_AVAILABLE)
-        except Exception as e:
-            self.output.error(f"❌ Failed to start cron scheduler: {e}")
-
-    def _handle_cron_stop(self) -> None:
-        """Handle cron scheduler stop."""
-        try:
-            from apps.tasks.cron_scheduler import stop_scheduler
-
-            stop_scheduler()
-            self.output.success("✅ Cron scheduler stopped")
-        except ImportError:
-            self.output.warning(MSG_CRON_NOT_AVAILABLE)
-        except Exception as e:
-            self.output.error(f"❌ Failed to stop cron scheduler: {e}")
-
-    def _handle_cron_status(self) -> None:
-        """Handle cron scheduler status."""
-        try:
-            from apps.tasks.cron_scheduler import get_scheduler
-
-            scheduler = get_scheduler()
-            if hasattr(scheduler, "running") and scheduler.running:
-                self.output.success("✅ Cron scheduler is running")
-            else:
-                self.output.warning("⚠️ Cron scheduler is not running")
-        except ImportError:
-            self.output.warning(MSG_CRON_NOT_AVAILABLE)
-        except Exception as e:
-            self.output.error(f"❌ Failed to check cron scheduler status: {e}")
-
-    def _handle_cron_list(self) -> None:
-        """Handle cron jobs listing."""
-        try:
-            from apps.tasks.cron_scheduler import get_scheduler
-
-            scheduler = get_scheduler()
-            jobs = scheduler.get_jobs() if hasattr(scheduler, "get_jobs") else []
-
-            if not jobs:
-                self.output.write("📭 No cron jobs found")
-                return
-
-            self.output.write("📋 Cron Jobs")
-            self.output.write_separator()
-            for job in jobs:
-                self.output.write(f"🕒 {getattr(job, 'id', 'Unknown ID')}")
-                if hasattr(job, "func"):
-                    self.output.write(f"    Function: {job.func}")
-                if hasattr(job, "next_run_time"):
-                    self.output.write(f"    Next run: {job.next_run_time}")
-                self.output.write("")
-        except ImportError:
-            self.output.warning(MSG_CRON_NOT_AVAILABLE)
-        except Exception as e:
-            self.output.error(f"❌ Failed to list cron jobs: {e}")
-
-    def _handle_cron_add(self, options: dict[str, Any]) -> None:
-        """Handle adding cron job."""
-        self.output.warning("⚠️ Cron add functionality not yet implemented")
-
-    def _handle_cron_remove(self, options: dict[str, Any]) -> None:
-        """Handle removing cron job."""
-        self.output.warning("⚠️ Cron remove functionality not yet implemented")
-
     def _start_services(self, config: dict[str, Any]) -> None:
-        """Start services with the given configuration."""
-        # Use new simple process-based approach
-        self._start_services_simple(config)
-
-    def _start_services_simple(self, config: dict[str, Any]) -> None:
         """
         Start all 3 services as separate processes and monitor them.
 
@@ -678,8 +575,10 @@ class Command(BaseCommand):
 
     def _build_service_commands(self, manage_py: str | Path, config: dict[str, Any]) -> list[list[str]]:
         """Build commands for all three services."""
+        # Use -u flag for unbuffered output so print() statements are immediately visible
         django_cmd = [
             sys.executable,
+            "-u",
             str(manage_py),
             "runserver",
             f"{config['host']}:{config['port']}",
@@ -689,6 +588,7 @@ class Command(BaseCommand):
 
         dispatcher_cmd = [
             sys.executable,
+            "-u",
             str(manage_py),
             "run_dispatcherd",
             f"--workers={config['workers']}",
@@ -699,6 +599,7 @@ class Command(BaseCommand):
 
         scheduler_cmd = [
             sys.executable,
+            "-u",
             str(manage_py),
             "run_task_scheduler",
             f"--log-level={config['log_level']}",
@@ -849,27 +750,4 @@ class Command(BaseCommand):
                 raise CommandError(f"Unknown task action: {action}")
         except Exception as e:
             self.output.error(f"Task management error: {e}")
-            sys.exit(1)
-
-    def _handle_cron_management_command(self, options: dict[str, Any]) -> None:
-        """Handle cron management commands."""
-        action = options.get("cron_action")
-
-        try:
-            if action == "start":
-                self._handle_cron_start()
-            elif action == "stop":
-                self._handle_cron_stop()
-            elif action == "status":
-                self._handle_cron_status()
-            elif action == "list":
-                self._handle_cron_list()
-            elif action == "add":
-                self._handle_cron_add(options)
-            elif action == "remove":
-                self._handle_cron_remove(options)
-            else:
-                raise CommandError(f"Unknown cron action: {action}")
-        except Exception as e:
-            self.output.error(f"Cron management error: {e}")
             sys.exit(1)
