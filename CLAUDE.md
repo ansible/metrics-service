@@ -65,6 +65,30 @@ pytest tests/unit/test_models.py
 .venv/bin/python -m pytest --cov=apps --cov=metrics_service --cov-report=term-missing -v
 ```
 
+#### Coverage Measurement Best Practices
+
+**IMPORTANT**: When checking coverage for specific files, always run the FULL test suite (or at least the full test directory) with coverage on the MODULE, not on individual file paths.
+
+```bash
+# ❌ WRONG - Reports 0% or incorrect coverage because module isn't imported
+pytest tests/unit/tasks/test_models.py --cov=apps/tasks/models.py
+
+# ✅ CORRECT - Run all tests in directory with module-level coverage
+uv run pytest tests/unit/tasks/ --cov=apps.tasks
+
+# ✅ CORRECT - Check specific file coverage from full test run
+uv run pytest tests/unit/tasks/ --cov=apps.tasks --cov-report=term-missing | grep "models.py"
+
+# ✅ CORRECT - Full project coverage
+uv run pytest --cov=apps --cov=metrics_service --cov-report=term-missing
+```
+
+**Why this matters:**
+- Coverage tools need the module to be imported during test execution
+- Running isolated tests may not import the target module, resulting in "module not imported" warnings
+- Always use module names (e.g., `apps.tasks`) not file paths (e.g., `apps/tasks/models.py`) in --cov
+- Run comprehensive test suites, not individual test files, when measuring coverage
+
 ### Code Quality
 
 ```bash

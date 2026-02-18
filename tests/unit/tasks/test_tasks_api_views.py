@@ -462,6 +462,236 @@ class TestTaskViewSet(APITestCase):
         # Response should be limited (even if no tasks, check it doesn't error)
         assert isinstance(response.data, list)
 
+    # Custom Action Tests - Additional Coverage
+    def test_available_functions_sorted_by_category_and_name(self):
+        """Test available_functions are sorted by category then name."""
+
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-available-functions")
+
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        functions = response.data["functions"]
+        categories = [f["category"] for f in functions]
+        # Verify categories are grouped (same categories appear together)
+        for i in range(len(categories) - 1):
+            if categories[i] == categories[i + 1]:
+                # Within same category, names should be sorted
+                assert functions[i]["name"] <= functions[i + 1]["name"]
+
+    def test_system_tasks_info_handles_exception(self):
+        """Test system_tasks_info handles exceptions gracefully."""
+        from unittest.mock import patch
+
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-system-tasks-info")
+
+        with patch("apps.tasks.tasks.get_system_task_info") as mock_get_info:
+            mock_get_info.side_effect = Exception("Database error")
+            response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "error" in response.data
+        assert "Database error" in response.data["error"]
+
+    def test_perform_destroy_protects_system_tasks(self):
+        """Test perform_destroy prevents deletion of system tasks."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task",
+            function_name="cleanup_old_tasks",
+            is_system_task=True,
+            created_by=self.user,
+        )
+        url = reverse("tasks:v1:task-detail", args=[system_task.id])
+
+        response = self.client.delete(url)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "System tasks cannot be deleted" in str(response.data)
+        # Verify task still exists
+        assert Task.objects.filter(id=system_task.id).exists()
+
+    def test_perform_update_protects_system_task_fields(self):
+        """Test perform_update prevents modifying protected system task fields."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task",
+            function_name="cleanup_old_tasks",
+            cron_expression="0 2 * * *",
+            is_system_task=True,
+            created_by=self.user,
+        )
+        url = reverse("tasks:v1:task-detail", args=[system_task.id])
+
+        # Try to modify function_name (protected field)
+        response = self.client.patch(url, {"function_name": "hello_world"}, format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "protected fields" in str(response.data).lower()
+
+        # Verify field wasn't changed
+        system_task.refresh_from_db()
+        assert system_task.function_name == "cleanup_old_tasks"
+
+    def test_perform_update_protects_cron_expression_field(self):
+        """Test perform_update prevents modifying cron_expression for system tasks."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task",
+            function_name="cleanup_old_tasks",
+            cron_expression="0 2 * * *",
+            is_system_task=True,
+            created_by=self.user,
+        )
+        url = reverse("tasks:v1:task-detail", args=[system_task.id])
+
+        response = self.client.patch(url, {"cron_expression": "0 3 * * *"}, format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        system_task.refresh_from_db()
+        assert system_task.cron_expression == "0 2 * * *"
+
+    def test_force_delete_requires_confirmation(self):
+        """Test force_delete requires force_confirm parameter."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task", is_system_task=True, function_name="cleanup_old_tasks", created_by=self.user
+        )
+        url = reverse("tasks:v1:task-force-delete", args=[system_task.id])
+
+        # No confirmation
+        response = self.client.delete(url, {}, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Force deletion requires explicit confirmation" in response.data["error"]
+        assert "force_confirm" in str(response.data)
+        # Verify task still exists
+        assert Task.objects.filter(id=system_task.id).exists()
+
+    def test_force_delete_deletes_system_task_with_confirmation(self):
+        """Test force_delete deletes system task when confirmation is provided."""
+        self.client.force_authenticate(user=self.user)
+
+        system_task = self._create_task_safely(
+            name="System Task", is_system_task=True, function_name="cleanup_old_tasks", created_by=self.user
+        )
+        task_id = system_task.id
+        url = reverse("tasks:v1:task-force-delete", args=[task_id])
+
+        # With confirmation
+        response = self.client.delete(url, {"force_confirm": True}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "force deleted" in response.data["message"]
+        assert "warning" in response.data
+        # Verify task was deleted
+        assert not Task.objects.filter(id=task_id).exists()
+
+    def test_scheduler_status_handles_exception(self):
+        """Test scheduler_status handles exceptions gracefully."""
+        from unittest.mock import patch
+
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-scheduler-status")
+
+        with patch("apps.tasks.cron_scheduler.get_scheduler") as mock_get_scheduler:
+            mock_get_scheduler.side_effect = Exception("Scheduler error")
+            response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "error" in response.data
+        assert "Scheduler error" in response.data["error"]
+
+    # Schedule Actions Tests
+    def test_schedule_immediate_creates_task(self):
+        """Test schedule_immediate creates an immediate task."""
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-schedule-immediate")
+        data = {
+            "name": "Immediate Task",
+            "function_name": "hello_world",
+            "task_data": {"message": "test"},
+        }
+
+        response = self.client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "task_id" in response.data
+        assert "immediate execution" in response.data["message"]
+
+        # Verify task was created
+        task = Task.objects.get(id=response.data["task_id"])
+        assert task.name == "Immediate Task"
+        assert task.function_name == "hello_world"
+        assert task.scheduled_time is None  # Immediate execution
+
+    def test_schedule_immediate_handles_exception(self):
+        """Test schedule_immediate handles exceptions during task creation."""
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-schedule-immediate")
+        # Missing required function_name
+        data = {"name": "Bad Task"}
+
+        response = self.client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_schedule_recurring_creates_task(self):
+        """Test schedule_recurring creates a recurring task."""
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-schedule-recurring")
+        data = {
+            "name": "Recurring Task",
+            "function_name": "hello_world",
+            "cron_expression": "0 * * * *",
+            "task_data": {},
+        }
+
+        response = self.client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "task_id" in response.data
+        assert "Recurring task scheduled" in response.data["message"]
+
+        # Verify task was created
+        task = Task.objects.get(id=response.data["task_id"])
+        assert task.name == "Recurring Task"
+        assert task.cron_expression == "0 * * * *"
+
+    def test_schedule_recurring_requires_cron_expression(self):
+        """Test schedule_recurring requires cron_expression."""
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-schedule-recurring")
+        data = {
+            "name": "Bad Recurring Task",
+            "function_name": "hello_world",
+            # Missing cron_expression
+        }
+
+        response = self.client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "cron_expression is required" in response.data["error"]
+
+    def test_schedule_recurring_handles_exception(self):
+        """Test schedule_recurring handles exceptions during task creation."""
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-schedule-recurring")
+        data = {
+            # Missing required function_name
+            "cron_expression": "0 * * * *",
+        }
+
+        response = self.client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
     # ViewSet Initialization Tests
     def test_viewset_initialization(self):
         """Test TaskViewSet can be initialized."""

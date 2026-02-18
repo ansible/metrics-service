@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from apps.tasks.dispatcherd_config import (
+    _load_config_with_django_db,
     build_config_from_django_settings,
     ensure_dispatcherd_configured,
     get_config_file_path,
@@ -80,6 +81,221 @@ class TestSetupDispatcherdConfig:
     # The function is adequately tested through integration tests and the individual
     # helper functions (get_config_file_path, build_config_from_django_settings) are
     # thoroughly tested below.
+
+    @patch("apps.tasks.dispatcherd_config._load_config_with_django_db")
+    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    def test_loads_config_from_file_when_exists(self, mock_logger, mock_get_path, mock_load_config):
+        """Test that setup loads config from file when file exists."""
+        mock_config_file = MagicMock()
+        mock_config_file.exists.return_value = True
+        mock_get_path.return_value = mock_config_file
+
+        mock_config = {"test": "config"}
+        mock_load_config.return_value = mock_config
+
+        mock_dispatcherd = MagicMock()
+        mock_dispatcherd.config._configured = False
+
+        with (
+            patch.dict("sys.modules", {"dispatcherd": mock_dispatcherd, "dispatcherd.config": mock_dispatcherd.config}),
+            patch("builtins.hasattr", return_value=False),
+        ):
+            setup_dispatcherd_config()
+
+        mock_load_config.assert_called_once_with(mock_config_file)
+        mock_dispatcherd.config.setup.assert_called_once_with(mock_config)
+        assert mock_dispatcherd.config._configured is True
+
+    @patch("apps.tasks.dispatcherd_config.build_config_from_django_settings")
+    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    def test_builds_config_from_django_when_file_missing(self, mock_logger, mock_get_path, mock_build_config):
+        """Test that setup builds config from Django settings when file doesn't exist."""
+        mock_config_file = MagicMock()
+        mock_config_file.exists.return_value = False
+        mock_get_path.return_value = mock_config_file
+
+        mock_config = {"test": "config"}
+        mock_build_config.return_value = mock_config
+
+        mock_dispatcherd = MagicMock()
+        mock_dispatcherd.config._configured = False
+
+        with (
+            patch.dict("sys.modules", {"dispatcherd": mock_dispatcherd, "dispatcherd.config": mock_dispatcherd.config}),
+            patch("builtins.hasattr", return_value=False),
+        ):
+            setup_dispatcherd_config()
+
+        mock_build_config.assert_called_once()
+        mock_dispatcherd.config.setup.assert_called_once_with(mock_config)
+        assert mock_dispatcherd.config._configured is True
+
+    @patch("apps.tasks.dispatcherd_config.get_config_file_path")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    def test_raises_and_logs_on_general_exception(self, mock_logger, mock_get_path):
+        """Test that setup raises and logs general exceptions."""
+        mock_get_path.side_effect = Exception("Configuration error")
+
+        mock_dispatcherd = MagicMock()
+        mock_dispatcherd.config._configured = False
+
+        with (
+            patch.dict("sys.modules", {"dispatcherd": mock_dispatcherd, "dispatcherd.config": mock_dispatcherd.config}),
+            patch("builtins.hasattr", return_value=False),
+            pytest.raises(Exception, match="Configuration error"),
+        ):
+            setup_dispatcherd_config()
+
+        mock_logger.error.assert_called()
+        assert "Failed to configure dispatcherd" in str(mock_logger.error.call_args)
+
+
+class TestLoadConfigWithDjangoDb:
+    """Tests for _load_config_with_django_db function."""
+
+    @patch("django.conf.settings")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    @patch("builtins.open")
+    @patch("yaml.safe_load")
+    def test_loads_yaml_and_merges_django_db_config(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
+        """Test that function loads YAML config and merges Django database settings."""
+        # Arrange
+        mock_yaml_config = {
+            "version": 2,
+            "brokers": {
+                "pg_notify": {
+                    "config": {
+                        "dbname": "old_db",
+                        "user": "old_user",
+                    },
+                    "channels": ["existing_channel"],
+                },
+            },
+        }
+        mock_yaml_load.return_value = mock_yaml_config
+
+        mock_settings.DATABASES = {
+            "default": {
+                "NAME": "new_db",
+                "USER": "new_user",
+                "PASSWORD": "new_pass",
+                "HOST": "new_host",
+                "PORT": "5433",
+            }
+        }
+
+        config_file = Path("/test/config.yaml")
+
+        # Act
+        result = _load_config_with_django_db(config_file)
+
+        # Assert
+        # Verify YAML was loaded
+        mock_open.assert_called_once_with(config_file)
+        mock_yaml_load.assert_called_once()
+
+        # Verify database config was overridden with Django settings
+        pg_config = result["brokers"]["pg_notify"]["config"]
+        assert pg_config["dbname"] == "new_db"
+        assert pg_config["user"] == "new_user"
+        assert pg_config["password"] == "new_pass"
+        assert pg_config["host"] == "new_host"
+        assert pg_config["port"] == "5433"
+
+        # Verify logging
+        mock_logger.info.assert_called_once()
+        assert "new_host:5433/new_db" in str(mock_logger.info.call_args)
+
+    @patch("django.conf.settings")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    @patch("builtins.open")
+    @patch("yaml.safe_load")
+    def test_creates_brokers_section_if_missing(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
+        """Test that function creates brokers section if not in YAML."""
+        # Arrange - YAML with no brokers section
+        mock_yaml_config = {"version": 2}
+        mock_yaml_load.return_value = mock_yaml_config
+
+        mock_settings.DATABASES = {
+            "default": {
+                "NAME": "test_db",
+                "USER": "test_user",
+                "PASSWORD": "test_pass",
+                "HOST": "test_host",
+                "PORT": "5432",
+            }
+        }
+
+        config_file = Path("/test/config.yaml")
+
+        # Act
+        result = _load_config_with_django_db(config_file)
+
+        # Assert
+        assert "brokers" in result
+        assert "pg_notify" in result["brokers"]
+        assert "config" in result["brokers"]["pg_notify"]
+
+    @patch("django.conf.settings")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    @patch("builtins.open")
+    @patch("yaml.safe_load")
+    def test_creates_pg_notify_section_if_missing(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
+        """Test that function creates pg_notify section if not in brokers."""
+        # Arrange - YAML with brokers but no pg_notify
+        mock_yaml_config = {"version": 2, "brokers": {"other_broker": {}}}
+        mock_yaml_load.return_value = mock_yaml_config
+
+        mock_settings.DATABASES = {
+            "default": {
+                "NAME": "test_db",
+                "USER": "test_user",
+                "PASSWORD": "test_pass",
+                "HOST": "test_host",
+                "PORT": "5432",
+            }
+        }
+
+        config_file = Path("/test/config.yaml")
+
+        # Act
+        result = _load_config_with_django_db(config_file)
+
+        # Assert
+        assert "pg_notify" in result["brokers"]
+        assert "config" in result["brokers"]["pg_notify"]
+
+    @patch("django.conf.settings")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    @patch("builtins.open")
+    @patch("yaml.safe_load")
+    def test_handles_empty_yaml_file(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
+        """Test that function handles empty YAML file (returns None from safe_load)."""
+        # Arrange - Empty YAML file
+        mock_yaml_load.return_value = None
+
+        mock_settings.DATABASES = {
+            "default": {
+                "NAME": "test_db",
+                "USER": "test_user",
+                "PASSWORD": "test_pass",
+                "HOST": "test_host",
+                "PORT": "5432",
+            }
+        }
+
+        config_file = Path("/test/config.yaml")
+
+        # Act
+        result = _load_config_with_django_db(config_file)
+
+        # Assert
+        # Should create default structure
+        assert "brokers" in result
+        assert "pg_notify" in result["brokers"]
+        assert "config" in result["brokers"]["pg_notify"]
 
 
 class TestBuildConfigFromDjangoSettings:
@@ -203,6 +419,22 @@ class TestEnsureDispatcherdConfigured:
 
         mock_setup_config.assert_not_called()
 
+    @patch("apps.tasks.dispatcherd_config.setup_dispatcherd_config")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    def test_calls_setup_when_not_configured(self, mock_logger, mock_setup_config):
+        """Test that function calls setup when dispatcherd is not configured."""
+        mock_config = MagicMock()
+        mock_config._configured = False
+
+        with (
+            patch.dict("sys.modules", {"dispatcherd": MagicMock(), "dispatcherd.config": mock_config}),
+            patch("builtins.hasattr", return_value=False),
+        ):
+            ensure_dispatcherd_configured()
+
+        mock_setup_config.assert_called_once()
+        mock_logger.info.assert_called_with("Dispatcherd not configured, setting up configuration...")
+
     @patch("apps.tasks.dispatcherd_config.logger")
     def test_raises_on_import_error(self, mock_logger):
         """Test that function raises ImportError when dispatcherd is not available."""
@@ -210,6 +442,25 @@ class TestEnsureDispatcherdConfigured:
             ensure_dispatcherd_configured()
 
         mock_logger.error.assert_called_with("Dispatcherd not available")
+
+    @patch("apps.tasks.dispatcherd_config.setup_dispatcherd_config")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    def test_raises_and_logs_on_general_exception(self, mock_logger, mock_setup_config):
+        """Test that function raises and logs general exceptions from setup."""
+        mock_setup_config.side_effect = Exception("Setup failed")
+
+        mock_config = MagicMock()
+        mock_config._configured = False
+
+        with (
+            patch.dict("sys.modules", {"dispatcherd": MagicMock(), "dispatcherd.config": mock_config}),
+            patch("builtins.hasattr", return_value=False),
+            pytest.raises(Exception, match="Setup failed"),
+        ):
+            ensure_dispatcherd_configured()
+
+        mock_logger.error.assert_called()
+        assert "Failed to ensure dispatcherd configuration" in str(mock_logger.error.call_args)
 
 
 class TestGetQueueForFunction:

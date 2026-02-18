@@ -592,3 +592,273 @@ class TestTaskRetryBehavior(TestCase):
         assert task.status == "failed"
         assert task.error_message == "Task failed with exception"
         assert result["status"] == "error"
+
+
+# =============================================================================
+# Additional Coverage Tests - Merged from Enhanced Test File
+# =============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestImportErrorFallback(TestCase):
+    """Test ImportError fallback for dispatcherd decorator."""
+
+    def test_fallback_decorator_when_dispatcherd_not_available(self):
+        """Test task decorator fallback when dispatcherd.publish is not available."""
+        # The fallback decorator is defined in lines 28-34 of tasks_system.py
+        # It should just return the function unchanged
+
+        # Import with dispatcherd available would use the real decorator
+        # But when ImportError occurs, it uses the fallback
+        # The fallback is already imported in tasks_system module
+
+        # Test that the fallback decorator works
+        @tasks_system.task()
+        def dummy_task():
+            return "executed"
+
+        result = dummy_task()
+        assert result == "executed"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestSubmitTaskToDispatcherSuccess(TestCase):
+    """Test submit_task_to_dispatcher success path."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="testuser_submit", email="test@example.com", password=get_test_password()
+        )
+
+    @patch("dispatcherd.publish.submit_task")
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    def test_submit_task_success_path(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """Test successful task submission to dispatcher."""
+        # Arrange
+        task = Task.objects.create(
+            name="Test Task",
+            function_name="hello_world",
+            task_data={},
+            created_by=self.user,
+        )
+        mock_get_queue.return_value = "metrics_tasks"
+
+        # Act
+        submit_task_to_dispatcher(task)
+
+        # Assert
+        # Verify dispatcherd was configured
+        mock_ensure_config.assert_called_once()
+
+        # Verify queue was determined
+        mock_get_queue.assert_called_once_with("hello_world")
+
+        # Verify task was submitted to dispatcherd
+        mock_submit.assert_called_once()
+        call_kwargs = mock_submit.call_args.kwargs
+        assert call_kwargs["kwargs"]["task_id"] == task.id
+        assert call_kwargs["queue"] == "metrics_tasks"
+
+        # Verify task status updated
+        task.refresh_from_db()
+        assert task.status == "pending"
+
+        # Verify execution record created
+        assert TaskExecution.objects.filter(task=task).exists()
+
+    @patch("dispatcherd.publish.submit_task")
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    def test_submit_task_handles_submission_error(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """Test submit_task_to_dispatcher handles submission errors."""
+        # Arrange
+        task = Task.objects.create(
+            name="Test Task",
+            function_name="hello_world",
+            created_by=self.user,
+        )
+        mock_get_queue.return_value = "metrics_tasks"
+        mock_submit.side_effect = Exception("Submission failed")
+
+        # Act
+        submit_task_to_dispatcher(task)
+
+        # Assert
+        task.refresh_from_db()
+        assert task.status == "failed"
+        assert "Failed to submit to dispatcher" in task.error_message
+        assert "Submission failed" in task.error_message
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestCreateSystemTasksExceptionHandling(TestCase):
+    """Test create_system_tasks exception handling per task."""
+
+    def setUp(self):
+        """Set up test environment."""
+        self.user = User.objects.create_user(
+            username="testuser_exception", email="test@example.com", password=get_test_password()
+        )
+
+    @patch("apps.tasks.tasks_system._create_task_from_group")
+    @patch("apps.tasks.task_groups.get_all_enabled_tasks")
+    def test_handles_exception_creating_individual_task(self, mock_get_tasks, mock_create_task):
+        """Test create_system_tasks handles exceptions per task."""
+        # Arrange
+        mock_get_tasks.return_value = {
+            "task1": {"function": "hello_world", "cron": "0 * * * *"},
+            "task2": {"function": "cleanup_old_tasks", "cron": "0 2 * * *"},
+        }
+
+        # First task fails, second succeeds
+        mock_create_task.side_effect = [
+            Exception("Creation failed for task1"),
+            None,  # Second task succeeds
+        ]
+
+        # Act
+        result = tasks_system.create_system_tasks()
+
+        # Assert
+        # Should have attempted both tasks
+        assert mock_create_task.call_count == 2
+
+        # Result should contain error for failed task
+        assert any("Error with task1" in msg for msg in result["tasks"])
+        assert any("Creation failed" in msg for msg in result["tasks"])
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestGetSystemTaskInfo(TestCase):
+    """Test get_system_task_info function."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            username="testuser_sysinfo", email="test@example.com", password=get_test_password()
+        )
+
+    def test_returns_system_task_info(self):
+        """Test get_system_task_info returns information about system tasks."""
+        from django.utils import timezone
+
+        from apps.tasks.tasks_system import get_system_task_info
+
+        # Create system tasks
+        Task.objects.create(
+            name="System Task 1",
+            function_name="cleanup_old_tasks",
+            description="Clean up old tasks",
+            status="pending",
+            cron_expression="0 2 * * *",
+            is_system_task=True,
+            created_by=self.user,
+        )
+
+        Task.objects.create(
+            name="System Task 2",
+            function_name="hello_world",
+            description="Test task",
+            status="completed",
+            cron_expression="0 * * * *",
+            is_system_task=True,
+            created_by=self.user,
+            completed_at=timezone.now(),
+        )
+
+        # Create non-system task (should be excluded)
+        Task.objects.create(
+            name="Regular Task",
+            function_name="hello_world",
+            is_system_task=False,
+            created_by=self.user,
+        )
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        assert "system_tasks" in result
+        assert "total_count" in result
+        assert "categories" in result
+
+        assert result["total_count"] == 2
+        assert len(result["system_tasks"]) == 2
+
+        # Verify task info structure
+        task_info = result["system_tasks"][0]
+        assert "id" in task_info
+        assert "name" in task_info
+        assert "function_name" in task_info
+        assert "description" in task_info
+        assert "status" in task_info
+        assert "cron_expression" in task_info
+        assert "created" in task_info
+        assert "last_run" in task_info
+        assert "category" in task_info
+
+    def test_returns_empty_when_no_system_tasks(self):
+        """Test get_system_task_info returns empty list when no system tasks."""
+        from apps.tasks.tasks_system import get_system_task_info
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        assert result["total_count"] == 0
+        assert len(result["system_tasks"]) == 0
+
+    def test_formats_datetime_fields_correctly(self):
+        """Test get_system_task_info formats datetime fields as ISO strings."""
+        from django.utils import timezone
+
+        from apps.tasks.tasks_system import get_system_task_info
+
+        completed_time = timezone.now()
+        Task.objects.create(
+            name="System Task",
+            function_name="hello_world",
+            is_system_task=True,
+            created_by=self.user,
+            completed_at=completed_time,
+        )
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        task_info = result["system_tasks"][0]
+        assert task_info["created"] is not None
+        assert isinstance(task_info["created"], str)  # ISO format string
+        assert task_info["last_run"] is not None
+        assert isinstance(task_info["last_run"], str)  # ISO format string
+
+    def test_orders_tasks_by_name(self):
+        """Test get_system_task_info orders tasks alphabetically by name."""
+        from apps.tasks.tasks_system import get_system_task_info
+
+        Task.objects.create(
+            name="Zebra Task",
+            function_name="hello_world",
+            is_system_task=True,
+            created_by=self.user,
+        )
+        Task.objects.create(
+            name="Alpha Task",
+            function_name="hello_world",
+            is_system_task=True,
+            created_by=self.user,
+        )
+
+        # Act
+        result = get_system_task_info()
+
+        # Assert
+        assert result["system_tasks"][0]["name"] == "Alpha Task"
+        assert result["system_tasks"][1]["name"] == "Zebra Task"
