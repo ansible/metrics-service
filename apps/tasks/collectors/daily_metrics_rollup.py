@@ -138,7 +138,11 @@ def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str,
 
 def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, list]:
     """
-    Merge hourly rollups into daily rollups using rollup processors.
+    Merge hourly and daily rollups using rollup processors (REDUCE phase).
+
+    Handles both:
+    - Hourly collectors: Merge 24 hourly collections into daily rollup, check for missing hours
+    - Daily snapshots: Process single daily collection, no hourly checks
 
     Args:
         collections_by_type: Dict mapping collector type to list of HourlyMetricsCollection objects
@@ -160,11 +164,16 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     )
 
     # Rollup processors for each collector type
-    rollup_processors = {
+    # Hourly collectors expect 24 collections (one per hour)
+    hourly_rollup_processors = {
         "job_host_summary_service": JobHostSummaryRollupProcessor(),
         # Note: main_jobevent/EventModulesRollupProcessor removed (temporarily removed)
         "unified_jobs": JobsRollupProcessor(),
         "credentials_service": CredentialsRollupProcessor(),
+    }
+
+    # Daily snapshot collectors expect 1 collection per day
+    daily_rollup_processors = {
         "execution_environments": ExecutionEnvironmentsRollupProcessor(),
     }
 
@@ -172,7 +181,8 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     daily_rollup = {}
     missing_hours = []
 
-    for collector_type, processor in rollup_processors.items():
+    # Process hourly collectors (expect 24 collections)
+    for collector_type, processor in hourly_rollup_processors.items():
         collections = collections_by_type.get(collector_type, [])
 
         # Check for missing hours (should have 24 collections for hourly collectors)
@@ -183,28 +193,18 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         # Merge hourly rollups using rollup processor
         daily_rollup[collector_type] = _aggregate_collector_rollups(collections, processor)
 
+    # Process daily snapshot collectors (expect 1 collection)
+    for collector_type, processor in daily_rollup_processors.items():
+        collections = collections_by_type.get(collector_type, [])
+
+        # For daily snapshots, we just need the rollup data (no merging across hours)
+        if collections:
+            daily_rollup[collector_type] = _aggregate_collector_rollups(collections, processor)
+        else:
+            logger.warning(f"No {collector_type} collection found for summary date")
+            daily_rollup[collector_type] = {}
+
     return daily_rollup, missing_hours
-
-
-def _collect_config_data(db_name: str) -> dict:
-    """
-    Collect config data snapshot.
-
-    Args:
-        db_name: Database name
-
-    Returns:
-        dict: Config data or error dict
-    """
-    from metrics_utility.library.collectors.controller import config
-
-    try:
-        db_connection = get_db_connection(db_name)
-        config_collector = config(db=db_connection)
-        return config_collector.gather()
-    except Exception as e:
-        logger.error(f"Failed to collect config data: {str(e)}")
-        return {"error": str(e)}
 
 
 def _save_daily_summary(
@@ -273,7 +273,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     This task:
     1. Queries all hourly rollup collections for the previous day
     2. Merges hourly rollups into daily rollups using rollup processor merge logic
-    3. Collects config data (simple inline snapshot)
+    3. Extracts daily snapshot data (execution_environments, config)
     4. Creates DailyMetricsSummary record with complete daily rollup
 
     Collectors:
@@ -281,12 +281,11 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
             - job_host_summary_service
             - unified_jobs
             - credentials_service
-        - Daily merged (from HourlyMetricsCollection):
+        - Daily snapshots (from HourlyMetricsCollection):
             - execution_environments
-        - Daily inline:
             - config
 
-    Note: main_host (not in anonymized chain) and main_jobevent (temporarily removed)
+    Note: All collectors are now collected by dedicated tasks following the MAP-REDUCE pattern.
 
     Args:
         **kwargs: Task data containing:
@@ -314,17 +313,21 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         # Merge hourly rollups into daily rollups (REDUCE phase)
         daily_rollup, missing_hours = _merge_hourly_rollups(collections_by_type)
 
-        # Collect config data (still inline since it's a simple snapshot)
-        config_data = _collect_config_data(db_name)
-        daily_rollup["config"] = config_data
+        # Extract config snapshot from daily collections
+        # Config is collected once daily (not hourly), so we get the single collection's data
+        config_collections = collections_by_type.get("config", [])
+        if config_collections:
+            daily_rollup["config"] = config_collections[0].raw_data
+        else:
+            logger.warning("No config collection found for summary date")
+            daily_rollup["config"] = {}
 
-        # Note: unified_jobs, execution_environments, and credentials_service are now
-        # collected by dedicated tasks and merged via _merge_hourly_rollups() above.
-        # main_host removed (not used in anonymized chain).
+        # Note: All collectors (hourly and daily snapshots) are now collected by
+        # dedicated tasks and merged via _merge_hourly_rollups() or extracted above.
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
-            summary_date, daily_rollup, collections_by_type, config_data, missing_hours, kwargs.get("execution_id")
+            summary_date, daily_rollup, collections_by_type, daily_rollup.get("config", {}), missing_hours, kwargs.get("execution_id")
         )
 
         action = "Created" if created else "Updated"

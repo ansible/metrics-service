@@ -184,6 +184,15 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "description": "Collect execution environments snapshot daily",
             "category": "daily_collection",
         },
+        {
+            "task_id": "daily_config",
+            "function": "collect_snapshot_metrics",
+            "cron": "30 1 * * *",  # Daily at 1:30 AM
+            "args": {"collector_type": "config"},
+            "enabled": True,
+            "description": "Collect system configuration snapshot daily",
+            "category": "daily_collection",
+        },
         # Daily Rollup (REDUCE phase)
         {
             "task_id": "daily_metrics_rollup",

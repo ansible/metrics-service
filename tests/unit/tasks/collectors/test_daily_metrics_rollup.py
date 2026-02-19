@@ -5,9 +5,8 @@ Tests cover:
 - _merge_rollup_dataframes: DataFrame restoration from JSON
 - _aggregate_collector_rollups: rollup computation with merged data
 - _collect_and_group_hourly_collections: missing hours detection
-- _collect_config_data: config collection with error handling
 
-Note: _collect_main_host_data, _collect_unified_jobs_data, and _collect_execution_environments_data
+Note: All inline collection functions (_collect_config_data, _collect_main_host_data, etc.)
       were removed in favor of dedicated collector tasks that run independently.
 """
 
@@ -21,7 +20,6 @@ from django.utils import timezone
 from apps.tasks.collectors.daily_metrics_rollup import (
     _aggregate_collector_rollups,
     _collect_and_group_hourly_collections,
-    _collect_config_data,
     _merge_rollup_dataframes,
 )
 
@@ -220,42 +218,3 @@ class TestCollectAndGroupHourlyCollections:
         assert "job_host_summary" in collections_by_type
         assert "main_jobevent" in collections_by_type
         assert "main_host" in collections_by_type
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-class TestCollectConfigData:
-    """Test _collect_config_data function."""
-
-    @patch("apps.tasks.collectors.daily_metrics_rollup.get_db_connection")
-    @patch("metrics_utility.library.collectors.controller.config")
-    def test_collects_config_successfully(self, mock_config_class, mock_get_db):
-        """Test successfully collects config data."""
-        # Arrange
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-
-        mock_collector = MagicMock()
-        mock_collector.gather.return_value = {"version": "1.0", "settings": {}}
-        mock_config_class.return_value = mock_collector
-
-        # Act
-        result = _collect_config_data("awx")
-
-        # Assert
-        assert result == {"version": "1.0", "settings": {}}
-        mock_config_class.assert_called_once_with(db=mock_db)
-
-    @patch("apps.tasks.collectors.daily_metrics_rollup.get_db_connection")
-    @patch("metrics_utility.library.collectors.controller.config")
-    def test_handles_config_collection_error(self, mock_config_class, mock_get_db):
-        """Test handles error during config collection."""
-        # Arrange
-        mock_config_class.side_effect = Exception("Config collection failed")
-
-        # Act
-        result = _collect_config_data("awx")
-
-        # Assert
-        assert "error" in result
-        assert "Config collection failed" in result["error"]

@@ -13,6 +13,7 @@ from metrics_utility.anonymized_rollups.execution_environments_anonymized_rollup
     ExecutionEnvironmentsAnonymizedRollup,
 )
 from metrics_utility.library.collectors.controller import (
+    config,
     execution_environments,
 )
 
@@ -23,11 +24,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_DB_NAME = "awx"
 
 # Registry mapping collector_type to (collector_func, rollup_processor_class)
+# rollup_processor can be None for collectors that don't need processing (e.g., config)
 SNAPSHOT_COLLECTORS = {
     "execution_environments": {
         "collector_func": execution_environments,
         "rollup_processor": ExecutionEnvironmentsAnonymizedRollup,
         "description": "Execution environments snapshot",
+    },
+    "config": {
+        "collector_func": config,
+        "rollup_processor": None,  # Config is raw data, no rollup processing needed
+        "description": "System configuration snapshot",
     },
 }
 
@@ -82,18 +89,22 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
 
         # Collect snapshot data from AWX database (no time range)
         collector = collector_func(db=db_connection)
-        dataframe = collector.gather()
+        raw_data = collector.gather()
 
-        # Compute rollup statistics
-        rollup_processor = rollup_processor_class()
-        rollup_result = rollup_processor.prepare_base(dataframe)
+        # Compute rollup statistics if processor is defined
+        if rollup_processor_class is not None:
+            rollup_processor = rollup_processor_class()
+            rollup_result = rollup_processor.prepare_base(raw_data)
 
-        # Extract rollup data from result
-        # The rollup_result structure varies by processor but typically has 'json' and 'rollup' keys
-        if isinstance(rollup_result, dict):
-            rollup_data = rollup_result.get("json") or rollup_result.get("rollup") or rollup_result
+            # Extract rollup data from result
+            # The rollup_result structure varies by processor but typically has 'json' and 'rollup' keys
+            if isinstance(rollup_result, dict):
+                rollup_data = rollup_result.get("json") or rollup_result.get("rollup") or rollup_result
+            else:
+                rollup_data = rollup_result
         else:
-            rollup_data = rollup_result
+            # No rollup processor - use raw data as-is (e.g., config)
+            rollup_data = raw_data
 
         # Use the current hour timestamp for snapshot collections
         # (HourlyMetricsCollection expects a timestamp even for snapshots)
