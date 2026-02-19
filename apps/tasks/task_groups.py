@@ -149,27 +149,27 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         # Hourly Collection Tasks (MAP phase)
         {
             "task_id": "hourly_job_host_summary",
-            "function": "collect_job_host_summary_hourly",
+            "function": "collect_metrics_generic",
             "cron": "5 * * * *",  # Every hour at XX:05
-            "args": {},
+            "args": {"collector_type": "job_host_summary_service"},
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
             "category": "hourly_collection",
         },
         {
             "task_id": "hourly_unified_jobs",
-            "function": "collect_unified_jobs_hourly",
+            "function": "collect_metrics_generic",
             "cron": "10 * * * *",  # Every hour at XX:10
-            "args": {},
+            "args": {"collector_type": "unified_jobs"},
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
             "category": "hourly_collection",
         },
         {
             "task_id": "hourly_credentials",
-            "function": "collect_credentials_hourly",
+            "function": "collect_metrics_generic",
             "cron": "15 * * * *",  # Every hour at XX:15
-            "args": {},
+            "args": {"collector_type": "credentials_service"},
             "enabled": True,
             "description": "Collect credentials metrics every hour",
             "category": "hourly_collection",
@@ -177,9 +177,9 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         # Daily Snapshot Collection
         {
             "task_id": "daily_execution_environments",
-            "function": "collect_execution_environments_daily",
+            "function": "collect_metrics_generic",
             "cron": "0 1 * * *",  # Daily at 1:00 AM
-            "args": {},
+            "args": {"collector_type": "execution_environments"},
             "enabled": True,
             "description": "Collect execution environments snapshot daily",
             "category": "daily_collection",

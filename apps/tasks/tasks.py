@@ -16,17 +16,13 @@ from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
 # Import collector tasks
-from .collectors.collect_credentials_hourly import collect_credentials_hourly
-from .collectors.collect_execution_environments_daily import collect_execution_environments_daily
-from .collectors.collect_job_host_summary_hourly import collect_job_host_summary_hourly
-from .collectors.collect_unified_jobs_hourly import collect_unified_jobs_hourly
+from .collectors.collect_metrics_generic import collect_metrics_generic
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 
-# Collectors not enabled:
-# - collect_host_metrics_hourly (main_jobevent - temporarily removed)
-# - collect_main_host_hourly (main_host - not in anonymized chain)
+# Note: Individual collector tasks replaced by collect_metrics_generic
+# which handles all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
 from .tasks_system import (
@@ -45,19 +41,12 @@ TASK_FUNCTIONS = {
     "cleanup_old_tasks": cleanup_old_tasks,
     "cleanup_metrics_data": cleanup_metrics_data,
     "execute_db_task": execute_db_task,
-    # Hourly Metrics Collection Tasks (MAP phase)
-    "collect_job_host_summary_hourly": collect_job_host_summary_hourly,
-    "collect_unified_jobs_hourly": collect_unified_jobs_hourly,
-    "collect_credentials_hourly": collect_credentials_hourly,
-    # Daily Snapshot Collection
-    "collect_execution_environments_daily": collect_execution_environments_daily,
+    # Generic Metrics Collection (handles all collector types via collector_type parameter)
+    "collect_metrics_generic": collect_metrics_generic,
     # Daily Rollup and Anonymization Tasks (REDUCE + ANONYMIZE + SEND)
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
-    # Collectors not enabled:
-    # - "collect_host_metrics_hourly": main_jobevent (temporarily removed)
-    # - "collect_main_host_hourly": main_host (not in anonymized chain)
 }
 
 # Enhanced task metadata for dashboard display
@@ -125,12 +114,8 @@ __all__ = [
     "submit_task_to_dispatcher",
     "create_system_tasks",
     "get_system_task_info",
-    # Hourly collection tasks (MAP phase)
-    "collect_job_host_summary_hourly",
-    "collect_unified_jobs_hourly",
-    "collect_credentials_hourly",
-    # Daily collection tasks
-    "collect_execution_environments_daily",
+    # Generic metrics collection (handles all collector types)
+    "collect_metrics_generic",
     # Daily rollup and anonymization tasks (REDUCE + ANONYMIZE + SEND)
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",
