@@ -172,15 +172,10 @@ TASK_METADATA = {
                 "required": True,
                 "description": "Type of collector to run (e.g., execution_environments, config)",
             },
-            "snapshot_date": {
-                "type": "string",
-                "description": "ISO date for the snapshot (defaults to today)",
-            },
         },
         "examples": [
             {"name": "Execution environments", "data": {"collector_type": "execution_environments"}},
             {"name": "System config", "data": {"collector_type": "config"}},
-            {"name": "Specific date", "data": {"collector_type": "config", "snapshot_date": "2024-01-01"}},
         ],
     },
     # Daily Rollup and Anonymization
