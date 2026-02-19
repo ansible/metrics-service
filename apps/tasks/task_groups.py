@@ -146,35 +146,45 @@ METRICS_COLLECTION_GROUP = TaskGroup(
     description="Metrics collection, rollup, anonymization, and transmission to Red Hat",
     feature_flag="ANONYMIZED_DATA_COLLECTION",
     tasks=[
-        # Hourly Collection Tasks
+        # Hourly Collection Tasks (MAP phase)
         {
             "task_id": "hourly_job_host_summary",
             "function": "collect_job_host_summary_hourly",
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {},
             "enabled": True,
-            "description": "Collect job host summary metrics every hour",
+            "description": "Collect job host summary metrics every hour (service variant)",
             "category": "hourly_collection",
         },
         {
-            "task_id": "hourly_host_metrics",
-            "function": "collect_host_metrics_hourly",
+            "task_id": "hourly_unified_jobs",
+            "function": "collect_unified_jobs_hourly",
             "cron": "10 * * * *",  # Every hour at XX:10
             "args": {},
             "enabled": True,
-            "description": "Collect host metrics every hour",
+            "description": "Collect unified jobs metrics every hour",
             "category": "hourly_collection",
         },
         {
-            "task_id": "hourly_main_host",
-            "function": "collect_main_host_hourly",
+            "task_id": "hourly_credentials",
+            "function": "collect_credentials_hourly",
             "cron": "15 * * * *",  # Every hour at XX:15
             "args": {},
             "enabled": True,
-            "description": "Collect main_host metrics every hour",
+            "description": "Collect credentials metrics every hour",
             "category": "hourly_collection",
         },
-        # Daily Rollup
+        # Daily Snapshot Collection
+        {
+            "task_id": "daily_execution_environments",
+            "function": "collect_execution_environments_daily",
+            "cron": "0 1 * * *",  # Daily at 1:00 AM
+            "args": {},
+            "enabled": True,
+            "description": "Collect execution environments snapshot daily",
+            "category": "daily_collection",
+        },
+        # Daily Rollup (REDUCE phase)
         {
             "task_id": "daily_metrics_rollup",
             "function": "daily_metrics_rollup",
