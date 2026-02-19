@@ -16,13 +16,13 @@ from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
 # Import collector tasks
-from .collectors.collect_metrics_generic import collect_metrics_generic
+from .collectors.collect_hourly_metrics import collect_hourly_metrics
+from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 
-# Note: Individual collector tasks replaced by collect_metrics_generic
-# which handles all collector types via collector_type parameter
+# Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
 from .tasks_system import (
@@ -41,8 +41,9 @@ TASK_FUNCTIONS = {
     "cleanup_old_tasks": cleanup_old_tasks,
     "cleanup_metrics_data": cleanup_metrics_data,
     "execute_db_task": execute_db_task,
-    # Generic Metrics Collection (handles all collector types via collector_type parameter)
-    "collect_metrics_generic": collect_metrics_generic,
+    # Metrics Collection (hourly time-series and daily snapshots)
+    "collect_hourly_metrics": collect_hourly_metrics,
+    "collect_snapshot_metrics": collect_snapshot_metrics,
     # Daily Rollup and Anonymization Tasks (REDUCE + ANONYMIZE + SEND)
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
@@ -114,8 +115,9 @@ __all__ = [
     "submit_task_to_dispatcher",
     "create_system_tasks",
     "get_system_task_info",
-    # Generic metrics collection (handles all collector types)
-    "collect_metrics_generic",
+    # Metrics collection (hourly and snapshot)
+    "collect_hourly_metrics",
+    "collect_snapshot_metrics",
     # Daily rollup and anonymization tasks (REDUCE + ANONYMIZE + SEND)
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",

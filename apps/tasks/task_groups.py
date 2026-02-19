@@ -149,7 +149,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         # Hourly Collection Tasks (MAP phase)
         {
             "task_id": "hourly_job_host_summary",
-            "function": "collect_metrics_generic",
+            "function": "collect_hourly_metrics",
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {"collector_type": "job_host_summary_service"},
             "enabled": True,
@@ -158,7 +158,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         },
         {
             "task_id": "hourly_unified_jobs",
-            "function": "collect_metrics_generic",
+            "function": "collect_hourly_metrics",
             "cron": "10 * * * *",  # Every hour at XX:10
             "args": {"collector_type": "unified_jobs"},
             "enabled": True,
@@ -167,7 +167,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         },
         {
             "task_id": "hourly_credentials",
-            "function": "collect_metrics_generic",
+            "function": "collect_hourly_metrics",
             "cron": "15 * * * *",  # Every hour at XX:15
             "args": {"collector_type": "credentials_service"},
             "enabled": True,
@@ -177,7 +177,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         # Daily Snapshot Collection
         {
             "task_id": "daily_execution_environments",
-            "function": "collect_metrics_generic",
+            "function": "collect_snapshot_metrics",
             "cron": "0 1 * * *",  # Daily at 1:00 AM
             "args": {"collector_type": "execution_environments"},
             "enabled": True,

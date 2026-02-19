@@ -20,7 +20,6 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-# Constants
 ERROR_DJANGO_NOT_READY = "ERROR_DJANGO_NOT_READY"
 
 try:

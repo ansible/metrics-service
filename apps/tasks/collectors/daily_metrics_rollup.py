@@ -20,9 +20,10 @@ from ..utils import (
     task,
     task_execution_wrapper,
 )
-from .helpers import DEFAULT_DB_NAME
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_DB_NAME = "awx"
 
 
 def _merge_rollup_dataframes(collections: list, rollup_processor) -> dict | None:
