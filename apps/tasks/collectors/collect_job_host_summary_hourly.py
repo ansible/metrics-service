@@ -1,9 +1,9 @@
 """
 Collect job host summary metrics hourly and compute rollup statistics.
 
-This task collects job_host_summary data for a specific hour and immediately
-computes rollup statistics (MAP phase). Only the aggregated rollup is stored,
-not the raw rows, to save database space.
+This task collects job_host_summary_service data (partition-optimized variant)
+for a specific hour and immediately computes rollup statistics (MAP phase).
+Only the aggregated rollup is stored, not the raw rows, to save database space.
 """
 
 import logging
@@ -22,7 +22,7 @@ def collect_job_host_summary_hourly(**kwargs) -> dict[str, Any]:
     Collect job host summary metrics hourly and compute rollup statistics (MAP phase).
 
     This task:
-    1. Collects raw job_host_summary CSV data from AWX database
+    1. Collects raw job_host_summary_service CSV data from AWX database (partition-optimized)
     2. Computes rollup statistics immediately using JobHostSummaryRollupProcessor
     3. Stores only the rollup statistics in HourlyMetricsCollection
 
@@ -38,11 +38,11 @@ def collect_job_host_summary_hourly(**kwargs) -> dict[str, Any]:
     from metrics_utility.anonymized_rollups.jobhostsummary_anonymized_rollup import (
         JobHostSummaryAnonymizedRollup as JobHostSummaryRollupProcessor,
     )
-    from metrics_utility.library.collectors.controller import job_host_summary
+    from metrics_utility.library.collectors.controller import job_host_summary_service
 
     return _collect_hourly_metrics(
-        collector_name="job_host_summary",
-        collector_func=job_host_summary,
+        collector_name="job_host_summary_service",
+        collector_func=job_host_summary_service,
         rollup_processor=JobHostSummaryRollupProcessor(),
         task_name="collect_job_host_summary_hourly",
         uses_date_range=True,
