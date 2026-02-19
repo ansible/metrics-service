@@ -10,27 +10,36 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from django.utils import timezone
-from metrics_utility.anonymized_rollups import ExecutionEnvironmentsAnonymizedRollup
-from metrics_utility.library.collectors.controller import config, execution_environments
 
 from ..utils import generic_collect_metrics, get_db_connection, task, task_execution_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Registry mapping collector_type to (collector_func, rollup_processor_class)
-# rollup_processor can be None for collectors that don't need processing (e.g., config)
-SNAPSHOT_COLLECTORS = {
-    "execution_environments": {
-        "collector_func": execution_environments,
-        "rollup_processor": ExecutionEnvironmentsAnonymizedRollup,
-        "description": "Execution environments snapshot",
-    },
-    "config": {
-        "collector_func": config,
-        "rollup_processor": None,  # Config is raw data, no rollup processing needed
-        "description": "System configuration snapshot",
-    },
-}
+
+def _get_snapshot_collectors():
+    """
+    Get snapshot collectors registry with lazy imports.
+
+    Lazy imports prevent metrics_utility dependency from breaking
+    unrelated task registration (e.g., hello_world, cleanup_old_tasks).
+    """
+    from metrics_utility.anonymized_rollups import ExecutionEnvironmentsAnonymizedRollup
+    from metrics_utility.library.collectors.controller import config, execution_environments
+
+    # Registry mapping collector_type to (collector_func, rollup_processor_class)
+    # rollup_processor can be None for collectors that don't need processing (e.g., config)
+    return {
+        "execution_environments": {
+            "collector_func": execution_environments,
+            "rollup_processor": ExecutionEnvironmentsAnonymizedRollup,
+            "description": "Execution environments snapshot",
+        },
+        "config": {
+            "collector_func": config,
+            "rollup_processor": None,  # Config is raw data, no rollup processing needed
+            "description": "System configuration snapshot",
+        },
+    }
 
 
 @task(queue="metrics_collectors", decorate=False)
@@ -76,7 +85,7 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     # Use generic collector without time window (snapshot = current state)
     return generic_collect_metrics(
         collector_type=collector_type,
-        collector_registry=SNAPSHOT_COLLECTORS,
+        collector_registry=_get_snapshot_collectors(),
         collection_mode="snapshot",
         timestamp=collection_timestamp,
         db_connection=db_connection,

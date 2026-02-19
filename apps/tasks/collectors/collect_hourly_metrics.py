@@ -10,46 +10,55 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from django.utils import timezone
-from metrics_utility.anonymized_rollups import (
-    CredentialsAnonymizedRollup,
-    EventModulesAnonymizedRollup,
-    JobHostSummaryAnonymizedRollup,
-    JobsAnonymizedRollup,
-)
-from metrics_utility.library.collectors.controller import (
-    credentials_service,
-    job_host_summary_service,
-    main_jobevent_service,
-    unified_jobs,
-)
 
 from ..utils import generic_collect_metrics, get_db_connection, task, task_execution_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Registry mapping collector_type to (collector_func, rollup_processor_class)
-HOURLY_COLLECTORS = {
-    "job_host_summary_service": {
-        "collector_func": job_host_summary_service,
-        "rollup_processor": JobHostSummaryAnonymizedRollup,
-        "description": "Job host summary metrics (partition-optimized)",
-    },
-    "unified_jobs": {
-        "collector_func": unified_jobs,
-        "rollup_processor": JobsAnonymizedRollup,
-        "description": "Unified jobs metrics",
-    },
-    "credentials_service": {
-        "collector_func": credentials_service,
-        "rollup_processor": CredentialsAnonymizedRollup,
-        "description": "Credentials usage metrics",
-    },
-    "main_jobevent_service": {
-        "collector_func": main_jobevent_service,
-        "rollup_processor": EventModulesAnonymizedRollup,
-        "description": "Job events (event modules) metrics",
-    },
-}
+
+def _get_hourly_collectors():
+    """
+    Get hourly collectors registry with lazy imports.
+
+    Lazy imports prevent metrics_utility dependency from breaking
+    unrelated task registration (e.g., hello_world, cleanup_old_tasks).
+    """
+    from metrics_utility.anonymized_rollups import (
+        CredentialsAnonymizedRollup,
+        EventModulesAnonymizedRollup,
+        JobHostSummaryAnonymizedRollup,
+        JobsAnonymizedRollup,
+    )
+    from metrics_utility.library.collectors.controller import (
+        credentials_service,
+        job_host_summary_service,
+        main_jobevent_service,
+        unified_jobs,
+    )
+
+    # Registry mapping collector_type to (collector_func, rollup_processor_class)
+    return {
+        "job_host_summary_service": {
+            "collector_func": job_host_summary_service,
+            "rollup_processor": JobHostSummaryAnonymizedRollup,
+            "description": "Job host summary metrics (partition-optimized)",
+        },
+        "unified_jobs": {
+            "collector_func": unified_jobs,
+            "rollup_processor": JobsAnonymizedRollup,
+            "description": "Unified jobs metrics",
+        },
+        "credentials_service": {
+            "collector_func": credentials_service,
+            "rollup_processor": CredentialsAnonymizedRollup,
+            "description": "Credentials usage metrics",
+        },
+        "main_jobevent_service": {
+            "collector_func": main_jobevent_service,
+            "rollup_processor": EventModulesAnonymizedRollup,
+            "description": "Job events (event modules) metrics",
+        },
+    }
 
 
 @task(queue="metrics_collectors", decorate=False)
@@ -95,7 +104,7 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     # Use generic collector with hourly-specific time window
     return generic_collect_metrics(
         collector_type=collector_type,
-        collector_registry=HOURLY_COLLECTORS,
+        collector_registry=_get_hourly_collectors(),
         collection_mode="hourly",
         timestamp=start_datetime,
         db_connection=db_connection,
