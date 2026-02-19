@@ -6,6 +6,7 @@ statistics, and stores in HourlyMetricsCollection.
 """
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any
 
 from django.utils import timezone
@@ -59,9 +60,15 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
 
     snapshot_timestamp = timezone.now()
 
-    # Use the current hour timestamp for snapshot collections
-    # (HourlyMetricsCollection expects a timestamp even for snapshots)
-    collection_timestamp = snapshot_timestamp.replace(minute=0, second=0, microsecond=0)
+    # FIXME: temporary fix, but this needs more intentionality
+    # Snapshot collections belong to the previous day (the day being summarized)
+    # Use 23:00 of the previous day to ensure they fall within the daily rollup's query window
+    # which is [midnight previous_day, midnight today). This prevents snapshots from falling
+    # outside the rollup query when they run after midnight.
+    previous_day = snapshot_timestamp.date() - timedelta(days=1)
+    collection_timestamp = timezone.make_aware(datetime.combine(previous_day, datetime.min.time())).replace(
+        hour=23, minute=0, second=0, microsecond=0
+    )
 
     # Get database connection
     db_connection = get_db_connection()
