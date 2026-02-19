@@ -103,6 +103,135 @@ TASK_METADATA = {
         },
         "examples": [{"name": "Execute task by ID", "data": {"task_id": 123}}],
     },
+    "cleanup_metrics_data": {
+        "category": "Maintenance",
+        "description": "Clean up old metrics data based on retention policies",
+        "parameters": {
+            "hourly_retention_days": {
+                "type": "integer",
+                "default": 7,
+                "description": "Number of days to retain hourly collection data",
+                "min": 1,
+                "max": 365,
+            },
+            "daily_retention_days": {
+                "type": "integer",
+                "default": 30,
+                "description": "Number of days to retain daily rollup data",
+                "min": 1,
+                "max": 730,
+            },
+            "payload_retention_days": {
+                "type": "integer",
+                "default": 7,
+                "description": "Number of days to retain anonymized payloads",
+                "min": 1,
+                "max": 90,
+            },
+        },
+        "examples": [
+            {"name": "Default retention", "data": {}},
+            {
+                "name": "Custom retention",
+                "data": {"hourly_retention_days": 14, "daily_retention_days": 60, "payload_retention_days": 14},
+            },
+        ],
+    },
+    # Metrics Collection (Hourly and Snapshot)
+    "collect_hourly_metrics": {
+        "category": "Metrics Collection",
+        "description": "Collect hourly time-series metrics for a specific collector type",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Type of collector to run (e.g., job_host_summary_service, unified_jobs, credentials_service)",
+            },
+            "hour_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp for the hour to collect (defaults to current hour)",
+            },
+        },
+        "examples": [
+            {"name": "Job host summary", "data": {"collector_type": "job_host_summary_service"}},
+            {"name": "Unified jobs", "data": {"collector_type": "unified_jobs"}},
+            {"name": "Credentials", "data": {"collector_type": "credentials_service"}},
+            {"name": "Job events", "data": {"collector_type": "main_jobevent_service"}},
+            {
+                "name": "Specific hour",
+                "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
+            },
+        ],
+    },
+    "collect_snapshot_metrics": {
+        "category": "Metrics Collection",
+        "description": "Collect daily snapshot metrics for a specific collector type",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Type of collector to run (e.g., execution_environments, config)",
+            },
+            "snapshot_date": {
+                "type": "string",
+                "description": "ISO date for the snapshot (defaults to today)",
+            },
+        },
+        "examples": [
+            {"name": "Execution environments", "data": {"collector_type": "execution_environments"}},
+            {"name": "System config", "data": {"collector_type": "config"}},
+            {"name": "Specific date", "data": {"collector_type": "config", "snapshot_date": "2024-01-01"}},
+        ],
+    },
+    # Daily Rollup and Anonymization
+    "daily_metrics_rollup": {
+        "category": "Metrics Rollup",
+        "description": "Merge hourly collections and create daily rollup summary",
+        "parameters": {
+            "summary_date": {
+                "type": "string",
+                "description": "ISO date for the rollup (defaults to yesterday)",
+            },
+        },
+        "examples": [
+            {"name": "Default (yesterday)", "data": {}},
+            {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
+        ],
+    },
+    "daily_anonymize_and_prepare": {
+        "category": "Metrics Anonymization",
+        "description": "Anonymize daily rollup and prepare payload for transmission",
+        "parameters": {
+            "summary_date": {
+                "type": "string",
+                "description": "ISO date for the summary to anonymize (defaults to yesterday)",
+            },
+        },
+        "examples": [
+            {"name": "Default (yesterday)", "data": {}},
+            {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
+        ],
+    },
+    "send_anonymized_to_segment": {
+        "category": "Metrics Transmission",
+        "description": "Send anonymized metrics payloads to Segment.com",
+        "parameters": {
+            "summary_date": {
+                "type": "string",
+                "description": "ISO date for the payloads to send (defaults to yesterday)",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "If true, prepare payloads but don't actually send to Segment",
+            },
+        },
+        "examples": [
+            {"name": "Default (yesterday)", "data": {}},
+            {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
+            {"name": "Dry run", "data": {"dry_run": True}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
