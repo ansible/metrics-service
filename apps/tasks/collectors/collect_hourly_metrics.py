@@ -62,6 +62,7 @@ def _get_hourly_collectors():
             "collector_func": main_jobevent_service,
             "rollup_processor": EventModulesAnonymizedRollup,
             "description": "Job events (event modules) metrics",
+            # FIXME(AAP-78081): pass row limit / time-budget cap to collector_func
         },
     }
 
