@@ -11,7 +11,7 @@ Note: All inline collection functions (_collect_config_data, _collect_main_host_
 """
 
 from datetime import date, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest

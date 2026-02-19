@@ -15,15 +15,12 @@ from django.utils import timezone
 
 from ..utils import (
     create_task_result,
-    get_db_connection,
     log_task_execution,
     task,
     task_execution_wrapper,
 )
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_DB_NAME = "awx"
 
 
 def _merge_rollup_dataframes(collections: list, rollup_processor) -> dict | None:
@@ -305,8 +302,6 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     log_task_execution("daily_metrics_rollup", "processing", f"Creating daily rollup for: {summary_date}")
 
     try:
-        db_name = kwargs.get("database", DEFAULT_DB_NAME)
-
         # Query and group hourly collections by type
         collections_by_type, start_datetime, end_datetime = _collect_and_group_hourly_collections(summary_date)
 
@@ -327,7 +322,12 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
-            summary_date, daily_rollup, collections_by_type, daily_rollup.get("config", {}), missing_hours, kwargs.get("execution_id")
+            summary_date,
+            daily_rollup,
+            collections_by_type,
+            daily_rollup.get("config", {}),
+            missing_hours,
+            kwargs.get("execution_id"),
         )
 
         action = "Created" if created else "Updated"

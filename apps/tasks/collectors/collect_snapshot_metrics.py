@@ -21,8 +21,6 @@ from ..utils import create_task_result, get_db_connection, log_task_execution, t
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DB_NAME = "awx"
-
 # Registry mapping collector_type to (collector_func, rollup_processor_class)
 # rollup_processor can be None for collectors that don't need processing (e.g., config)
 SNAPSHOT_COLLECTORS = {
@@ -74,7 +72,6 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     collector_func = config["collector_func"]
     rollup_processor_class = config["rollup_processor"]
 
-    db_name = kwargs.get("database", DEFAULT_DB_NAME)
     snapshot_timestamp = timezone.now()
 
     log_task_execution(
@@ -85,7 +82,7 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
 
     try:
         # Get database connection
-        db_connection = get_db_connection(db_name)
+        db_connection = get_db_connection()
 
         # Collect snapshot data from AWX database (no time range)
         collector = collector_func(db=db_connection)
@@ -128,19 +125,23 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
         )
 
         return create_task_result(
-            status="success",
-            message=f"{action} snapshot collection for {collector_type}",
-            task_type=f"collect_{collector_type}",
-            collection_id=collection.id,
-            collector_type=collector_type,
-            snapshot_timestamp=snapshot_timestamp.isoformat(),
+            "success",
+            {
+                "message": f"{action} snapshot collection for {collector_type}",
+                "task_type": f"collect_{collector_type}",
+                "collection_id": collection.id,
+                "collector_type": collector_type,
+                "snapshot_timestamp": snapshot_timestamp.isoformat(),
+            },
         )
 
     except Exception as e:
         logger.exception(f"Failed to collect {collector_type} snapshot metrics: {str(e)}")
         return create_task_result(
-            status="error",
-            message=f"Collection failed: {str(e)}",
-            task_type=f"collect_{collector_type}",
-            collector_type=collector_type,
+            "error",
+            {
+                "task_type": f"collect_{collector_type}",
+                "collector_type": collector_type,
+            },
+            error=f"Collection failed: {str(e)}",
         )

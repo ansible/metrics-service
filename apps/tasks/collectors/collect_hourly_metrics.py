@@ -33,8 +33,6 @@ from ..utils import create_task_result, get_db_connection, log_task_execution, t
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DB_NAME = "awx"
-
 # Registry mapping collector_type to (collector_func, rollup_processor_class)
 HOURLY_COLLECTORS = {
     "job_host_summary_service": {
@@ -96,8 +94,6 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     collector_func = config["collector_func"]
     rollup_processor_class = config["rollup_processor"]
 
-    db_name = kwargs.get("database", DEFAULT_DB_NAME)
-
     # Determine hour to collect (default to previous full hour)
     hour_timestamp_str = kwargs.get("hour_timestamp")
     if hour_timestamp_str:
@@ -117,7 +113,7 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
 
     try:
         # Get database connection
-        db_connection = get_db_connection(db_name)
+        db_connection = get_db_connection()
 
         # Collect data from AWX database for the hour window
         collector = collector_func(db=db_connection, since=start_datetime, until=end_datetime)
@@ -152,19 +148,23 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         )
 
         return create_task_result(
-            status="success",
-            message=f"{action} hourly collection for {collector_type}",
-            task_type=f"collect_{collector_type}",
-            collection_id=collection.id,
-            collector_type=collector_type,
-            hour_timestamp=start_datetime.isoformat(),
+            "success",
+            {
+                "message": f"{action} hourly collection for {collector_type}",
+                "task_type": f"collect_{collector_type}",
+                "collection_id": collection.id,
+                "collector_type": collector_type,
+                "hour_timestamp": start_datetime.isoformat(),
+            },
         )
 
     except Exception as e:
         logger.exception(f"Failed to collect {collector_type} hourly metrics: {str(e)}")
         return create_task_result(
-            status="error",
-            message=f"Collection failed: {str(e)}",
-            task_type=f"collect_{collector_type}",
-            collector_type=collector_type,
+            "error",
+            {
+                "task_type": f"collect_{collector_type}",
+                "collector_type": collector_type,
+            },
+            error=f"Collection failed: {str(e)}",
         )
