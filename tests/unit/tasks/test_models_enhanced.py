@@ -340,7 +340,7 @@ class TestHourlyMetricsCollection:
         """Test __str__ method (line 378)."""
         # Arrange
         collection = HourlyMetricsCollection.objects.create(
-            collector_type="job_host_summary",
+            collector_type="job_host_summary_service",
             collection_timestamp=timezone.now(),
             raw_data={"test": "data"},
         )
@@ -349,7 +349,7 @@ class TestHourlyMetricsCollection:
         str_repr = str(collection)
 
         # Assert
-        assert "Job Host Summary" in str_repr  # Display name
+        assert "Job Host Summary Service" in str_repr  # Display name
         assert str(collection.collection_timestamp) in str_repr
 
     def test_save_calculates_data_size(self):
