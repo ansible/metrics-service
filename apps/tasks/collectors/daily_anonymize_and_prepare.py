@@ -2,7 +2,7 @@
 Anonymize daily rollup and prepare payload for Segment.
 
 This task fetches the daily rollup summary (containing all 6 collectors),
-combines the four rollup JSONs using anonymize_rollups(), applies salt-based hashing,
+combines the rollup JSONs using anonymize_rollups(), applies salt-based hashing,
 and creates an anonymized payload ready for transmission.
 
 The output is a flattened structure with statistics and arrays ready for Segment.
@@ -33,8 +33,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
 
     This task:
     1. Fetches DailyMetricsSummary (with complete daily rollup, non-anonymized)
-    2. Extracts four rollup JSONs (job_host_summary_service, unified_jobs,
-       execution_environments, credentials_service)
+    2. Extracts rollup JSONs (job_host_summary_service, unified_jobs, execution_environments, credentials_service, main_jobevent_service)
     3. Combines and anonymizes using anonymize_rollups() from metrics-utility
     4. Adds config snapshot data
     5. Creates AnonymizedMetricsPayload record
