@@ -27,7 +27,6 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 # Collectors not enabled:
 # - collect_host_metrics_hourly (main_jobevent - too slow)
 # - collect_main_host_hourly (main_host - not in anonymized chain)
-
 # Import system tasks
 from .simple.hello_world import hello_world
 from .tasks_system import (

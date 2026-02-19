@@ -20,7 +20,7 @@ from ..utils import (
     task,
     task_execution_wrapper,
 )
-from .helpers import DEFAULT_DB_NAME, _compute_rollup_from_dataframe
+from .helpers import DEFAULT_DB_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -151,11 +151,11 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     from metrics_utility.anonymized_rollups.execution_environments_anonymized_rollup import (
         ExecutionEnvironmentsAnonymizedRollup as ExecutionEnvironmentsRollupProcessor,
     )
-    from metrics_utility.anonymized_rollups.jobs_anonymized_rollup import (
-        JobsAnonymizedRollup as JobsRollupProcessor,
-    )
     from metrics_utility.anonymized_rollups.jobhostsummary_anonymized_rollup import (
         JobHostSummaryAnonymizedRollup as JobHostSummaryRollupProcessor,
+    )
+    from metrics_utility.anonymized_rollups.jobs_anonymized_rollup import (
+        JobsAnonymizedRollup as JobsRollupProcessor,
     )
 
     # Rollup processors for each collector type
