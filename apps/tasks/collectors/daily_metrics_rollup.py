@@ -145,8 +145,14 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     Returns:
         tuple: (daily_rollup dict, missing_hours list)
     """
-    from metrics_utility.anonymized_rollups.events_modules_anonymized_rollup import (
-        EventModulesAnonymizedRollup as EventModulesRollupProcessor,
+    from metrics_utility.anonymized_rollups.credentials_anonymized_rollup import (
+        CredentialsAnonymizedRollup as CredentialsRollupProcessor,
+    )
+    from metrics_utility.anonymized_rollups.execution_environments_anonymized_rollup import (
+        ExecutionEnvironmentsAnonymizedRollup as ExecutionEnvironmentsRollupProcessor,
+    )
+    from metrics_utility.anonymized_rollups.jobs_anonymized_rollup import (
+        JobsAnonymizedRollup as JobsRollupProcessor,
     )
     from metrics_utility.anonymized_rollups.jobhostsummary_anonymized_rollup import (
         JobHostSummaryAnonymizedRollup as JobHostSummaryRollupProcessor,
@@ -154,9 +160,11 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
 
     # Rollup processors for each collector type
     rollup_processors = {
-        "job_host_summary": JobHostSummaryRollupProcessor(),
-        "main_jobevent": EventModulesRollupProcessor(),
-        # main_host has no rollup processor - it's a snapshot
+        "job_host_summary_service": JobHostSummaryRollupProcessor(),
+        # Note: main_jobevent/EventModulesRollupProcessor removed (too slow for default enablement)
+        "unified_jobs": JobsRollupProcessor(),
+        "credentials_service": CredentialsRollupProcessor(),
+        "execution_environments": ExecutionEnvironmentsRollupProcessor(),
     }
 
     # Merge hourly rollups into daily rollups (REDUCE phase)
@@ -195,104 +203,6 @@ def _collect_config_data(db_name: str) -> dict:
         return config_collector.gather()
     except Exception as e:
         logger.error(f"Failed to collect config data: {str(e)}")
-        return {"error": str(e)}
-
-
-def _collect_main_host_data(collections_by_type: dict[str, list], db_name: str) -> dict:
-    """
-    Collect main_host snapshot data.
-
-    Args:
-        collections_by_type: Dict mapping collector type to list of collections
-        db_name: Database name
-
-    Returns:
-        dict: main_host data or error dict
-    """
-    from metrics_utility.library.collectors.controller import main_host
-
-    main_host_collections = collections_by_type.get("main_host", [])
-    if main_host_collections:
-        # Use the latest main_host snapshot from the day
-        latest_main_host = main_host_collections[-1]
-        return latest_main_host.raw_data
-
-    # Collect main_host fresh if not in hourly collections
-    try:
-        db_connection = get_db_connection(db_name)
-        main_host_collector = main_host(db=db_connection)
-        records = main_host_collector.gather()
-        return {"records": records, "total_records": len(records)}
-    except Exception as e:
-        logger.error(f"Failed to collect main_host data: {str(e)}")
-        return {"error": str(e)}
-
-
-def _collect_unified_jobs_data(
-    summary_date: date, start_datetime: datetime, end_datetime: datetime, db_name: str
-) -> dict:
-    """
-    Collect unified_jobs data for the full day.
-
-    Args:
-        summary_date: Date being summarized
-        start_datetime: Start of day
-        end_datetime: End of day
-        db_name: Database name
-
-    Returns:
-        dict: unified_jobs rollup data or error dict
-    """
-    from metrics_utility.anonymized_rollups.jobs_anonymized_rollup import JobsAnonymizedRollup as JobsRollupProcessor
-    from metrics_utility.library.collectors.controller import unified_jobs
-
-    try:
-        db_connection = get_db_connection(db_name)
-        unified_jobs_collector = unified_jobs(db=db_connection, since=start_datetime, until=end_datetime)
-        dataframe = unified_jobs_collector.gather()
-
-        # Compute rollup using JobsRollupProcessor
-        unified_jobs_rollup = _compute_rollup_from_dataframe(dataframe, JobsRollupProcessor())
-        unified_jobs_data = unified_jobs_rollup.get("json", {})
-
-        jobs_total = unified_jobs_data.get("jobs_total", 0)
-        logger.info(f"Collected unified_jobs data for {summary_date}: {jobs_total} jobs total")
-        return unified_jobs_data
-    except Exception as e:
-        logger.error(f"Failed to collect unified_jobs data: {str(e)}")
-        return {"error": str(e)}
-
-
-def _collect_execution_environments_data(summary_date: date, db_name: str) -> dict:
-    """
-    Collect execution_environments snapshot data.
-
-    Args:
-        summary_date: Date being summarized
-        db_name: Database name
-
-    Returns:
-        dict: execution_environments rollup data or error dict
-    """
-    from metrics_utility.anonymized_rollups.execution_environments_anonymized_rollup import (
-        ExecutionEnvironmentsAnonymizedRollup as ExecutionEnvironmentsRollupProcessor,
-    )
-    from metrics_utility.library.collectors.controller import execution_environments
-
-    try:
-        db_connection = get_db_connection(db_name)
-        execution_environments_collector = execution_environments(db=db_connection)
-        dataframe = execution_environments_collector.gather()
-
-        # Compute rollup using ExecutionEnvironmentsRollupProcessor
-        ee_rollup = _compute_rollup_from_dataframe(dataframe, ExecutionEnvironmentsRollupProcessor())
-        execution_environments_data = ee_rollup.get("json", {})
-
-        ee_total = execution_environments_data.get("EE_total", 0)
-        logger.info(f"Collected execution_environments data for {summary_date}: {ee_total} EEs total")
-        return execution_environments_data
-    except Exception as e:
-        logger.error(f"Failed to collect execution_environments data: {str(e)}")
         return {"error": str(e)}
 
 
@@ -362,15 +272,20 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     This task:
     1. Queries all hourly rollup collections for the previous day
     2. Merges hourly rollups into daily rollups using rollup processor merge logic
-    3. Collects unified_jobs data (once per day for the full day)
-    4. Collects execution_environments snapshot (once per day)
-    5. Collects config data (once per day)
-    6. Collects main_host snapshot (once per day)
-    7. Creates DailyMetricsSummary record with complete daily rollup
+    3. Collects config data (simple inline snapshot)
+    4. Creates DailyMetricsSummary record with complete daily rollup
 
     Collectors:
-        - Hourly merged: job_host_summary, main_jobevent
-        - Daily collected: unified_jobs, execution_environments, config, main_host
+        - Hourly merged (from HourlyMetricsCollection):
+            - job_host_summary_service
+            - unified_jobs
+            - credentials_service
+        - Daily merged (from HourlyMetricsCollection):
+            - execution_environments
+        - Daily inline:
+            - config
+
+    Note: main_host (not in anonymized chain) and main_jobevent (too slow) removed
 
     Args:
         **kwargs: Task data containing:
@@ -398,17 +313,13 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         # Merge hourly rollups into daily rollups (REDUCE phase)
         daily_rollup, missing_hours = _merge_hourly_rollups(collections_by_type)
 
-        # Collect daily snapshot data
+        # Collect config data (still inline since it's a simple snapshot)
         config_data = _collect_config_data(db_name)
-        main_host_data = _collect_main_host_data(collections_by_type, db_name)
-        unified_jobs_data = _collect_unified_jobs_data(summary_date, start_datetime, end_datetime, db_name)
-        execution_environments_data = _collect_execution_environments_data(summary_date, db_name)
-
-        # Add collected data to daily rollup
-        daily_rollup["main_host"] = main_host_data
         daily_rollup["config"] = config_data
-        daily_rollup["unified_jobs"] = unified_jobs_data
-        daily_rollup["execution_environments"] = execution_environments_data
+
+        # Note: unified_jobs, execution_environments, and credentials_service are now
+        # collected by dedicated tasks and merged via _merge_hourly_rollups() above.
+        # main_host removed (not used in anonymized chain).
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
