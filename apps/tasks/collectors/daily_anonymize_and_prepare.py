@@ -29,18 +29,18 @@ logger = logging.getLogger(__name__)
 @task_execution_wrapper("daily_anonymize_and_prepare")
 def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     """
-    Anonymize daily rollup and prepare payload for Segment.
+    Anonymize daily metrics summary and prepare payload for Segment (ANONYMIZE phase).
 
     This task:
     1. Fetches DailyMetricsSummary (with complete daily rollup, non-anonymized)
-    2. Extracts four rollup JSONs (job_host_summary, main_jobevent, unified_jobs, execution_environments)
+    2. Extracts four rollup JSONs (job_host_summary_service, unified_jobs,
+       execution_environments, credentials_service)
     3. Combines and anonymizes using anonymize_rollups() from metrics-utility
-    4. Adds config and main_host data
+    4. Adds config snapshot data
     5. Creates AnonymizedMetricsPayload record
     6. Does NOT send (separate task handles sending)
 
-    The anonymize_rollups() function produces a flattened structure with
-    statistics, jobs_by_template, job_host_summary, module_stats, etc.
+    Note: events_modules_rollup passed as empty dict (main_jobevent too slow, not enabled)
 
     Args:
         **kwargs: Task data containing:
@@ -84,30 +84,29 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         # - main_host (snapshot)
         # - config (daily collected)
 
-        job_host_summary_rollup = daily_summary.aggregated_metrics.get("job_host_summary", {})
-        main_jobevent_rollup = daily_summary.aggregated_metrics.get("main_jobevent", {})
+        # Extract the four rollup JSONs required by anonymize_rollups()
+        # Note: Keys updated to match new collector_type names (_service variants)
+        job_host_summary_rollup = daily_summary.aggregated_metrics.get("job_host_summary_service", {})
         unified_jobs_rollup = daily_summary.aggregated_metrics.get("unified_jobs", {})
         execution_environments_rollup = daily_summary.aggregated_metrics.get("execution_environments", {})
+        credentials_rollup = daily_summary.aggregated_metrics.get("credentials_service", {})
 
         # Combine and anonymize using anonymize_rollups from metrics-utility
-        # This produces a flattened structure with:
-        # - statistics: combined stats from all rollups
-        # - jobs_by_template: from unified_jobs
-        # - job_host_summary: from job_host_summary
-        # - module_stats: from main_jobevent
-        # - collection_name_stats: from main_jobevent
-        # - modules_used_per_playbook: from main_jobevent
+        # Library signature: (events_modules_rollup, execution_environments_rollup,
+        #                     jobs_rollup, job_host_summary_rollup, credentials_rollup, salt)
+        # Note: events_modules_rollup not collected (main_jobevent too slow), pass empty dict
         anonymized_data = anonymize_rollups(
-            events_modules_rollup=main_jobevent_rollup,
+            events_modules_rollup={},  # main_jobevent collector not enabled (too slow)
             execution_environments_rollup=execution_environments_rollup,
             jobs_rollup=unified_jobs_rollup,
             job_host_summary_rollup=job_host_summary_rollup,
+            credentials_rollup=credentials_rollup,
             salt=salt,
         )
 
-        # Add config and main_host (not part of the rollup anonymization process)
+        # Add config (simple snapshot, not part of rollup anonymization process)
         anonymized_data["config"] = daily_summary.aggregated_metrics.get("config", {})
-        anonymized_data["main_host"] = daily_summary.aggregated_metrics.get("main_host", {})
+        # Note: main_host (not in anonymized chain) and main_jobevent (too slow) not collected
 
         # Add metadata
         aggregation_timestamp = (
