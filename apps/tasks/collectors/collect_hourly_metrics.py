@@ -23,7 +23,7 @@ from metrics_utility.library.collectors.controller import (
     unified_jobs,
 )
 
-from ..utils import create_task_result, get_db_connection, log_task_execution, task, task_execution_wrapper
+from ..utils import generic_collect_metrics, get_db_connection, task, task_execution_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -74,19 +74,9 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     Raises:
         ValueError: If collector_type is missing or invalid
     """
-    from apps.tasks.models import HourlyMetricsCollection
-
     collector_type = kwargs.pop("collector_type", None)
     if not collector_type:
         raise ValueError("collector_type parameter is required")
-
-    if collector_type not in HOURLY_COLLECTORS:
-        valid_types = ", ".join(sorted(HOURLY_COLLECTORS.keys()))
-        raise ValueError(f"Unknown collector_type: {collector_type}. Valid types: {valid_types}")
-
-    config = HOURLY_COLLECTORS[collector_type]
-    collector_func = config["collector_func"]
-    rollup_processor_class = config["rollup_processor"]
 
     # Determine hour to collect (default to previous full hour)
     hour_timestamp_str = kwargs.get("hour_timestamp")
@@ -99,66 +89,15 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     start_datetime = hour_timestamp
     end_datetime = start_datetime + timedelta(hours=1)
 
-    log_task_execution(
-        f"collect_{collector_type}",
-        "processing",
-        f"Collecting {collector_type} for hour: {start_datetime}",
+    # Get database connection
+    db_connection = get_db_connection()
+
+    # Use generic collector with hourly-specific time window
+    return generic_collect_metrics(
+        collector_type=collector_type,
+        collector_registry=HOURLY_COLLECTORS,
+        collection_mode="hourly",
+        timestamp=start_datetime,
+        db_connection=db_connection,
+        collector_kwargs={"since": start_datetime, "until": end_datetime},
     )
-
-    try:
-        # Get database connection
-        db_connection = get_db_connection()
-
-        # Collect data from AWX database for the hour window
-        collector = collector_func(db=db_connection, since=start_datetime, until=end_datetime)
-        dataframe = collector.gather()
-
-        # Compute rollup statistics
-        rollup_processor = rollup_processor_class()
-        rollup_result = rollup_processor.prepare_base(dataframe)
-
-        # Extract rollup data from result
-        # The rollup_result structure varies by processor but typically has 'json' and 'rollup' keys
-        if isinstance(rollup_result, dict):
-            rollup_data = rollup_result.get("json") or rollup_result.get("rollup") or rollup_result
-        else:
-            rollup_data = rollup_result
-
-        # Create or update HourlyMetricsCollection record
-        collection, created = HourlyMetricsCollection.objects.update_or_create(
-            collector_type=collector_type,
-            collection_timestamp=start_datetime,
-            defaults={
-                "raw_data": rollup_data,
-                "collection_completed_at": timezone.now(),
-            },
-        )
-
-        action = "Created" if created else "Updated"
-        log_task_execution(
-            f"collect_{collector_type}",
-            "completed",
-            f"{action} hourly collection ID: {collection.id} for {start_datetime}",
-        )
-
-        return create_task_result(
-            "success",
-            {
-                "message": f"{action} hourly collection for {collector_type}",
-                "task_type": f"collect_{collector_type}",
-                "collection_id": collection.id,
-                "collector_type": collector_type,
-                "hour_timestamp": start_datetime.isoformat(),
-            },
-        )
-
-    except Exception as e:
-        logger.exception(f"Failed to collect {collector_type} hourly metrics: {str(e)}")
-        return create_task_result(
-            "error",
-            {
-                "task_type": f"collect_{collector_type}",
-                "collector_type": collector_type,
-            },
-            error=f"Collection failed: {str(e)}",
-        )

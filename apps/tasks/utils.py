@@ -471,3 +471,65 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
     except Exception as e:
         logger.error(f"Error sending data to Segment.com: {str(e)}")
         return f"error: {str(e)}"
+
+
+def generic_collect_metrics(
+    collector_type: str,
+    collector_registry: dict[str, dict[str, Any]],
+    collection_mode: str,
+    timestamp: Any,
+    db_connection: Any,
+    collector_kwargs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Generic metrics collection for hourly/snapshot collectors with optional rollup processing."""
+    from apps.tasks.models import HourlyMetricsCollection
+
+    if collector_type not in collector_registry:
+        valid = ", ".join(sorted(collector_registry.keys()))
+        raise ValueError(f"Unknown collector_type: {collector_type}. Valid types: {valid}")
+
+    config = collector_registry[collector_type]
+    log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")
+
+    try:
+        collector = config["collector_func"](db=db_connection, **(collector_kwargs or {}))
+        raw_data = collector.gather()
+
+        # Process rollup if processor provided, otherwise use raw data
+        if config["rollup_processor"]:
+            rollup_result = config["rollup_processor"]().prepare_base(raw_data)
+            rollup_data = (
+                rollup_result.get("json") or rollup_result.get("rollup") or rollup_result
+                if isinstance(rollup_result, dict)
+                else rollup_result
+            )
+        else:
+            rollup_data = raw_data
+
+        collection, created = HourlyMetricsCollection.objects.update_or_create(
+            collector_type=collector_type,
+            collection_timestamp=timestamp,
+            defaults={"raw_data": rollup_data, "collection_completed_at": timezone.now()},
+        )
+
+        action = "Created" if created else "Updated"
+        log_task_execution(f"collect_{collector_type}", "completed", f"{action} {collection_mode} ID: {collection.id}")
+
+        return create_task_result(
+            "success",
+            {
+                "message": f"{action} {collection_mode} collection for {collector_type}",
+                "task_type": f"collect_{collector_type}",
+                "collection_id": collection.id,
+                "collector_type": collector_type,
+                "timestamp": timestamp.isoformat(),
+            },
+        )
+
+    except Exception as e:
+        logger.exception(f"Failed to collect {collector_type} {collection_mode} metrics: {str(e)}")
+        return create_task_result(
+            "error",
+            {"task_type": f"collect_{collector_type}", "collector_type": collector_type},
+            error=f"Collection failed: {str(e)}",
+        )

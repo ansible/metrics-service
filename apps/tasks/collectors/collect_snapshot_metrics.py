@@ -12,7 +12,7 @@ from django.utils import timezone
 from metrics_utility.anonymized_rollups import ExecutionEnvironmentsAnonymizedRollup
 from metrics_utility.library.collectors.controller import config, execution_environments
 
-from ..utils import create_task_result, get_db_connection, log_task_execution, task, task_execution_wrapper
+from ..utils import generic_collect_metrics, get_db_connection, task, task_execution_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -53,90 +53,25 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     Raises:
         ValueError: If collector_type is missing or invalid
     """
-    from apps.tasks.models import HourlyMetricsCollection
-
     collector_type = kwargs.pop("collector_type", None)
     if not collector_type:
         raise ValueError("collector_type parameter is required")
 
-    if collector_type not in SNAPSHOT_COLLECTORS:
-        valid_types = ", ".join(sorted(SNAPSHOT_COLLECTORS.keys()))
-        raise ValueError(f"Unknown collector_type: {collector_type}. Valid types: {valid_types}")
-
-    config = SNAPSHOT_COLLECTORS[collector_type]
-    collector_func = config["collector_func"]
-    rollup_processor_class = config["rollup_processor"]
-
     snapshot_timestamp = timezone.now()
 
-    log_task_execution(
-        f"collect_{collector_type}",
-        "processing",
-        f"Collecting {collector_type} snapshot at: {snapshot_timestamp}",
+    # Use the current hour timestamp for snapshot collections
+    # (HourlyMetricsCollection expects a timestamp even for snapshots)
+    collection_timestamp = snapshot_timestamp.replace(minute=0, second=0, microsecond=0)
+
+    # Get database connection
+    db_connection = get_db_connection()
+
+    # Use generic collector without time window (snapshot = current state)
+    return generic_collect_metrics(
+        collector_type=collector_type,
+        collector_registry=SNAPSHOT_COLLECTORS,
+        collection_mode="snapshot",
+        timestamp=collection_timestamp,
+        db_connection=db_connection,
+        collector_kwargs={},  # No time range for snapshots
     )
-
-    try:
-        # Get database connection
-        db_connection = get_db_connection()
-
-        # Collect snapshot data from AWX database (no time range)
-        collector = collector_func(db=db_connection)
-        raw_data = collector.gather()
-
-        # Compute rollup statistics if processor is defined
-        if rollup_processor_class is not None:
-            rollup_processor = rollup_processor_class()
-            rollup_result = rollup_processor.prepare_base(raw_data)
-
-            # Extract rollup data from result
-            # The rollup_result structure varies by processor but typically has 'json' and 'rollup' keys
-            if isinstance(rollup_result, dict):
-                rollup_data = rollup_result.get("json") or rollup_result.get("rollup") or rollup_result
-            else:
-                rollup_data = rollup_result
-        else:
-            # No rollup processor - use raw data as-is (e.g., config)
-            rollup_data = raw_data
-
-        # Use the current hour timestamp for snapshot collections
-        # (HourlyMetricsCollection expects a timestamp even for snapshots)
-        collection_timestamp = snapshot_timestamp.replace(minute=0, second=0, microsecond=0)
-
-        # Create or update HourlyMetricsCollection record
-        collection, created = HourlyMetricsCollection.objects.update_or_create(
-            collector_type=collector_type,
-            collection_timestamp=collection_timestamp,
-            defaults={
-                "raw_data": rollup_data,
-                "collection_completed_at": timezone.now(),
-            },
-        )
-
-        action = "Created" if created else "Updated"
-        log_task_execution(
-            f"collect_{collector_type}",
-            "completed",
-            f"{action} snapshot collection ID: {collection.id} at {snapshot_timestamp}",
-        )
-
-        return create_task_result(
-            "success",
-            {
-                "message": f"{action} snapshot collection for {collector_type}",
-                "task_type": f"collect_{collector_type}",
-                "collection_id": collection.id,
-                "collector_type": collector_type,
-                "snapshot_timestamp": snapshot_timestamp.isoformat(),
-            },
-        )
-
-    except Exception as e:
-        logger.exception(f"Failed to collect {collector_type} snapshot metrics: {str(e)}")
-        return create_task_result(
-            "error",
-            {
-                "task_type": f"collect_{collector_type}",
-                "collector_type": collector_type,
-            },
-            error=f"Collection failed: {str(e)}",
-        )
