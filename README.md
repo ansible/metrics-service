@@ -120,9 +120,8 @@ GET /api/v1/tasks/available_functions/
 **Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled, customer opt-out):
 
 **Hourly Collection Tasks**:
-- `collect_job_host_summary_hourly` - Collect job/host summary metrics every hour
-- `collect_host_metrics_hourly` - Collect host event module metrics every hour
-- `collect_main_host_hourly` - Collect host inventory snapshot every hour
+- `collect_hourly_metrics` - Collect metrics every hour
+- `collect_snapshot_metrics` - Collect daily metrics
 
 **Daily Rollup and Anonymization Tasks**:
 

@@ -40,8 +40,6 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     5. Creates AnonymizedMetricsPayload record
     6. Does NOT send (separate task handles sending)
 
-    Note: events_modules_rollup passed as empty dict (main_jobevent temporarily removed)
-
     Args:
         **kwargs: Task data containing:
             - summary_date (str): Date to anonymize (YYYY-MM-DD, defaults to yesterday)
@@ -53,9 +51,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     from django.db import transaction
 
     # Import from metrics-utility (will fail if not available)
-    from metrics_utility.anonymized_rollups.anonymized_rollups import (
-        anonymize_rollups,
-    )
+    from metrics_utility.anonymized_rollups import anonymize_rollups
 
     from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
@@ -71,47 +67,25 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     try:
         # Get daily summary (merged rollup but not anonymized)
         daily_summary = DailyMetricsSummary.objects.get(summary_date=summary_date, status="aggregated")
+        metrics = daily_summary.aggregated_metrics
 
-        # Generate or use provided salt
-        salt = kwargs.get("salt", generate_salt())
-
-        # Extract the four rollup JSONs from daily_metrics_rollup
-        # aggregated_metrics now contains all six collectors:
-        # - job_host_summary (hourly merged)
-        # - main_jobevent (hourly merged)
-        # - unified_jobs (daily collected)
-        # - execution_environments (daily collected)
-        # - main_host (snapshot)
-        # - config (daily collected)
-
-        # Extract the four rollup JSONs required by anonymize_rollups()
-        # Note: Keys updated to match new collector_type names (_service variants)
-        job_host_summary_rollup = daily_summary.aggregated_metrics.get("job_host_summary_service", {})
-        unified_jobs_rollup = daily_summary.aggregated_metrics.get("unified_jobs", {})
-        execution_environments_rollup = daily_summary.aggregated_metrics.get("execution_environments", {})
-        credentials_rollup = daily_summary.aggregated_metrics.get("credentials_service", {})
-
-        # Combine and anonymize using anonymize_rollups from metrics-utility
-        # Library signature: (events_modules_rollup, execution_environments_rollup,
-        #                     jobs_rollup, job_host_summary_rollup, credentials_rollup, salt)
-        # Note: events_modules_rollup not collected (main_jobevent temporarily removed), pass empty dict
         anonymized_data = anonymize_rollups(
-            events_modules_rollup={},  # main_jobevent collector (temporarily removed)
-            execution_environments_rollup=execution_environments_rollup,
-            jobs_rollup=unified_jobs_rollup,
-            job_host_summary_rollup=job_host_summary_rollup,
-            credentials_rollup=credentials_rollup,
-            salt=salt,
+            events_modules_rollup=metrics.get("main_jobevent_service", {}),
+            execution_environments_rollup=metrics.get("execution_environments", {}),
+            jobs_rollup=metrics.get("unified_jobs", {}),
+            job_host_summary_rollup=metrics.get("job_host_summary_service", {}),
+            credentials_rollup=metrics.get("credentials_service", {}),
+            salt=kwargs.get("salt", generate_salt()),
         )
 
-        # Add config (simple snapshot, not part of rollup anonymization process)
-        anonymized_data["config"] = daily_summary.aggregated_metrics.get("config", {})
-        # Note: main_host (not in anonymized chain) and main_jobevent (temporarily removed)
+        # Add config (simple snapshot, no anonymization)
+        anonymized_data["config"] = metrics.get("config", {})
 
         # Add metadata
         aggregation_timestamp = (
             daily_summary.aggregation_completed_at.isoformat() if daily_summary.aggregation_completed_at else None
         )
+
         anonymized_data["summary_metadata"] = {
             "summary_date": str(summary_date),
             "hourly_collections_count": daily_summary.hourly_collections_count,

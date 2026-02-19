@@ -25,7 +25,7 @@ from apps.tasks.collectors.daily_anonymize_and_prepare import (
 class TestDailyAnonymizeAndPrepare:
     """Test daily_anonymize_and_prepare task."""
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_success_path_creates_payload(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
         """Test successful anonymization creates AnonymizedMetricsPayload."""
@@ -71,12 +71,11 @@ class TestDailyAnonymizeAndPrepare:
         assert payload.daily_summary == daily_summary
 
         # Verify anonymized data includes required sections
-        # Note: main_host removed (not in anonymized chain), main_jobevent (temporarily removed)
         assert "statistics" in payload.anonymized_data
         assert "config" in payload.anonymized_data
         assert "summary_metadata" in payload.anonymized_data
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_updates_daily_summary_status_to_anonymized(
         self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory
@@ -104,7 +103,7 @@ class TestDailyAnonymizeAndPrepare:
         daily_summary.refresh_from_db()
         assert daily_summary.status == "anonymized"
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_uses_atomic_transaction(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
         """Test uses atomic transaction by simulating database error."""
@@ -138,7 +137,7 @@ class TestDailyAnonymizeAndPrepare:
         daily_summary.refresh_from_db()
         assert daily_summary.status == "aggregated"
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_adds_config_data(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
         """Test adds config data to anonymized data."""
@@ -169,9 +168,8 @@ class TestDailyAnonymizeAndPrepare:
 
         payload = AnonymizedMetricsPayload.objects.get(id=result["payload_id"])
         assert payload.anonymized_data["config"] == config_data
-        # Note: main_host removed (not in anonymized chain)
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_adds_summary_metadata(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
         """Test adds summary metadata to anonymized data."""
@@ -209,7 +207,7 @@ class TestDailyAnonymizeAndPrepare:
         assert metadata["missing_hours"] == [5]
         assert metadata["aggregation_timestamp"] == aggregation_time.isoformat()
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     def test_uses_provided_salt(self, mock_anonymize_rollups, daily_summary_factory):
         """Test uses provided salt when given in kwargs."""
         # Arrange
@@ -237,7 +235,7 @@ class TestDailyAnonymizeAndPrepare:
         call_kwargs = mock_anonymize_rollups.call_args.kwargs
         assert call_kwargs["salt"] == provided_salt
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_generates_salt_when_not_provided(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
         """Test generates salt using generate_salt() when not provided."""
@@ -282,7 +280,7 @@ class TestDailyAnonymizeAndPrepare:
         assert "No daily summary found" in result["error"]
         assert summary_date.isoformat() in result["error"]
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_defaults_to_yesterday_when_no_date_provided(
         self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory
@@ -311,7 +309,7 @@ class TestDailyAnonymizeAndPrepare:
         assert result["status"] == "success"
         assert result["summary_date"] == str(yesterday)
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_sets_custom_event_name_when_provided(
         self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory
@@ -343,7 +341,7 @@ class TestDailyAnonymizeAndPrepare:
         payload = AnonymizedMetricsPayload.objects.get(id=result["payload_id"])
         assert payload.segment_event_name == custom_event_name
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_sets_default_event_name_when_not_provided(
         self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory
@@ -376,7 +374,7 @@ class TestDailyAnonymizeAndPrepare:
         expected_event_name = f"Controller Metrics Daily Rollup {todays_date}"
         assert payload.segment_event_name == expected_event_name
 
-    @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
     def test_handles_general_exception(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
         """Test handles general exceptions during anonymization."""

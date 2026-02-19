@@ -163,7 +163,7 @@ def hourly_collection_factory(user):
         from apps.tasks.models import HourlyMetricsCollection
 
         defaults = {
-            "collector_type": "job_host_summary",
+            "collector_type": "job_host_summary_service",
             "collection_timestamp": timezone.now() - timedelta(hours=1),
             "raw_data": {"test": "data"},
             "status": "collected",

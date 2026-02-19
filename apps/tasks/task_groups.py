@@ -174,6 +174,15 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "description": "Collect credentials metrics every hour",
             "category": "hourly_collection",
         },
+        {
+            "task_id": "hourly_job_events",
+            "function": "collect_hourly_metrics",
+            "cron": "20 * * * *",  # Every hour at XX:20
+            "args": {"collector_type": "main_jobevent_service"},
+            "enabled": False,  # NOT enabled by default, for performance
+            "description": "Collect job events (event modules) metrics every hour",
+            "category": "hourly_collection",
+        },
         # Daily Snapshot Collection
         {
             "task_id": "daily_execution_environments",

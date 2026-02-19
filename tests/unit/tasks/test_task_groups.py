@@ -182,9 +182,6 @@ class TestPredefinedTaskGroups(TestCase):
         assert "daily_anonymize" in task_ids
         assert "send_to_segment_daily" in task_ids
         assert "cleanup_metrics_data" in task_ids
-        # Removed tasks:
-        # - hourly_host_metrics (main_jobevent - temporarily removed)
-        # - hourly_main_host (main_host - not in anonymized chain)
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_metrics_collection_group_disabled(self):

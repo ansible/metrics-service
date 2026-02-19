@@ -45,8 +45,8 @@ def _merge_rollup_dataframes(collections: list, rollup_processor) -> dict | None
 
         # CRITICAL: Convert serialized DataFrames (lists of dicts) back to pandas DataFrames
         # The rollup_data structure varies by collector type:
-        # - job_host_summary: {'aggregated': [...], 'jobhostsummary_total': int}
-        # - main_jobevent: {'task_summary': [...], 'event_total': int}
+        # - job_host_summary_service: {'aggregated': [...], 'jobhostsummary_total': int}
+        # - main_jobevent_service: {'task_summary': [...], 'event_total': int}
         #
         # During MAP phase (hourly collection), rollup processors return:
         #   {'json': {...}, 'rollup': {'aggregated': DataFrame, 'total': int}}
@@ -85,7 +85,7 @@ def _aggregate_collector_rollups(collections: list, rollup_processor) -> dict:
 
     Args:
         collections: List of HourlyMetricsCollection objects with rollup data
-        rollup_processor: Rollup processor instance (e.g., JobsRollupProcessor())
+        rollup_processor: Rollup processor instance
 
     Returns:
         dict: Daily rollup result with merged statistics
@@ -147,31 +147,26 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     Returns:
         tuple: (daily_rollup dict, missing_hours list)
     """
-    from metrics_utility.anonymized_rollups.credentials_anonymized_rollup import (
-        CredentialsAnonymizedRollup as CredentialsRollupProcessor,
-    )
-    from metrics_utility.anonymized_rollups.execution_environments_anonymized_rollup import (
-        ExecutionEnvironmentsAnonymizedRollup as ExecutionEnvironmentsRollupProcessor,
-    )
-    from metrics_utility.anonymized_rollups.jobhostsummary_anonymized_rollup import (
-        JobHostSummaryAnonymizedRollup as JobHostSummaryRollupProcessor,
-    )
-    from metrics_utility.anonymized_rollups.jobs_anonymized_rollup import (
-        JobsAnonymizedRollup as JobsRollupProcessor,
+    from metrics_utility.anonymized_rollups import (
+        CredentialsAnonymizedRollup,
+        EventModulesAnonymizedRollup,
+        ExecutionEnvironmentsAnonymizedRollup,
+        JobHostSummaryAnonymizedRollup,
+        JobsAnonymizedRollup,
     )
 
     # Rollup processors for each collector type
     # Hourly collectors expect 24 collections (one per hour)
     hourly_rollup_processors = {
-        "job_host_summary_service": JobHostSummaryRollupProcessor(),
-        # Note: main_jobevent/EventModulesRollupProcessor removed (temporarily removed)
-        "unified_jobs": JobsRollupProcessor(),
-        "credentials_service": CredentialsRollupProcessor(),
+        "credentials_service": CredentialsAnonymizedRollup(),
+        "job_host_summary_service": JobHostSummaryAnonymizedRollup(),
+        "main_jobevent_service": EventModulesAnonymizedRollup(),
+        "unified_jobs": JobsAnonymizedRollup(),
     }
 
     # Daily snapshot collectors expect 1 collection per day
     daily_rollup_processors = {
-        "execution_environments": ExecutionEnvironmentsRollupProcessor(),
+        "execution_environments": ExecutionEnvironmentsAnonymizedRollup(),
     }
 
     # Merge hourly rollups into daily rollups (REDUCE phase)

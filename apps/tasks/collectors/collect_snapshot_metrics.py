@@ -9,13 +9,8 @@ import logging
 from typing import Any
 
 from django.utils import timezone
-from metrics_utility.anonymized_rollups.execution_environments_anonymized_rollup import (
-    ExecutionEnvironmentsAnonymizedRollup,
-)
-from metrics_utility.library.collectors.controller import (
-    config,
-    execution_environments,
-)
+from metrics_utility.anonymized_rollups import ExecutionEnvironmentsAnonymizedRollup
+from metrics_utility.library.collectors.controller import config, execution_environments
 
 from ..utils import create_task_result, get_db_connection, log_task_execution, task, task_execution_wrapper
 

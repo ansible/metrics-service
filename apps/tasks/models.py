@@ -325,6 +325,7 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         ("job_host_summary_service", "Job Host Summary Service"),
         ("unified_jobs", "Unified Jobs"),
         ("credentials_service", "Credentials Service"),
+        ("main_jobevent_service", "Job Events (Event Modules)"),
         ("execution_environments", "Execution Environments"),
         ("config", "Configuration"),  # Daily only, included for completeness
     ]

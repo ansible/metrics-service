@@ -357,7 +357,7 @@ class TestHourlyMetricsCollection:
         # Arrange
         raw_data = {"test": "data", "count": 42, "items": [1, 2, 3]}
         collection = HourlyMetricsCollection(
-            collector_type="job_host_summary",
+            collector_type="job_host_summary_service",
             collection_timestamp=timezone.now(),
             raw_data=raw_data,
         )
@@ -419,18 +419,18 @@ class TestDailyMetricsSummary:
 
         # Create hourly collections
         coll1 = HourlyMetricsCollection.objects.create(
-            collector_type="job_host_summary",
+            collector_type="job_host_summary_service",
             collection_timestamp=collection_time,
             raw_data={"data": 1},
         )
         coll2 = HourlyMetricsCollection.objects.create(
-            collector_type="main_host",
+            collector_type="credentials_service",
             collection_timestamp=collection_time,
             raw_data={"data": 2},
         )
         # Create unrelated collection
         HourlyMetricsCollection.objects.create(
-            collector_type="main_jobevent",
+            collector_type="main_jobevent_service",
             collection_timestamp=collection_time,
             raw_data={"data": 3},
         )
@@ -440,8 +440,8 @@ class TestDailyMetricsSummary:
             summary_date=date(2024, 1, 15),
             aggregated_metrics={},
             hourly_collection_ids={
-                "job_host_summary": [coll1.id],
-                "main_host": [coll2.id],
+                "job_host_summary_service": [coll1.id],
+                "credentials_service": [coll2.id],
             },
         )
 

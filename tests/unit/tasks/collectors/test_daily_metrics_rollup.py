@@ -6,7 +6,7 @@ Tests cover:
 - _aggregate_collector_rollups: rollup computation with merged data
 - _collect_and_group_hourly_collections: missing hours detection
 
-Note: All inline collection functions (_collect_config_data, _collect_main_host_data, etc.)
+Note: All inline collection functions (_collect_config_data, etc.)
       were removed in favor of dedicated collector tasks that run independently.
 """
 
@@ -37,7 +37,7 @@ class TestMergeRollupDataframes:
 
         # Create collections with DataFrame data (stored as list of dicts)
         collection1 = hourly_collection_factory(
-            collector_type="job_host_summary",
+            collector_type="job_host_summary_service",
             raw_data={
                 "aggregated": [
                     {"id": 1, "name": "job1"},
@@ -48,7 +48,7 @@ class TestMergeRollupDataframes:
         )
 
         collection2 = hourly_collection_factory(
-            collector_type="job_host_summary",
+            collector_type="job_host_summary_service",
             raw_data={
                 "aggregated": [
                     {"id": 3, "name": "job3"},
@@ -175,7 +175,7 @@ class TestCollectAndGroupHourlyCollections:
         # Create collections for only hours 0, 1, 2 (missing 3-23)
         for hour in [0, 1, 2]:
             hourly_collection_factory(
-                collector_type="job_host_summary",
+                collector_type="job_host_summary_service",
                 collection_timestamp=base_time + timedelta(hours=hour),
                 status="collected",
             )
@@ -184,8 +184,8 @@ class TestCollectAndGroupHourlyCollections:
         collections_by_type, _, _ = _collect_and_group_hourly_collections(summary_date)
 
         # Assert
-        assert "job_host_summary" in collections_by_type
-        assert len(collections_by_type["job_host_summary"]) == 3
+        assert "job_host_summary_service" in collections_by_type
+        assert len(collections_by_type["job_host_summary_service"]) == 3
 
     def test_groups_collections_by_type(self, hourly_collection_factory):
         """Test groups collections by collector_type."""
@@ -195,17 +195,7 @@ class TestCollectAndGroupHourlyCollections:
 
         # Create different collector types
         hourly_collection_factory(
-            collector_type="job_host_summary",
-            collection_timestamp=base_time,
-            status="collected",
-        )
-        hourly_collection_factory(
-            collector_type="main_jobevent",
-            collection_timestamp=base_time,
-            status="collected",
-        )
-        hourly_collection_factory(
-            collector_type="main_host",
+            collector_type="job_host_summary_service",
             collection_timestamp=base_time,
             status="collected",
         )
@@ -214,7 +204,5 @@ class TestCollectAndGroupHourlyCollections:
         collections_by_type, _, _ = _collect_and_group_hourly_collections(summary_date)
 
         # Assert
-        assert len(collections_by_type) == 3
-        assert "job_host_summary" in collections_by_type
-        assert "main_jobevent" in collections_by_type
-        assert "main_host" in collections_by_type
+        assert len(collections_by_type) == 1
+        assert "job_host_summary_service" in collections_by_type

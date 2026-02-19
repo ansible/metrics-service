@@ -10,22 +10,16 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from django.utils import timezone
-from metrics_utility.anonymized_rollups.credentials_anonymized_rollup import (
+from metrics_utility.anonymized_rollups import (
     CredentialsAnonymizedRollup,
-)
-from metrics_utility.anonymized_rollups.events_modules_anonymized_rollup import (
     EventModulesAnonymizedRollup,
-)
-from metrics_utility.anonymized_rollups.jobhostsummary_anonymized_rollup import (
     JobHostSummaryAnonymizedRollup,
-)
-from metrics_utility.anonymized_rollups.jobs_anonymized_rollup import (
     JobsAnonymizedRollup,
 )
 from metrics_utility.library.collectors.controller import (
     credentials_service,
     job_host_summary_service,
-    main_jobevent,
+    main_jobevent_service,
     unified_jobs,
 )
 
@@ -50,8 +44,8 @@ HOURLY_COLLECTORS = {
         "rollup_processor": CredentialsAnonymizedRollup,
         "description": "Credentials usage metrics",
     },
-    "job_events": {
-        "collector_func": main_jobevent,
+    "main_jobevent_service": {
+        "collector_func": main_jobevent_service,
         "rollup_processor": EventModulesAnonymizedRollup,
         "description": "Job events (event modules) metrics",
     },
