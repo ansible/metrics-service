@@ -38,12 +38,11 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {"test": "rollup1"},
-                "main_jobevent": {"test": "rollup2"},
+                "job_host_summary_service": {"test": "rollup1"},
                 "unified_jobs": {"test": "rollup3"},
                 "execution_environments": {"test": "rollup4"},
+                "credentials_service": {"test": "rollup5"},
                 "config": {"version": "1.0"},
-                "main_host": {"hostname": "test-host"},
             },
             hourly_collections_count=24,
             missing_hours=[],
@@ -71,10 +70,10 @@ class TestDailyAnonymizeAndPrepare:
         assert payload.status == "pending"
         assert payload.daily_summary == daily_summary
 
-        # Verify anonymized data includes all sections
+        # Verify anonymized data includes required sections
+        # Note: main_host removed (not in anonymized chain), main_jobevent removed (too slow)
         assert "statistics" in payload.anonymized_data
         assert "config" in payload.anonymized_data
-        assert "main_host" in payload.anonymized_data
         assert "summary_metadata" in payload.anonymized_data
 
     @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
@@ -89,8 +88,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -116,8 +114,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -143,23 +140,21 @@ class TestDailyAnonymizeAndPrepare:
 
     @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
-    def test_adds_config_and_main_host(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
-        """Test adds config and main_host to anonymized data."""
+    def test_adds_config_data(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
+        """Test adds config data to anonymized data."""
         # Arrange
         summary_date = timezone.now().date() - timedelta(days=1)
         config_data = {"version": "1.0", "feature_enabled": True}
-        main_host_data = {"hostname": "test-host", "uuid": "test-uuid"}
 
         daily_summary_factory(
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
+                "credentials_service": {},
                 "config": config_data,
-                "main_host": main_host_data,
             },
         )
 
@@ -174,7 +169,7 @@ class TestDailyAnonymizeAndPrepare:
 
         payload = AnonymizedMetricsPayload.objects.get(id=result["payload_id"])
         assert payload.anonymized_data["config"] == config_data
-        assert payload.anonymized_data["main_host"] == main_host_data
+        # Note: main_host removed (not in anonymized chain)
 
     @patch("metrics_utility.anonymized_rollups.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
@@ -188,8 +183,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -226,8 +220,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -257,8 +250,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -303,8 +295,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=yesterday,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -334,8 +325,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -366,8 +356,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
@@ -398,8 +387,7 @@ class TestDailyAnonymizeAndPrepare:
             summary_date=summary_date,
             status="aggregated",
             aggregated_metrics={
-                "job_host_summary": {},
-                "main_jobevent": {},
+                "job_host_summary_service": {},
                 "unified_jobs": {},
                 "execution_environments": {},
             },
