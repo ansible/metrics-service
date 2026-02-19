@@ -2,8 +2,8 @@
 Unit tests for apps/tasks/collectors/daily_metrics_rollup.py
 
 Tests cover:
-- _merge_rollup_dataframes: DataFrame restoration from JSON
-- _aggregate_collector_rollups: rollup computation with merged data
+- _merge_rollup_json: JSON merging without DataFrame conversion
+- _aggregate_collector_rollups: rollup computation with merged JSON
 - _collect_and_group_hourly_collections: missing hours detection
 
 Note: All inline collection functions (_collect_config_data, etc.)
@@ -13,67 +13,60 @@ Note: All inline collection functions (_collect_config_data, etc.)
 from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock
 
-import pandas as pd
 import pytest
 from django.utils import timezone
 
 from apps.tasks.collectors.daily_metrics_rollup import (
     _aggregate_collector_rollups,
     _collect_and_group_hourly_collections,
-    _merge_rollup_dataframes,
+    _merge_rollup_json,
 )
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestMergeRollupDataframes:
-    """Test _merge_rollup_dataframes function."""
+    """Test _merge_rollup_json function."""
 
     def test_restores_dataframes_from_json(self, hourly_collection_factory):
-        """Test restores pandas DataFrames from JSON list of dicts."""
+        """Test passes JSON directly to merge without DataFrame conversion."""
         # Arrange
         mock_processor = MagicMock()
         mock_processor.merge.return_value = {"merged": "data"}
 
-        # Create collections with DataFrame data (stored as list of dicts)
+        # Create collections with JSON data (NO DataFrame conversion should happen)
         collection1 = hourly_collection_factory(
             collector_type="job_host_summary_service",
             raw_data={
-                "aggregated": [
-                    {"id": 1, "name": "job1"},
-                    {"id": 2, "name": "job2"},
-                ],
-                "total": 100,
+                "total_jobs": 100,
+                "failed_jobs": 10,
             },
         )
 
         collection2 = hourly_collection_factory(
             collector_type="job_host_summary_service",
             raw_data={
-                "aggregated": [
-                    {"id": 3, "name": "job3"},
-                ],
-                "total": 50,
+                "total_jobs": 50,
+                "failed_jobs": 5,
             },
         )
 
         collections = [collection1, collection2]
 
         # Act
-        result = _merge_rollup_dataframes(collections, mock_processor)
+        result = _merge_rollup_json(collections, mock_processor)
 
         # Assert
         assert result == {"merged": "data"}
         assert mock_processor.merge.call_count == 2
 
-        # Verify first call had DataFrame restored
+        # Verify JSON is passed directly (NOT converted to DataFrame)
         first_call_arg = mock_processor.merge.call_args_list[0][0][1]
-        assert isinstance(first_call_arg["aggregated"], pd.DataFrame)
-        assert len(first_call_arg["aggregated"]) == 2
-        assert first_call_arg["total"] == 100
+        assert first_call_arg == {"total_jobs": 100, "failed_jobs": 10}
+        assert isinstance(first_call_arg, dict)
 
     def test_preserves_scalar_values(self, hourly_collection_factory):
-        """Test preserves scalar values (totals, etc.) without conversion."""
+        """Test passes JSON scalars directly without modification."""
         # Arrange
         mock_processor = MagicMock()
         mock_processor.merge.return_value = {"result": "merged"}
@@ -87,9 +80,9 @@ class TestMergeRollupDataframes:
         )
 
         # Act
-        _merge_rollup_dataframes([collection], mock_processor)
+        _merge_rollup_json([collection], mock_processor)
 
-        # Assert
+        # Assert - JSON passed directly
         call_arg = mock_processor.merge.call_args[0][1]
         assert call_arg["total"] == 100
         assert call_arg["count"] == 5
@@ -101,7 +94,7 @@ class TestMergeRollupDataframes:
         mock_processor = MagicMock()
 
         # Act
-        result = _merge_rollup_dataframes([], mock_processor)
+        result = _merge_rollup_json([], mock_processor)
 
         # Assert
         assert result is None
@@ -114,10 +107,10 @@ class TestMergeRollupDataframes:
         mock_processor.merge.return_value = {"merged": "data"}
 
         collection1 = hourly_collection_factory(raw_data={})
-        collection2 = hourly_collection_factory(raw_data={"data": [{"id": 1}]})
+        collection2 = hourly_collection_factory(raw_data={"data": {"id": 1}})
 
         # Act
-        _merge_rollup_dataframes([collection1, collection2], mock_processor)
+        _merge_rollup_json([collection1, collection2], mock_processor)
 
         # Assert - only called once for non-empty collection
         assert mock_processor.merge.call_count == 1
@@ -129,26 +122,22 @@ class TestAggregateCollectorRollups:
     """Test _aggregate_collector_rollups function."""
 
     def test_computes_rollup_when_merged_data_exists(self, hourly_collection_factory):
-        """Test computes final rollup when merged data is not None."""
+        """Test returns merged JSON directly without calling base()."""
         # Arrange
         mock_processor = MagicMock()
-        mock_processor.merge.return_value = {"aggregated_df": pd.DataFrame({"id": [1, 2]})}
-        mock_processor.base.return_value = {
-            "json": {"total": 100, "count": 2},
-            "rollup": {"data": "rollup"},
-        }
+        mock_processor.merge.return_value = {"total": 100, "count": 2}
 
-        collection = hourly_collection_factory(raw_data={"data": [{"id": 1}], "total": 10})
+        collection = hourly_collection_factory(raw_data={"total": 10, "count": 1})
 
         # Act
         result = _aggregate_collector_rollups([collection], mock_processor)
 
-        # Assert
+        # Assert - returns merged JSON directly, NO base() call
         assert result == {"total": 100, "count": 2}
-        mock_processor.base.assert_called_once()
+        mock_processor.merge.assert_called_once()
 
     def test_returns_empty_dict_when_no_merged_data(self):
-        """Test returns empty dict when merged_rollup is None."""
+        """Test returns empty dict when merged JSON is None."""
         # Arrange
         mock_processor = MagicMock()
         mock_processor.merge.return_value = None
@@ -158,7 +147,7 @@ class TestAggregateCollectorRollups:
 
         # Assert
         assert result == {}
-        mock_processor.base.assert_not_called()
+        mock_processor.merge.assert_not_called()
 
 
 @pytest.mark.unit

@@ -10,7 +10,6 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
-import pandas as pd
 from django.utils import timezone
 
 from ..utils import (
@@ -23,55 +22,29 @@ from ..utils import (
 logger = logging.getLogger(__name__)
 
 
-def _merge_rollup_dataframes(collections: list, rollup_processor) -> dict | None:
+def _merge_rollup_json(collections: list, rollup_processor) -> dict | None:
     """
-    Merge hourly rollup data using the rollup processor's merge logic (REDUCE phase).
+    Merge hourly rollup JSON using the rollup processor's merge logic (REDUCE phase).
 
     Args:
-        collections: List of HourlyMetricsCollection objects with rollup data
+        collections: List of HourlyMetricsCollection objects with rollup data (JSON)
         rollup_processor: Rollup processor instance for merging
 
     Returns:
-        dict: Merged rollup data structure (e.g., {'aggregated': df, 'total': int}), or None if no data
+        dict: Merged rollup JSON, or None if no data
     """
     merged = None
 
     for collection in collections:
-        rollup_data = collection.raw_data
+        rollup_json = collection.raw_data
 
         # Skip empty collections
-        if not rollup_data:
+        if not rollup_json:
             continue
 
-        # CRITICAL: Convert serialized DataFrames (lists of dicts) back to pandas DataFrames
-        # The rollup_data structure varies by collector type:
-        # - job_host_summary_service: {'aggregated': [...], 'jobhostsummary_total': int}
-        # - main_jobevent_service: {'task_summary': [...], 'event_total': int}
-        #
-        # During MAP phase (hourly collection), rollup processors return:
-        #   {'json': {...}, 'rollup': {'aggregated': DataFrame, 'total': int}}
-        # We store rollup['rollup'] which becomes {'aggregated': [...], 'total': int}
-        # after JSON serialization (DataFrames -> lists of dicts)
-        #
-        # During REDUCE phase (this function), we must:
-        # 1. Restore the DataFrames from lists of dicts
-        # 2. Pass the ENTIRE dict structure to merge() (not individual DataFrames)
-        #
-        # This is critical because the utility library's merge() methods expect
-        # the full structure with both DataFrames AND metadata (totals, etc.)
-        rollup_data_restored = {}
-        for key, value in rollup_data.items():
-            if isinstance(value, list) and value:
-                # Convert list of dicts back to DataFrame
-                rollup_data_restored[key] = pd.DataFrame(value)
-            else:
-                # Preserve scalars (totals, etc.)
-                rollup_data_restored[key] = value
-
-        # Pass the ENTIRE rollup structure to merge (not individual DataFrames)
-        # The rollup processor's merge() method expects the full dict structure
-        # with both DataFrames and metadata (totals, etc.)
-        merged = rollup_processor.merge(merged, rollup_data_restored)
+        # Merge JSON directly - rollup.merge(json, json) -> json
+        # No DataFrame deserialization needed - raw_data is already JSON from prepare()
+        merged = rollup_processor.merge(merged, rollup_json)
 
     return merged
 
@@ -80,28 +53,22 @@ def _aggregate_collector_rollups(collections: list, rollup_processor) -> dict:
     """
     Aggregate rollup statistics from hourly collections (REDUCE phase).
 
-    This function merges hourly rollup statistics using the rollup processor's
+    This function merges hourly rollup JSON using the rollup processor's
     merge logic to produce a daily rollup.
 
     Args:
-        collections: List of HourlyMetricsCollection objects with rollup data
+        collections: List of HourlyMetricsCollection objects with rollup data (JSON)
         rollup_processor: Rollup processor instance
 
     Returns:
-        dict: Daily rollup result with merged statistics
+        dict: Daily rollup JSON with merged statistics
     """
-    # Merge all hourly rollup data structures (REDUCE phase)
-    merged_rollup = _merge_rollup_dataframes(collections, rollup_processor)
+    # Merge all hourly rollup JSON (REDUCE phase)
+    # rollup.merge(json, json) -> json
+    merged_json = _merge_rollup_json(collections, rollup_processor)
 
-    # Compute final daily rollup statistics
-    # The merged_rollup is a dict structure like {'aggregated': df, 'total': int}
-    # which is exactly what base() expects
-    if merged_rollup is not None:
-        rollup_result = rollup_processor.base(merged_rollup)
-        return rollup_result.get("json", {})
-
-    # Return empty result if no data
-    return {}
+    # Return merged JSON directly - no base() call needed
+    return merged_json if merged_json is not None else {}
 
 
 def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str, list], datetime, datetime]:

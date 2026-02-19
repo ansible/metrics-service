@@ -496,20 +496,12 @@ def generic_collect_metrics(
         raw_data = collector.gather()
 
         # Process rollup if processor provided, otherwise use raw data
-        if config["rollup_processor"]:
-            rollup_result = config["rollup_processor"]().prepare_base(raw_data)
-            rollup_data = (
-                rollup_result.get("json") or rollup_result.get("rollup") or rollup_result
-                if isinstance(rollup_result, dict)
-                else rollup_result
-            )
-        else:
-            rollup_data = raw_data
+        rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
 
         collection, created = HourlyMetricsCollection.objects.update_or_create(
             collector_type=collector_type,
             collection_timestamp=timestamp,
-            defaults={"raw_data": rollup_data, "collection_completed_at": timezone.now()},
+            defaults={"raw_data": rollup_data},
         )
 
         action = "Created" if created else "Updated"
