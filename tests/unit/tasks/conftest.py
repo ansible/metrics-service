@@ -121,32 +121,10 @@ def running_task(user):
 
 
 @pytest.fixture
-def sample_dataframe():
-    """Sample pandas DataFrame for testing collectors."""
-    import pandas as pd
-
-    return pd.DataFrame(
-        {
-            "id": [1, 2, 3],
-            "name": ["test1", "test2", "test3"],
-            "value": [10, 20, 30],
-        }
-    )
-
-
-@pytest.fixture
-def empty_dataframe():
-    """Empty pandas DataFrame for testing edge cases."""
-    import pandas as pd
-
-    return pd.DataFrame()
-
-
-@pytest.fixture
 def mock_rollup_processor():
     """Mock rollup processor with prepare/base/merge methods."""
     processor = MagicMock()
-    processor.prepare.return_value = MagicMock()  # Mock prepared dataframe
+    processor.prepare.return_value = MagicMock()  # Mock prepared data
     processor.base.return_value = {
         "json": {"total": 100, "count": 3},
         "rollup": {"aggregated_data": "test"},
@@ -191,16 +169,6 @@ def daily_summary_factory(user):
         return DailyMetricsSummary.objects.create(**defaults)
 
     return _create_summary
-
-
-@pytest.fixture
-def mock_collector():
-    """Mock collector instance with gather method."""
-    collector = MagicMock()
-    import pandas as pd
-
-    collector.gather.return_value = pd.DataFrame({"test": [1, 2, 3]})
-    return collector
 
 
 @pytest.fixture

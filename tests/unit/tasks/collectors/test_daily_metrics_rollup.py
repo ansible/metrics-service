@@ -2,7 +2,7 @@
 Unit tests for apps/tasks/collectors/daily_metrics_rollup.py
 
 Tests cover:
-- _merge_rollup_json: JSON merging without DataFrame conversion
+- _merge_rollup_json: JSON merging
 - _aggregate_collector_rollups: rollup computation with merged JSON
 - _collect_and_group_hourly_collections: missing hours detection
 
@@ -25,16 +25,16 @@ from apps.tasks.collectors.daily_metrics_rollup import (
 
 @pytest.mark.unit
 @pytest.mark.django_db
-class TestMergeRollupDataframes:
+class TestMergeRollupJson:
     """Test _merge_rollup_json function."""
 
-    def test_restores_dataframes_from_json(self, hourly_collection_factory):
-        """Test passes JSON directly to merge without DataFrame conversion."""
+    def test_merges_json_directly(self, hourly_collection_factory):
+        """Test passes JSON directly to merge"""
         # Arrange
         mock_processor = MagicMock()
         mock_processor.merge.return_value = {"merged": "data"}
 
-        # Create collections with JSON data (NO DataFrame conversion should happen)
+        # Create collections with JSON data
         collection1 = hourly_collection_factory(
             collector_type="job_host_summary_service",
             raw_data={
@@ -60,7 +60,7 @@ class TestMergeRollupDataframes:
         assert result == {"merged": "data"}
         assert mock_processor.merge.call_count == 2
 
-        # Verify JSON is passed directly (NOT converted to DataFrame)
+        # Verify JSON is passed directly
         first_call_arg = mock_processor.merge.call_args_list[0][0][1]
         assert first_call_arg == {"total_jobs": 100, "failed_jobs": 10}
         assert isinstance(first_call_arg, dict)

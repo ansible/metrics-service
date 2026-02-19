@@ -5,7 +5,6 @@ This test file focuses on covering helper functions and advanced workflows
 that aren't covered by the basic comprehensive tests.
 """
 
-import tempfile
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -15,78 +14,6 @@ from django.utils import timezone
 
 from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
 from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
-
-
-@pytest.mark.unit
-class TestCSVHelperFunctions(TestCase):
-    """Test CSV reading helper functions."""
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_empty_list(self, mock_logger):
-        """Test csv_to_json with empty file list."""
-        from apps.tasks.utils import csv_to_json
-
-        result = csv_to_json([])
-        assert result["records"] == []
-        assert result["file_count"] == 0
-        assert result["total_records"] == 0
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_nonexistent_file(self, mock_logger):
-        """Test csv_to_json with nonexistent file."""
-        from apps.tasks.utils import csv_to_json
-
-        result = csv_to_json(["/nonexistent/file.csv"])
-        assert result["file_count"] == 0
-        mock_logger.warning.assert_called()
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_success(self, mock_logger):
-        """Test csv_to_json with valid CSV files."""
-        from apps.tasks.utils import csv_to_json
-
-        # Create temporary CSV file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write("name,value\n")
-            f.write("test1,100\n")
-            f.write("test2,200\n")
-            csv_path = f.name
-
-        try:
-            result = csv_to_json([csv_path])
-            assert result["file_count"] == 1
-            assert result["total_records"] == 2
-            assert len(result["records"]) == 2
-            assert result["records"][0]["name"] == "test1"
-            assert result["records"][0]["value"] == "100"
-        finally:
-            # File should be deleted by the function, but clean up if it still exists
-            import os
-
-            if os.path.exists(csv_path):
-                os.remove(csv_path)
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_error_handling(self, mock_logger):
-        """Test csv_to_json error handling."""
-        from apps.tasks.utils import csv_to_json
-
-        # Create a file with invalid CSV content
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write("\x00\x01\x02")  # Invalid content
-            csv_path = f.name
-
-        try:
-            # Mock open to raise an exception
-            with patch("builtins.open", side_effect=Exception("Read error")):
-                result = csv_to_json([csv_path])
-                assert result["file_count"] == 0
-                mock_logger.error.assert_called()
-        finally:
-            import os
-
-            if os.path.exists(csv_path):
-                os.remove(csv_path)
 
 
 @pytest.mark.unit

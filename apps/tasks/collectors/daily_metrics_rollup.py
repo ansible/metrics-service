@@ -43,7 +43,6 @@ def _merge_rollup_json(collections: list, rollup_processor) -> dict | None:
             continue
 
         # Merge JSON directly - rollup.merge(json, json) -> json
-        # No DataFrame deserialization needed - raw_data is already JSON from prepare()
         merged = rollup_processor.merge(merged, rollup_json)
 
     return merged

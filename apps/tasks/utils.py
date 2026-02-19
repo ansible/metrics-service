@@ -357,53 +357,6 @@ def generate_salt() -> str:
     return str(uuid.uuid4())
 
 
-def csv_to_json(csv_file_paths: list[str]) -> dict[str, Any]:
-    """
-    Convert CSV files returned by metrics-utility collectors to JSON format.
-
-    Args:
-        csv_file_paths: List of CSV file paths returned by collector.gather()
-
-    Returns:
-        dict: JSON representation of the CSV data with metadata
-    """
-    import contextlib
-    import csv
-    import os
-
-    if not csv_file_paths:
-        return {"records": [], "file_count": 0, "total_records": 0}
-
-    all_records = []
-    file_count = 0
-
-    for csv_path in csv_file_paths:
-        if not os.path.exists(csv_path):
-            logger.warning(f"CSV file not found: {csv_path}")
-            continue
-
-        try:
-            with open(csv_path, encoding="utf-8") as csvfile:
-                reader = csv.DictReader(csvfile)
-                records = list(reader)
-                all_records.extend(records)
-                file_count += 1
-
-            # Clean up CSV file after reading
-            with contextlib.suppress(Exception):
-                os.remove(csv_path)
-
-        except Exception as e:
-            logger.error(f"Error reading CSV file {csv_path}: {e}")
-            continue
-
-    return {
-        "records": all_records,
-        "file_count": file_count,
-        "total_records": len(all_records),
-    }
-
-
 # =============================================================================
 # Segment.com Integration
 # =============================================================================
