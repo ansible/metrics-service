@@ -25,7 +25,7 @@ from .collectors.daily_metrics_rollup import daily_metrics_rollup
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 
 # Collectors not enabled:
-# - collect_host_metrics_hourly (main_jobevent - too slow)
+# - collect_host_metrics_hourly (main_jobevent - temporarily removed)
 # - collect_main_host_hourly (main_host - not in anonymized chain)
 # Import system tasks
 from .simple.hello_world import hello_world
@@ -56,7 +56,7 @@ TASK_FUNCTIONS = {
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
     # Collectors not enabled:
-    # - "collect_host_metrics_hourly": main_jobevent (too slow)
+    # - "collect_host_metrics_hourly": main_jobevent (temporarily removed)
     # - "collect_main_host_hourly": main_host (not in anonymized chain)
 }
 

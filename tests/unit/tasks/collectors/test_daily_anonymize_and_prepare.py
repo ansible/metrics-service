@@ -71,7 +71,7 @@ class TestDailyAnonymizeAndPrepare:
         assert payload.daily_summary == daily_summary
 
         # Verify anonymized data includes required sections
-        # Note: main_host removed (not in anonymized chain), main_jobevent removed (too slow)
+        # Note: main_host removed (not in anonymized chain), main_jobevent (temporarily removed)
         assert "statistics" in payload.anonymized_data
         assert "config" in payload.anonymized_data
         assert "summary_metadata" in payload.anonymized_data

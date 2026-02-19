@@ -40,7 +40,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     5. Creates AnonymizedMetricsPayload record
     6. Does NOT send (separate task handles sending)
 
-    Note: events_modules_rollup passed as empty dict (main_jobevent too slow, not enabled)
+    Note: events_modules_rollup passed as empty dict (main_jobevent temporarily removed)
 
     Args:
         **kwargs: Task data containing:
@@ -94,9 +94,9 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         # Combine and anonymize using anonymize_rollups from metrics-utility
         # Library signature: (events_modules_rollup, execution_environments_rollup,
         #                     jobs_rollup, job_host_summary_rollup, credentials_rollup, salt)
-        # Note: events_modules_rollup not collected (main_jobevent too slow), pass empty dict
+        # Note: events_modules_rollup not collected (main_jobevent temporarily removed), pass empty dict
         anonymized_data = anonymize_rollups(
-            events_modules_rollup={},  # main_jobevent collector not enabled (too slow)
+            events_modules_rollup={},  # main_jobevent collector (temporarily removed)
             execution_environments_rollup=execution_environments_rollup,
             jobs_rollup=unified_jobs_rollup,
             job_host_summary_rollup=job_host_summary_rollup,
@@ -106,7 +106,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
 
         # Add config (simple snapshot, not part of rollup anonymization process)
         anonymized_data["config"] = daily_summary.aggregated_metrics.get("config", {})
-        # Note: main_host (not in anonymized chain) and main_jobevent (too slow) not collected
+        # Note: main_host (not in anonymized chain) and main_jobevent (temporarily removed)
 
         # Add metadata
         aggregation_timestamp = (

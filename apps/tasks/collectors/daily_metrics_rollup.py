@@ -161,7 +161,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     # Rollup processors for each collector type
     rollup_processors = {
         "job_host_summary_service": JobHostSummaryRollupProcessor(),
-        # Note: main_jobevent/EventModulesRollupProcessor removed (too slow for default enablement)
+        # Note: main_jobevent/EventModulesRollupProcessor removed (temporarily removed)
         "unified_jobs": JobsRollupProcessor(),
         "credentials_service": CredentialsRollupProcessor(),
         "execution_environments": ExecutionEnvironmentsRollupProcessor(),
@@ -285,7 +285,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         - Daily inline:
             - config
 
-    Note: main_host (not in anonymized chain) and main_jobevent (too slow) removed
+    Note: main_host (not in anonymized chain) and main_jobevent (temporarily removed)
 
     Args:
         **kwargs: Task data containing:
