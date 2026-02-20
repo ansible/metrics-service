@@ -67,6 +67,9 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     if not collector_type:
         raise ValueError("collector_type parameter is required")
 
+    # Extract optional execution_id for linking to TaskExecution
+    execution_id = kwargs.get("execution_id")  # Available when called via execute_db_task
+
     snapshot_timestamp = timezone.now()
 
     # FIXME: temporary fix, but this needs more intentionality
@@ -82,12 +85,18 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     # Get database connection
     db_connection = get_db_connection()
 
+    # For auditing, store collection date at start of day (not the 23:00 trick used for rollup query)
+    # This makes auditing clearer - snapshots represent "state at end of this day"
+    collection_date = collection_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+
     # Use generic collector without time window (snapshot = current state)
+    # Pass collection_time in collector_kwargs for audit - it gets filtered out before calling collector
     return generic_collect_metrics(
         collector_type=collector_type,
         collector_registry=_get_snapshot_collectors(),
         collection_mode="snapshot",
         timestamp=collection_timestamp,
         db_connection=db_connection,
-        collector_kwargs={},  # No time range for snapshots
+        collector_kwargs={"collection_time": collection_date},
+        task_execution_id=execution_id,
     )

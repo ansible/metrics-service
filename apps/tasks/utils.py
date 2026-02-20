@@ -442,6 +442,7 @@ def generic_collect_metrics(
     timestamp: Any,
     db_connection: Any,
     collector_kwargs: dict[str, Any] | None = None,
+    task_execution_id: int | None = None,
 ) -> dict[str, Any]:
     """Generic metrics collection for hourly/snapshot collectors with optional rollup processing."""
     from apps.tasks.models import HourlyMetricsCollection
@@ -453,8 +454,34 @@ def generic_collect_metrics(
     config = collector_registry[collector_type]
     log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")
 
+    # Build collection_params for audit trail from collector_kwargs
+    collection_params = {}
+    if collector_kwargs:
+        for key, value in collector_kwargs.items():
+            # Convert datetime objects to ISO strings for database storage
+            if hasattr(value, "isoformat"):
+                collection_params[key] = value.isoformat()
+            else:
+                collection_params[key] = value
+
+    # Get TaskExecution instance for linking if ID provided
+    task_execution_instance = None
+    if task_execution_id:
+        try:
+            from apps.tasks.models import TaskExecution
+
+            task_execution_instance = TaskExecution.objects.get(id=task_execution_id)
+        except Exception:
+            # Task execution not found or deleted, continue without it
+            logger.debug(f"TaskExecution {task_execution_id} not found, proceeding without link")
+
     try:
-        collector = config["collector_func"](db=db_connection, **(collector_kwargs or {}))
+        # For snapshot collectors, filter out collection_time (audit-only param, not used by collector)
+        actual_collector_kwargs = collector_kwargs.copy() if collector_kwargs else {}
+        if collection_mode == "snapshot" and "collection_time" in actual_collector_kwargs:
+            actual_collector_kwargs.pop("collection_time")
+
+        collector = config["collector_func"](db=db_connection, **actual_collector_kwargs)
         raw_data = collector.gather()
 
         # Process rollup if processor provided, otherwise use raw data
@@ -467,6 +494,8 @@ def generic_collect_metrics(
                 "raw_data": rollup_data,
                 "status": "collected",
                 "error_message": "",
+                "collection_parameters": collection_params,
+                "task_execution": task_execution_instance,
             },
         )
 
@@ -486,6 +515,24 @@ def generic_collect_metrics(
 
     except Exception as e:
         logger.exception(f"Failed to collect {collector_type} {collection_mode} metrics: {str(e)}")
+
+        # Store failed collection for audit trail (critical for diagnosing missing rollup data)
+        # Use contextlib.suppress to avoid secondary exception if database write fails
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            HourlyMetricsCollection.objects.update_or_create(
+                collector_type=collector_type,
+                collection_timestamp=timestamp,
+                defaults={
+                    "raw_data": {},
+                    "status": "failed",
+                    "error_message": str(e),
+                    "collection_parameters": collection_params,
+                    "task_execution": task_execution_instance,
+                },
+            )
+
         return create_task_result(
             "error",
             {"task_type": f"collect_{collector_type}", "collector_type": collector_type},

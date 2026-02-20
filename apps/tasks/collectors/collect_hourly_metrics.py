@@ -87,6 +87,9 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     if not collector_type:
         raise ValueError("collector_type parameter is required")
 
+    # Extract optional execution_id for linking to TaskExecution
+    execution_id = kwargs.get("execution_id")  # Available when called via execute_db_task
+
     # Determine hour to collect (default to previous full hour)
     hour_timestamp_str = kwargs.get("hour_timestamp")
     if hour_timestamp_str:
@@ -111,4 +114,5 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         timestamp=start_datetime,
         db_connection=db_connection,
         collector_kwargs={"since": start_datetime, "until": end_datetime},
+        task_execution_id=execution_id,
     )
