@@ -1,5 +1,5 @@
 """
-Create daily summary from hourly rollups (REDUCE phase).
+Create daily summary from hourly rollups
 
 This task merges hourly rollup statistics into a daily summary,
 collects daily data (unified_jobs, execution_environments, config),
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def _merge_rollup_json(collections: list, rollup_processor) -> dict | None:
     """
-    Merge hourly rollup JSON using the rollup processor's merge logic (REDUCE phase).
+    Merge hourly rollup JSON using the rollup processor's merge logic
 
     Args:
         collections: List of HourlyMetricsCollection objects with rollup data (JSON)
@@ -50,7 +50,7 @@ def _merge_rollup_json(collections: list, rollup_processor) -> dict | None:
 
 def _aggregate_collector_rollups(collections: list, rollup_processor) -> dict:
     """
-    Aggregate rollup statistics from hourly collections (REDUCE phase).
+    Aggregate rollup statistics from hourly collections
 
     This function merges hourly rollup JSON using the rollup processor's
     merge logic to produce a daily rollup.
@@ -62,7 +62,7 @@ def _aggregate_collector_rollups(collections: list, rollup_processor) -> dict:
     Returns:
         dict: Daily rollup JSON with merged statistics
     """
-    # Merge all hourly rollup JSON (REDUCE phase)
+    # Merge all hourly rollup JSON
     # rollup.merge(json, json) -> json
     merged_json = _merge_rollup_json(collections, rollup_processor)
 
@@ -101,7 +101,7 @@ def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str,
 
 def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, list]:
     """
-    Merge hourly and daily rollups using rollup processors (REDUCE phase).
+    Merge hourly and daily rollups using rollup processors
 
     Handles both:
     - Hourly collectors: Merge 24 hourly collections into daily rollup, check for missing hours
@@ -135,7 +135,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         "execution_environments": ExecutionEnvironmentsAnonymizedRollup(),
     }
 
-    # Merge hourly rollups into daily rollups (REDUCE phase)
+    # Merge hourly rollups into daily rollups
     daily_rollup = {}
     missing_hours = []
 
@@ -226,7 +226,7 @@ def _save_daily_summary(
 @task_execution_wrapper("daily_metrics_rollup")
 def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     """
-    Create daily summary from hourly rollups (REDUCE phase).
+    Create daily summary from hourly rollups
 
     This task:
     1. Queries all hourly rollup collections for the previous day
@@ -242,8 +242,6 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         - Daily snapshots (from HourlyMetricsCollection):
             - execution_environments
             - config
-
-    Note: All collectors are now collected by dedicated tasks following the MAP-REDUCE pattern.
 
     Args:
         **kwargs: Task data containing:
@@ -266,7 +264,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         # Query and group hourly collections by type
         collections_by_type, start_datetime, end_datetime = _collect_and_group_hourly_collections(summary_date)
 
-        # Merge hourly rollups into daily rollups (REDUCE phase)
+        # Merge hourly rollups into daily rollups
         daily_rollup, missing_hours = _merge_hourly_rollups(collections_by_type)
 
         # Extract config snapshot from daily collections

@@ -146,7 +146,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
     description="Metrics collection, rollup, anonymization, and transmission to Red Hat",
     feature_flag="ANONYMIZED_DATA_COLLECTION",
     tasks=[
-        # Hourly Collection Tasks (MAP phase)
+        # Hourly Collection Tasks
         {
             "task_id": "hourly_job_host_summary",
             "function": "collect_hourly_metrics",
@@ -202,7 +202,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "description": "Collect system configuration snapshot daily",
             "category": "daily_collection",
         },
-        # Daily Rollup (REDUCE phase)
+        # Daily Rollup
         {
             "task_id": "daily_metrics_rollup",
             "function": "daily_metrics_rollup",

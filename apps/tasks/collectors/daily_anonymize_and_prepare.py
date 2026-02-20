@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 @task_execution_wrapper("daily_anonymize_and_prepare")
 def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     """
-    Anonymize daily metrics summary and prepare payload for Segment (ANONYMIZE phase).
+    Anonymize daily metrics summary and prepare payload for Segment
 
     This task:
     1. Fetches DailyMetricsSummary (with complete daily rollup, non-anonymized)

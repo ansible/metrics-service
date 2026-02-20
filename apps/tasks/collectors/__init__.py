@@ -10,7 +10,7 @@ __all__ = [
     # Metrics collection (hourly and snapshot)
     "collect_hourly_metrics",
     "collect_snapshot_metrics",
-    # Daily rollup and anonymization tasks (REDUCE + ANONYMIZE + SEND)
+    # Daily rollup and anonymization tasks
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",
     "send_anonymized_to_segment",
