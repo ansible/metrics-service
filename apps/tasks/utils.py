@@ -463,7 +463,11 @@ def generic_collect_metrics(
         collection, created = HourlyMetricsCollection.objects.update_or_create(
             collector_type=collector_type,
             collection_timestamp=timestamp,
-            defaults={"raw_data": rollup_data},
+            defaults={
+                "raw_data": rollup_data,
+                "status": "collected",
+                "error_message": "",
+            },
         )
 
         action = "Created" if created else "Updated"
