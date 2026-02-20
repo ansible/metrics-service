@@ -21,6 +21,141 @@ from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_
 class TestHourlyCollectionTasks(TestCase):
     """Test hourly collection tasks."""
 
+    @patch("apps.tasks.collectors.collect_hourly_metrics.generic_collect_metrics")
+    @patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection")
+    def test_collect_hourly_metrics_with_since_until(self, mock_db_conn, mock_collect):
+        """Test collect_hourly_metrics with custom since/until timestamps."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        mock_collect.return_value = {"status": "success", "record_id": 123}
+
+        result = collect_hourly_metrics(
+            collector_type="job_host_summary_service",
+            since="2024-01-15T10:00:00Z",
+            until="2024-01-15T11:00:00Z",
+        )
+
+        assert result["status"] == "success"
+        # Verify generic_collect_metrics was called with the correct time window
+        call_args = mock_collect.call_args
+        assert call_args.kwargs["collector_kwargs"]["since"].hour == 10
+        assert call_args.kwargs["collector_kwargs"]["until"].hour == 11
+
+    @patch("apps.tasks.collectors.collect_hourly_metrics.generic_collect_metrics")
+    @patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection")
+    def test_collect_hourly_metrics_default_time_window(self, mock_db_conn, mock_collect):
+        """Test collect_hourly_metrics defaults to previous hour when no timestamps provided."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        mock_collect.return_value = {"status": "success", "record_id": 123}
+
+        with patch("apps.tasks.collectors.collect_hourly_metrics.timezone") as mock_tz:
+            # Mock current time as 2024-01-15 15:30:45
+            mock_now = timezone.datetime(2024, 1, 15, 15, 30, 45, tzinfo=UTC)
+            mock_tz.now.return_value = mock_now
+
+            result = collect_hourly_metrics(collector_type="unified_jobs")
+
+            assert result["status"] == "success"
+            # Should default to 14:00 - 15:00 (previous hour)
+            call_args = mock_collect.call_args
+            assert call_args.kwargs["collector_kwargs"]["since"].hour == 14
+            assert call_args.kwargs["collector_kwargs"]["until"].hour == 15
+
+    def test_collect_hourly_metrics_requires_both_since_and_until(self):
+        """Test that since and until must both be provided or neither."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        # Test only since provided
+        result = collect_hourly_metrics(
+            collector_type="unified_jobs",
+            since="2024-01-15T10:00:00Z",
+        )
+        assert result["status"] == "error"
+        assert "Both 'since' and 'until' must be provided together" in result["error"]
+
+        # Test only until provided
+        result = collect_hourly_metrics(
+            collector_type="unified_jobs",
+            until="2024-01-15T11:00:00Z",
+        )
+        assert result["status"] == "error"
+        assert "Both 'since' and 'until' must be provided together" in result["error"]
+
+    def test_collect_hourly_metrics_validates_since_before_until(self):
+        """Test that since must be before until."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        # Test until before since
+        result = collect_hourly_metrics(
+            collector_type="unified_jobs",
+            since="2024-01-15T11:00:00Z",
+            until="2024-01-15T10:00:00Z",
+        )
+        assert result["status"] == "error"
+        assert "'since'" in result["error"] and "must be before 'until'" in result["error"]
+
+        # Test equal times
+        result = collect_hourly_metrics(
+            collector_type="unified_jobs",
+            since="2024-01-15T10:00:00Z",
+            until="2024-01-15T10:00:00Z",
+        )
+        assert result["status"] == "error"
+        assert "'since'" in result["error"] and "must be before 'until'" in result["error"]
+
+    def test_collect_hourly_metrics_invalid_since_format(self):
+        """Test error handling for invalid since timestamp format."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        result = collect_hourly_metrics(
+            collector_type="unified_jobs",
+            since="not-a-date",
+            until="2024-01-15T11:00:00Z",
+        )
+        assert result["status"] == "error"
+        assert "Invalid 'since' timestamp format" in result["error"]
+
+    def test_collect_hourly_metrics_invalid_until_format(self):
+        """Test error handling for invalid until timestamp format."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        result = collect_hourly_metrics(
+            collector_type="unified_jobs",
+            since="2024-01-15T10:00:00Z",
+            until="not-a-date",
+        )
+        assert result["status"] == "error"
+        assert "Invalid 'until' timestamp format" in result["error"]
+
+    def test_collect_hourly_metrics_requires_collector_type(self):
+        """Test that collector_type is required."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        result = collect_hourly_metrics()
+        assert result["status"] == "error"
+        assert "collector_type parameter is required" in result["error"]
+
+    @patch("apps.tasks.collectors.collect_hourly_metrics.generic_collect_metrics")
+    @patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection")
+    def test_collect_hourly_metrics_with_execution_id(self, mock_db_conn, mock_collect):
+        """Test collect_hourly_metrics passes execution_id to generic_collect_metrics."""
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        mock_collect.return_value = {"status": "success", "record_id": 123}
+
+        result = collect_hourly_metrics(
+            collector_type="credentials_service",
+            since="2024-01-15T10:00:00Z",
+            until="2024-01-15T11:00:00Z",
+            execution_id=456,
+        )
+
+        assert result["status"] == "success"
+        # Verify execution_id was passed to generic_collect_metrics
+        call_args = mock_collect.call_args
+        assert call_args.kwargs["task_execution_id"] == 456
+
 
 @pytest.mark.unit
 @pytest.mark.django_db

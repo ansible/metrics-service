@@ -74,14 +74,15 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing:
             - collector_type (str): Type of collector (required)
-            - hour_timestamp (str): ISO timestamp for the hour to collect (optional, defaults to previous hour)
+            - since (str): ISO timestamp for collection start (optional, requires until)
+            - until (str): ISO timestamp for collection end (optional, requires since)
             - database (str): Database name (default: 'awx')
 
     Returns:
         dict: Task result with collection status and record ID
 
     Raises:
-        ValueError: If collector_type is missing or invalid
+        ValueError: If collector_type is missing or invalid, or if since/until validation fails
     """
     collector_type = kwargs.pop("collector_type", None)
     if not collector_type:
@@ -90,18 +91,35 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     # Extract optional execution_id for linking to TaskExecution
     execution_id = kwargs.get("execution_id")  # Available when called via execute_db_task
 
-    # Determine hour to collect (default to previous full hour)
-    hour_timestamp_str = kwargs.get("hour_timestamp")
-    if hour_timestamp_str:
-        hour_timestamp = parse_datetime_string(hour_timestamp_str)
-        if hour_timestamp is None:
-            raise ValueError(f"Invalid hour_timestamp format: {hour_timestamp_str}")
-    else:
-        now = timezone.now()
-        hour_timestamp = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+    # Determine time window to collect
+    since_str = kwargs.get("since")
+    until_str = kwargs.get("until")
 
-    start_datetime = hour_timestamp
-    end_datetime = start_datetime + timedelta(hours=1)
+    # Validate since/until - both must be provided or neither
+    if (since_str is None) != (until_str is None):
+        raise ValueError("Both 'since' and 'until' must be provided together, or neither")
+
+    if since_str and until_str:
+        # Parse custom time range
+        since = parse_datetime_string(since_str)
+        until = parse_datetime_string(until_str)
+
+        if since is None:
+            raise ValueError(f"Invalid 'since' timestamp format: {since_str}")
+        if until is None:
+            raise ValueError(f"Invalid 'until' timestamp format: {until_str}")
+
+        # Validate since < until
+        if since >= until:
+            raise ValueError(f"'since' ({since}) must be before 'until' ({until})")
+
+        start_datetime = since
+        end_datetime = until
+    else:
+        # Default to previous full hour
+        now = timezone.now()
+        start_datetime = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+        end_datetime = start_datetime + timedelta(hours=1)
 
     # Get database connection
     db_connection = get_db_connection()

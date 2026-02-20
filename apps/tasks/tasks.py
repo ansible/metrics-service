@@ -153,9 +153,13 @@ TASK_METADATA = {
                 "required": True,
                 "description": "Type of collector to run (e.g., job_host_summary_service, unified_jobs, credentials_service)",
             },
-            "hour_timestamp": {
+            "since": {
                 "type": "string",
-                "description": "ISO timestamp for the hour to collect (defaults to current hour)",
+                "description": "ISO timestamp for collection start (requires until, defaults to previous hour)",
+            },
+            "until": {
+                "type": "string",
+                "description": "ISO timestamp for collection end (requires since, defaults to current hour)",
             },
         },
         "examples": [
@@ -164,8 +168,12 @@ TASK_METADATA = {
             {"name": "Credentials", "data": {"collector_type": "credentials_service"}},
             {"name": "Job events", "data": {"collector_type": "main_jobevent_service"}},
             {
-                "name": "Specific hour",
-                "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
+                "name": "Custom time range",
+                "data": {
+                    "collector_type": "job_host_summary_service",
+                    "since": "2024-01-01T00:00:00Z",
+                    "until": "2024-01-01T01:00:00Z",
+                },
             },
         ],
     },
