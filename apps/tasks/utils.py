@@ -435,6 +435,22 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
         return f"error: {str(e)}"
 
 
+def _serialize_args(kwargs):
+    if not kwargs:
+        return {}
+
+    params = {}
+
+    for key, value in kwargs.items():
+        # Convert datetime objects to ISO strings for database storage
+        if hasattr(value, "isoformat"):
+            params[key] = value.isoformat()
+        else:
+            params[key] = value
+
+    return params
+
+
 def generic_collect_metrics(
     collector_type: str,
     collector_registry: dict[str, dict[str, Any]],
@@ -455,14 +471,7 @@ def generic_collect_metrics(
     log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")
 
     # Build collection_params for audit trail from collector_kwargs
-    collection_params = {}
-    if collector_kwargs:
-        for key, value in collector_kwargs.items():
-            # Convert datetime objects to ISO strings for database storage
-            if hasattr(value, "isoformat"):
-                collection_params[key] = value.isoformat()
-            else:
-                collection_params[key] = value
+    collection_params = _serialize_args(collector_kwargs)
 
     # Get TaskExecution instance for linking if ID provided
     task_execution_instance = None
