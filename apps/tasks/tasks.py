@@ -128,6 +128,11 @@ TASK_METADATA = {
                 "min": 1,
                 "max": 90,
             },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "If true, only count records that would be deleted without actually deleting",
+            },
         },
         "examples": [
             {"name": "Default retention", "data": {}},
@@ -135,6 +140,7 @@ TASK_METADATA = {
                 "name": "Custom retention",
                 "data": {"hourly_retention_days": 14, "daily_retention_days": 60, "payload_retention_days": 14},
             },
+            {"name": "Dry run", "data": {"dry_run": True}},
         ],
     },
     # Metrics Collection (Hourly and Snapshot)
@@ -201,6 +207,10 @@ TASK_METADATA = {
                 "type": "string",
                 "description": "ISO date for the summary to anonymize (defaults to yesterday)",
             },
+            "salt": {
+                "type": "string",
+                "description": "Anonymization salt for hashing (auto-generated if not provided)",
+            },
         },
         "examples": [
             {"name": "Default (yesterday)", "data": {}},
@@ -211,20 +221,29 @@ TASK_METADATA = {
         "category": "Metrics Transmission",
         "description": "Send anonymized metrics payloads to Segment.com",
         "parameters": {
-            "summary_date": {
-                "type": "string",
-                "description": "ISO date for the payloads to send (defaults to yesterday)",
+            "payload_id": {
+                "type": "integer",
+                "description": "Specific payload ID to send (optional, sends pending/retry payloads if not specified)",
             },
-            "dry_run": {
-                "type": "boolean",
-                "default": False,
-                "description": "If true, prepare payloads but don't actually send to Segment",
+            "max_payloads": {
+                "type": "integer",
+                "default": 5,
+                "description": "Maximum number of payloads to send in one task execution",
+                "min": 1,
+                "max": 100,
+            },
+            "stale_minutes": {
+                "type": "integer",
+                "default": 10,
+                "description": "Minutes before 'sending' status is considered stale and recovered",
+                "min": 1,
+                "max": 60,
             },
         },
         "examples": [
-            {"name": "Default (yesterday)", "data": {}},
-            {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
-            {"name": "Dry run", "data": {"dry_run": True}},
+            {"name": "Default (send pending)", "data": {}},
+            {"name": "Specific payload", "data": {"payload_id": 123}},
+            {"name": "Send batch of 10", "data": {"max_payloads": 10}},
         ],
     },
 }
