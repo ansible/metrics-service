@@ -6,12 +6,12 @@ and stores in HourlyMetricsCollection.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from django.utils import timezone
 
-from ..utils import generic_collect_metrics, get_db_connection, task, task_execution_wrapper
+from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string, task, task_execution_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,9 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     # Determine hour to collect (default to previous full hour)
     hour_timestamp_str = kwargs.get("hour_timestamp")
     if hour_timestamp_str:
-        hour_timestamp = datetime.fromisoformat(hour_timestamp_str)
+        hour_timestamp = parse_datetime_string(hour_timestamp_str)
+        if hour_timestamp is None:
+            raise ValueError(f"Invalid hour_timestamp format: {hour_timestamp_str}")
     else:
         now = timezone.now()
         hour_timestamp = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)

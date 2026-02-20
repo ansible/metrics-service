@@ -3,6 +3,7 @@ Utility functions for task management and execution.
 """
 
 import logging
+from datetime import UTC
 from typing import Any
 
 from django.db import transaction
@@ -301,11 +302,13 @@ def parse_datetime_string(date_str: str | None) -> Any:
     """
     Parse an ISO datetime string, return None if invalid.
 
+    Naive datetimes (without timezone info) are assumed to be UTC.
+
     Args:
         date_str: ISO format datetime string (supports 'Z' suffix)
 
     Returns:
-        datetime object or None if invalid/empty
+        timezone-aware datetime object or None if invalid/empty
     """
     from datetime import datetime
 
@@ -313,7 +316,13 @@ def parse_datetime_string(date_str: str | None) -> Any:
         return None
     try:
         # Replace 'Z' with '+00:00' for ISO parsing
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+
+        # If naive datetime, make it timezone-aware (assume UTC)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+
+        return dt
     except (ValueError, AttributeError):
         return None
 
