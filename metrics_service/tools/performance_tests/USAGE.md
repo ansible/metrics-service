@@ -86,8 +86,8 @@ export METRICS_SERVICE_DATABASES__default__NAME=metrics_service
 
 # AWX database
 export METRICS_SERVICE_DATABASES__awx__HOST=localhost
-export METRICS_SERVICE_DATABASES__awx__USER=metrics_service
-export METRICS_SERVICE_DATABASES__awx__PASSWORD=metrics_service
+export METRICS_SERVICE_DATABASES__awx__USER=awx
+export METRICS_SERVICE_DATABASES__awx__PASSWORD=awx
 
 # Run tests with warning level, not debug level
 export METRICS_SERVICE_LOG_LEVEL=WARNING
