@@ -3,6 +3,7 @@ Comprehensive unit tests for tasks utils module.
 """
 
 import os
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
@@ -292,6 +293,22 @@ class TestParseDatetimeString(TestCase):
         result = utils.parse_datetime_string("2024-01")
 
         self.assertIsNone(result)
+
+    def test_parse_naive_datetime_assumes_utc(self):
+        """Test parsing naive datetime (no timezone) assumes UTC."""
+
+        result = utils.parse_datetime_string("2024-01-15T10:30:00")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2024)
+        self.assertEqual(result.month, 1)
+        self.assertEqual(result.day, 15)
+        self.assertEqual(result.hour, 10)
+        self.assertEqual(result.minute, 30)
+        # Verify it's timezone-aware
+        self.assertIsNotNone(result.tzinfo)
+        # Verify it's UTC
+        self.assertEqual(result.tzinfo, UTC)
 
 
 class TestGetDbConnection(TestCase):

@@ -154,12 +154,6 @@ class TestTaskRegistry(TestCase):
             except Exception as e:
                 pytest.fail(f"Function {func.__name__} raised exception: {e}")
 
-    @patch("apps.tasks.collectors.helpers.logger")
-    def test_metrics_utility_import_error_handling(self, mock_logger):
-        """Test handling of metrics utility import errors."""
-        # Should not have warnings in successful import
-        mock_logger.warning.assert_not_called()
-
 
 # =============================================================================
 # System Task Creation Tests

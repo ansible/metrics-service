@@ -149,30 +149,58 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         # Hourly Collection Tasks
         {
             "task_id": "hourly_job_host_summary",
-            "function": "collect_job_host_summary_hourly",
+            "function": "collect_hourly_metrics",
             "cron": "5 * * * *",  # Every hour at XX:05
-            "args": {},
+            "args": {"collector_type": "job_host_summary_service"},
             "enabled": True,
-            "description": "Collect job host summary metrics every hour",
+            "description": "Collect job host summary metrics every hour (service variant)",
             "category": "hourly_collection",
         },
         {
-            "task_id": "hourly_host_metrics",
-            "function": "collect_host_metrics_hourly",
+            "task_id": "hourly_unified_jobs",
+            "function": "collect_hourly_metrics",
             "cron": "10 * * * *",  # Every hour at XX:10
-            "args": {},
+            "args": {"collector_type": "unified_jobs"},
             "enabled": True,
-            "description": "Collect host metrics every hour",
+            "description": "Collect unified jobs metrics every hour",
             "category": "hourly_collection",
         },
         {
-            "task_id": "hourly_main_host",
-            "function": "collect_main_host_hourly",
+            "task_id": "hourly_credentials",
+            "function": "collect_hourly_metrics",
             "cron": "15 * * * *",  # Every hour at XX:15
-            "args": {},
+            "args": {"collector_type": "credentials_service"},
             "enabled": True,
-            "description": "Collect main_host metrics every hour",
+            "description": "Collect credentials metrics every hour",
             "category": "hourly_collection",
+        },
+        {
+            "task_id": "hourly_job_events",
+            "function": "collect_hourly_metrics",
+            "cron": "20 * * * *",  # Every hour at XX:20
+            "args": {"collector_type": "main_jobevent_service"},
+            "enabled": False,  # NOT enabled by default, for performance
+            "description": "Collect job events (event modules) metrics every hour",
+            "category": "hourly_collection",
+        },
+        # Daily Snapshot Collection
+        {
+            "task_id": "daily_execution_environments",
+            "function": "collect_snapshot_metrics",
+            "cron": "0 1 * * *",  # Daily at 1:00 AM
+            "args": {"collector_type": "execution_environments"},
+            "enabled": True,
+            "description": "Collect execution environments snapshot daily",
+            "category": "daily_collection",
+        },
+        {
+            "task_id": "daily_config",
+            "function": "collect_snapshot_metrics",
+            "cron": "30 1 * * *",  # Daily at 1:30 AM
+            "args": {"collector_type": "config"},
+            "enabled": True,
+            "description": "Collect system configuration snapshot daily",
+            "category": "daily_collection",
         },
         # Daily Rollup
         {

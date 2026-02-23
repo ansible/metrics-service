@@ -171,12 +171,18 @@ class TestPredefinedTaskGroups(TestCase):
         task_ids = [task["task_id"] for task in METRICS_COLLECTION_GROUP.get_enabled_tasks()]
         # Should have all tasks when flag is enabled
         assert len(task_ids) > 0
+        # Hourly collection tasks
         assert "hourly_job_host_summary" in task_ids
-        assert "hourly_host_metrics" in task_ids
-        assert "daily_metrics_rollup" in task_ids
-        assert "daily_anonymize" in task_ids
-        assert "send_to_segment_daily" in task_ids
+        assert "hourly_unified_jobs" in task_ids
+        assert "hourly_credentials" in task_ids
+        # Daily snapshot collection
+        assert "daily_config" in task_ids
+        assert "daily_execution_environments" in task_ids
+        # Daily processing tasks
         assert "cleanup_metrics_data" in task_ids
+        assert "daily_anonymize" in task_ids
+        assert "daily_metrics_rollup" in task_ids
+        assert "send_to_segment_daily" in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_metrics_collection_group_disabled(self):

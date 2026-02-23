@@ -572,10 +572,9 @@ class TestGlobalSchedulerFunctions:
         # Cleanup tasks
         ("cleanup_old_tasks", "metrics_cleanup"),
         ("cleanup_metrics_data", "metrics_cleanup"),
-        # Hourly collection tasks
-        ("collect_job_host_summary_hourly", "metrics_collectors"),
-        ("collect_host_metrics_hourly", "metrics_collectors"),
-        ("collect_main_host_hourly", "metrics_collectors"),
+        # Collection tasks
+        ("collect_hourly_metrics", "metrics_collectors"),
+        ("collect_snapshot_metrics", "metrics_collectors"),
         # Daily rollup and anonymization tasks
         ("daily_metrics_rollup", "metrics_collectors"),
         ("daily_anonymize_and_prepare", "metrics_collectors"),

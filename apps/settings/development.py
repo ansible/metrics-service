@@ -36,4 +36,8 @@ LOGGING__loggers = {
     "django.db.backends": {
         "level": "INFO",
     },
+    # disable template DEBUG - filters out debug toolbar VariableDoesNotExist exceptions
+    "django.template": {
+        "level": "INFO",
+    },
 }

@@ -447,10 +447,9 @@ The system includes these built-in task functions organized by feature groups:
 
 **Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION` feature flag):
 
-- **`collect_job_host_summary_hourly`** - Collect job/host summary metrics every hour
-- **`collect_host_metrics_hourly`** - Collect host event module metrics every hour
-- **`collect_main_host_hourly`** - Collect host inventory snapshot every hour
-- **`daily_metrics_rollup`** - Merge hourly collections and collect daily snapshots
+- **`collect_hourly_metrics`** - Collect metrics every hour
+- **`collect_snapshot_metrics`** - Collect daily metrics
+- **`daily_metrics_rollup`** - Merge collections and create daily rollup
 - **`daily_anonymize_and_prepare`** - Anonymize daily rollup and prepare for transmission
 - **`send_anonymized_to_segment`** - Send anonymized metrics to Segment.com
 
@@ -489,7 +488,7 @@ FEATURE_ENABLED = {
   - `hello_world` - Hourly health check
 
 - **Metrics Collection Group** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: **enabled**, customer opt-out)
-  - Hourly collection: `collect_job_host_summary_hourly`, `collect_host_metrics_hourly`, `collect_main_host_hourly`
+  - Hourly collection: `collect_hourly_metrics`
   - Daily rollup: `daily_metrics_rollup`
   - Anonymization: `daily_anonymize_and_prepare`
   - Transmission to Segment: `send_anonymized_to_segment`

@@ -3,6 +3,7 @@ Utility functions for task management and execution.
 """
 
 import logging
+from datetime import UTC
 from typing import Any
 
 from django.db import transaction
@@ -301,11 +302,13 @@ def parse_datetime_string(date_str: str | None) -> Any:
     """
     Parse an ISO datetime string, return None if invalid.
 
+    Naive datetimes (without timezone info) are assumed to be UTC.
+
     Args:
         date_str: ISO format datetime string (supports 'Z' suffix)
 
     Returns:
-        datetime object or None if invalid/empty
+        timezone-aware datetime object or None if invalid/empty
     """
     from datetime import datetime
 
@@ -313,7 +316,13 @@ def parse_datetime_string(date_str: str | None) -> Any:
         return None
     try:
         # Replace 'Z' with '+00:00' for ISO parsing
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+
+        # If naive datetime, make it timezone-aware (assume UTC)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+
+        return dt
     except (ValueError, AttributeError):
         return None
 
@@ -355,53 +364,6 @@ def generate_salt() -> str:
     import uuid
 
     return str(uuid.uuid4())
-
-
-def csv_to_json(csv_file_paths: list[str]) -> dict[str, Any]:
-    """
-    Convert CSV files returned by metrics-utility collectors to JSON format.
-
-    Args:
-        csv_file_paths: List of CSV file paths returned by collector.gather()
-
-    Returns:
-        dict: JSON representation of the CSV data with metadata
-    """
-    import contextlib
-    import csv
-    import os
-
-    if not csv_file_paths:
-        return {"records": [], "file_count": 0, "total_records": 0}
-
-    all_records = []
-    file_count = 0
-
-    for csv_path in csv_file_paths:
-        if not os.path.exists(csv_path):
-            logger.warning(f"CSV file not found: {csv_path}")
-            continue
-
-        try:
-            with open(csv_path, encoding="utf-8") as csvfile:
-                reader = csv.DictReader(csvfile)
-                records = list(reader)
-                all_records.extend(records)
-                file_count += 1
-
-            # Clean up CSV file after reading
-            with contextlib.suppress(Exception):
-                os.remove(csv_path)
-
-        except Exception as e:
-            logger.error(f"Error reading CSV file {csv_path}: {e}")
-            continue
-
-    return {
-        "records": all_records,
-        "file_count": file_count,
-        "total_records": len(all_records),
-    }
 
 
 # =============================================================================
@@ -471,3 +433,117 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
     except Exception as e:
         logger.error(f"Error sending data to Segment.com: {str(e)}")
         return f"error: {str(e)}"
+
+
+def _serialize_args(kwargs):
+    if not kwargs:
+        return {}
+
+    params = {}
+
+    for key, value in kwargs.items():
+        # Convert datetime objects to ISO strings for database storage
+        if hasattr(value, "isoformat"):
+            params[key] = value.isoformat()
+        else:
+            params[key] = value
+
+    return params
+
+
+def generic_collect_metrics(
+    collector_type: str,
+    collector_registry: dict[str, dict[str, Any]],
+    collection_mode: str,
+    timestamp: Any,
+    db_connection: Any,
+    collector_kwargs: dict[str, Any] | None = None,
+    task_execution_id: int | None = None,
+) -> dict[str, Any]:
+    """Generic metrics collection for hourly/snapshot collectors with optional rollup processing."""
+    from apps.tasks.models import HourlyMetricsCollection
+
+    if collector_type not in collector_registry:
+        valid = ", ".join(sorted(collector_registry.keys()))
+        raise ValueError(f"Unknown collector_type: {collector_type}. Valid types: {valid}")
+
+    config = collector_registry[collector_type]
+    log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")
+
+    # Build collection_params for audit trail from collector_kwargs
+    collection_params = _serialize_args(collector_kwargs)
+
+    # Get TaskExecution instance for linking if ID provided
+    task_execution_instance = None
+    if task_execution_id:
+        try:
+            from apps.tasks.models import TaskExecution
+
+            task_execution_instance = TaskExecution.objects.get(id=task_execution_id)
+        except Exception:
+            # Task execution not found or deleted, continue without it
+            logger.debug(f"TaskExecution {task_execution_id} not found, proceeding without link")
+
+    try:
+        # For snapshot collectors, filter out collection_time (audit-only param, not used by collector)
+        actual_collector_kwargs = collector_kwargs.copy() if collector_kwargs else {}
+        if collection_mode == "snapshot" and "collection_time" in actual_collector_kwargs:
+            actual_collector_kwargs.pop("collection_time")
+
+        collector = config["collector_func"](db=db_connection, **actual_collector_kwargs)
+        raw_data = collector.gather()
+
+        # Process rollup if processor provided, otherwise use raw data
+        rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
+
+        collection, created = HourlyMetricsCollection.objects.update_or_create(
+            collector_type=collector_type,
+            collection_timestamp=timestamp,
+            defaults={
+                "raw_data": rollup_data,
+                "status": "collected",
+                "error_message": "",
+                "collection_parameters": collection_params,
+                "task_execution": task_execution_instance,
+            },
+        )
+
+        action = "Created" if created else "Updated"
+        log_task_execution(f"collect_{collector_type}", "completed", f"{action} {collection_mode} ID: {collection.id}")
+
+        return create_task_result(
+            "success",
+            {
+                "message": f"{action} {collection_mode} collection for {collector_type}",
+                "task_type": f"collect_{collector_type}",
+                "collection_id": collection.id,
+                "collector_type": collector_type,
+                "timestamp": timestamp.isoformat(),
+            },
+        )
+
+    except Exception as e:
+        logger.exception(f"Failed to collect {collector_type} {collection_mode} metrics: {str(e)}")
+
+        # Store failed collection for audit trail (critical for diagnosing missing rollup data)
+        # Use contextlib.suppress to avoid secondary exception if database write fails
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            HourlyMetricsCollection.objects.update_or_create(
+                collector_type=collector_type,
+                collection_timestamp=timestamp,
+                defaults={
+                    "raw_data": {},
+                    "status": "failed",
+                    "error_message": str(e),
+                    "collection_parameters": collection_params,
+                    "task_execution": task_execution_instance,
+                },
+            )
+
+        return create_task_result(
+            "error",
+            {"task_type": f"collect_{collector_type}", "collector_type": collector_type},
+            error=f"Collection failed: {str(e)}",
+        )

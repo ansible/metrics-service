@@ -5,8 +5,7 @@ This test file focuses on covering helper functions and advanced workflows
 that aren't covered by the basic comprehensive tests.
 """
 
-import tempfile
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -15,78 +14,6 @@ from django.utils import timezone
 
 from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
 from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
-
-
-@pytest.mark.unit
-class TestCSVHelperFunctions(TestCase):
-    """Test CSV reading helper functions."""
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_empty_list(self, mock_logger):
-        """Test csv_to_json with empty file list."""
-        from apps.tasks.utils import csv_to_json
-
-        result = csv_to_json([])
-        assert result["records"] == []
-        assert result["file_count"] == 0
-        assert result["total_records"] == 0
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_nonexistent_file(self, mock_logger):
-        """Test csv_to_json with nonexistent file."""
-        from apps.tasks.utils import csv_to_json
-
-        result = csv_to_json(["/nonexistent/file.csv"])
-        assert result["file_count"] == 0
-        mock_logger.warning.assert_called()
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_success(self, mock_logger):
-        """Test csv_to_json with valid CSV files."""
-        from apps.tasks.utils import csv_to_json
-
-        # Create temporary CSV file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write("name,value\n")
-            f.write("test1,100\n")
-            f.write("test2,200\n")
-            csv_path = f.name
-
-        try:
-            result = csv_to_json([csv_path])
-            assert result["file_count"] == 1
-            assert result["total_records"] == 2
-            assert len(result["records"]) == 2
-            assert result["records"][0]["name"] == "test1"
-            assert result["records"][0]["value"] == "100"
-        finally:
-            # File should be deleted by the function, but clean up if it still exists
-            import os
-
-            if os.path.exists(csv_path):
-                os.remove(csv_path)
-
-    @patch("apps.tasks.utils.logger")
-    def test_csv_to_json_error_handling(self, mock_logger):
-        """Test csv_to_json error handling."""
-        from apps.tasks.utils import csv_to_json
-
-        # Create a file with invalid CSV content
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write("\x00\x01\x02")  # Invalid content
-            csv_path = f.name
-
-        try:
-            # Mock open to raise an exception
-            with patch("builtins.open", side_effect=Exception("Read error")):
-                result = csv_to_json([csv_path])
-                assert result["file_count"] == 0
-                mock_logger.error.assert_called()
-        finally:
-            import os
-
-            if os.path.exists(csv_path):
-                os.remove(csv_path)
 
 
 @pytest.mark.unit
@@ -359,8 +286,116 @@ class TestHourlyCollectionRetryBehavior(TestCase):
     """
     Test that hourly collection properly handles retries and duplicate triggers.
 
-    The _collect_hourly_metrics function uses update_or_create to handle cases where:
+    The generic_collect_metrics function uses update_or_create to handle cases where:
     1. A failed task is retried and now succeeds
     2. Scheduler double-triggers the same hour
     3. Multiple attempts for the same collection period
+    4. Re-collection after a record was already processed by daily rollup
     """
+
+    def test_resets_processed_status_on_update(self):
+        """
+        Verify that re-collecting a processed record resets its status to 'collected'.
+
+        Scenario: A collection was already processed by daily rollup (status='processed')
+        and the collector runs again for the same timestamp (e.g., manual re-run or retry).
+        The update should reset status to 'collected' so the new data is picked up by
+        the next daily rollup.
+        """
+        from datetime import datetime
+        from unittest.mock import MagicMock, patch
+
+        from apps.tasks.models import HourlyMetricsCollection
+        from apps.tasks.utils import generic_collect_metrics
+
+        # Create initial collection that was already processed by rollup
+        collection_timestamp = datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)
+        HourlyMetricsCollection.objects.create(
+            collector_type="unified_jobs",
+            collection_timestamp=collection_timestamp,
+            raw_data={"old": "data"},
+            status="processed",  # Already processed by previous rollup
+            error_message="",
+        )
+
+        # Mock the collector and database connection
+        mock_collector = MagicMock()
+        mock_collector.gather.return_value = {"new": "data"}
+        mock_db = MagicMock()
+
+        # Mock collector registry with a simple collector
+        collector_registry = {
+            "unified_jobs": {
+                "collector_func": lambda db: mock_collector,
+                "rollup_processor": None,  # No processor for this test
+            }
+        }
+
+        # Re-collect the same timestamp
+        with patch("apps.tasks.utils.get_db_connection", return_value=mock_db):
+            result = generic_collect_metrics(
+                collector_type="unified_jobs",
+                collector_registry=collector_registry,
+                collection_mode="hourly",
+                timestamp=collection_timestamp,
+                db_connection=mock_db,
+            )
+
+        # Verify the result indicates update
+        assert result["status"] == "success"
+        assert "Updated" in result["message"]
+
+        # Verify the collection was updated and status was reset to 'collected'
+        collection = HourlyMetricsCollection.objects.get(
+            collector_type="unified_jobs", collection_timestamp=collection_timestamp
+        )
+        assert collection.status == "collected", "Status should be reset to 'collected' after re-collection"
+        assert collection.error_message == "", "Error message should be cleared"
+        assert collection.raw_data == {"new": "data"}, "Data should be updated"
+
+    def test_creates_with_collected_status_on_first_run(self):
+        """
+        Verify that first-time collection creates record with status='collected'.
+        """
+        from datetime import datetime
+        from unittest.mock import MagicMock, patch
+
+        from apps.tasks.models import HourlyMetricsCollection
+        from apps.tasks.utils import generic_collect_metrics
+
+        collection_timestamp = datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)
+
+        # Mock the collector and database connection
+        mock_collector = MagicMock()
+        mock_collector.gather.return_value = {"new": "data"}
+        mock_db = MagicMock()
+
+        # Mock collector registry
+        collector_registry = {
+            "unified_jobs": {
+                "collector_func": lambda db: mock_collector,
+                "rollup_processor": None,
+            }
+        }
+
+        # Collect for the first time
+        with patch("apps.tasks.utils.get_db_connection", return_value=mock_db):
+            result = generic_collect_metrics(
+                collector_type="unified_jobs",
+                collector_registry=collector_registry,
+                collection_mode="hourly",
+                timestamp=collection_timestamp,
+                db_connection=mock_db,
+            )
+
+        # Verify the result indicates creation
+        assert result["status"] == "success"
+        assert "Created" in result["message"]
+
+        # Verify the collection was created with correct status
+        collection = HourlyMetricsCollection.objects.get(
+            collector_type="unified_jobs", collection_timestamp=collection_timestamp
+        )
+        assert collection.status == "collected", "New collection should have status='collected'"
+        assert collection.error_message == ""
+        assert collection.raw_data == {"new": "data"}
