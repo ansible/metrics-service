@@ -33,7 +33,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
 
     This task:
     1. Fetches DailyMetricsSummary (with complete daily rollup, non-anonymized)
-    2. Extracts rollup JSONs (job_host_summary_service, unified_jobs, execution_environments, credentials_service, main_jobevent_service)
+    2. Extracts rollup JSONs
     3. Combines and anonymizes using anonymize_rollups() from metrics-utility
     4. Adds config snapshot data
     5. Creates AnonymizedMetricsPayload record
@@ -74,6 +74,8 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             jobs_rollup=metrics.get("unified_jobs", {}),
             job_host_summary_rollup=metrics.get("job_host_summary_service", {}),
             credentials_rollup=metrics.get("credentials_service", {}),
+            table_metadata_rollup=metrics.get("table_metadata", {}),
+            controller_version_rollup=metrics.get("controller_version_service", {}),
             salt=kwargs.get("salt", generate_salt()),
         )
 
