@@ -151,7 +151,7 @@ kubernetes==34.1.0
     # via
     #   -r requirements-pinned.txt
     #   metrics-utility
-metrics-utility==0.7.20260218
+metrics-utility==0.7.20260223
     # via
     #   -r requirements-pinned.txt
     #   metrics-service
