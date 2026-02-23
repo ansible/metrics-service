@@ -1,23 +1,37 @@
 # Metrics-Service Performance Test Results
 
-**Date of test run:** 2026-02-16
+**Date of test run:** 2026-02-23
 
-**Test Date Selected:**
+## Source Data
 
-- January 25, 2024
+- **Test date selected:** January 25, 2024
 - Total events in db: 4,599,376 events
-- Events on this date: 1,264,938
+- Events on test date: 1,264,938
 
-## Results
+## Timing Results
 
-Collections
-Snapshot (main_host): 0.96s
-Hourly collection total: 555.6s (9.3 min)
-    job_host_summary: 5.7s total, peak 1869.1 MB
-    main_jobevent: 549.9s total, peak 2001.1 MB
+| Phase | Duration | Notes |
+|-------|----------|-------|
+| Snapshot (main_host) | 1.02s | Run once |
+| Hourly collection | 16.9s (0.3 min) | 24 hours |
+| — job_host_summary | 0.3s total | peak 1229.0 MB |
+| — main_jobevent | 16.5s total | peak 1229.0 MB |
+| Rollup | 1.07s | 1286.5 MB after |
+| **Total** | **19.0s (0.3 min)** | |
 
-Rollup:     94.63s, 4762.7 MB after
-Total (collections + rollup):      651.2s (10.9 min)
-Baseline memory: 1204.8 MB
-Peak memory:     4747.0 MB
-Delta:           3542.2 MB
+## Memory
+
+| Metric | Value |
+|--------|-------|
+| Baseline | 1192.6 MB |
+| Peak | 1286.5 MB |
+| Delta | 93.9 MB |
+
+> **Note:** Peak memory is RSS sampled every 50ms during task execution.
+
+## Output Table Sizes
+
+| Table                   | Rows | Data Size |
+|-------------------------|------|-----------|
+| HourlyMetricsCollection | 49   | 3.51 MB   |
+| DailyMetricsSummary     | 1    | 3.50 MB   |

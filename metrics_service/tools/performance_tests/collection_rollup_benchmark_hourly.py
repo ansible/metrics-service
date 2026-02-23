@@ -10,9 +10,9 @@ rollup.
 
 # ruff: noqa: T201, E402
 import contextlib
-import gc
 import os
 import sys
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -42,10 +42,34 @@ def get_memory_mb(process):
     return process.memory_info().rss / 1024 / 1024
 
 
-def update_peak(process, peak_memory_mb):
-    """Update and return the peak memory high-water mark."""
-    current = get_memory_mb(process)
-    return max(current, peak_memory_mb)
+class PeakMemoryMonitor:
+    """Measures peak RSS memory during task execution by polling in a background thread."""
+
+    def __init__(self, process, interval=0.05):
+        self._process = process
+        self._interval = interval
+        self._peak = 0.0
+        self._stop = threading.Event()
+
+    def __enter__(self):
+        self._peak = get_memory_mb(self._process)
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._poll, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *args):
+        self._stop.set()
+        self._thread.join()
+
+    def _poll(self):
+        while not self._stop.is_set():
+            self._peak = max(self._peak, get_memory_mb(self._process))
+            time.sleep(self._interval)
+
+    @property
+    def peak_mb(self):
+        return self._peak
 
 
 def run_snapshot_phase(test_date, process, peak_memory_mb):
@@ -53,11 +77,12 @@ def run_snapshot_phase(test_date, process, peak_memory_mb):
     print("Phase 1: Snapshot collector (main_host) — run once")
     snapshot_start = time.time()
     try:
-        collect_main_host_hourly(hour_timestamp=test_date.isoformat(), database="awx")
+        with PeakMemoryMonitor(process) as monitor:
+            collect_main_host_hourly(hour_timestamp=test_date.isoformat(), database="awx")
     except Exception as e:
         print(f"  Error: {e}")
     snapshot_duration = time.time() - snapshot_start
-    peak_memory_mb = update_peak(process, peak_memory_mb)
+    peak_memory_mb = max(peak_memory_mb, monitor.peak_mb)
     print(f"  Duration: {snapshot_duration:.2f}s")
     print(f"  Memory: {get_memory_mb(process):.1f} MB\n")
     return snapshot_duration, peak_memory_mb
@@ -90,7 +115,8 @@ def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
         for collector_name, collector_func in hourly_collectors:
             collector_start = time.time()
             try:
-                collector_func(hour_timestamp=hour_timestamp, database="awx")
+                with PeakMemoryMonitor(process) as monitor:
+                    collector_func(hour_timestamp=hour_timestamp, database="awx")
             except Exception as e:
                 hour_had_error = True
                 failed_hours.append(f"{collector_name}:hour_{hour}")
@@ -98,10 +124,8 @@ def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
             collector_duration = time.time() - collector_start
             hour_collector_times[collector_name] = collector_duration
             collector_totals[collector_name] += collector_duration
-            collector_memory = get_memory_mb(process)
-            collector_peak_memory[collector_name] = max(collector_peak_memory[collector_name], collector_memory)
-
-        peak_memory_mb = update_peak(process, peak_memory_mb)
+            collector_peak_memory[collector_name] = max(collector_peak_memory[collector_name], monitor.peak_mb)
+            peak_memory_mb = max(peak_memory_mb, monitor.peak_mb)
         hour_total = time.time() - hour_start
         current_memory = get_memory_mb(process)
         hour_timings.append(hour_total)
@@ -146,9 +170,10 @@ def run_rollup_phase(test_date, process, peak_memory_mb):
     rollup_duration = 0.0
 
     try:
-        result = daily_metrics_rollup(summary_date=test_date.date().isoformat())
+        with PeakMemoryMonitor(process) as monitor:
+            result = daily_metrics_rollup(summary_date=test_date.date().isoformat())
         rollup_duration = time.time() - rollup_start
-        peak_memory_mb = update_peak(process, peak_memory_mb)
+        peak_memory_mb = max(peak_memory_mb, monitor.peak_mb)
 
         summaries = DailyMetricsSummary.objects.filter(summary_date=test_date.date())
 
@@ -161,7 +186,7 @@ def run_rollup_phase(test_date, process, peak_memory_mb):
     except Exception as e:
         rollup_duration = time.time() - rollup_start
         print(f"  Rollup failed after {rollup_duration:.2f}s: {e}")
-        peak_memory_mb = update_peak(process, peak_memory_mb)
+        peak_memory_mb = max(peak_memory_mb, monitor.peak_mb)
         print()
 
     return rollup_duration, peak_memory_mb
@@ -191,8 +216,26 @@ def print_final_summary(
     print(f"  Total:                {total_duration:.1f}s ({total_duration / 60:.1f} min)")
     print()
     print(f"  Baseline memory: {baseline_memory_mb:.1f} MB")
-    print(f"  Peak memory:     {peak_memory_mb:.1f} MB")
+    print(f"  Peak memory:     {peak_memory_mb:.1f} MB (RSS, sampled every 50ms during execution)")
     print(f"  Delta:           {peak_memory_mb - baseline_memory_mb:.1f} MB")
+    print()
+
+    # Output table sizes
+    from django.core import serializers
+    from django.db.models import Count
+
+    hourly_count = HourlyMetricsCollection.objects.aggregate(count=Count("id"))["count"]
+    daily_count = DailyMetricsSummary.objects.aggregate(count=Count("id"))["count"]
+
+    hourly_json = serializers.serialize("json", HourlyMetricsCollection.objects.all())
+    daily_json = serializers.serialize("json", DailyMetricsSummary.objects.all())
+
+    hourly_size_mb = len(hourly_json.encode()) / 1024 / 1024
+    daily_size_mb = len(daily_json.encode()) / 1024 / 1024
+
+    print("  Output Table Sizes:")
+    print(f"    HourlyMetricsCollection: {hourly_count} rows, {hourly_size_mb:.2f} MB")
+    print(f"    DailyMetricsSummary:     {daily_count} rows, {daily_size_mb:.2f} MB")
     print()
 
 
@@ -214,21 +257,13 @@ def run_collection_rollup_benchmark():
     with contextlib.suppress(Exception):
         collect_main_host_hourly(hour_timestamp=test_date.isoformat(), database="awx")
     HourlyMetricsCollection.objects.all().delete()
-    gc.collect()
     print("Done\n")
 
     process = psutil.Process()
     baseline_memory_mb = get_memory_mb(process)
     peak_memory_mb = baseline_memory_mb
 
-    gc.collect()
-    gc.disable()
-
     snapshot_duration, peak_memory_mb = run_snapshot_phase(test_date, process, peak_memory_mb)
-
-    gc.enable()
-    gc.collect()
-    gc.disable()
 
     hourly_collection_duration, peak_memory_mb, collector_totals, collector_peak_memory = run_hourly_phase(
         test_date,
@@ -237,13 +272,7 @@ def run_collection_rollup_benchmark():
         baseline_memory_mb,
     )
 
-    gc.enable()
-    gc.collect()
-    gc.disable()
-
     rollup_duration, peak_memory_mb = run_rollup_phase(test_date, process, peak_memory_mb)
-
-    gc.enable()
 
     print_final_summary(
         snapshot_duration,
