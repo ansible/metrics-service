@@ -114,11 +114,13 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         tuple: (daily_rollup dict, missing_hours list)
     """
     from metrics_utility.anonymized_rollups import (
+        ControllerVersionAnonymizedRollup,
         CredentialsAnonymizedRollup,
         # EventModulesAnonymizedRollup,
         ExecutionEnvironmentsAnonymizedRollup,
         JobHostSummaryAnonymizedRollup,
         JobsAnonymizedRollup,
+        TableMetadataAnonymizedRollup,
     )
 
     # Rollup processors for each collector type
@@ -133,6 +135,8 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     # Daily snapshot collectors expect 1 collection per day
     daily_rollup_processors = {
         "execution_environments": ExecutionEnvironmentsAnonymizedRollup(),
+        "controller_version_service": ControllerVersionAnonymizedRollup(),
+        "table_metadata": TableMetadataAnonymizedRollup(),
     }
 
     # Merge hourly rollups into daily rollups
@@ -241,6 +245,8 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
             - credentials_service
         - Daily snapshots (from HourlyMetricsCollection):
             - execution_environments
+            - controller_version_service
+            - table_metadata
             - config
 
     Args:
