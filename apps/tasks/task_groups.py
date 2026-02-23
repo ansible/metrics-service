@@ -202,6 +202,24 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "description": "Collect system configuration snapshot daily",
             "category": "daily_collection",
         },
+        {
+            "task_id": "daily_controller_version",
+            "function": "collect_snapshot_metrics",
+            "cron": "35 1 * * *",  # Daily at 1:35 AM
+            "args": {"collector_type": "controller_version_service"},
+            "enabled": True,
+            "description": "Collect controller version snapshot daily",
+            "category": "daily_collection",
+        },
+        {
+            "task_id": "daily_table_metadata",
+            "function": "collect_snapshot_metrics",
+            "cron": "40 1 * * *",  # Daily at 1:40 AM
+            "args": {"collector_type": "table_metadata"},
+            "enabled": True,
+            "description": "Collect table metadata snapshot daily",
+            "category": "daily_collection",
+        },
         # Daily Rollup
         {
             "task_id": "daily_metrics_rollup",

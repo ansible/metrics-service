@@ -23,8 +23,17 @@ def _get_snapshot_collectors():
     Lazy imports prevent metrics_utility dependency from breaking
     unrelated task registration (e.g., hello_world, cleanup_old_tasks).
     """
-    from metrics_utility.anonymized_rollups import ExecutionEnvironmentsAnonymizedRollup
-    from metrics_utility.library.collectors.controller import config, execution_environments
+    from metrics_utility.anonymized_rollups import (
+        ControllerVersionAnonymizedRollup,
+        ExecutionEnvironmentsAnonymizedRollup,
+        TableMetadataAnonymizedRollup,
+    )
+    from metrics_utility.library.collectors.controller import (
+        config,
+        controller_version_service,
+        execution_environments,
+        table_metadata,
+    )
 
     # Registry mapping collector_type to (collector_func, rollup_processor_class)
     # rollup_processor can be None for collectors that don't need processing (e.g., config)
@@ -38,6 +47,16 @@ def _get_snapshot_collectors():
             "collector_func": config,
             "rollup_processor": None,  # Config is raw data, no rollup processing needed
             "description": "System configuration snapshot",
+        },
+        "controller_version_service": {
+            "collector_func": controller_version_service,
+            "rollup_processor": ControllerVersionAnonymizedRollup,
+            "description": "Controller version snapshot",
+        },
+        "table_metadata": {
+            "collector_func": table_metadata,
+            "rollup_processor": TableMetadataAnonymizedRollup,
+            "description": "Table metadata snapshot",
         },
     }
 
