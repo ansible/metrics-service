@@ -756,22 +756,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "coverage" },
-    { name = "django-debug-toolbar" },
-    { name = "django-stubs", extra = ["compatible-mypy"] },
-    { name = "djangorestframework-stubs", extra = ["compatible-mypy"] },
-    { name = "factory-boy" },
-    { name = "isort" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-django" },
-    { name = "ruff" },
-]
 docs = [
     { name = "sphinx" },
     { name = "sphinx-autodoc-typehints" },
@@ -803,6 +787,7 @@ dev = [
     { name = "mypy" },
     { name = "poethepoet" },
     { name = "pre-commit" },
+    { name = "psutil" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -813,47 +798,33 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.10.0" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0" },
-    { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.3" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.3" },
     { name = "croniter", specifier = ">=1.3.0" },
     { name = "dispatcherd", specifier = ">=2026.1.27" },
     { name = "django", specifier = "==5.2.7" },
     { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
-    { name = "django-debug-toolbar", marker = "extra == 'dev'", specifier = ">=4.2" },
     { name = "django-extensions", specifier = ">=3.2" },
     { name = "django-prometheus", specifier = ">=2.3.1" },
-    { name = "django-stubs", extras = ["compatible-mypy"], marker = "extra == 'dev'", specifier = ">=4.2" },
     { name = "djangorestframework", specifier = ">=3.15" },
-    { name = "djangorestframework-stubs", extras = ["compatible-mypy"], marker = "extra == 'dev'", specifier = ">=3.14" },
     { name = "dynaconf", specifier = ">=3.1.0" },
-    { name = "factory-boy", marker = "extra == 'dev'", specifier = ">=3.3" },
     { name = "factory-boy", marker = "extra == 'test'", specifier = ">=3.3" },
-    { name = "isort", marker = "extra == 'dev'", specifier = ">=5.12" },
     { name = "ldap-filter", marker = "extra == 'ldap'", specifier = ">=1.0.1" },
-    { name = "metrics-utility", specifier = ">=0.7.20260223" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.5" },
+    { name = "metrics-utility", specifier = ">=0.7.20260224" },
     { name = "packaging", specifier = ">=20.0" },
     { name = "pip", specifier = ">=25.2" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
     { name = "psycopg", extras = ["c"], specifier = ">=3.1" },
     { name = "psycopg2", specifier = ">=2.9.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.1" },
-    { name = "pytest-django", marker = "extra == 'dev'", specifier = ">=4.5" },
     { name = "pytest-django", marker = "extra == 'test'", specifier = ">=4.5" },
     { name = "python-ldap", marker = "extra == 'ldap'", specifier = ">=3.4.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.1" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.24" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.3" },
 ]
-provides-extras = ["dev", "ldap", "test", "docs"]
+provides-extras = ["ldap", "test", "docs"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -867,6 +838,7 @@ dev = [
     { name = "mypy", specifier = ">=1.5" },
     { name = "poethepoet", specifier = ">=0.37.0" },
     { name = "pre-commit", specifier = ">=3.4" },
+    { name = "psutil", specifier = ">=7.2.2" },
     { name = "pytest", specifier = ">=7.4" },
     { name = "pytest-asyncio", specifier = ">=0.21" },
     { name = "pytest-cov", specifier = ">=4.1" },
@@ -876,7 +848,7 @@ dev = [
 
 [[package]]
 name = "metrics-utility"
-version = "0.7.20260223"
+version = "0.7.20260224"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -891,9 +863,9 @@ dependencies = [
     { name = "segment-analytics-python" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/40/00cb83d24e118f6164fd80e42b776615961fd9ac7be13daf257884f1edb8/metrics_utility-0.7.20260223.tar.gz", hash = "sha256:08adce98b1ef827b4c40acc4a4181d6e485e373778af61a3136810ab69a9fbb4", size = 939315, upload-time = "2026-02-23T12:35:20.212Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/c2/6e1621704469448dc484939e86891bba178c99968b03e7efda8266e9c8e8/metrics_utility-0.7.20260224.tar.gz", hash = "sha256:3b02136bcf6c6e9694e1621fec39c0b878d3acf76c03b8623520a89708acc0af", size = 941614, upload-time = "2026-02-24T14:06:19.296Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/1b/e84ca0afda8f5c19e703d3ab74714acef5213cc958eba9806cbd062d0f54/metrics_utility-0.7.20260223-py3-none-any.whl", hash = "sha256:b6a1abe80ef79baf3e4f75efad8567d8f6ef5ae7152ff008fab5360218ffa62c", size = 453487, upload-time = "2026-02-23T12:35:18.744Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/68/9af244b520b23cfd39d8fcfdeebd1230c3fc1835cab41094fbfcd944040b/metrics_utility-0.7.20260224-py3-none-any.whl", hash = "sha256:c5f8ad52d7dc5cc3a4a07af589ecc8ce5889f69134b3268ef3ef7705412063ab", size = 457091, upload-time = "2026-02-24T14:06:17.77Z" },
 ]
 
 [[package]]
@@ -1085,6 +1057,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/23/53/3edb5d68ecf6b38fcbcc1ad28391117d2a322d9a1a3eff04bfdb184d8c3b/prometheus_client-0.23.1.tar.gz", hash = "sha256:6ae8f9081eaaaf153a2e959d2e6c4f4fb57b12ef76c8c7980202f1e57b48b2ce", size = 80481, upload-time = "2025-09-18T20:47:25.043Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/db/14bafcb4af2139e046d03fd00dea7873e48eafe18b7d2797e73d6681f210/prometheus_client-0.23.1-py3-none-any.whl", hash = "sha256:dd1913e6e76b59cfe44e7a4b83e01afc9873c1bdfd2ed8739f1e76aeca115f99", size = 61145, upload-time = "2025-09-18T20:47:23.875Z" },
+]
+
+[[package]]
+name = "psutil"
+version = "7.2.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/aa/c6/d1ddf4abb55e93cebc4f2ed8b5d6dbad109ecb8d63748dd2b20ab5e57ebe/psutil-7.2.2.tar.gz", hash = "sha256:0746f5f8d406af344fd547f1c8daa5f5c33dbc293bb8d6a16d80b4bb88f59372", size = 493740, upload-time = "2026-01-28T18:14:54.428Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/36/5ee6e05c9bd427237b11b3937ad82bb8ad2752d72c6969314590dd0c2f6e/psutil-7.2.2-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:ed0cace939114f62738d808fdcecd4c869222507e266e574799e9c0faa17d486", size = 129090, upload-time = "2026-01-28T18:15:22.168Z" },
+    { url = "https://files.pythonhosted.org/packages/80/c4/f5af4c1ca8c1eeb2e92ccca14ce8effdeec651d5ab6053c589b074eda6e1/psutil-7.2.2-cp36-abi3-macosx_11_0_arm64.whl", hash = "sha256:1a7b04c10f32cc88ab39cbf606e117fd74721c831c98a27dc04578deb0c16979", size = 129859, upload-time = "2026-01-28T18:15:23.795Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/70/5d8df3b09e25bce090399cf48e452d25c935ab72dad19406c77f4e828045/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9", size = 155560, upload-time = "2026-01-28T18:15:25.976Z" },
+    { url = "https://files.pythonhosted.org/packages/63/65/37648c0c158dc222aba51c089eb3bdfa238e621674dc42d48706e639204f/psutil-7.2.2-cp36-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b0726cecd84f9474419d67252add4ac0cd9811b04d61123054b9fb6f57df6e9e", size = 156997, upload-time = "2026-01-28T18:15:27.794Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/13/125093eadae863ce03c6ffdbae9929430d116a246ef69866dad94da3bfbc/psutil-7.2.2-cp36-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:fd04ef36b4a6d599bbdb225dd1d3f51e00105f6d48a28f006da7f9822f2606d8", size = 148972, upload-time = "2026-01-28T18:15:29.342Z" },
+    { url = "https://files.pythonhosted.org/packages/04/78/0acd37ca84ce3ddffaa92ef0f571e073faa6d8ff1f0559ab1272188ea2be/psutil-7.2.2-cp36-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:b58fabe35e80b264a4e3bb23e6b96f9e45a3df7fb7eed419ac0e5947c61e47cc", size = 148266, upload-time = "2026-01-28T18:15:31.597Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/90/e2159492b5426be0c1fef7acba807a03511f97c5f86b3caeda6ad92351a7/psutil-7.2.2-cp37-abi3-win_amd64.whl", hash = "sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988", size = 137737, upload-time = "2026-01-28T18:15:33.849Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/c7/7bb2e321574b10df20cbde462a94e2b71d05f9bbda251ef27d104668306a/psutil-7.2.2-cp37-abi3-win_arm64.whl", hash = "sha256:8c233660f575a5a89e6d4cb65d9f938126312bca76d8fe087b947b3a1aaac9ee", size = 134617, upload-time = "2026-01-28T18:15:36.514Z" },
 ]
 
 [[package]]

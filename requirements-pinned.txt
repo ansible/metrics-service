@@ -198,9 +198,9 @@ kubernetes==34.1.0 \
     --hash=sha256:8fe8edb0b5d290a2f3ac06596b23f87c658977d46b5f8df9d0f4ea83d0003912 \
     --hash=sha256:bffba2272534e224e6a7a74d582deb0b545b7c9879d2cd9e4aae9481d1f2cc2a
     # via metrics-utility
-metrics-utility==0.7.20260223 \
-    --hash=sha256:08adce98b1ef827b4c40acc4a4181d6e485e373778af61a3136810ab69a9fbb4 \
-    --hash=sha256:b6a1abe80ef79baf3e4f75efad8567d8f6ef5ae7152ff008fab5360218ffa62c
+metrics-utility==0.7.20260224 \
+    --hash=sha256:3b02136bcf6c6e9694e1621fec39c0b878d3acf76c03b8623520a89708acc0af \
+    --hash=sha256:c5f8ad52d7dc5cc3a4a07af589ecc8ce5889f69134b3268ef3ef7705412063ab
     # via metrics-service
 numpy==2.3.3 \
     --hash=sha256:067e3d7159a5d8f8a0b46ee11148fc35ca9b21f61e3c49fbd0a027450e65a33b \
