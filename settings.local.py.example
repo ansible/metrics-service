@@ -23,8 +23,6 @@ DATABASES__default__PASSWORD = "metrics_service"
 DATABASES__awx__HOST = "127.0.0.1"
 DATABASES__awx__PASSWORD = "mypassword"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
-
 # Service Configuration
 ID = "generated-uuid"
 
