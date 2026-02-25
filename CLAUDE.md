@@ -469,17 +469,19 @@ The project uses a custom User model (`core.User`) that extends AbstractDABUser 
 
 ### Feature Enabled Configuration
 
-Dispatcherd is permanently enabled. Other features can be controlled via the `FEATURE_ENABLED` setting:
+Optional features can be controlled via the `FEATURE_ENABLED` setting:
 
 ```python
 FEATURE_ENABLED = {
-    "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled (customer opt-out)
+    "ANONYMIZED_DATA_COLLECTION": True,
 }
 ```
 
 **Environment Variable Mapping:**
 
-- `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true/false` → Controls all metrics collection and transmission
+- `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true/false` - Controls all metrics collection and transmission
+
+But these only get applied during `manage.py metrics_service init-system-tasks`, or when missing from DB.
 
 **Task Groups and Feature Flags:**
 

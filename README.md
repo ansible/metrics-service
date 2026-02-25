@@ -158,6 +158,8 @@ Tasks are automatically routed based on their properties:
 
 No manual intervention required - create a task and it's automatically processed!
 
+Dispatcher config lives in `apps/settings/dispatcherd.yaml` but can be overridden using `DISPATCHERD_CONFIG_FILE` (no prefix).
+
 ### Task Groups & Feature Flags
 
 We have these feature flags:
@@ -280,11 +282,6 @@ METRICS_SERVICE_DATABASES__default__USER=metrics_service
 METRICS_SERVICE_DATABASES__default__PASSWORD=metrics_service
 METRICS_SERVICE_DATABASES__default__NAME=metrics_service
 METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode=prefer
-
-# Task App
-METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION="true"
-DISPATCHERD_CONFIG_FILE=/app/apps/settings/dispatcherd.yaml
-DISPATCHERD_ENABLED="true"
 ```
 
 ```bash
