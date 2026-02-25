@@ -79,13 +79,14 @@ COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
 
 # Create necessary directories and files with proper permissions
-# STATIC_ROOT in Django is staticfiles; collectstatic in entrypoint must write there
+# STATIC_ROOT in Django is staticfiles; collectstatic must write there
 RUN mkdir -p /app/logs /app/staticfiles && \
     chown -R 1001:1001 /app && \
     chmod -R a-w /app && \
     chmod 555 /app && \
     chmod 755 /app/logs /app/staticfiles
 USER 1001
+RUN python manage.py collectstatic --noinput --clear
 
 # Expose port
 EXPOSE 8000
