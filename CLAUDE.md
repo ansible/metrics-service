@@ -498,6 +498,8 @@ But these only get applied during `manage.py metrics_service init-system-tasks`,
 
 Note: All metrics tasks are controlled by a single flag since anonymization requires collected data to work. This is an opt-out feature that sends anonymized usage data to Red Hat.
 
+(These can be overridden using environment variables as well, as in `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true`. Note the double underscore before the feature name.)
+
 **Automatic Database Initialization:**
 
 Feature flags are managed in the `dynamic_settings_setting` table:

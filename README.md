@@ -34,8 +34,7 @@ docker-compose exec metrics-service python manage.py createsuperuser
 Your service will be available at:
 
 - **Application**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/api/docs/
-- **Admin Interface**: http://localhost:8000/admin/
+- **API Documentation**: http://localhost:8000/api/v1/docs/
 - **Task Dashboard**: http://localhost:8000/dashboard/
 
 ### Option 2: Local Development
