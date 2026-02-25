@@ -525,8 +525,7 @@ class Command(BaseCommand):
         """
         Start all 3 services as separate processes and monitor them.
 
-        This is the new simplified approach that directly spawns 3 processes
-        (like the Procfile commands) and exits when any one exits.
+        This is the new simplified approach that directly spawns 3 processes and exits when any one exits.
         """
         processes = []
         process_names = ["Django", "Dispatcher", "Scheduler"]
