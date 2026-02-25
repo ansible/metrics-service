@@ -41,7 +41,7 @@ Your service will be available at:
 ### Option 2: Local Development
 
 ```bash
-# Prerequisites: Python 3.11+, PostgreSQL 13+
+# Prerequisites: Python 3.12+, PostgreSQL 15+
 
 # Create virtual environment
 python -m venv venv
