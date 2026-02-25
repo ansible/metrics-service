@@ -20,35 +20,95 @@ services:
     volumes:
       - "metrics_service_db:/var/lib/postgresql/data"
 
-  metrics-service:
+  metrics-service-init:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: metrics-service-app
-    command: "python manage.py metrics_service run --host 0.0.0.0 --port 8000 --workers 4"
+      dockerfile: Dockerfile.dev
+    container_name: metrics-service-init
+    command: "/app/scripts/init.sh"
     volumes:
       - "./:/app:z"
+      - "/app/.venv"
+      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      METRICS_SERVICE_DATABASES__default__HOST: postgres
+      METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+      METRICS_SERVICE_MODE: development
+    networks:
+      - metrics-service
+
+  metrics-service-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: metrics-service-web
+    command: "python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - "./:/app:z"
+      - "/app/.venv"
+      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
     ports:
       - ${METRICS_SERVICE_PORT:-8000}:8000
     depends_on:
       postgres:
         condition: service_healthy
+      metrics-service-init:
+        condition: service_completed_successfully
     environment:
-      METRICS_SERVICE_MODE: development
-      METRICS_SERVICE_SECRET_KEY: dev-secret-key-change-in-production
-      METRICS_SERVICE_DATABASES__default__ENGINE: django.db.backends.postgresql
+      METRICS_SERVICE_ALLOWED_HOSTS: '["0.0.0.0"]'
       METRICS_SERVICE_DATABASES__default__HOST: postgres
-      METRICS_SERVICE_DATABASES__default__PORT: 5432
-      METRICS_SERVICE_DATABASES__default__USER: metrics_service
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
-      METRICS_SERVICE_DATABASES__default__NAME: metrics_service
-      METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: prefer
-      METRICS_SERVICE_ALLOWED_HOSTS: '["localhost","127.0.0.1","metrics-service","0.0.0.0"]'
-      METRICS_SERVICE_DEBUG: "true"
-      METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION: "true"
-      DJANGO_SETTINGS_MODULE: metrics_service.settings
-      DISPATCHERD_CONFIG_FILE: /app/apps/settings/dispatcherd.yaml
-      DISPATCHERD_ENABLED: "true"
+      METRICS_SERVICE_MODE: development
+    networks:
+      - metrics-service
+
+  metrics-service-dispatcher:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: metrics-service-dispatcher
+    command: "python manage.py run_dispatcherd"
+    volumes:
+      - "./:/app:z"
+      - "/app/.venv"
+      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      metrics-service-init:
+        condition: service_completed_successfully
+    environment:
+      METRICS_SERVICE_DATABASES__awx__HOST: postgres
+      METRICS_SERVICE_DATABASES__awx__PASSWORD: metrics_service
+      METRICS_SERVICE_DATABASES__awx__USER: metrics_service
+      METRICS_SERVICE_DATABASES__default__HOST: postgres
+      METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+      METRICS_SERVICE_MODE: development
+    networks:
+      - metrics-service
+
+  metrics-service-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: metrics-service-scheduler
+    command: "python manage.py run_task_scheduler"
+    volumes:
+      - "./:/app:z"
+      - "/app/.venv"
+      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      metrics-service-init:
+        condition: service_completed_successfully
+    environment:
+      METRICS_SERVICE_DATABASES__default__HOST: postgres
+      METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+      METRICS_SERVICE_MODE: development
     networks:
       - metrics-service
 
