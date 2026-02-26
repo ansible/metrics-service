@@ -58,7 +58,6 @@ services:
       metrics-service-init:
         condition: service_completed_successfully
     environment:
-      METRICS_SERVICE_ALLOWED_HOSTS: '["0.0.0.0"]'
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development

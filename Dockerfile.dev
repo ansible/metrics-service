@@ -30,7 +30,9 @@ COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
 
 # STATIC_ROOT in Django is staticfiles; collectstatic must write there
-RUN mkdir -p /app/logs /app/staticfiles && \
+# but first make sure they're empty
+RUN rm -rf /app/logs /app/staticfiles && \
+    mkdir -p /app/logs /app/staticfiles && \
     chown -R 1001:1001 /app && \
     chmod -R a-w /app && \
     chmod 555 /app && \
