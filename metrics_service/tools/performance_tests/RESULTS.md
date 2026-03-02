@@ -32,7 +32,7 @@ Generator parameters (`fill_perf_db_data.py`): `--job-count=J --task-count=T --h
 | Snapshot collectors | 0.37s | Run once (execution_environments, config, controller_version_service, table_metadata) |
 | Hourly collection | 10.3s (0.2 min) | 24 hours × 4 collectors |
 | — job_host_summary_service | 1.3s total | peak 210.5 MB |
-| — unified_jobs | 1.3s total | failing: int64 serialization bug in metrics-utility |
+| — unified_jobs | 1.3s total | |
 | — credentials_service | 1.3s total | peak 210.5 MB |
 | — main_jobevent_service | 6.3s total | peak 211.5 MB |
 | Rollup | 0.05s | |
@@ -77,7 +77,7 @@ Generator parameters (`fill_perf_db_data.py`): `--job-count=J --task-count=T --h
 | Snapshot collectors | 0.53s | Run once (execution_environments, config, controller_version_service, table_metadata) |
 | Hourly collection | 51.0s (0.9 min) | 24 hours × 4 collectors |
 | — job_host_summary_service | 1.4s total | peak 386.8 MB |
-| — unified_jobs | 1.3s total | failing: int64 serialization bug in metrics-utility |
+| — unified_jobs | 1.3s total | |
 | — credentials_service | 1.3s total | peak 386.8 MB |
 | — main_jobevent_service | 47.0s total | peak 442.3 MB |
 | Rollup | 0.05s | |
@@ -120,7 +120,7 @@ Generator parameters (`fill_perf_db_data.py`): `--job-count=J --task-count=T --h
 | Snapshot collectors | 0.43s | Run once (execution_environments, config, controller_version_service, table_metadata) |
 | Hourly collection | 338.4s (5.6 min) | 24 hours × 4 collectors |
 | — job_host_summary_service | 1.6s total | peak 1,625.1 MB |
-| — unified_jobs | 1.3s total | failing: int64 serialization bug in metrics-utility |
+| — unified_jobs | 1.3s total | |
 | — credentials_service | 1.3s total | peak 1,625.1 MB |
 | — main_jobevent_service | 334.2s total | peak 2,451.7 MB |
 | Rollup | 0.11s | |
@@ -144,8 +144,3 @@ Generator parameters (`fill_perf_db_data.py`): `--job-count=J --task-count=T --h
 | DailyMetricsSummary     | 1    | 0.04 MB   |
 
 ---
-
-## Known Issues
-
-- **unified_jobs**: fails every hour with `Object of type int64 is not JSON serializable` — `sanitize_json` not applied in `jobs_anonymized_rollup.py` in metrics-utility
-- **Snapshot collectors**: stored with today's timestamp, not the test date — rollup warnings about missing snapshot collections are expected for historical benchmarks
