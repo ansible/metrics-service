@@ -756,23 +756,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "coverage" },
-    { name = "django-debug-toolbar" },
-    { name = "django-stubs", extra = ["compatible-mypy"] },
-    { name = "djangorestframework-stubs", extra = ["compatible-mypy"] },
-    { name = "factory-boy" },
-    { name = "isort" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "psutil" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-django" },
-    { name = "ruff" },
-]
 docs = [
     { name = "sphinx" },
     { name = "sphinx-autodoc-typehints" },
@@ -830,8 +813,6 @@ requires-dist = [
     { name = "metrics-utility", specifier = ">=0.7.20260224" },
     { name = "packaging", specifier = ">=20.0" },
     { name = "pip", specifier = ">=25.2" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.4" },
-    { name = "psutil", marker = "extra == 'dev'", specifier = ">=5.9" },
     { name = "psycopg", extras = ["c"], specifier = ">=3.1" },
     { name = "psycopg2", specifier = ">=2.9.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4" },
