@@ -57,14 +57,14 @@ docker exec metrics-service-postgres psql -U awx -d awx -c "SELECT COUNT(*) as t
 
 ```
 
-## Check event number on Jan 25, 2025. Estimation 1,264,938
+## Check event number on Jan 25, 2024. Estimation 1,264,938
 
 ```bash
 docker exec metrics-service-postgres psql -U awx -d awx -c "SELECT COUNT(*) as events_on_jan25 FROM main_jobevent WHERE job_created >= '2024-01-25 00:00:00' AND job_created < '2024-01-26 00:00:00';"
 
 ```
 
-## Check event number by hour on Jan 25, 2025. Approximately 16 out of 24 hours should have data
+## Check event number by hour on Jan 25, 2024. Approximately 16 out of 24 hours should have data
 
 ```bash
 docker exec metrics-service-postgres psql -U awx -d awx -c "SELECT DATE_TRUNC('hour', job_created) AS hour, COUNT(*) AS event_count FROM main_jobevent WHERE job_created >= '2024-01-25 00:00:00' AND job_created < '2024-01-26 00:00:00'
