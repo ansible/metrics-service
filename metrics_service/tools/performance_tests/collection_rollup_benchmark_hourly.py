@@ -257,26 +257,24 @@ def print_final_summary(
     print_source_table_counts(test_date)
 
 
-_ALLOWED_TABLES = {
-    "main_jobevent",
-    "main_jobhostsummary",
-    "main_host",
-    "main_unifiedjob",
-    "main_job",
-    "main_unifiedjobtemplate",
-    "main_inventory",
-    "main_organization",
-    "main_credential",
-    "main_credentialtype",
-    "main_unifiedjob_credentials",
-    "main_executionenvironment",
+_TABLE_COUNT_QUERIES = {
+    "main_jobevent": "SELECT COUNT(*) FROM main_jobevent",
+    "main_jobhostsummary": "SELECT COUNT(*) FROM main_jobhostsummary",
+    "main_host": "SELECT COUNT(*) FROM main_host",
+    "main_unifiedjob": "SELECT COUNT(*) FROM main_unifiedjob",
+    "main_job": "SELECT COUNT(*) FROM main_job",
+    "main_unifiedjobtemplate": "SELECT COUNT(*) FROM main_unifiedjobtemplate",
+    "main_inventory": "SELECT COUNT(*) FROM main_inventory",
+    "main_organization": "SELECT COUNT(*) FROM main_organization",
+    "main_credential": "SELECT COUNT(*) FROM main_credential",
+    "main_credentialtype": "SELECT COUNT(*) FROM main_credentialtype",
+    "main_unifiedjob_credentials": "SELECT COUNT(*) FROM main_unifiedjob_credentials",
+    "main_executionenvironment": "SELECT COUNT(*) FROM main_executionenvironment",
 }
 
 
 def _count(cursor, table):
-    if table not in _ALLOWED_TABLES:
-        raise ValueError(f"Table '{table}' is not in the allowed list")
-    cursor.execute(f"SELECT COUNT(*) FROM {table}")  # noqa: S608
+    cursor.execute(_TABLE_COUNT_QUERIES[table])
     return cursor.fetchone()[0]
 
 
