@@ -2,3 +2,5 @@ inheritance: true
 reviews:
   high_level_summary: false
   high_level_summary_in_walkthrough: true
+  targets:
+    - FB-Automation-Dashboard
