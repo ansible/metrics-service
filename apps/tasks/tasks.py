@@ -151,7 +151,7 @@ TASK_METADATA = {
             "collector_type": {
                 "type": "string",
                 "required": True,
-                "description": "Type of collector to run (e.g., job_host_summary_service, unified_jobs, credentials_service)",
+                "description": "Type of collector to run (e.g., unified_jobs)",
             },
             "hour_timestamp": {
                 "type": "string",
@@ -176,12 +176,14 @@ TASK_METADATA = {
             "collector_type": {
                 "type": "string",
                 "required": True,
-                "description": "Type of collector to run (e.g., execution_environments, config)",
+                "description": "Type of collector to run (e.g., execution_environments)",
             },
         },
         "examples": [
             {"name": "Execution environments", "data": {"collector_type": "execution_environments"}},
             {"name": "System config", "data": {"collector_type": "config"}},
+            {"name": "Controller version", "data": {"collector_type": "controller_version_service"}},
+            {"name": "Table metadata", "data": {"collector_type": "table_metadata"}},
         ],
     },
     # Daily Rollup and Anonymization

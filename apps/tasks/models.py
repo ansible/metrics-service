@@ -327,6 +327,8 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         ("credentials_service", "Credentials Service"),
         ("main_jobevent_service", "Job Events (Event Modules)"),
         ("execution_environments", "Execution Environments"),
+        ("controller_version_service", "Controller Version Service"),
+        ("table_metadata", "Table Metadata"),
         ("config", "Configuration"),  # Daily only, included for completeness
     ]
 
