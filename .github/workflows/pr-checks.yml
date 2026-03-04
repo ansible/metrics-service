@@ -6,6 +6,22 @@ on:
 jobs:
   pr-checks:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: metrics_service
+          POSTGRES_USER: metrics_service
+          POSTGRES_PASSWORD: metrics_service
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: "Checkout metrics-service (${{ github.ref }})"
         uses: actions/checkout@v6
@@ -36,6 +52,13 @@ jobs:
           uvx ruff format --check
 
       - name: "Check for missing migrations"
+        env:
+          METRICS_SERVICE_DATABASES__default__HOST: localhost
+          METRICS_SERVICE_DATABASES__default__PORT: 5432
+          METRICS_SERVICE_DATABASES__default__USER: metrics_service
+          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
         run: |
           if ! uv run ./manage.py makemigrations --check; then
             echo "Models have changed. Run 'uv run ./manage.py makemigrations' locally and commit the updated migrations."
