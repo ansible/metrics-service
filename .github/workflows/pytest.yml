@@ -77,16 +77,3 @@ jobs:
         with:
           name: pr_number
           path: pr_number.txt
-
-      - name: "Send code coverage report to Sonar Cloud (on push)"
-        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
-        if: github.event_name != 'pull_request'
-        env:
-          SONAR_HOST_URL: https://sonarcloud.io
-          SONAR_ORGANIZATION: ansible
-          SONAR_PROJECT_KEY: ansible_metrics-service
-          SONAR_TOKEN: ${{ secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT }}
-        with:
-          projectBaseDir: .
-          args: >
-            -Dsonar.python.coverage.reportPaths=coverage.xml
