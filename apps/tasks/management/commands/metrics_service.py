@@ -745,11 +745,19 @@ class Command(BaseCommand):
     def _extract_config(self, options: dict[str, Any]) -> dict[str, Any]:
         """Extract configuration from command options."""
         workers = options.get("workers", 4)
+        # argparse sets gunicorn_workers/dispatcher_workers to None when not passed;
+        # treat None as "use workers" so options.get(..., workers) works as intended
+        gunicorn_workers = options.get("gunicorn_workers")
+        dispatcher_workers = options.get("dispatcher_workers")
+        if gunicorn_workers is None:
+            gunicorn_workers = workers
+        if dispatcher_workers is None:
+            dispatcher_workers = workers
         return {
             "host": options.get("host", "127.0.0.1"),
             "port": options.get("port", "8000"),
-            "gunicorn_workers": options.get("gunicorn_workers", workers),
-            "dispatcher_workers": options.get("dispatcher_workers", workers),
+            "gunicorn_workers": gunicorn_workers,
+            "dispatcher_workers": dispatcher_workers,
             "timeout": options.get("timeout", 3600),
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),
