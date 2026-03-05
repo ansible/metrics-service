@@ -20,14 +20,26 @@ COPY --chown=1001:1001 . /app/
 
 USER 1001
 
-# Use binary wheels only (strip --no-binary so no cryptography/psycopg source builds).
-RUN sed '/^--no-binary/d' requirements-build.txt > /tmp/requirements-dev.txt && \
-    pip install --no-cache-dir -r /tmp/requirements-dev.txt && \
-    pip install --no-cache-dir .
+# Install uv and use it to install dependencies (faster than pip, uses binary wheels)
+# Explicitly use python3.12 since the default python3 is 3.9
+# Create virtual environment and install packages there
+RUN pip install --no-cache-dir uv && \
+    uv venv --python python3.12 /app/.venv && \
+    uv pip install --python /app/.venv/bin/python --no-cache .
 
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
-RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
+COPY --chown=1001:1001 scripts/generate-certs.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-init.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-web.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-dispatcherd.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-scheduler.sh /usr/local/bin/
+RUN chmod 555 /usr/local/bin/docker-entrypoint.sh && \
+    chmod 555 /usr/local/bin/generate-certs.sh && \
+    chmod 555 /usr/local/bin/entrypoint-init.sh && \
+    chmod 555 /usr/local/bin/entrypoint-web.sh && \
+    chmod 555 /usr/local/bin/entrypoint-dispatcherd.sh && \
+    chmod 555 /usr/local/bin/entrypoint-scheduler.sh
 
 # STATIC_ROOT in Django is staticfiles; collectstatic must write there
 # but first make sure they're empty
@@ -36,13 +48,13 @@ RUN rm -rf /app/logs /app/staticfiles && \
     chown -R 1001:1001 /app && \
     chmod -R a-w /app && \
     chmod 555 /app && \
-    chmod 755 /app/logs /app/staticfiles
+    chmod 755 /app/logs /app/staticfiles /app/.venv
 USER 1001
-RUN python manage.py collectstatic --noinput --clear
+RUN /app/.venv/bin/python manage.py collectstatic --noinput --clear
 
 EXPOSE 8000
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
 
 LABEL name="metrics-service-dev" \
     summary="Metrics Service (dev build, binary wheels only)"
