@@ -80,7 +80,21 @@ class Command(BaseCommand):
             "--workers",
             type=int,
             default=4,
-            help="Number of dispatcher worker processes (default: 4)",
+            help="Number of workers for both Gunicorn and dispatcher when not overridden (default: 4)",
+        )
+        parser.add_argument(
+            "--gunicorn-workers",
+            type=int,
+            default=None,
+            dest="gunicorn_workers",
+            help="Number of Gunicorn worker processes (default: value of --workers)",
+        )
+        parser.add_argument(
+            "--dispatcher-workers",
+            type=int,
+            default=None,
+            dest="dispatcher_workers",
+            help="Number of dispatcher worker processes (default: value of --workers)",
         )
         parser.add_argument(
             "--timeout",
@@ -569,7 +583,8 @@ class Command(BaseCommand):
         """Display startup message with service configuration."""
         self.output.success("Starting metrics service:")
         self.output.write(f"Django server: http://{config['host']}:{config['port']}")
-        self.output.write(f"Dispatcher workers: {config['workers']}")
+        self.output.write(f"Gunicorn workers: {config['gunicorn_workers']}")
+        self.output.write(f"Dispatcher workers: {config['dispatcher_workers']}")
         self.output.write("Task scheduler: APScheduler with cron support")
 
     def _build_service_commands(self, manage_py: str | Path, config: dict[str, Any]) -> list[list[str]]:
@@ -584,7 +599,7 @@ class Command(BaseCommand):
             "--bind",
             f"{config['host']}:{config['port']}",
             "--workers",
-            str(config["workers"]),
+            str(config["gunicorn_workers"]),
             "--capture-output",
             "--access-logfile",
             "-",
@@ -599,7 +614,7 @@ class Command(BaseCommand):
             "-u",
             str(manage_py),
             "run_dispatcherd",
-            f"--workers={config['workers']}",
+            f"--workers={config['dispatcher_workers']}",
             f"--timeout={config['timeout']}",
             f"--max-tasks={config['max_tasks']}",
             f"--log-level={config['log_level']}",
@@ -729,10 +744,12 @@ class Command(BaseCommand):
 
     def _extract_config(self, options: dict[str, Any]) -> dict[str, Any]:
         """Extract configuration from command options."""
+        workers = options.get("workers", 4)
         return {
             "host": options.get("host", "127.0.0.1"),
             "port": options.get("port", "8000"),
-            "workers": options.get("workers", 4),
+            "gunicorn_workers": options.get("gunicorn_workers", workers),
+            "dispatcher_workers": options.get("dispatcher_workers", workers),
             "timeout": options.get("timeout", 3600),
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),

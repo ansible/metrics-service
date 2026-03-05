@@ -1,8 +1,11 @@
 #!/bin/bash
 # Entrypoint for dispatcherd container
 # Runs background task workers
+# Uses /app/.venv/bin/metrics-service (Dockerfile.dev installs there, not in system PATH).
 
 set -e
+
+METRICS_SERVICE_CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Metrics Service - Dispatcherd Worker"
@@ -17,8 +20,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Start dispatcherd (metrics-service CLI uses env Python; no python3.12 hardcode)
-exec metrics-service dispatcherd \
+exec "$METRICS_SERVICE_CLI" dispatcherd \
     --workers="${DISPATCHERD_WORKERS:-2}" \
     --timeout="${DISPATCHERD_TIMEOUT:-3600}" \
     --max-tasks="${DISPATCHERD_MAX_TASKS:-100}" \

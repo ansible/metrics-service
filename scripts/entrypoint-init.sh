@@ -1,8 +1,11 @@
 #!/bin/bash
 # Entrypoint for init container
 # Runs database migrations and initialization, then exits
+# Uses /app/.venv (Dockerfile.dev installs deps there, not system Python).
 
 set -e
+
+VENV_PYTHON="${VENV_PYTHON:-/app/.venv/bin/python}"
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Metrics Service - Database Initialization"
@@ -14,7 +17,7 @@ echo "Waiting for PostgreSQL..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 
-until python3.12 -c '
+until "$VENV_PYTHON" -c '
 import os
 import sys
 import psycopg
@@ -47,25 +50,25 @@ echo ""
 
 # Run database migrations
 echo "─── Running Database Migrations ───"
-python3.12 manage.py migrate --noinput
+"$VENV_PYTHON" manage.py migrate --noinput
 echo "✓ Migrations complete"
 echo ""
 
 # Initialize default settings
 echo "─── Initializing Default Settings ───"
-python3.12 manage.py metrics_service init-default-settings
+"$VENV_PYTHON" manage.py metrics_service init-default-settings
 echo "✓ Default settings initialized"
 echo ""
 
 # Initialize ServiceID for django-ansible-base
 echo "─── Initializing ServiceID ───"
-python3.12 manage.py metrics_service init-service-id
+"$VENV_PYTHON" manage.py metrics_service init-service-id
 echo "✓ ServiceID initialized"
 echo ""
 
 # Initialize system tasks
 echo "─── Initializing System Tasks ───"
-python3.12 manage.py metrics_service init-system-tasks
+"$VENV_PYTHON" manage.py metrics_service init-system-tasks
 echo "✓ System tasks initialized"
 echo ""
 

@@ -28,6 +28,8 @@ Usage:
    export METRICS_SERVICE_DATABASES__default__PASSWORD=your-db-password
    # ... set all other required environment variables
    python manage.py metrics_service run --workers 4
+   # Or set Gunicorn and dispatcher workers separately:
+   # python manage.py metrics_service run --gunicorn-workers 4 --dispatcher-workers 4
 
 Validators are registered in metrics_service/settings.py and run during export().
 """

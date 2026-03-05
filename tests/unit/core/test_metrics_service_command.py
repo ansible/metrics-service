@@ -87,12 +87,32 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
         assert config == {
             "host": "localhost",
             "port": "9000",
-            "workers": 8,
+            "gunicorn_workers": 8,
+            "dispatcher_workers": 8,
             "timeout": 7200,
             "max_tasks": 200,
             "log_level": "DEBUG",
             "check_interval": 120,
         }
+
+    def test_extract_config_split_workers(self):
+        """Test _extract_config with explicit gunicorn_workers and dispatcher_workers."""
+        options = {
+            "host": "127.0.0.1",
+            "port": "8000",
+            "workers": 4,
+            "gunicorn_workers": 2,
+            "dispatcher_workers": 8,
+            "timeout": 3600,
+            "max_tasks": 100,
+            "log_level": "INFO",
+            "check_interval": 60,
+        }
+
+        config = self.command._extract_config(options)
+
+        assert config["gunicorn_workers"] == 2
+        assert config["dispatcher_workers"] == 8
 
     def _setup_start_services_mocks(self, mock_exit, mock_sleep, mock_exists, mock_popen):
         """Helper to set up common mocks for start_services tests."""
@@ -144,6 +164,7 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
         output = self.out.getvalue()
         assert "Starting metrics service:" in output
         assert "Django server: http://127.0.0.1:8000" in output
+        assert "Gunicorn workers: 4" in output
         assert "Dispatcher workers: 4" in output
 
     @patch("subprocess.Popen")
@@ -218,6 +239,7 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
         assert "gunicorn" in django_cmd
         assert "metrics_service.wsgi:application" in django_cmd
         assert "127.0.0.1:8000" in django_cmd
+        assert "--workers" in django_cmd and "4" in django_cmd
         assert "--log-level" in django_cmd and "debug" in django_cmd  # DEBUG level
 
         # Verify Dispatcher command
