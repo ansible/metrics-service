@@ -285,6 +285,7 @@ python manage.py metrics_service tasks --help
 
 # Run service with custom configuration
 python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4
+# Or set Gunicorn and dispatcher workers separately: --gunicorn-workers N --dispatcher-workers N
 
 # Task management
 python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_tasks" --cron "0 2 * * *"

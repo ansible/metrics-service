@@ -1,0 +1,172 @@
+# Production multi-container orchestration for metrics-service
+#
+# Splits the service into 4 specialized containers:
+# - init: Database migrations (runs once)
+# - web: Nginx (TLS termination) + Gunicorn (WSGI server)
+# - dispatcherd: Background task workers
+# - scheduler: APScheduler for cron-based task scheduling
+#
+# All containers use the same base image with different entrypoints.
+# Static files are baked into the image at build time (no shared volumes needed).
+#
+# Usage:
+#   export METRICS_SERVICE_SECRET_KEY=...
+#   export METRICS_SERVICE_DATABASES__default__PASSWORD=...
+#   # Set other required production env vars (see apps/settings/production.py)
+#   docker compose -f docker-compose.production.yml up -d
+#
+# Or override with a .env file:
+#   docker compose -f docker-compose.production.yml --env-file .env.production up -d
+
+services:
+  postgres:
+    image: "mirror.gcr.io/postgres:15"
+    container_name: metrics-service-postgres-production
+    environment:
+      POSTGRES_DB: metrics_service
+      POSTGRES_USER: metrics_service
+      POSTGRES_PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:?METRICS_SERVICE_DATABASES__default__PASSWORD is required}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "metrics_service", "-d", "metrics_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - metrics-service
+    volumes:
+      - metrics_service_db_production:/var/lib/postgresql/data
+
+  init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: metrics-service-init-prod
+    entrypoint: ["/usr/local/bin/entrypoint-init.sh"]
+    restart: "no"  # Runs once and exits
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &common-env
+      # Django Core
+      METRICS_SERVICE_MODE: production
+      METRICS_SERVICE_SECRET_KEY: ${METRICS_SERVICE_SECRET_KEY:?METRICS_SERVICE_SECRET_KEY is required}
+      METRICS_SERVICE_ALLOWED_HOSTS: ${METRICS_SERVICE_ALLOWED_HOSTS:-localhost,127.0.0.1,metrics-service}
+
+      # Database - Default (metrics-service own DB)
+      METRICS_SERVICE_DATABASES__default__HOST: postgres
+      METRICS_SERVICE_DATABASES__default__USER: metrics_service
+      METRICS_SERVICE_DATABASES__default__PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:?METRICS_SERVICE_DATABASES__default__PASSWORD is required}
+      METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+      METRICS_SERVICE_DATABASES__default__PORT: 5432
+
+      # Database - AWX (for metrics collection)
+      METRICS_SERVICE_DATABASES__awx__HOST: ${METRICS_SERVICE_DATABASES__awx__HOST:-postgres}
+      METRICS_SERVICE_DATABASES__awx__USER: ${METRICS_SERVICE_DATABASES__awx__USER:-metrics_service}
+      METRICS_SERVICE_DATABASES__awx__PASSWORD: ${METRICS_SERVICE_DATABASES__awx__PASSWORD:?METRICS_SERVICE_DATABASES__awx__PASSWORD is required}
+      METRICS_SERVICE_DATABASES__awx__NAME: ${METRICS_SERVICE_DATABASES__awx__NAME:-awx}
+
+      # Resource Server / Gateway
+      METRICS_SERVICE_RESOURCE_SERVER__URL: ${METRICS_SERVICE_RESOURCE_SERVER__URL:-http://localhost:8000}
+      METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY: ${METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY:?METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY is required}
+
+      # Authentication
+      METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY: ${METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY:?METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY is required}
+
+      # External Services
+      METRICS_SERVICE_SEGMENT_WRITE_KEY: ${METRICS_SERVICE_SEGMENT_WRITE_KEY:?METRICS_SERVICE_SEGMENT_WRITE_KEY is required}
+    networks:
+      - metrics-service
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: metrics-service-web-prod
+    entrypoint: ["/usr/local/bin/entrypoint-web.sh"]
+    ports:
+      - "${METRICS_SERVICE_HTTP_PORT:-8080}:8080"
+      - "${METRICS_SERVICE_HTTPS_PORT:-8443}:8443"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+    environment:
+      <<: *common-env
+      # Gunicorn configuration
+      GUNICORN_BIND: "127.0.0.1:8000"
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-4}
+      GUNICORN_LOG_LEVEL: ${GUNICORN_LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - metrics-service
+
+  dispatcherd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: metrics-service-dispatcherd-prod
+    entrypoint: ["/usr/local/bin/entrypoint-dispatcherd.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+    environment:
+      <<: *common-env
+      # Dispatcherd configuration
+      DISPATCHERD_WORKERS: ${DISPATCHERD_WORKERS:-4}
+      DISPATCHERD_TIMEOUT: ${DISPATCHERD_TIMEOUT:-3600}
+      DISPATCHERD_MAX_TASKS: ${DISPATCHERD_MAX_TASKS:-100}
+      DISPATCHERD_LOG_LEVEL: ${DISPATCHERD_LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q dispatcherd /proc/1/cmdline"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - metrics-service
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: metrics-service-scheduler-prod
+    entrypoint: ["/usr/local/bin/entrypoint-scheduler.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+      dispatcherd:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      # Scheduler configuration
+      SCHEDULER_CHECK_INTERVAL: ${SCHEDULER_CHECK_INTERVAL:-60}
+      SCHEDULER_LOG_LEVEL: ${SCHEDULER_LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q scheduler /proc/1/cmdline"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - metrics-service
+
+volumes:
+  metrics_service_db_production:
+    name: metrics_service_app_db_production
+
+networks:
+  metrics-service:
+    name: metrics-service-production

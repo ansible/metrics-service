@@ -27,7 +27,9 @@ Usage:
    export METRICS_SERVICE_SECRET_KEY=your-secret-key
    export METRICS_SERVICE_DATABASES__default__PASSWORD=your-db-password
    # ... set all other required environment variables
-   python manage.py runserver
+   python manage.py metrics_service run --workers 4
+   # Or set Gunicorn and dispatcher workers separately:
+   # python manage.py metrics_service run --gunicorn-workers 4 --dispatcher-workers 4
 
 Validators are registered in metrics_service/settings.py and run during export().
 """
@@ -215,3 +217,19 @@ validators.append(
 # Production login/logout URLs for gateway integration
 LOGIN_URL = "/api/gateway/v1/login/"
 LOGOUT_URL = "/api/gateway/v1/logout/"
+
+# =============================================================================
+# Allowed Hosts
+# =============================================================================
+# Set via METRICS_SERVICE_ALLOWED_HOSTS (comma-separated or JSON array).
+# Example: METRICS_SERVICE_ALLOWED_HOSTS=metrics.example.com,api.example.com
+# Or:      METRICS_SERVICE_ALLOWED_HOSTS='["metrics.example.com","api.example.com"]'
+ALLOWED_HOSTS = []
+validators.append(
+    Validator(
+        "ALLOWED_HOSTS",
+        must_exist=True,
+        condition=lambda v: isinstance(v, list) and len(v) > 0,
+        messages={"condition": "ALLOWED_HOSTS must be set via METRICS_SERVICE_ALLOWED_HOSTS in production."},
+    ),
+)

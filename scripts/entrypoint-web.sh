@@ -1,13 +1,21 @@
 #!/bin/bash
-# Docker entrypoint for metrics-service
-# Starts Nginx (for TLS termination) and then the main application
+# Entrypoint for web container
+# Starts Nginx (TLS termination) and Gunicorn (WSGI server)
+# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
+
+if [ -x "${VENV_GUNICORN:-/app/.venv/bin/gunicorn}" ]; then
+    GUNICORN_CMD=("${VENV_GUNICORN:-/app/.venv/bin/gunicorn}")
+else
+    GUNICORN_CMD=(python3.12 -m gunicorn)
+fi
 
 # Function to handle shutdown gracefully
 # Optional first argument: exit code to use (default 0 for signal-based graceful shutdown)
 shutdown() {
     local exit_code="${1:-0}"
+    echo ""
     echo "⚠ Received shutdown signal, stopping services..."
 
     # Stop Nginx gracefully
@@ -16,11 +24,11 @@ shutdown() {
         nginx -s quit 2>/dev/null || kill -TERM "$NGINX_PID" 2>/dev/null || true
     fi
 
-    # Stop the main application (metrics_service run handles its own process cleanup)
-    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
-        echo "  Stopping application (PID: $APP_PID)..."
-        kill -TERM "$APP_PID" 2>/dev/null || true
-        wait "$APP_PID" 2>/dev/null || true
+    # Stop Gunicorn
+    if [ -n "$GUNICORN_PID" ] && kill -0 "$GUNICORN_PID" 2>/dev/null; then
+        echo "  Stopping Gunicorn (PID: $GUNICORN_PID)..."
+        kill -TERM "$GUNICORN_PID" 2>/dev/null || true
+        wait "$GUNICORN_PID" 2>/dev/null || true
     fi
 
     echo "✓ Shutdown complete"
@@ -31,7 +39,7 @@ shutdown() {
 trap shutdown SIGTERM SIGINT SIGQUIT
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  Metrics Service - Production Container"
+echo "  Metrics Service - Web Container"
 echo "════════════════════════════════════════════════════════════════"
 
 # Generate TLS certificates if they don't exist
@@ -50,40 +58,45 @@ if [ -n "$NGINX_PID" ]; then
     echo "  Listening on:"
     echo "    - HTTP:  Port 8080 (redirects to HTTPS)"
     echo "    - HTTPS: Port 8443 (TLS 1.2/1.3)"
-    echo "  Note: Non-privileged ports for rootless operation"
-    echo "        In Kubernetes, map 80→8080 and 443→8443 via Service"
 else
     echo "✗ Failed to start Nginx"
     exit 1
 fi
 
-# Start the main application (metrics_service run)
+# Start Gunicorn
 echo ""
-echo "─── Starting Application ───"
-echo "Command: $*"
+echo "─── Starting Gunicorn ───"
+echo "  Bind: ${GUNICORN_BIND:-127.0.0.1:8000}"
+echo "  Workers: ${GUNICORN_WORKERS:-4}"
+echo "  Log Level: ${GUNICORN_LOG_LEVEL:-info}"
 echo ""
 
-# Execute the main command in the background so we can monitor both processes
-"$@" &
-APP_PID=$!
+# Start Gunicorn in background so we can monitor both processes
+"${GUNICORN_CMD[@]}" metrics_service.wsgi:application \
+    --bind "${GUNICORN_BIND:-127.0.0.1:8000}" \
+    --workers "${GUNICORN_WORKERS:-4}" \
+    --capture-output \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level "${GUNICORN_LOG_LEVEL:-info}" &
 
-echo ""
+GUNICORN_PID=$!
+
 echo "════════════════════════════════════════════════════════════════"
-echo "  All services started successfully"
-echo "  Application PID: $APP_PID"
+echo "  Web services started successfully"
 echo "  Nginx PID: $NGINX_PID"
+echo "  Gunicorn PID: $GUNICORN_PID"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Wait for the main application to exit (disable errexit so we always reach shutdown)
+# Wait for Gunicorn to exit (disable errexit so we always reach shutdown)
 set +e
-wait "$APP_PID"
-APP_EXIT_CODE=$?
+wait "$GUNICORN_PID"
+GUNICORN_EXIT_CODE=$?
 set -e
 
 echo ""
-echo "⚠ Application exited with code $APP_EXIT_CODE"
+echo "⚠ Gunicorn exited with code $GUNICORN_EXIT_CODE"
 
-# Stop Nginx when application exits (pass through app exit code for orchestration)
-shutdown "$APP_EXIT_CODE"
-
+# Stop Nginx when Gunicorn exits (pass through Gunicorn exit code for orchestration)
+shutdown "$GUNICORN_EXIT_CODE"

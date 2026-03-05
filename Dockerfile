@@ -1,6 +1,6 @@
-# Dockerfile - Konflux/AppStudio compliant build
-# Builds Python dependencies; source-only for crypto/psycopg, binaries allowed for Django/pandas.
-# Konflux: if using RHEL registration, configure Environment secrets for /activation-key/org and /entitlement.
+# Dockerfile - Production build with Nginx + TLS
+# Uses pre-built Python wheels (binaries) for faster builds
+# Includes Nginx for TLS termination and reverse proxy
 
 FROM registry.access.redhat.com/ubi9/python-312:latest
 
@@ -14,35 +14,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 
 
 
-# Install system dependencies required for building Python packages from source
-# These include compilers and development headers for:
-# - cryptography (requires Rust, OpenSSL headers)
-# - psycopg/psycopg2 (requires PostgreSQL headers)
-# - python-ldap (requires OpenLDAP headers)
-# - cffi (requires libffi headers)
+# Install only runtime dependencies (no build tools)
+# Use pre-built Python wheels instead of building from source
 USER root
 RUN dnf update -y && \
     dnf install -y \
-        # C compiler and build tools
-        gcc \
-        gcc-c++ \
-        make \
-        # Python development headers
-        python3.12-devel \
-        # PostgreSQL development headers (for psycopg/psycopg2)
-        postgresql-devel \
-        libpq-devel \
-        # OpenLDAP development headers (for python-ldap)
-        openldap-devel \
-        # OpenSSL development headers (for cryptography)
-        openssl-devel \
-        # libffi development headers (for cffi)
-        libffi-devel \
-        # Rust toolchain (required for cryptography package)
-        rust \
-        cargo \
-        # Additional build dependencies
-        redhat-rpm-config \
+        # Production runtime: Nginx for reverse proxy and TLS termination
+        nginx \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
@@ -52,48 +30,60 @@ RUN mkdir -p /app && chown -R 1001:1001 /app
 # Copy the application code
 COPY --chown=1001:1001 . /app/
 
-# Switch to non-root user for build
+# Switch to non-root user for install
 USER 1001
 
-# Set up cachi2/hermeto environment for hermetic builds (if available).
-# Cachi2 provides cachi2.env; Hermeto provides deps/pip and uses PIP_FIND_LINKS + PIP_NO_INDEX.
-# requirements-build.txt has no -e .; we always install deps then "pip install .".
-# Hermetic path: rewrite any django-ansible-base git+https line to file:// using captured commit
-# so the same Dockerfile works when requirements-build.txt is updated to a new revision.
-RUN if [ -f /cachi2/cachi2.env ]; then \
-        set -a && . /cachi2/cachi2.env && set +a && \
-        pip install --no-cache-dir -r requirements-build.txt && pip install --no-cache-dir . ; \
-    elif [ -d /cachi2/deps/pip ]; then \
-        export PIP_NO_INDEX=1 PIP_FIND_LINKS=/cachi2/deps/pip && \
-        pip install --no-cache-dir wheel setuptools && \
-        sed -e '/^--no-binary/d' -e 's|django-ansible-base @ git+https://github.com/ansible/django-ansible-base@\([a-f0-9]\+\)|django-ansible-base @ file:///cachi2/deps/pip/django-ansible-base-gitcommit-\1.tar.gz|' requirements-build.txt > /tmp/requirements-hermetic.txt && \
-        (grep -q 'django-ansible-base @ git+https' /tmp/requirements-hermetic.txt && { echo "ERROR: django-ansible-base git URL was not rewritten for hermetic build; prefetch may use a different rev than requirements-build.txt" >&2; exit 1; }) || true && \
-        pip install --no-cache-dir --no-build-isolation -r /tmp/requirements-hermetic.txt && pip install --no-cache-dir --no-deps --no-build-isolation . ; \
-    else \
-        pip install --no-cache-dir -r requirements-build.txt && pip install --no-cache-dir . ; \
-    fi
+# Install Python dependencies using pre-built wheels (binaries)
+# Prefer binary packages to avoid compilation during build
+RUN pip install --no-cache-dir --prefer-binary --only-binary :all: . || \
+    pip install --no-cache-dir --prefer-binary .
 
-# Copy and set up entrypoint script (read+execute only, no write)
+# Copy and set up entrypoint scripts, Nginx config, and certificate generator
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
-RUN chmod 555 /usr/local/bin/docker-entrypoint.sh
+COPY --chown=1001:1001 scripts/generate-certs.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-init.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-web.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-dispatcherd.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-scheduler.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/nginx/nginx.conf /etc/nginx/nginx.conf
+RUN chmod 555 /usr/local/bin/docker-entrypoint.sh && \
+    chmod 555 /usr/local/bin/generate-certs.sh && \
+    chmod 555 /usr/local/bin/entrypoint-init.sh && \
+    chmod 555 /usr/local/bin/entrypoint-web.sh && \
+    chmod 555 /usr/local/bin/entrypoint-dispatcherd.sh && \
+    chmod 555 /usr/local/bin/entrypoint-scheduler.sh && \
+    chmod 644 /etc/nginx/nginx.conf
 
-# Create necessary directories and files with proper permissions
-# STATIC_ROOT in Django is staticfiles; collectstatic must write there
+# Create necessary directories with proper permissions
+# Nginx directories need to be writable by user 1001
+RUN mkdir -p /etc/nginx/ssl /var/log/nginx /var/lib/nginx && \
+    chown -R 1001:1001 /etc/nginx /var/log/nginx /var/lib/nginx && \
+    chmod 755 /etc/nginx/ssl /var/log/nginx /var/lib/nginx
+USER 1001
+
+# Collect static files into STATIC_ROOT for production serving by Nginx
+# This creates /app/staticfiles owned by user 1001
 RUN mkdir -p /app/logs /app/staticfiles && \
-    chown -R 1001:1001 /app && \
-    chmod -R a-w /app && \
+    python3.12 manage.py collectstatic --noinput --clear
+
+# Make app directory read-only (except logs and staticfiles)
+USER root
+RUN chmod -R a-w /app && \
     chmod 555 /app && \
     chmod 755 /app/logs /app/staticfiles
 USER 1001
-RUN python manage.py collectstatic --noinput --clear
 
-# Expose port
-EXPOSE 8000
+# Expose ports (8080 for HTTP, 8443 for HTTPS, 8000 for direct backend access)
+# Non-privileged ports allow running as non-root user (1001)
+# In Kubernetes, use Service to map 80→8080 and 443→8443
+EXPOSE 8080 8443 8000
 
-# Set entrypoint and default command
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
+# Default: all-in-one mode — entrypoint starts Nginx (8080/8443) then runs CMD (app on 127.0.0.1:8000).
+# docker-compose can override with entrypoint: ["/usr/local/bin/entrypoint-web.sh"] etc. for split services.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+# App binds to 127.0.0.1:8000; Nginx proxies external 8080/8443 to it.
+CMD ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "4"]
 
 LABEL com.redhat.component="ansible-automation-platform-tech-preview-metrics-service-rhel9" \
     name="ansible-automation-platform-tech-preview/metrics-service-rhel9" \

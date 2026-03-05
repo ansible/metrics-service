@@ -88,6 +88,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -243,9 +244,8 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 """Root directory for static files"""
 
-STATICFILES_DIRS = [
-    BASE_DIR / "static",
-]
+# Only include project-level static dir if it exists (avoids staticfiles.W004 when absent)
+STATICFILES_DIRS = [d for d in [BASE_DIR / "static"] if d.exists()]
 """Directories to search for static files"""
 
 MEDIA_URL = "media/"
@@ -271,8 +271,13 @@ default_variables = {k: v for k, v in locals().items() if k.isupper()}
 app_prefix = "METRICS_SERVICE"
 """Application prefix for environment variables filtering."""
 
-os.environ.setdefault("METRICS_SERVICE_MODE", "development")
-environment = os.environ.get("METRICS_SERVICE_MODE", "development").lower()
+# Environment: METRICS_SERVICE_MODE, or PRODUCTION=1/true/yes → production (DEBUG=False).
+# Do not fall back to ENV; it is too generic and often set by runtimes/CI to values like "test"/"ci".
+_mode = os.environ.get("METRICS_SERVICE_MODE") or (
+    "production" if os.environ.get("PRODUCTION", "").lower() in ("1", "true", "yes") else None
+)
+os.environ.setdefault("METRICS_SERVICE_MODE", _mode or "development")
+environment = (os.environ.get("METRICS_SERVICE_MODE") or "development").lower()
 """The current environment, by default development"""
 
 DYNACONF = factory(__name__, app_prefix, add_dab_settings=False, **default_variables)
@@ -321,6 +326,45 @@ load_standard_settings_files(DYNACONF)
 
 # Load envvars at the end to allow them to override everything loaded so far.
 load_envvars(DYNACONF)
+
+# ALLOWED_HOSTS from environment: comma-separated list or JSON array
+if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
+    import json
+    import logging
+
+    raw = os.environ["METRICS_SERVICE_ALLOWED_HOSTS"].strip()
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError) as e:
+            logging.getLogger(__name__).warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: invalid JSON (%s), using empty list: %s",
+                type(e).__name__,
+                e,
+            )
+            parsed = []
+        if not isinstance(parsed, list):
+            logging.getLogger(__name__).warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: expected JSON array, got %s, using empty list",
+                type(parsed).__name__,
+            )
+            parsed = []
+        allowed_hosts = [str(x).strip() for x in parsed if str(x).strip()]
+        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
+    else:
+        allowed_hosts = [str(x).strip() for x in raw.split(",") if x.strip()]
+        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
+
+# Container-friendly logging: JSON to stdout when production or METRICS_SERVICE_LOG_FORMAT=json
+if environment == "production" or os.environ.get("METRICS_SERVICE_LOG_FORMAT", "").lower() == "json":
+    import copy
+
+    log_cfg = copy.deepcopy(DYNACONF.get("LOGGING") or {})
+    log_cfg.setdefault("formatters", {})["json"] = {"()": "apps.core.logging_config.JsonFormatter"}
+    for h in log_cfg.get("handlers", {}).values():
+        if isinstance(h, dict) and "StreamHandler" in str(h.get("class", "")):
+            h["formatter"] = "json"
+    DYNACONF.set("LOGGING", log_cfg)
 
 # Load development only apps
 if not DYNACONF.get("IS_RUNNING_TESTS") and DYNACONF.get("DEBUG"):
