@@ -1,11 +1,16 @@
 #!/bin/bash
 # Entrypoint for dispatcherd container
 # Runs background task workers
-# Uses /app/.venv/bin/metrics-service (Dockerfile.dev installs there, not in system PATH).
+# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
 
-METRICS_SERVICE_CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
+if [ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]; then
+    CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
+    RUN_DISPATCHERD() { exec "$CLI" dispatcherd "$@"; }
+else
+    RUN_DISPATCHERD() { exec python3.12 manage.py metrics_service dispatcherd "$@"; }
+fi
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Metrics Service - Dispatcherd Worker"
@@ -20,8 +25,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-exec "$METRICS_SERVICE_CLI" dispatcherd \
-    --workers="${DISPATCHERD_WORKERS:-2}" \
+RUN_DISPATCHERD --workers="${DISPATCHERD_WORKERS:-2}" \
     --timeout="${DISPATCHERD_TIMEOUT:-3600}" \
     --max-tasks="${DISPATCHERD_MAX_TASKS:-100}" \
     --log-level="${DISPATCHERD_LOG_LEVEL:-INFO}"

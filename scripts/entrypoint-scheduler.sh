@@ -1,11 +1,16 @@
 #!/bin/bash
 # Entrypoint for scheduler container
 # Runs APScheduler for cron-based task scheduling
-# Uses /app/.venv/bin/metrics-service (Dockerfile.dev installs there, not in system PATH).
+# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
 
-METRICS_SERVICE_CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
+if [ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]; then
+    CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
+    RUN_SCHEDULER() { exec "$CLI" scheduler "$@"; }
+else
+    RUN_SCHEDULER() { exec python3.12 manage.py metrics_service scheduler "$@"; }
+fi
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Metrics Service - Task Scheduler"
@@ -18,6 +23,5 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-exec "$METRICS_SERVICE_CLI" scheduler \
-    --check-interval="${SCHEDULER_CHECK_INTERVAL:-60}" \
+RUN_SCHEDULER --check-interval="${SCHEDULER_CHECK_INTERVAL:-60}" \
     --log-level="${SCHEDULER_LOG_LEVEL:-INFO}"

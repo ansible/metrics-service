@@ -126,7 +126,7 @@ services:
       DISPATCHERD_MAX_TASKS: ${DISPATCHERD_MAX_TASKS:-100}
       DISPATCHERD_LOG_LEVEL: ${DISPATCHERD_LOG_LEVEL:-INFO}
     healthcheck:
-      test: ["CMD-SHELL", "grep -q run_dispatcherd /proc/1/cmdline"]
+      test: ["CMD-SHELL", "grep -q dispatcherd /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -154,7 +154,7 @@ services:
       SCHEDULER_CHECK_INTERVAL: ${SCHEDULER_CHECK_INTERVAL:-60}
       SCHEDULER_LOG_LEVEL: ${SCHEDULER_LOG_LEVEL:-INFO}
     healthcheck:
-      test: ["CMD-SHELL", "grep -q run_task_scheduler /proc/1/cmdline"]
+      test: ["CMD-SHELL", "grep -q scheduler /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3

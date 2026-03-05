@@ -1,11 +1,15 @@
 #!/bin/bash
 # Entrypoint for web container
 # Starts Nginx (TLS termination) and Gunicorn (WSGI server)
-# Uses /app/.venv (Dockerfile.dev installs deps there, not system Python).
+# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
 
-VENV_GUNICORN="${VENV_GUNICORN:-/app/.venv/bin/gunicorn}"
+if [ -x "${VENV_GUNICORN:-/app/.venv/bin/gunicorn}" ]; then
+    GUNICORN_CMD=("${VENV_GUNICORN:-/app/.venv/bin/gunicorn}")
+else
+    GUNICORN_CMD=(python3.12 -m gunicorn)
+fi
 
 # Function to handle shutdown gracefully
 # Optional first argument: exit code to use (default 0 for signal-based graceful shutdown)
@@ -68,7 +72,7 @@ echo "  Log Level: ${GUNICORN_LOG_LEVEL:-info}"
 echo ""
 
 # Start Gunicorn in background so we can monitor both processes
-"$VENV_GUNICORN" metrics_service.wsgi:application \
+"${GUNICORN_CMD[@]}" metrics_service.wsgi:application \
     --bind "${GUNICORN_BIND:-127.0.0.1:8000}" \
     --workers "${GUNICORN_WORKERS:-4}" \
     --capture-output \
