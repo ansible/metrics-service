@@ -38,13 +38,21 @@ USER 1001
 RUN pip install --no-cache-dir --prefer-binary --only-binary :all: . || \
     pip install --no-cache-dir --prefer-binary .
 
-# Copy and set up entrypoint script, Nginx config, and certificate generator
+# Copy and set up entrypoint scripts, Nginx config, and certificate generator
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/generate-certs.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-init.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-web.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-dispatcherd.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/entrypoint-scheduler.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/nginx/nginx.conf /etc/nginx/nginx.conf
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh && \
     chmod 555 /usr/local/bin/generate-certs.sh && \
+    chmod 555 /usr/local/bin/entrypoint-init.sh && \
+    chmod 555 /usr/local/bin/entrypoint-web.sh && \
+    chmod 555 /usr/local/bin/entrypoint-dispatcherd.sh && \
+    chmod 555 /usr/local/bin/entrypoint-scheduler.sh && \
     chmod 644 /etc/nginx/nginx.conf
 
 # Create necessary directories with proper permissions
@@ -71,9 +79,10 @@ USER 1001
 # In Kubernetes, use Service to map 80→8080 and 443→8443
 EXPOSE 8080 8443 8000
 
-# Set entrypoint and default command.
+# Default command for backward compatibility (all-in-one mode)
 # Production runner: Nginx + Gunicorn (web) + Dispatcher + Scheduler
-ENTRYPOINT ["docker-entrypoint.sh"]
+# Note: No ENTRYPOINT defined - allows docker-compose to override with specific entrypoints
+# For all-in-one mode, use: docker run --entrypoint docker-entrypoint.sh metrics-service
 CMD ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "4"]
 
 LABEL com.redhat.component="ansible-automation-platform-tech-preview-metrics-service-rhel9" \
