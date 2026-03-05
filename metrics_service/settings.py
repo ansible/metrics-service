@@ -330,12 +330,31 @@ load_envvars(DYNACONF)
 
 # ALLOWED_HOSTS from environment: comma-separated list or JSON array
 if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
+    import json
+    import logging
+
     raw = os.environ["METRICS_SERVICE_ALLOWED_HOSTS"].strip()
     if raw.startswith("["):
-        import json
-        DYNACONF.set("ALLOWED_HOSTS", json.loads(raw))
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError) as e:
+            logging.getLogger(__name__).warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: invalid JSON (%s), using empty list: %s",
+                type(e).__name__,
+                e,
+            )
+            parsed = []
+        if not isinstance(parsed, list):
+            logging.getLogger(__name__).warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: expected JSON array, got %s, using empty list",
+                type(parsed).__name__,
+            )
+            parsed = []
+        allowed_hosts = [str(x).strip() for x in parsed if str(x).strip()]
+        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
     else:
-        DYNACONF.set("ALLOWED_HOSTS", [x.strip() for x in raw.split(",") if x.strip()])
+        allowed_hosts = [str(x).strip() for x in raw.split(",") if x.strip()]
+        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
 
 # Container-friendly logging: JSON to stdout when production or METRICS_SERVICE_LOG_FORMAT=json
 if environment == "production" or os.environ.get("METRICS_SERVICE_LOG_FORMAT", "").lower() == "json":
