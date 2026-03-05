@@ -18,7 +18,7 @@
 services:
   postgres:
     image: "mirror.gcr.io/postgres:15"
-    container_name: metrics-service-postgres-prod
+    container_name: metrics-service-postgres-single
     environment:
       POSTGRES_DB: metrics_service
       POSTGRES_USER: metrics_service
@@ -31,14 +31,15 @@ services:
     networks:
       - metrics-service
     volumes:
-      - metrics_service_db_prod:/var/lib/postgresql/data
+      - metrics_service_db_single:/var/lib/postgresql/data
 
   metrics-service:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: metrics-service-prod
-    # Production runner: Nginx + Gunicorn (web) + Dispatcher + Scheduler in one container
+    # All-in-one: entrypoint starts Nginx (8080/8443) then runs the app command (Gunicorn on 127.0.0.1:8000 + Dispatcher + Scheduler)
+    entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
     command: ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "4"]
     ports:
       - "${METRICS_SERVICE_HTTPS_PORT:-8443}:8443"
@@ -68,9 +69,9 @@ services:
       - metrics-service
 
 volumes:
-  metrics_service_db_prod:
-    name: metrics_service_app_db_prod
+  metrics_service_db_single:
+    name: metrics_service_app_db_single
 
 networks:
   metrics-service:
-    name: metrics-service
+    name: metrics-service-single

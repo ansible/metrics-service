@@ -21,7 +21,7 @@
 services:
   postgres:
     image: "mirror.gcr.io/postgres:15"
-    container_name: metrics-service-postgres-prod
+    container_name: metrics-service-postgres-production
     environment:
       POSTGRES_DB: metrics_service
       POSTGRES_USER: metrics_service
@@ -34,7 +34,7 @@ services:
     networks:
       - metrics-service
     volumes:
-      - metrics_service_db_prod:/var/lib/postgresql/data
+      - metrics_service_db_production:/var/lib/postgresql/data
 
   init:
     build:
@@ -164,9 +164,9 @@ services:
       - metrics-service
 
 volumes:
-  metrics_service_db_prod:
-    name: metrics_service_app_db_prod
+  metrics_service_db_production:
+    name: metrics_service_app_db_production
 
 networks:
   metrics-service:
-    name: metrics-service-prod
+    name: metrics-service-production

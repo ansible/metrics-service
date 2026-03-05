@@ -5,7 +5,9 @@
 set -e
 
 # Function to handle shutdown gracefully
+# Optional first argument: exit code to use (default 0 for signal-based graceful shutdown)
 shutdown() {
+    local exit_code="${1:-0}"
     echo ""
     echo "⚠ Received shutdown signal, stopping services..."
 
@@ -23,7 +25,7 @@ shutdown() {
     fi
 
     echo "✓ Shutdown complete"
-    exit 0
+    exit "$exit_code"
 }
 
 # Trap signals for graceful shutdown
@@ -87,7 +89,5 @@ GUNICORN_EXIT_CODE=$?
 echo ""
 echo "⚠ Gunicorn exited with code $GUNICORN_EXIT_CODE"
 
-# Stop Nginx when Gunicorn exits
-shutdown
-
-exit "$GUNICORN_EXIT_CODE"
+# Stop Nginx when Gunicorn exits (pass through Gunicorn exit code for orchestration)
+shutdown "$GUNICORN_EXIT_CODE"
