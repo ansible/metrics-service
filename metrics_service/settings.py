@@ -273,9 +273,8 @@ app_prefix = "METRICS_SERVICE"
 
 # Environment: METRICS_SERVICE_MODE, or PRODUCTION=1/true/yes → production (DEBUG=False).
 # Do not fall back to ENV; it is too generic and often set by runtimes/CI to values like "test"/"ci".
-_mode = (
-    os.environ.get("METRICS_SERVICE_MODE")
-    or ("production" if os.environ.get("PRODUCTION", "").lower() in ("1", "true", "yes") else None)
+_mode = os.environ.get("METRICS_SERVICE_MODE") or (
+    "production" if os.environ.get("PRODUCTION", "").lower() in ("1", "true", "yes") else None
 )
 os.environ.setdefault("METRICS_SERVICE_MODE", _mode or "development")
 environment = (os.environ.get("METRICS_SERVICE_MODE") or "development").lower()
@@ -359,6 +358,7 @@ if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
 # Container-friendly logging: JSON to stdout when production or METRICS_SERVICE_LOG_FORMAT=json
 if environment == "production" or os.environ.get("METRICS_SERVICE_LOG_FORMAT", "").lower() == "json":
     import copy
+
     log_cfg = copy.deepcopy(DYNACONF.get("LOGGING") or {})
     log_cfg.setdefault("formatters", {})["json"] = {"()": "apps.core.logging_config.JsonFormatter"}
     for h in log_cfg.get("handlers", {}).values():
