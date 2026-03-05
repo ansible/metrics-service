@@ -17,7 +17,6 @@ Usage:
 import os
 import sys
 
-
 # Subcommands that map to Django management commands (argv[1] for execute_from_command_line).
 # One-to-one: metrics-service <key> [args] -> Django argv = [prog, <value>, ...args]
 # Include both short names (dispatcherd, scheduler) and full names (run_dispatcherd, run_task_scheduler)
@@ -31,14 +30,16 @@ _DJANGO_COMMAND_MAP = {
 
 # Subcommands that go to the metrics_service management command.
 # metrics-service <key> [args] -> Django argv = [prog, "metrics_service", <value>, ...args]
-_METRICS_SERVICE_SUBCOMMANDS = frozenset({
-    "run",
-    "init-default-settings",
-    "remove-default-settings",
-    "init-service-id",
-    "init-system-tasks",
-    "tasks",
-})
+_METRICS_SERVICE_SUBCOMMANDS = frozenset(
+    {
+        "run",
+        "init-default-settings",
+        "remove-default-settings",
+        "init-service-id",
+        "init-system-tasks",
+        "tasks",
+    }
+)
 
 
 def main() -> int:
@@ -48,9 +49,7 @@ def main() -> int:
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
-        sys.stderr.write(
-            "Couldn't import Django. Are you sure it's installed and available on your PYTHONPATH?\n"
-        )
+        sys.stderr.write("Couldn't import Django. Are you sure it's installed and available on your PYTHONPATH?\n")
         raise SystemExit(1) from exc
 
     argv = list(sys.argv)
