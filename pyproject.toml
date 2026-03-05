@@ -36,6 +36,8 @@ dependencies = [
     "metrics-utility>=0.7.20260301",
     "django-prometheus>=2.3.1",
     "django-extensions>=3.2",
+    "gunicorn>=23.0",
+    "whitenoise>=6.6",
     "pip>=25.2",
     "packaging>=20.0",  # Required for setuptools-scm during source builds
 ]

@@ -574,17 +574,26 @@ class Command(BaseCommand):
         self.output.write("Task scheduler: APScheduler with cron support")
 
     def _build_service_commands(self, manage_py: str | Path, config: dict[str, Any]) -> list[list[str]]:
-        """Build commands for all three services."""
-        # Use -u flag for unbuffered output so print() statements are immediately visible
+        """Build commands for all three services (Gunicorn + Dispatcher + Scheduler)."""
+        # Use Gunicorn for production-ready WSGI; logs to stdout for container-friendly output
         django_cmd = [
             sys.executable,
             "-u",
-            str(manage_py),
-            "runserver",
+            "-m",
+            "gunicorn",
+            "metrics_service.wsgi:application",
+            "--bind",
             f"{config['host']}:{config['port']}",
+            "--workers",
+            str(config["workers"]),
+            "--capture-output",
+            "--access-logfile",
+            "-",
+            "--error-logfile",
+            "-",
+            "--log-level",
+            config["log_level"].lower(),
         ]
-        if config["log_level"] == "DEBUG":
-            django_cmd.append("--verbosity=2")
 
         dispatcher_cmd = [
             sys.executable,

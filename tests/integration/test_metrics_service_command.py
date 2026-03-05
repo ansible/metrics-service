@@ -403,16 +403,19 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         if not isinstance(port, int | str) or not str(port).isdigit():
             pytest.fail(f"Invalid port: {port}")
 
-        # Build expected command
+        # Build expected command (Gunicorn for production)
         expected_cmd = [
             sys.executable,
-            str(manage_py),
-            "runserver",
+            "-u",
+            "-m",
+            "gunicorn",
+            "metrics_service.wsgi:application",
+            "--bind",
             f"{host}:{port}",
         ]
 
         # Verify command structure
-        assert "runserver" in expected_cmd
+        assert "gunicorn" in expected_cmd
         assert f"{host}:{port}" in expected_cmd
 
     @patch("subprocess.Popen")

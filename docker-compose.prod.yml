@@ -1,0 +1,76 @@
+# Production-style orchestration for metrics-service.
+#
+# Uses the main Dockerfile (Gunicorn + Dispatcher + Scheduler via
+# `python manage.py metrics_service run --workers 4`). Static files
+# are collected at build time and served by WhiteNoise in the same
+# container. For high traffic, you can put Nginx (or another reverse
+# proxy) in front and serve /static/ from Nginx or a CDN.
+#
+# Usage:
+#   export METRICS_SERVICE_SECRET_KEY=...
+#   export METRICS_SERVICE_DATABASES__default__PASSWORD=...
+#   # Set other required production env vars (see apps/settings/production.py)
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Or override with a .env file and:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+
+services:
+  postgres:
+    image: "mirror.gcr.io/postgres:15"
+    container_name: metrics-service-postgres-prod
+    environment:
+      POSTGRES_DB: metrics_service
+      POSTGRES_USER: metrics_service
+      POSTGRES_PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "metrics_service", "-d", "metrics_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - metrics-service
+    volumes:
+      - metrics_service_db_prod:/var/lib/postgresql/data
+
+  metrics-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: metrics-service-prod
+    # Production runner: Nginx + Gunicorn (web) + Dispatcher + Scheduler in one container
+    command: ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "4"]
+    ports:
+      - "${METRICS_SERVICE_HTTPS_PORT:-8443}:8443"
+      - "${METRICS_SERVICE_HTTP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      METRICS_SERVICE_MODE: production
+      METRICS_SERVICE_DATABASES__default__HOST: postgres
+      METRICS_SERVICE_DATABASES__default__USER: metrics_service
+      METRICS_SERVICE_DATABASES__default__PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:-changeme}
+      METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+      METRICS_SERVICE_DATABASES__awx__HOST: ${METRICS_SERVICE_DATABASES__awx__HOST:-postgres}
+      METRICS_SERVICE_DATABASES__awx__USER: ${METRICS_SERVICE_DATABASES__awx__USER:-metrics_service}
+      METRICS_SERVICE_DATABASES__awx__PASSWORD: ${METRICS_SERVICE_DATABASES__awx__PASSWORD:-changeme}
+      METRICS_SERVICE_DATABASES__awx__NAME: ${METRICS_SERVICE_DATABASES__awx__NAME:-awx}
+      # Required in production (set in env or here)
+      METRICS_SERVICE_SECRET_KEY: ${METRICS_SERVICE_SECRET_KEY:-insecure-test-key-change-in-production}
+      METRICS_SERVICE_ALLOWED_HOSTS: ${METRICS_SERVICE_ALLOWED_HOSTS:-localhost,127.0.0.1,metrics-service}
+      # Set empty/test values for testing (in real production, use proper values)
+      METRICS_SERVICE_RESOURCE_SERVER__URL: ${METRICS_SERVICE_RESOURCE_SERVER__URL:-http://localhost:8000}
+      METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY: ${METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY:-test-secret}
+      METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY: ${METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY:-test-jwt-key}
+      METRICS_SERVICE_SEGMENT_WRITE_KEY: ${METRICS_SERVICE_SEGMENT_WRITE_KEY:-test-segment-key}
+    networks:
+      - metrics-service
+
+volumes:
+  metrics_service_db_prod:
+    name: metrics_service_app_db_prod
+
+networks:
+  metrics-service:
+    name: metrics-service

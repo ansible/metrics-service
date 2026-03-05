@@ -211,14 +211,14 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
         # Verify 3 processes were started
         assert mock_popen.call_count == 3
 
-        # Verify Django command
+        # Verify Django command (Gunicorn WSGI server)
         django_call = mock_popen.call_args_list[0]
         django_cmd = django_call[0][0]
         assert sys.executable in django_cmd
-        assert str(manage_py) in django_cmd
-        assert "runserver" in django_cmd
+        assert "gunicorn" in django_cmd
+        assert "metrics_service.wsgi:application" in django_cmd
         assert "127.0.0.1:8000" in django_cmd
-        assert "--verbosity=2" in django_cmd  # DEBUG level adds verbosity
+        assert "--log-level" in django_cmd and "debug" in django_cmd  # DEBUG level
 
         # Verify Dispatcher command
         dispatcher_call = mock_popen.call_args_list[1]
