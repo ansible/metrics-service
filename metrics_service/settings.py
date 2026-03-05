@@ -271,10 +271,10 @@ default_variables = {k: v for k, v in locals().items() if k.isupper()}
 app_prefix = "METRICS_SERVICE"
 """Application prefix for environment variables filtering."""
 
-# Environment: METRICS_SERVICE_MODE, or ENV, or PRODUCTION=1/true/yes → production (DEBUG=False)
+# Environment: METRICS_SERVICE_MODE, or PRODUCTION=1/true/yes → production (DEBUG=False).
+# Do not fall back to ENV; it is too generic and often set by runtimes/CI to values like "test"/"ci".
 _mode = (
     os.environ.get("METRICS_SERVICE_MODE")
-    or os.environ.get("ENV")
     or ("production" if os.environ.get("PRODUCTION", "").lower() in ("1", "true", "yes") else None)
 )
 os.environ.setdefault("METRICS_SERVICE_MODE", _mode or "development")
