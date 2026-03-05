@@ -75,9 +75,11 @@ echo "  Nginx PID: $NGINX_PID"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Wait for the main application to exit
+# Wait for the main application to exit (disable errexit so we always reach shutdown)
+set +e
 wait "$APP_PID"
 APP_EXIT_CODE=$?
+set -e
 
 echo ""
 echo "⚠ Application exited with code $APP_EXIT_CODE"
