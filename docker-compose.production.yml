@@ -25,7 +25,7 @@ services:
     environment:
       POSTGRES_DB: metrics_service
       POSTGRES_USER: metrics_service
-      POSTGRES_PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:?METRICS_SERVICE_DATABASES__default__PASSWORD is required}
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "metrics_service", "-d", "metrics_service"]
       interval: 10s
@@ -49,31 +49,31 @@ services:
     environment: &common-env
       # Django Core
       METRICS_SERVICE_MODE: production
-      METRICS_SERVICE_SECRET_KEY: ${METRICS_SERVICE_SECRET_KEY:-insecure-test-key-change-in-production}
+      METRICS_SERVICE_SECRET_KEY: ${METRICS_SERVICE_SECRET_KEY:?METRICS_SERVICE_SECRET_KEY is required}
       METRICS_SERVICE_ALLOWED_HOSTS: ${METRICS_SERVICE_ALLOWED_HOSTS:-localhost,127.0.0.1,metrics-service}
 
       # Database - Default (metrics-service own DB)
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__USER: metrics_service
-      METRICS_SERVICE_DATABASES__default__PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:-changeme}
+      METRICS_SERVICE_DATABASES__default__PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:?METRICS_SERVICE_DATABASES__default__PASSWORD is required}
       METRICS_SERVICE_DATABASES__default__NAME: metrics_service
       METRICS_SERVICE_DATABASES__default__PORT: 5432
 
       # Database - AWX (for metrics collection)
       METRICS_SERVICE_DATABASES__awx__HOST: ${METRICS_SERVICE_DATABASES__awx__HOST:-postgres}
       METRICS_SERVICE_DATABASES__awx__USER: ${METRICS_SERVICE_DATABASES__awx__USER:-metrics_service}
-      METRICS_SERVICE_DATABASES__awx__PASSWORD: ${METRICS_SERVICE_DATABASES__awx__PASSWORD:-changeme}
+      METRICS_SERVICE_DATABASES__awx__PASSWORD: ${METRICS_SERVICE_DATABASES__awx__PASSWORD:?METRICS_SERVICE_DATABASES__awx__PASSWORD is required}
       METRICS_SERVICE_DATABASES__awx__NAME: ${METRICS_SERVICE_DATABASES__awx__NAME:-awx}
 
       # Resource Server / Gateway
       METRICS_SERVICE_RESOURCE_SERVER__URL: ${METRICS_SERVICE_RESOURCE_SERVER__URL:-http://localhost:8000}
-      METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY: ${METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY:-test-secret}
+      METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY: ${METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY:?METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY is required}
 
       # Authentication
-      METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY: ${METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY:-test-jwt-key}
+      METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY: ${METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY:?METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY is required}
 
       # External Services
-      METRICS_SERVICE_SEGMENT_WRITE_KEY: ${METRICS_SERVICE_SEGMENT_WRITE_KEY:-test-segment-key}
+      METRICS_SERVICE_SEGMENT_WRITE_KEY: ${METRICS_SERVICE_SEGMENT_WRITE_KEY:?METRICS_SERVICE_SEGMENT_WRITE_KEY is required}
     networks:
       - metrics-service
 
@@ -126,7 +126,7 @@ services:
       DISPATCHERD_MAX_TASKS: ${DISPATCHERD_MAX_TASKS:-100}
       DISPATCHERD_LOG_LEVEL: ${DISPATCHERD_LOG_LEVEL:-INFO}
     healthcheck:
-      test: ["CMD", "python3.12", "-c", "import sys; sys.exit(0)"]  # Simple liveness check
+      test: ["CMD-SHELL", "grep -q run_dispatcherd /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -154,7 +154,7 @@ services:
       SCHEDULER_CHECK_INTERVAL: ${SCHEDULER_CHECK_INTERVAL:-60}
       SCHEDULER_LOG_LEVEL: ${SCHEDULER_LOG_LEVEL:-INFO}
     healthcheck:
-      test: ["CMD", "python3.12", "-c", "import sys; sys.exit(0)"]  # Simple liveness check
+      test: ["CMD-SHELL", "grep -q run_task_scheduler /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3

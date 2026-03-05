@@ -82,9 +82,11 @@ echo "  Gunicorn PID: $GUNICORN_PID"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Wait for Gunicorn to exit
+# Wait for Gunicorn to exit (disable errexit so we always reach shutdown)
+set +e
 wait "$GUNICORN_PID"
 GUNICORN_EXIT_CODE=$?
+set -e
 
 echo ""
 echo "⚠ Gunicorn exited with code $GUNICORN_EXIT_CODE"
