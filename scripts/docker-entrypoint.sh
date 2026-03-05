@@ -5,7 +5,9 @@
 set -e
 
 # Function to handle shutdown gracefully
+# Optional first argument: exit code to use (default 0 for signal-based graceful shutdown)
 shutdown() {
+    local exit_code="${1:-0}"
     echo "⚠ Received shutdown signal, stopping services..."
 
     # Stop Nginx gracefully
@@ -22,7 +24,7 @@ shutdown() {
     fi
 
     echo "✓ Shutdown complete"
-    exit 0
+    exit "$exit_code"
 }
 
 # Trap signals for graceful shutdown
@@ -80,8 +82,6 @@ APP_EXIT_CODE=$?
 echo ""
 echo "⚠ Application exited with code $APP_EXIT_CODE"
 
-# Stop Nginx when application exits
-shutdown
-
-exit "$APP_EXIT_CODE"
+# Stop Nginx when application exits (pass through app exit code for orchestration)
+shutdown "$APP_EXIT_CODE"
 
