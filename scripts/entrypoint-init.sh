@@ -14,23 +14,25 @@ echo "Waiting for PostgreSQL..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 
-until python3.12 -c "
+until python3.12 -c '
+import os
 import sys
 import psycopg
+
 try:
     conn = psycopg.connect(
-        dbname='${METRICS_SERVICE_DATABASES__default__NAME:-metrics_service}',
-        user='${METRICS_SERVICE_DATABASES__default__USER:-metrics_service}',
-        password='${METRICS_SERVICE_DATABASES__default__PASSWORD}',
-        host='${METRICS_SERVICE_DATABASES__default__HOST:-postgres}',
-        port='${METRICS_SERVICE_DATABASES__default__PORT:-5432}'
+        dbname=os.environ.get("METRICS_SERVICE_DATABASES__default__NAME", "metrics_service"),
+        user=os.environ.get("METRICS_SERVICE_DATABASES__default__USER", "metrics_service"),
+        password=os.environ.get("METRICS_SERVICE_DATABASES__default__PASSWORD", ""),
+        host=os.environ.get("METRICS_SERVICE_DATABASES__default__HOST", "postgres"),
+        port=os.environ.get("METRICS_SERVICE_DATABASES__default__PORT", "5432"),
     )
     conn.close()
     sys.exit(0)
 except Exception as e:
-    print(f'Database not ready: {e}')
+    print(f"Database not ready: {e}")
     sys.exit(1)
-" 2>/dev/null; do
+' 2>/dev/null; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
         echo "✗ Database connection failed after $MAX_RETRIES attempts"
