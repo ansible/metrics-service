@@ -199,13 +199,12 @@ class Command(BaseCommand):
             sys.exit(1)
 
     def _handle_run_command(self, options: dict[str, Any]) -> None:
-        """Handle the run command to start the metrics service."""
-        try:
-            # auto init before dev run (prod has to handle this using the init-* subcommands)
-            self._handle_init_default_settings_command()
-            self._handle_init_service_id_command()
-            self._handle_init_system_tasks_command(options)
+        """Handle the run command to start the metrics service (API, dispatcherd, scheduler only).
 
+        Does not run migrations or init (init-default-settings, init-service-id, init-system-tasks).
+        Those are separate steps, e.g. via entrypoint-init.sh or manual metrics-service init-* commands.
+        """
+        try:
             config = self._extract_config(options)
             self._start_services(config)
         except ValueError as e:

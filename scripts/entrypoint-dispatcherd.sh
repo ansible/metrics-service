@@ -17,8 +17,8 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Start dispatcherd using Django management command
-exec python3.12 manage.py run_dispatcherd \
+# Start dispatcherd (metrics-service CLI uses env Python; no python3.12 hardcode)
+exec metrics-service dispatcherd \
     --workers="${DISPATCHERD_WORKERS:-2}" \
     --timeout="${DISPATCHERD_TIMEOUT:-3600}" \
     --max-tasks="${DISPATCHERD_MAX_TASKS:-100}" \

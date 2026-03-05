@@ -64,6 +64,9 @@ docs = [
     "sphinx-autodoc-typehints>=1.24",
 ]
 
+[project.scripts]
+metrics-service = "metrics_service.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/ansible/platform-service-template"
 Documentation = "https://platform-service-template.readthedocs.io/"

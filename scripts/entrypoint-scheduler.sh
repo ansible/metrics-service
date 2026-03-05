@@ -15,7 +15,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-# Start task scheduler using Django management command
-exec python3.12 manage.py run_task_scheduler \
+# Start task scheduler (metrics-service CLI uses env Python; no python3.12 hardcode)
+exec metrics-service scheduler \
     --check-interval="${SCHEDULER_CHECK_INTERVAL:-60}" \
     --log-level="${SCHEDULER_LOG_LEVEL:-INFO}"
