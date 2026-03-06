@@ -5,26 +5,14 @@ This file contains settings specific to the core app.
 These settings configure Django and DAB to use the core app's models.
 """
 
-# Model constants to avoid duplication
-_USER_MODEL = "core.User"
-_TEAM_MODEL = "core.Team"
-_ORGANIZATION_MODEL = "core.Organization"
-
-AUTH_USER_MODEL = _USER_MODEL
-ANSIBLE_BASE_TEAM_MODEL = _TEAM_MODEL
-ANSIBLE_BASE_ORGANIZATION_MODEL = _ORGANIZATION_MODEL
+AUTH_USER_MODEL = "core.User"
+ANSIBLE_BASE_TEAM_MODEL = "core.Team"
+ANSIBLE_BASE_ORGANIZATION_MODEL = "core.Organization"
 
 # Resource Registry Configuration
 ANSIBLE_BASE_RESOURCE_CONFIG_MODULE = "apps.core.resource_api"
 
 ANSIBLE_BASE_USER_VIEWSET = "apps.core.v1.viewsets.user.UserViewSet"
-
-# RBAC Model Registry - register models for permission tracking
-ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {
-    _ORGANIZATION_MODEL: {"parent_field_name": None},
-    _TEAM_MODEL: {"parent_field_name": "organization"},
-    _USER_MODEL: {"parent_field_name": None},
-}
 
 # Authentication - insert JWT auth at position 0
 REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = "@insert 0 apps.core.authentication.ServiceJWTAuthentication"
@@ -54,9 +42,9 @@ ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = False
 ALLOW_LOCAL_ASSIGNING_JWT_ROLES = True  # Set to False with resource server
 # Models to register with DAB RBAC - these are registered automatically by DAB
 ANSIBLE_BASE_RBAC_MODEL_REGISTRY = {
-    _ORGANIZATION_MODEL: {"parent_field_name": None},
-    _TEAM_MODEL: {"parent_field_name": "organization"},
-    _USER_MODEL: {"parent_field_name": None},
+    "core.Organization": {"parent_field_name": None},
+    "core.Team": {"parent_field_name": "organization"},
+    "core.User": {"parent_field_name": None},
 }
 
 # Default RBAC roles - created automatically on `python manage.py migrate`
