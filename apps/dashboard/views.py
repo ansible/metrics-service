@@ -2,7 +2,6 @@
 Dashboard views for task management and monitoring.
 """
 
-import re
 from functools import wraps
 
 from django.conf import settings
@@ -35,10 +34,11 @@ def url_for(path):
     Transforms URL paths to use METRICS_SERVICE_URL_PREFIX, if present
     When settings.URL_PREFIX is None, returns path prefixed with /api/
     When settings.URL_PREFIX is set, returns path prefixed with /$prefix/, after slash sanitization
+    Uses string join (no regex) to avoid reDOS from unsanitized input.
     """
-
     prefix = settings.URL_PREFIX or "/api/"
-    return re.sub(r"/+", "/", f"/{prefix}/{path}")
+    segments = [x for x in f"{prefix}/{path}".split("/") if x]
+    return "/" + "/".join(segments) + "/" if segments else "/"
 
 
 @require_safe

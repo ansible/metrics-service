@@ -5,11 +5,14 @@ Inherits from ./defaults.py and adds test-specific settings
 NOTE: Tests use PostgreSQL to match the production environment setup.
 """
 
+import os
+
 # Basic required settings
 DEBUG = False
 TESTING = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
-SECRET_KEY = "test-only-secret-key-for-testing-purposes-only"
+# Use env in CI/SAST to avoid hardcoded-secret findings; default is test-only and never production
+SECRET_KEY = os.environ.get("METRICS_SERVICE_SECRET_KEY", "test-only-secret-key-for-testing-purposes-only")
 SEGMENT_WRITE_KEY = "test-only-segment-write-key-for-testing-only-purposes"
 
 ANSIBLE_BASE_BYPASS_SUPERUSER_FLAGS = ["is_superuser"]

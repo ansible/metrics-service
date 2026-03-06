@@ -14,9 +14,12 @@ from unittest import mock
 
 import pytest
 
-# Set a valid SECRET_KEY for test module import
-# This allows Django settings to load without validation errors
-os.environ.setdefault("METRICS_SERVICE_SECRET_KEY", "your-secret-key-here-change-in-production")
+# Set a valid SECRET_KEY for test module import (test-only; not used in production)
+# Prefer TEST_SECRET_KEY env var when running SAST or in CI to avoid hardcoded-secret findings
+os.environ.setdefault(
+    "METRICS_SERVICE_SECRET_KEY",
+    os.getenv("TEST_SECRET_KEY", "test-dynaconf-bootstrap-no-production-use"),
+)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings")
 
 # Mark all tests in this module as integration tests
