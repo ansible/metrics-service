@@ -31,7 +31,7 @@ class ServiceBrowsableAPIRenderer(BrowsableAPIRenderer):
             fixed_breadcrumbs = []
             for name, url in breadcrumbs:
                 if url.startswith("/api/"):
-                    url = api_service_prefix + url[4:]  # len("/api") = 4
+                    url = api_service_prefix + url[4:]
                 fixed_breadcrumbs.append((name, url))
             return fixed_breadcrumbs
 

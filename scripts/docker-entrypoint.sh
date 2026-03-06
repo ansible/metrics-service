@@ -11,13 +11,13 @@ shutdown() {
     echo "⚠ Received shutdown signal, stopping services..."
 
     # Stop Nginx gracefully
-    if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+    if [[ -n "$NGINX_PID" ]] && kill -0 "$NGINX_PID" 2>/dev/null; then
         echo "  Stopping Nginx (PID: $NGINX_PID)..."
         nginx -s quit 2>/dev/null || kill -TERM "$NGINX_PID" 2>/dev/null || true
     fi
 
     # Stop the main application (metrics_service run handles its own process cleanup)
-    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+    if [[ -n "$APP_PID" ]] && kill -0 "$APP_PID" 2>/dev/null; then
         echo "  Stopping application (PID: $APP_PID)..."
         kill -TERM "$APP_PID" 2>/dev/null || true
         wait "$APP_PID" 2>/dev/null || true
@@ -45,7 +45,7 @@ echo "─── Starting Nginx (TLS Termination) ───"
 nginx -t  # Test configuration
 nginx     # Start in daemon mode
 NGINX_PID=$(cat /var/lib/nginx/nginx.pid 2>/dev/null || pgrep -x nginx | head -1)
-if [ -n "$NGINX_PID" ]; then
+if [[ -n "$NGINX_PID" ]]; then
     echo "✓ Nginx started (PID: $NGINX_PID)"
     echo "  Listening on:"
     echo "    - HTTP:  Port 8080 (redirects to HTTPS)"

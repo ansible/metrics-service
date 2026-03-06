@@ -112,8 +112,8 @@ def run_hourly_phase(test_date, process, peak_memory_mb, baseline_memory_mb):
     """Phase 2: Run hourly collectors for each hour in a 24-hour period."""
     from django.db.models import Count, Sum
 
-    collector_totals = {name: 0.0 for name in HOURLY_COLLECTOR_TYPES}
-    collector_peak_memory = {name: baseline_memory_mb for name in HOURLY_COLLECTOR_TYPES}
+    collector_totals = dict.fromkeys(HOURLY_COLLECTOR_TYPES, 0.0)
+    collector_peak_memory = dict.fromkeys(HOURLY_COLLECTOR_TYPES, baseline_memory_mb)
     hour_timings, failed_hours = [], []
 
     col_w = 24

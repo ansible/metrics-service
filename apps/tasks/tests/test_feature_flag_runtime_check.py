@@ -26,8 +26,7 @@ class TestFeatureFlagRuntimeCheck:
         scheduler._execute_scheduled_task(
             task_id="test_task",
             function_name="hello_world",
-            args={},
-            feature_flag="ANONYMIZED_DATA_COLLECTION",
+            args={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"},
         )
 
         # Verify task was submitted
@@ -46,8 +45,7 @@ class TestFeatureFlagRuntimeCheck:
         scheduler._execute_scheduled_task(
             task_id="test_task",
             function_name="hello_world",
-            args={},
-            feature_flag="ANONYMIZED_DATA_COLLECTION",
+            args={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"},
         )
 
         # Verify task was NOT submitted
@@ -60,7 +58,7 @@ class TestFeatureFlagRuntimeCheck:
         scheduler = UnifiedTaskScheduler()
 
         # Execute a task without a feature flag
-        scheduler._execute_scheduled_task(task_id="test_task", function_name="hello_world", args={}, feature_flag=None)
+        scheduler._execute_scheduled_task(task_id="test_task", function_name="hello_world", args={})
 
         # Verify task was submitted
         mock_submit.assert_called_once()
@@ -92,8 +90,7 @@ class TestFeatureFlagRuntimeCheck:
         scheduler._execute_scheduled_task(
             task_id="test_task",
             function_name="hello_world",
-            args={},
-            feature_flag="ANONYMIZED_DATA_COLLECTION",
+            args={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"},
         )
 
         # Verify task was submitted
@@ -104,8 +101,7 @@ class TestFeatureFlagRuntimeCheck:
         scheduler._execute_scheduled_task(
             task_id="test_task",
             function_name="hello_world",
-            args={},
-            feature_flag="ANONYMIZED_DATA_COLLECTION",
+            args={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"},
         )
 
         # Verify task was NOT submitted the second time
@@ -124,8 +120,7 @@ class TestFeatureFlagRuntimeCheck:
         scheduler._execute_scheduled_task(
             task_id="test_task",
             function_name="hello_world",
-            args={},
-            feature_flag="ANONYMIZED_DATA_COLLECTION",
+            args={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"},
         )
 
         # Verify task was NOT submitted due to error

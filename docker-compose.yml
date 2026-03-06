@@ -59,6 +59,7 @@ services:
         condition: service_completed_successfully
     environment:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
+      # Development-only password. In production, override with secrets management.
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
     networks:
