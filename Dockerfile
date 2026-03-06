@@ -30,7 +30,11 @@ RUN mkdir -p /app && chown -R 1001:1001 /app
 # Copy the application code
 COPY --chown=1001:1001 . /app/
 
+# Red Hat Certification Requirement: Copy licenses directory to container root
+# This satisfies the HasLicense preflight check
+COPY --chown=root:root licenses /licenses
 # Switch to non-root user for install
+
 USER 1001
 
 # Install Python dependencies using pre-built wheels (binaries)
