@@ -254,29 +254,57 @@ def print_final_summary(
     print(f"    DailyMetricsSummary:     {daily_count} rows, {daily_size_mb:.2f} MB")
     print()
 
-    # Source table counts for context
+    print_source_table_counts(test_date)
+
+
+_TABLE_COUNT_QUERIES = {
+    "main_jobevent": "SELECT COUNT(*) FROM main_jobevent",
+    "main_jobhostsummary": "SELECT COUNT(*) FROM main_jobhostsummary",
+    "main_host": "SELECT COUNT(*) FROM main_host",
+    "main_unifiedjob": "SELECT COUNT(*) FROM main_unifiedjob",
+    "main_job": "SELECT COUNT(*) FROM main_job",
+    "main_unifiedjobtemplate": "SELECT COUNT(*) FROM main_unifiedjobtemplate",
+    "main_inventory": "SELECT COUNT(*) FROM main_inventory",
+    "main_organization": "SELECT COUNT(*) FROM main_organization",
+    "main_credential": "SELECT COUNT(*) FROM main_credential",
+    "main_credentialtype": "SELECT COUNT(*) FROM main_credentialtype",
+    "main_unifiedjob_credentials": "SELECT COUNT(*) FROM main_unifiedjob_credentials",
+    "main_executionenvironment": "SELECT COUNT(*) FROM main_executionenvironment",
+}
+
+
+def _count(cursor, table):
+    cursor.execute(_TABLE_COUNT_QUERIES[table])
+    return cursor.fetchone()[0]
+
+
+def print_source_table_counts(test_date):
+    """Print row counts for all AWX source tables touched by collectors."""
     from django.db import connections
 
     with connections["awx"].cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) FROM main_jobevent")
-        total_events = cursor.fetchone()[0]
+        total_events = _count(cursor, "main_jobevent")
         cursor.execute(
             "SELECT COUNT(*) FROM main_jobevent WHERE job_created >= %s AND job_created < %s",
             [test_date, test_date + timedelta(days=1)],
         )
         events_on_date = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM main_jobhostsummary")
-        total_jhs = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM main_host")
-        total_hosts = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM main_job")
-        total_jobs = cursor.fetchone()[0]
 
-    print("  Source Table Counts (AWX DB):")
-    print(f"    main_jobevent:       {total_events:>12,}  (on test date: {events_on_date:,})")
-    print(f"    main_jobhostsummary: {total_jhs:>12,}")
-    print(f"    main_host:           {total_hosts:>12,}")
-    print(f"    main_job:            {total_jobs:>12,}")
+        print("  Source Table Counts (AWX DB):")
+        print(f"    {'Table':<32} {'Total':>12}  On test date")
+        print(f"    {'-' * 32} {'-' * 12}  ------------")
+        print(f"    {'main_jobevent':<32} {total_events:>12,}  {events_on_date:,}")
+        print(f"    {'main_jobhostsummary':<32} {_count(cursor, 'main_jobhostsummary'):>12,}")
+        print(f"    {'main_host':<32} {_count(cursor, 'main_host'):>12,}")
+        print(f"    {'main_unifiedjob':<32} {_count(cursor, 'main_unifiedjob'):>12,}")
+        print(f"    {'main_job':<32} {_count(cursor, 'main_job'):>12,}")
+        print(f"    {'main_unifiedjobtemplate':<32} {_count(cursor, 'main_unifiedjobtemplate'):>12,}")
+        print(f"    {'main_inventory':<32} {_count(cursor, 'main_inventory'):>12,}")
+        print(f"    {'main_organization':<32} {_count(cursor, 'main_organization'):>12,}")
+        print(f"    {'main_credential':<32} {_count(cursor, 'main_credential'):>12,}")
+        print(f"    {'main_credentialtype':<32} {_count(cursor, 'main_credentialtype'):>12,}")
+        print(f"    {'main_unifiedjob_credentials':<32} {_count(cursor, 'main_unifiedjob_credentials'):>12,}")
+        print(f"    {'main_executionenvironment':<32} {_count(cursor, 'main_executionenvironment'):>12,}")
     print()
 
 

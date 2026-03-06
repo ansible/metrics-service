@@ -33,12 +33,13 @@ def create_mock_processes_with_exit():
     return [django_process, other_process, other_process]
 
 
-def get_default_config(log_level="INFO"):
+def get_default_config(log_level="INFO", gunicorn_workers=4, dispatcher_workers=4):
     """Get default test configuration."""
     return {
         "host": "127.0.0.1",
         "port": "8000",
-        "workers": 4,
+        "gunicorn_workers": gunicorn_workers,
+        "dispatcher_workers": dispatcher_workers,
         "log_level": log_level,
         "timeout": 3600,
         "max_tasks": 100,

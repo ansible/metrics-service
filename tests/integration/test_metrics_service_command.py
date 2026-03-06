@@ -332,7 +332,8 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
         assert config["host"] == "127.0.0.1"
         assert config["port"] == "8001"
-        assert config["workers"] == 2
+        assert config["gunicorn_workers"] == 2
+        assert config["dispatcher_workers"] == 2
         assert config["timeout"] == 1800
         assert config["max_tasks"] == 50
         assert config["log_level"] == "DEBUG"
@@ -374,7 +375,8 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
 
         assert config["host"] == "localhost"
         assert config["port"] == "9000"
-        assert config["workers"] == 8
+        assert config["gunicorn_workers"] == 8
+        assert config["dispatcher_workers"] == 8
         assert config["timeout"] == 7200
         assert config["max_tasks"] == 200
         assert config["log_level"] == "WARNING"
@@ -403,16 +405,19 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         if not isinstance(port, int | str) or not str(port).isdigit():
             pytest.fail(f"Invalid port: {port}")
 
-        # Build expected command
+        # Build expected command (Gunicorn for production)
         expected_cmd = [
             sys.executable,
-            str(manage_py),
-            "runserver",
+            "-u",
+            "-m",
+            "gunicorn",
+            "metrics_service.wsgi:application",
+            "--bind",
             f"{host}:{port}",
         ]
 
         # Verify command structure
-        assert "runserver" in expected_cmd
+        assert "gunicorn" in expected_cmd
         assert f"{host}:{port}" in expected_cmd
 
     @patch("subprocess.Popen")

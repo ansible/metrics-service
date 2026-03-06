@@ -80,7 +80,21 @@ class Command(BaseCommand):
             "--workers",
             type=int,
             default=4,
-            help="Number of dispatcher worker processes (default: 4)",
+            help="Number of workers for both Gunicorn and dispatcher when not overridden (default: 4)",
+        )
+        parser.add_argument(
+            "--gunicorn-workers",
+            type=int,
+            default=None,
+            dest="gunicorn_workers",
+            help="Number of Gunicorn worker processes (default: value of --workers)",
+        )
+        parser.add_argument(
+            "--dispatcher-workers",
+            type=int,
+            default=None,
+            dest="dispatcher_workers",
+            help="Number of dispatcher worker processes (default: value of --workers)",
         )
         parser.add_argument(
             "--timeout",
@@ -199,13 +213,12 @@ class Command(BaseCommand):
             sys.exit(1)
 
     def _handle_run_command(self, options: dict[str, Any]) -> None:
-        """Handle the run command to start the metrics service."""
-        try:
-            # auto init before dev run (prod has to handle this using the init-* subcommands)
-            self._handle_init_default_settings_command()
-            self._handle_init_service_id_command()
-            self._handle_init_system_tasks_command(options)
+        """Handle the run command to start the metrics service (API, dispatcherd, scheduler only).
 
+        Does not run migrations or init (init-default-settings, init-service-id, init-system-tasks).
+        Those are separate steps, e.g. via entrypoint-init.sh or manual metrics-service init-* commands.
+        """
+        try:
             config = self._extract_config(options)
             self._start_services(config)
         except ValueError as e:
@@ -570,28 +583,38 @@ class Command(BaseCommand):
         """Display startup message with service configuration."""
         self.output.success("Starting metrics service:")
         self.output.write(f"Django server: http://{config['host']}:{config['port']}")
-        self.output.write(f"Dispatcher workers: {config['workers']}")
+        self.output.write(f"Gunicorn workers: {config['gunicorn_workers']}")
+        self.output.write(f"Dispatcher workers: {config['dispatcher_workers']}")
         self.output.write("Task scheduler: APScheduler with cron support")
 
     def _build_service_commands(self, manage_py: str | Path, config: dict[str, Any]) -> list[list[str]]:
-        """Build commands for all three services."""
-        # Use -u flag for unbuffered output so print() statements are immediately visible
+        """Build commands for all three services (Gunicorn + Dispatcher + Scheduler)."""
+        # Use Gunicorn for production-ready WSGI; logs to stdout for container-friendly output
         django_cmd = [
             sys.executable,
             "-u",
-            str(manage_py),
-            "runserver",
+            "-m",
+            "gunicorn",
+            "metrics_service.wsgi:application",
+            "--bind",
             f"{config['host']}:{config['port']}",
+            "--workers",
+            str(config["gunicorn_workers"]),
+            "--capture-output",
+            "--access-logfile",
+            "-",
+            "--error-logfile",
+            "-",
+            "--log-level",
+            config["log_level"].lower(),
         ]
-        if config["log_level"] == "DEBUG":
-            django_cmd.append("--verbosity=2")
 
         dispatcher_cmd = [
             sys.executable,
             "-u",
             str(manage_py),
             "run_dispatcherd",
-            f"--workers={config['workers']}",
+            f"--workers={config['dispatcher_workers']}",
             f"--timeout={config['timeout']}",
             f"--max-tasks={config['max_tasks']}",
             f"--log-level={config['log_level']}",
@@ -721,10 +744,20 @@ class Command(BaseCommand):
 
     def _extract_config(self, options: dict[str, Any]) -> dict[str, Any]:
         """Extract configuration from command options."""
+        workers = options.get("workers", 4)
+        # argparse sets gunicorn_workers/dispatcher_workers to None when not passed;
+        # treat None as "use workers" so options.get(..., workers) works as intended
+        gunicorn_workers = options.get("gunicorn_workers")
+        dispatcher_workers = options.get("dispatcher_workers")
+        if gunicorn_workers is None:
+            gunicorn_workers = workers
+        if dispatcher_workers is None:
+            dispatcher_workers = workers
         return {
             "host": options.get("host", "127.0.0.1"),
             "port": options.get("port", "8000"),
-            "workers": options.get("workers", 4),
+            "gunicorn_workers": gunicorn_workers,
+            "dispatcher_workers": dispatcher_workers,
             "timeout": options.get("timeout", 3600),
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),
