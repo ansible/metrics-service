@@ -10,7 +10,33 @@ from django.http import HttpRequest, HttpResponse
 from django.test import RequestFactory, TestCase, override_settings
 
 from apps.core.models import User
-from apps.dashboard.views import dashboard_view
+from apps.dashboard.views import dashboard_view, url_for
+
+
+@pytest.mark.unit
+class TestUrlFor:
+    """Test url_for path normalization and trailing-slash preservation."""
+
+    @override_settings(URL_PREFIX=None)
+    def test_preserves_trailing_slash_when_present(self):
+        """Path with trailing slash returns path with trailing slash."""
+        assert url_for("/v1/") == "/api/v1/"
+
+    @override_settings(URL_PREFIX=None)
+    def test_no_trailing_slash_when_path_has_none(self):
+        """Path without trailing slash returns path without trailing slash."""
+        assert url_for("tasks") == "/api/tasks"
+        assert url_for("v1") == "/api/v1"
+
+    @override_settings(URL_PREFIX="/metrics")
+    def test_custom_prefix_preserves_trailing_slash(self):
+        """Custom URL_PREFIX with trailing slash on path."""
+        assert url_for("v1/") == "/metrics/v1/"
+
+    @override_settings(URL_PREFIX="/metrics")
+    def test_custom_prefix_no_trailing_slash(self):
+        """Custom URL_PREFIX without trailing slash on path."""
+        assert url_for("v1") == "/metrics/v1"
 
 
 @pytest.mark.django_db

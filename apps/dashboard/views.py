@@ -34,11 +34,14 @@ def url_for(path):
     Transforms URL paths to use METRICS_SERVICE_URL_PREFIX, if present
     When settings.URL_PREFIX is None, returns path prefixed with /api/
     When settings.URL_PREFIX is set, returns path prefixed with /$prefix/, after slash sanitization
+    Preserves the trailing-slash state of the input path.
     Uses string join (no regex) to avoid reDOS from unsanitized input.
     """
     prefix = settings.URL_PREFIX or "/api/"
+    trailing_slash = path.endswith("/")
     segments = [x for x in f"{prefix}/{path}".split("/") if x]
-    return "/" + "/".join(segments) + "/" if segments else "/"
+    base = "/" + "/".join(segments) if segments else "/"
+    return base + "/" if trailing_slash else base
 
 
 @require_safe
