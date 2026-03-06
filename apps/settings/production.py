@@ -62,6 +62,35 @@ validators.append(
 )
 
 # =============================================================================
+# HTTPS/SSL Security Settings
+# =============================================================================
+
+# SECURITY FIX: Enable HTTPS-only security features for production
+# Redirect all HTTP requests to HTTPS
+SECURE_SSL_REDIRECT = True
+
+# Trust the X-Forwarded-Proto header from reverse proxy
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Use secure cookies (transmitted only over HTTPS)
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+# Prevent JavaScript access to session and CSRF cookies
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
+# Strict same-site cookie policy
+SESSION_COOKIE_SAMESITE = "Strict"
+CSRF_COOKIE_SAMESITE = "Strict"
+
+# HTTP Strict Transport Security (HSTS)
+# Force browsers to use HTTPS for 1 year
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# =============================================================================
 # Resource Server / Gateway Integration
 # =============================================================================
 

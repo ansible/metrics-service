@@ -66,13 +66,28 @@ from dynaconf.loaders import execute_instance_hooks
 BASE_DIR = Path(__file__).resolve().parent.parent
 """Build paths inside the project like this: BASE_DIR / 'subdir'"""
 
-SECRET_KEY = "django-insecure-k^a&fnx3ulh*d2nl%q680o+xkr^5o+c$5=lzo7vd-7=#qmadg("  # noqa
+# SECURITY FIX: Use environment variable for SECRET_KEY instead of hardcoded value
+# For production: Set METRICS_SERVICE_SECRET_KEY environment variable
+# For development: Generates a random key (not persistent across restarts)
+SECRET_KEY = os.environ.get("METRICS_SERVICE_SECRET_KEY")
+if not SECRET_KEY:
+    from django.core.management.utils import get_random_secret_key
+
+    SECRET_KEY = get_random_secret_key()
+    print(  # noqa: T201
+        "WARNING: Using randomly generated SECRET_KEY. "
+        "Set METRICS_SERVICE_SECRET_KEY environment variable for production. "
+        f"Generated key: {SECRET_KEY}"
+    )
 """SECURITY WARNING: keep the secret key used in production secret!"""
 
 DEBUG = False
 """SECURITY WARNING: don't run with debug turned on in production!"""
 
-ALLOWED_HOSTS = ["*"]
+# SECURITY FIX: Use restrictive ALLOWED_HOSTS by default
+# For production: Override with actual domain names via METRICS_SERVICE_ALLOWED_HOSTS
+# For development: localhost and 127.0.0.1 are allowed
+ALLOWED_HOSTS = os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
 """List of allowed hosts"""
 
 INSTALLED_APPS = [
@@ -89,6 +104,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # SECURITY FIX: Add custom security headers middleware
+    "apps.core.middleware.SecurityHeadersMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
