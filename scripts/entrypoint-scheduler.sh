@@ -9,7 +9,7 @@ if [[ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]]; then
     CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
     run_scheduler() { exec "$CLI" scheduler "$@"; }
 else
-    run_scheduler() { exec python3.12 manage.py metrics_service scheduler "$@"; }
+    run_scheduler() { exec python3.12 manage.py run_task_scheduler "$@"; }
 fi
 
 echo "════════════════════════════════════════════════════════════════"

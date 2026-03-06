@@ -9,7 +9,7 @@ if [[ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]]; then
     CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
     run_dispatcherd() { exec "$CLI" dispatcherd "$@"; }
 else
-    run_dispatcherd() { exec python3.12 manage.py metrics_service dispatcherd "$@"; }
+    run_dispatcherd() { exec python3.12 manage.py run_dispatcherd "$@"; }
 fi
 
 echo "════════════════════════════════════════════════════════════════"
