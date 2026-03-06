@@ -696,7 +696,8 @@ class TestTaskViewSet(APITestCase):
     def test_viewset_initialization(self):
         """Test TaskViewSet can be initialized."""
         viewset = TaskViewSet()
-        assert viewset is not None
+        # viewset existence is implicitly tested by successful instantiation
+        assert viewset.queryset.model == Task
 
     def test_get_queryset(self):
         """Test get_queryset returns Task queryset."""
@@ -767,7 +768,7 @@ class TestTaskExecutionViewSet(APITestCase):
     def test_execution_viewset_initialization(self):
         """Test TaskExecutionViewSet can be initialized."""
         viewset = TaskExecutionViewSet()
-        assert viewset is not None
+        # viewset existence is implicitly tested by successful instantiation
         assert viewset.queryset.model == TaskExecution
 
 
@@ -1020,12 +1021,16 @@ class TestTaskImports(TestCase):
 
     def test_viewset_imports(self):
         """Test TaskViewSet and TaskExecutionViewSet can be imported."""
-        assert TaskViewSet is not None
-        assert TaskExecutionViewSet is not None
+        # Import success is validated by the class imports at module level
+        # If imports fail, the entire test module would fail to load
+        assert callable(TaskViewSet)
+        assert callable(TaskExecutionViewSet)
 
     def test_serializer_imports(self):
         """Test all serializers can be imported."""
-        assert TaskSerializer is not None
-        assert TaskCreateSerializer is not None
-        assert TaskListSerializer is not None
-        assert TaskExecutionSerializer is not None
+        # Import success is validated by the class imports at module level
+        # If imports fail, the entire test module would fail to load
+        assert callable(TaskSerializer)
+        assert callable(TaskCreateSerializer)
+        assert callable(TaskListSerializer)
+        assert callable(TaskExecutionSerializer)

@@ -9,7 +9,7 @@ CERT_FILE="${CERT_DIR}/server.crt"
 KEY_FILE="${CERT_DIR}/server.key"
 
 # Check if certificates already exist
-if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+if [[ -f "$CERT_FILE" && -f "$KEY_FILE" ]]; then
     echo "✓ TLS certificates already exist at ${CERT_DIR}"
     exit 0
 fi

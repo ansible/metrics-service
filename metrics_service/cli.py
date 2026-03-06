@@ -59,6 +59,8 @@ def main() -> int:
     if not rest or rest[0] in ("-h", "--help"):
         # No subcommand or --help: show metrics_service help
         execute_from_command_line([prog, "metrics_service", "--help"])
+        # Django execute_from_command_line calls sys.exit() on success
+        # If we reach here, it means command succeeded
         return 0
 
     subcommand = rest[0]
@@ -68,17 +70,23 @@ def main() -> int:
         # e.g. metrics-service dispatcherd --workers 4 -> run_dispatcherd --workers 4
         django_argv = [prog, _DJANGO_COMMAND_MAP[subcommand], *args]
         execute_from_command_line(django_argv)
+        # Django execute_from_command_line calls sys.exit() on success
+        # If we reach here, command succeeded
         return 0
 
     if subcommand in _METRICS_SERVICE_SUBCOMMANDS:
         # e.g. metrics-service run -> metrics_service run
         django_argv = [prog, "metrics_service", subcommand, *args]
         execute_from_command_line(django_argv)
+        # Django execute_from_command_line calls sys.exit() on success
+        # If we reach here, command succeeded
         return 0
 
     # Unknown subcommand: pass through to metrics_service so it can error with usage
     django_argv = [prog, "metrics_service", subcommand, *args]
     execute_from_command_line(django_argv)
+    # Django execute_from_command_line calls sys.exit() on errors
+    # If we reach here, command succeeded
     return 0
 
 

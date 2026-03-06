@@ -400,9 +400,9 @@ class TestMetricsServiceFullIntegration(TransactionTestCase):
         port = "8000"
 
         # Validate inputs for security (copied from the actual method)
-        if not isinstance(host, str) or not host.replace(".", "").replace(":", "").isalnum():
+        if not host.replace(".", "").replace(":", "").isalnum():
             pytest.fail(f"Invalid host: {host}")
-        if not isinstance(port, int | str) or not str(port).isdigit():
+        if not str(port).isdigit():
             pytest.fail(f"Invalid port: {port}")
 
         # Build expected command (Gunicorn for production)

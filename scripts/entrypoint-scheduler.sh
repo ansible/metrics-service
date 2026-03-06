@@ -5,11 +5,11 @@
 
 set -e
 
-if [ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]; then
+if [[ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]]; then
     CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
-    RUN_SCHEDULER() { exec "$CLI" scheduler "$@"; }
+    run_scheduler() { exec "$CLI" scheduler "$@"; return 0; }
 else
-    RUN_SCHEDULER() { exec python3.12 manage.py metrics_service scheduler "$@"; }
+    run_scheduler() { exec python3.12 manage.py metrics_service scheduler "$@"; return 0; }
 fi
 
 echo "════════════════════════════════════════════════════════════════"
@@ -23,5 +23,5 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-RUN_SCHEDULER --check-interval="${SCHEDULER_CHECK_INTERVAL:-60}" \
+run_scheduler --check-interval="${SCHEDULER_CHECK_INTERVAL:-60}" \
     --log-level="${SCHEDULER_LOG_LEVEL:-INFO}"

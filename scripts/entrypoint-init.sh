@@ -5,7 +5,7 @@
 
 set -e
 
-if [ -x "${VENV_PYTHON:-/app/.venv/bin/python}" ]; then
+if [[ -x "${VENV_PYTHON:-/app/.venv/bin/python}" ]]; then
     PYTHON="${VENV_PYTHON:-/app/.venv/bin/python}"
 else
     PYTHON="${VENV_PYTHON:-python3.12}"
@@ -41,7 +41,7 @@ except Exception as e:
     sys.exit(1)
 ' 2>/dev/null; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
-    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+    if [[ $RETRY_COUNT -ge $MAX_RETRIES ]]; then
         echo "✗ Database connection failed after $MAX_RETRIES attempts"
         exit 1
     fi

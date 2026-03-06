@@ -5,11 +5,11 @@
 
 set -e
 
-if [ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]; then
+if [[ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]]; then
     CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
-    RUN_DISPATCHERD() { exec "$CLI" dispatcherd "$@"; }
+    run_dispatcherd() { exec "$CLI" dispatcherd "$@"; return 0; }
 else
-    RUN_DISPATCHERD() { exec python3.12 manage.py metrics_service dispatcherd "$@"; }
+    run_dispatcherd() { exec python3.12 manage.py metrics_service dispatcherd "$@"; return 0; }
 fi
 
 echo "════════════════════════════════════════════════════════════════"
@@ -25,7 +25,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-RUN_DISPATCHERD --workers="${DISPATCHERD_WORKERS:-2}" \
+run_dispatcherd --workers="${DISPATCHERD_WORKERS:-2}" \
     --timeout="${DISPATCHERD_TIMEOUT:-3600}" \
     --max-tasks="${DISPATCHERD_MAX_TASKS:-100}" \
     --log-level="${DISPATCHERD_LOG_LEVEL:-INFO}"
