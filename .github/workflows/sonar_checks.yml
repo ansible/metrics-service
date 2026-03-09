@@ -57,6 +57,8 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
           GITHUB_REPO: ${{ github.repository }}
           WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
         run: |
           HTTP_CODE=$(curl -s -w "%{http_code}" -o pr_response.json -H "Authorization: token $GITHUB_TOKEN" \
             "https://api.github.com/repos/$GITHUB_REPO/pulls/$PR_NUMBER")
@@ -82,17 +84,26 @@ jobs:
           fi
 
           PR_HEAD_BRANCH=$(jq -r '.head.ref' pr_response.json)
+          PR_HEAD_SHA=$(jq -r '.head.sha' pr_response.json)
+          PR_HEAD_REPO=$(jq -r '.head.repo.full_name' pr_response.json)
           PR_BASE_BRANCH=$(jq -r '.base.ref' pr_response.json)
 
           echo "PR head branch: $PR_HEAD_BRANCH"
+          echo "PR head SHA: $PR_HEAD_SHA"
+          echo "PR head repo: $PR_HEAD_REPO"
           echo "Workflow run branch: $WORKFLOW_BRANCH"
+          echo "Workflow run SHA: $WORKFLOW_HEAD_SHA"
+          echo "Workflow run repo: $WORKFLOW_HEAD_REPO"
 
-          if [ "$PR_HEAD_BRANCH" != "$WORKFLOW_BRANCH" ]; then
-            echo "Error: Workflow branch ($WORKFLOW_BRANCH) does not match PR #$PR_NUMBER head branch ($PR_HEAD_BRANCH)"
-            exit 1
+          if [ "$PR_HEAD_BRANCH" != "$WORKFLOW_BRANCH" ] || \
+             [ "$PR_HEAD_SHA" != "$WORKFLOW_HEAD_SHA" ] || \
+             [ "$PR_HEAD_REPO" != "$WORKFLOW_HEAD_REPO" ]; then
+            echo "Error: Workflow run no longer matches PR #$PR_NUMBER head (branch/SHA/repo mismatch)"
+            echo "should_scan=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-          echo "Validation successful: PR $PR_NUMBER branch matches workflow run branch ($WORKFLOW_BRANCH)"
+          echo "Validation successful: PR $PR_NUMBER matches workflow run (branch, SHA, repo)"
           echo "should_scan=true" >> $GITHUB_OUTPUT
 
           delim=$(openssl rand -hex 16)
