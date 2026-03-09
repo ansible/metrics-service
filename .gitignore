@@ -141,3 +141,4 @@ cachi2-output/
 
 # dev tooling outputs
 hourly_dumps/
+daily_dumps/

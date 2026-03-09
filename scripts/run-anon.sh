@@ -13,7 +13,7 @@ uv run scripts/run_task.py collect_snapshot_metrics '{"collector_type": "control
 uv run scripts/run_task.py collect_snapshot_metrics '{"collector_type": "execution_environments"}'
 uv run scripts/run_task.py collect_snapshot_metrics '{"collector_type": "table_metadata"}'
 
-# dump collected data
+# dump to hourly_dumps/
 uv run scripts/dump_hourly.py
 
 # this reads from tasks_hourlymetricscollection and writes to tasks_dailymetricssummary
@@ -21,6 +21,9 @@ uv run scripts/run_task.py daily_metrics_rollup
 
 # this reads from tasks_dailymetricssummary and writes to tasks_anonymizedmetricspayload
 uv run scripts/run_task.py daily_anonymize_and_prepare
+
+# dump to daily_dumps/
+uv run scripts/dump_daily_anonymized.py
 
 # this reads from tasks_anonymizedmetricspayload and sends to segment
 uv run scripts/run_task.py send_anonymized_to_segment
