@@ -40,4 +40,12 @@ LOGGING__loggers = {
     "django.template": {
         "level": "INFO",
     },
+    # disable "Including URLS from ...", "Module ... does not specify urls.py"
+    "ansible_base.lib.dynamic_config.dynamic_urls": {
+        "level": "INFO",
+    },
+    # disable 8 lines of JWT per request
+    "ansible_base.jwt_consumer.common.auth": {
+        "level": "INFO",
+    },
 }

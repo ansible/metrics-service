@@ -138,3 +138,6 @@ cachi2-output/
 
 # MacOSX
 .DS_Store
+
+# dev tooling outputs
+hourly_dumps/
