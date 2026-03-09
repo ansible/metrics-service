@@ -55,9 +55,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
+          GITHUB_REPO: ${{ github.repository }}
+          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           HTTP_CODE=$(curl -s -w "%{http_code}" -o pr_response.json -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+            "https://api.github.com/repos/$GITHUB_REPO/pulls/$PR_NUMBER")
 
           if [ "$HTTP_CODE" != "200" ]; then
             echo "Error: GitHub API returned HTTP $HTTP_CODE when checking PR state"
@@ -81,7 +83,6 @@ jobs:
 
           PR_HEAD_BRANCH=$(jq -r '.head.ref' pr_response.json)
           PR_BASE_BRANCH=$(jq -r '.base.ref' pr_response.json)
-          WORKFLOW_BRANCH="${{ github.event.workflow_run.head_branch }}"
 
           echo "PR head branch: $PR_HEAD_BRANCH"
           echo "Workflow run branch: $WORKFLOW_BRANCH"
