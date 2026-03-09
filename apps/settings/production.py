@@ -76,9 +76,13 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
-# Prevent JavaScript access to session and CSRF cookies
+# Prevent JavaScript access to session cookie (keep HttpOnly)
 SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = True
+
+# CSRF cookie must remain readable by JavaScript: the dashboard and any AJAX views
+# use the standard Django pattern of getCookie('csrftoken') for the X-CSRFToken header.
+# Setting this to True would break those requests. Session cookie stays HttpOnly above.
+CSRF_COOKIE_HTTPONLY = False
 
 # Strict same-site cookie policy
 SESSION_COOKIE_SAMESITE = "Strict"

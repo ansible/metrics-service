@@ -77,7 +77,6 @@ if not SECRET_KEY:
     print(  # noqa: T201
         "WARNING: Using randomly generated SECRET_KEY. "
         "Set METRICS_SERVICE_SECRET_KEY environment variable for production. "
-        f"Generated key: {SECRET_KEY}"
     )
 """SECURITY WARNING: keep the secret key used in production secret!"""
 
