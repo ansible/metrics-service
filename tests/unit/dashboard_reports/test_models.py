@@ -4,10 +4,12 @@ import datetime
 import decimal
 
 import pytest
+import pytz
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
 from apps.dashboard_reports.models import (
+    DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES,
     FilterSet,
     JobData,
     JobHostSummary,
@@ -176,6 +178,95 @@ class TestTemplateMetadata:
         assert template_metadata.time_taken_manually_execute_minutes == 45
         assert template_metadata.time_taken_create_automation_minutes == 15
 
+    def test_min_awx_id_minus_one(self):
+        """Test TemplateMetadata.get_min_awx_id returns -1 when no records exist."""
+        assert TemplateMetadata.get_min_awx_id() == -1
+
+    def test_min_awx_id_positive_ids(self, template_metadata):
+        """Test TemplateMetadata.get_min_awx_id returns -1 when only positive template_ids exist."""
+        TemplateMetadata.objects.create(
+            template_id=10,
+            template_name="Test Positive",
+            time_taken_manually_execute_minutes=30,
+            time_taken_create_automation_minutes=10,
+        )
+        TemplateMetadata.objects.create(
+            template_id=20,
+            template_name="Test Positive 2",
+            time_taken_manually_execute_minutes=30,
+            time_taken_create_automation_minutes=10,
+        )
+        assert TemplateMetadata.get_min_awx_id() == -1
+
+    def test_min_awx_id_negative_ids(self, template_metadata):
+        """Test TemplateMetadata.get_min_awx_id returns min template_id minus one when negative template_ids exist."""
+        TemplateMetadata.objects.create(
+            template_id=-5,
+            template_name="Test Negative",
+            time_taken_manually_execute_minutes=30,
+            time_taken_create_automation_minutes=10,
+        )
+        TemplateMetadata.objects.create(
+            template_id=-10,
+            template_name="Test Negative 2",
+            time_taken_manually_execute_minutes=30,
+            time_taken_create_automation_minutes=10,
+        )
+        assert TemplateMetadata.get_min_awx_id() == -11
+
+    def test_min_awx_id_mixed_ids(self, template_metadata):
+        """Test TemplateMetadata.get_min_awx_id returns min template_id minus one if negative template_ids exist, even if positive template_ids also exist."""
+        TemplateMetadata.objects.create(
+            template_id=10,
+            template_name="Test Positive",
+            time_taken_manually_execute_minutes=30,
+            time_taken_create_automation_minutes=10,
+        )
+        TemplateMetadata.objects.create(
+            template_id=-3,
+            template_name="Test Negative",
+            time_taken_manually_execute_minutes=30,
+            time_taken_create_automation_minutes=10,
+        )
+        assert TemplateMetadata.get_min_awx_id() == -4
+
+    def test_retrieve_by_awx_id(self):
+        obj = TemplateMetadata.objects.create(template_id=42, template_name="Test")
+        result = TemplateMetadata.get_by_awx_id_or_name(name="Other", awx_id=42)
+        assert result.pk == obj.pk
+
+    def test_retrieve_by_name(self):
+        obj = TemplateMetadata.objects.create(template_id=99, template_name="TestName")
+        result = TemplateMetadata.get_by_awx_id_or_name(name="TestName")
+        assert result.pk == obj.pk
+
+    def test_create_new_when_none_exist(self):
+        result = TemplateMetadata.get_by_awx_id_or_name(name="NewTemplate", awx_id=123)
+        assert result.template_name == "NewTemplate"
+        assert result.template_id == 123
+
+    def test_awx_id_and_name_both_provided_awx_id_exists(self):
+        obj = TemplateMetadata.objects.create(template_id=7, template_name="AWXTemplate")
+        result = TemplateMetadata.get_by_awx_id_or_name(name="AWXTemplate", awx_id=7)
+        assert result.pk == obj.pk
+
+    def test_awx_id_and_name_both_provided_name_exists(self):
+        obj = TemplateMetadata.objects.create(template_id=8, template_name="NameTemplate")
+        result = TemplateMetadata.get_by_awx_id_or_name(name="NameTemplate", awx_id=999)
+        assert result.pk == obj.pk
+        assert result.template_id == 8
+
+    def test_elapsed_sets_manual_time_estimate(self):
+        result = TemplateMetadata.get_by_awx_id_or_name(
+            name="ElapsedTemplate", awx_id=55, elapsed=decimal.Decimal(3600)
+        )
+        # 2x elapsed (3600s = 60min), so 2x60 = 120min, min 30
+        assert result.time_taken_manually_execute_minutes == 120
+
+    def test_automation_time_estimate_default(self):
+        result = TemplateMetadata.get_by_awx_id_or_name(name="AutoTemplate", awx_id=66)
+        assert result.time_taken_create_automation_minutes == DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES
+
 
 @pytest.mark.unit
 @pytest.mark.django_db
@@ -231,6 +322,29 @@ class TestJobData:
                 launched_by_username="testuser",
                 template_metadata=None,
             )
+
+    def test_latest_timestamp_returns_none(self):
+        assert JobData.last_timestamp() is None
+
+    def test_all_records_null_awx_modified_returns_none(self):
+        JobData.objects.create(job_id=1, template_name="T1", elapsed=1)
+        JobData.objects.create(job_id=2, template_name="T2", elapsed=2)
+        assert JobData.last_timestamp() is None
+
+    def test_returns_latest_awx_modified(self):
+        now = datetime.datetime.now().astimezone(pytz.utc)
+        earlier = (now - datetime.timedelta(days=1)).astimezone(pytz.utc)
+        later = (now + datetime.timedelta(days=1)).astimezone(pytz.utc)
+        JobData.objects.create(job_id=3, template_name="T3", elapsed=3, awx_modified=earlier)
+        JobData.objects.create(job_id=4, template_name="T4", elapsed=4, awx_modified=now)
+        JobData.objects.create(job_id=5, template_name="T5", elapsed=5, awx_modified=later)
+        assert JobData.last_timestamp() == later
+
+    def test_mixed_null_and_valid_awx_modified(self):
+        now = datetime.datetime.now().astimezone(pytz.utc)
+        JobData.objects.create(job_id=6, template_name="T6", elapsed=6, awx_modified=None)
+        JobData.objects.create(job_id=7, template_name="T7", elapsed=7, awx_modified=now)
+        assert JobData.last_timestamp() == now
 
 
 @pytest.mark.unit
@@ -318,3 +432,84 @@ class TestJobHostSummary:
                 host_id=3,
                 host_name="host3",
             )
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestJobDataCreateOrUpdateFromAWX:
+    def setup_method(self):
+        self.awx_job_base = {
+            "id": 100,
+            "name": "Test Template",
+            "unified_job_template_id": 200,
+            "project_id": 300,
+            "project_name": "Test Project",
+            "organization_id": 400,
+            "status": "successful",
+            "started": datetime.datetime(2024, 1, 1, 10, 0, 0).astimezone(pytz.utc),
+            "finished": datetime.datetime(2024, 1, 1, 11, 0, 0).astimezone(pytz.utc),
+            "elapsed": decimal.Decimal("3600.0"),
+            "launched_by_id": 500,
+            "launched_by_username": "testuser",
+            "created": datetime.datetime(2024, 1, 1, 9, 59, 0).astimezone(pytz.utc),
+            "modified": datetime.datetime(2024, 1, 1, 11, 1, 0).astimezone(pytz.utc),
+            "num_hosts": 2,
+            "labels": [1, 2],
+            "host_summaries": [
+                {"id": 10, "host_id": 1000, "host_name": "host1"},
+                {"id": 11, "host_id": 1001, "host_name": "host2"},
+            ],
+        }
+
+    def test_create_new_job_data_and_related(self):
+        JobData.create_or_update_from_awx(self.awx_job_base)
+        job = JobData.objects.get(job_id=100)
+        assert job.template_name == "Test Template"
+        assert job.status == "successful"
+        assert job.num_hosts == 2
+        assert job.elapsed == decimal.Decimal("3600.0")
+        assert job.finished == datetime.datetime(2024, 1, 1, 11, 0, 0).astimezone(pytz.utc)
+        # TemplateMetadata created
+        assert TemplateMetadata.objects.filter(template_id=200).exists()
+        # JobLabels created
+        labels = list(JobLabel.objects.filter(job_data=job).values_list("label_id", flat=True))
+        assert set(labels) == {1, 2}
+        # HostSummaries created
+        hosts = list(JobHostSummary.objects.filter(job_data=job).values_list("host_summary_id", flat=True))
+        assert set(hosts) == {10, 11}
+
+    def test_update_existing_job_data_and_labels_hosts(self):
+        # First create
+        JobData.create_or_update_from_awx(self.awx_job_base)
+        # Now update: remove label 2, add label 3, update host 10, remove host 11, add host 12
+        awx_job_update = self.awx_job_base.copy()
+        awx_job_update["labels"] = [1, 3]
+        awx_job_update["host_summaries"] = [
+            {"id": 10, "host_id": 1000, "host_name": "host1-updated"},
+            {"id": 12, "host_id": 1002, "host_name": "host3"},
+        ]
+        JobData.create_or_update_from_awx(awx_job_update)
+        job = JobData.objects.get(job_id=100)
+        # Labels: 1 and 3 should exist
+        labels = list(JobLabel.objects.filter(job_data=job).values_list("label_id", flat=True))
+        assert set(labels) == {1, 3}
+        # HostSummaries: 10 and 12 should exist, 10 should be updated
+        hosts = list(JobHostSummary.objects.filter(job_data=job).values_list("host_summary_id", flat=True))
+        assert set(hosts) == {10, 12}
+        host10 = JobHostSummary.objects.get(job_data=job, host_summary_id=10)
+        assert host10.host_name == "host1-updated"
+
+    def test_create_with_no_labels_or_hosts(self):
+        awx_job = self.awx_job_base.copy()
+        awx_job["labels"] = []
+        awx_job["host_summaries"] = []
+        JobData.create_or_update_from_awx(awx_job)
+        job = JobData.objects.get(job_id=100)
+        assert JobLabel.objects.filter(job_data=job).count() == 0
+        assert JobHostSummary.objects.filter(job_data=job).count() == 0
+
+    def test_template_metadata_created_if_missing(self):
+        # Remove TemplateMetadata if exists
+        TemplateMetadata.objects.filter(template_id=200).delete()
+        JobData.create_or_update_from_awx(self.awx_job_base)
+        assert TemplateMetadata.objects.filter(template_id=200).exists()
