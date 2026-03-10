@@ -38,6 +38,7 @@ dependencies = [
     "django-extensions>=3.2",
     "pip>=25.2",
     "packaging>=20.0",  # Required for setuptools-scm during source builds
+    "django-generate-series>=2026.2.1", # Required for generating time series data for dashboard report charts
 ]
 
 [project.optional-dependencies]

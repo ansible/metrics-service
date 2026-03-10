@@ -1,7 +1,10 @@
+import calendar
 import decimal
 import logging
 from datetime import datetime
+from typing import Any, Self
 
+import pytz
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models, transaction
@@ -28,8 +31,33 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES = 60
 
 
-@transaction.atomic
+def month_range_iter(start_date, end_date):
+    """
+    Helper generator to iterate over each (year, month) tuple between start_date and end_date (inclusive).
+    Advances month and year correctly, handling year rollover.
+    """
+    year, month = start_date.year, start_date.month
+    while (year < end_date.year) or (year == end_date.year and month <= end_date.month):
+        yield year, month
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+
+
+def get_month_overlap_days(current_year, current_month, start_date, end_date):
+    """
+    Helper function to calculate the number of days in a month and the actual overlap range
+    for a given start_date and end_date. Returns (month_days, month_start_day, month_end_day).
+    """
+    month_days = calendar.monthrange(current_year, current_month)[1]
+    month_start_day = start_date.day if (current_year == start_date.year and current_month == start_date.month) else 1
+    month_end_day = end_date.day if (current_year == end_date.year and current_month == end_date.month) else month_days
+    return month_days, month_start_day, month_end_day
+
+
 class SubscriptionCostObjectManager(models.Manager):
+    @transaction.atomic
     def create(self, **kwargs):
         """
         Override create to ensure only one SubscriptionCost instance exists.
@@ -79,7 +107,7 @@ class SubscriptionCost(CommonModel):
 
     objects = SubscriptionCostObjectManager()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"SubscriptionCost: Monthly={self.monthly_subscription_cost}, Engineer Hourly Rate={self.engineer_avg_hourly_rate}"
 
     @classmethod
@@ -101,6 +129,55 @@ class SubscriptionCost(CommonModel):
         if created:
             logger.info("Created default SubscriptionCost instance with default values.")
         return instance
+
+    @property
+    def cost_employee_per_minute(self) -> decimal.Decimal:
+        """
+        Calculate and return the cost of employee time per minute based on the average hourly rate.
+        Ensures engineer_avg_hourly_rate is always a decimal.Decimal.
+        """
+        return decimal.Decimal(str(self.engineer_avg_hourly_rate)) / decimal.Decimal(60)
+
+    def daily_subscription_cost(self, start: datetime | None = None, end: datetime | None = None) -> decimal.Decimal:
+        """
+        Calculate and return the daily subscription cost based on the monthly subscription cost.
+        Assumes 30 days in a month for calculation.
+        """
+        now = datetime.now(pytz.utc)
+        default_days_in_month = calendar.monthrange(now.year, now.month)[1]
+        monthly_cost = decimal.Decimal(str(self.monthly_subscription_cost))
+        default_daily_cost = monthly_cost / decimal.Decimal(default_days_in_month)
+
+        if start is None or end is None:
+            return default_daily_cost
+
+        if start > end:
+            start, end = end, start
+
+        if start.year == end.year and start.month == end.month:
+            days_in_month = calendar.monthrange(start.year, start.month)[1]
+            return monthly_cost / decimal.Decimal(days_in_month)
+
+        total_days = 0
+        total_cost = decimal.Decimal(0)
+        for current_year, current_month in month_range_iter(start, end):
+            month_days, month_start_day, month_end_day = get_month_overlap_days(current_year, current_month, start, end)
+            overlap_days = month_end_day - month_start_day + 1
+            if overlap_days <= 0:
+                continue
+            proportional_cost = monthly_cost * decimal.Decimal(overlap_days) / decimal.Decimal(month_days)
+            total_days += overlap_days
+            total_cost += proportional_cost
+        return total_cost / decimal.Decimal(total_days) if total_days > 0 else default_daily_cost
+
+    def per_second_subscription_cost(
+        self, start: datetime | None = None, end: datetime | None = None
+    ) -> decimal.Decimal:
+        """
+        Calculate and return the per-second subscription cost based on the daily subscription cost.
+        """
+        daily_cost = self.daily_subscription_cost(start=start, end=end)
+        return daily_cost / decimal.Decimal(86400)  # 86400 seconds in a day
 
 
 class FilterSet(CommonModel):
@@ -154,7 +231,7 @@ class FilterSet(CommonModel):
             )
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -186,7 +263,7 @@ class TemplateMetadata(CommonModel):
         verbose_name = "Template Metadata"
         verbose_name_plural = "Template Metadata"
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return string representation of the template metadata."""
         return f"Metadata for {self.template_name} (ID: {self.template_id})"
 
@@ -262,6 +339,48 @@ class JobStatusChoices(models.TextChoices):
     FAILED = "failed", "Failed"
     ERROR = "error", "Error"
     CANCELED = "canceled", "Canceled"
+
+
+class JobDataFilterMethods:
+    def before_date(self, dt: datetime | None) -> Self:
+        if dt is not None:
+            return self.filter(finished__lte=dt)
+        return self
+
+    def after_date(self, dt: datetime | None) -> Self:
+        if dt is not None:
+            return self.filter(finished__gte=dt)
+        return self
+
+    def organizations(self, ids: list[int] | None) -> Self:
+        if ids is not None and len(ids) > 0:
+            return self.filter(organization_id__in=ids)
+        return self
+
+    def templates(self, ids: list[int] | None) -> Self:
+        if ids is not None and len(ids) > 0:
+            return self.filter(template_id__in=ids)
+        return self
+
+    def projects(self, ids: list[int] | None) -> Self:
+        if ids is not None and len(ids) > 0:
+            return self.filter(project_id__in=ids)
+        return self
+
+    def labels(self, ids: list[int] | None) -> Self:
+        if ids is not None and len(ids) > 0:
+            labels_qs = JobLabel.objects.filter(label_id__in=ids).values_list("job_data_id", flat=True)
+            return self.filter(id__in=labels_qs)
+        return self
+
+
+class JobDataQuerySet(JobDataFilterMethods, models.QuerySet):
+    pass
+
+
+class JobDataManager(JobDataFilterMethods, models.Manager):
+    def get_queryset(self) -> JobDataQuerySet:
+        return JobDataQuerySet(self.model, using=self._db)
 
 
 class JobData(CommonModel):
@@ -361,7 +480,9 @@ class JobData(CommonModel):
             models.Index(fields=["organization_id"], name="dashboard_jd_organization_idx"),
         ]
 
-    def __str__(self):
+    objects = JobDataManager()
+
+    def __str__(self) -> str:
         return f"Job {self.job_id} - Template: {self.template_name} - Status: {self.status}"
 
     @classmethod
@@ -496,7 +617,7 @@ class JobLabel(CommonModel):
             models.Index(fields=["job_data", "label_id"], name="dashboard_jl_job_label_idx"),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.job_data.template_name}: {self.label_id}"
 
 
@@ -520,7 +641,7 @@ class JobHostSummary(CommonModel):
         help_text="AWX host ID (from AWX database main_host table)",
     )
 
-    host_name = models.TextField(max_length=512, db_index=True, help_text="Host name for display (from AWX)")
+    host_name = models.CharField(max_length=512, db_index=True, help_text="Host name for display (from AWX)")
 
     class Meta:
         db_table = "dashboard_job_data_host_summary"
@@ -530,5 +651,44 @@ class JobHostSummary(CommonModel):
             models.Index(fields=["job_data", "host_id"], name="dashboard_jhs_job_host_idx"),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.host_name}: {self.job_data.template_name}"
+
+    @classmethod
+    def unique_count(
+        cls, start: datetime | None = None, end: datetime | None = None, options: dict[str, Any] | None = None
+    ) -> int:
+        """
+        Returns the count of unique hosts across all JobData records.
+        Filters by finished date range and additional options
+        (organization, project, template, label) if provided in the options dict.
+        """
+        options = options or {}
+        queryset = cls.objects
+
+        # Apply date range filters
+        if start is not None:
+            queryset = queryset.filter(job_data__finished__gte=start)
+        if end is not None:
+            queryset = queryset.filter(job_data__finished__lte=end)
+
+        # Mapping of option keys to their corresponding filter field
+        filter_mapping = {
+            "organization": "job_data__organization_id__in",
+            "project": "job_data__project_id__in",
+            "template": "job_data__template_id__in",
+        }
+
+        # Apply filters from options using the mapping
+        for option_key, filter_field in filter_mapping.items():
+            values = options.get(option_key)
+            if values:
+                queryset = queryset.filter(**{filter_field: values})
+
+        # Handle labels separately (requires subquery)
+        labels = options.get("label")
+        if labels:
+            labels_qs = JobLabel.objects.filter(label_id__in=labels).values_list("job_data_id", flat=True)
+            queryset = queryset.filter(job_data_id__in=labels_qs)
+
+        return queryset.values("host_name").distinct().count()

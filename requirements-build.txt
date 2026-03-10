@@ -73,6 +73,7 @@ django==5.2.7
     #   django-crum
     #   django-extensions
     #   django-flags
+    #   django-generate-series
     #   django-prometheus
     #   djangorestframework
     #   drf-spectacular
@@ -94,6 +95,10 @@ django-flags==5.1.0
     # via
     #   -r requirements-pinned.txt
     #   django-ansible-base
+django-generate-series==2026.2.1
+    # via
+    #   -r requirements-pinned.txt
+    #   metrics-service
 django-prometheus==2.4.1
     # via
     #   -r requirements-pinned.txt
