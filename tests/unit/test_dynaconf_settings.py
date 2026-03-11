@@ -87,6 +87,28 @@ class TestDynaconfValidators:
         db_validators = [v for v in validators if any("DATABASES" in str(name) for name in v.names)]
         assert len(db_validators) > 0
 
+    def test_optional_production_settings_have_no_validators(self):
+        """Test that optional production settings are not required by validators.
+
+        RESOURCE_SERVER__SECRET_KEY, ANSIBLE_BASE_JWT_KEY, SEGMENT_WRITE_KEY, and
+        ALLOWED_HOSTS are optional in production so deployments can start without
+        gateway auth, Segment, or explicit allowed hosts when not needed.
+        """
+        from apps.settings.production import validators
+
+        optional_settings = {
+            "RESOURCE_SERVER__SECRET_KEY",
+            "ANSIBLE_BASE_JWT_KEY",
+            "SEGMENT_WRITE_KEY",
+            "ALLOWED_HOSTS",
+        }
+        for v in validators:
+            for name in v.names:
+                assert name not in optional_settings, (
+                    f"Setting {name!r} should be optional (no validator); "
+                    "remove its validator from apps/settings/production.py"
+                )
+
     def test_settings_pass_validation(self):
         """Test that current settings pass validation (since we're running)."""
         from django.conf import settings

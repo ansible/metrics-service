@@ -75,31 +75,33 @@ validators.append(
     ),
 )
 
+# Optional until gateway APIs are implemented; uncomment validator when re-adding.
 RESOURCE_SERVER__SECRET_KEY = ""
-validators.append(
-    Validator(
-        "RESOURCE_SERVER__SECRET_KEY",
-        must_exist=True,
-        ne="",
-        messages={"operations": "RESOURCE_SERVER__SECRET_KEY must be set."},
-    ),
-)
+# validators.append(
+#     Validator(
+#         "RESOURCE_SERVER__SECRET_KEY",
+#         must_exist=True,
+#         ne="",
+#         messages={"operations": "RESOURCE_SERVER__SECRET_KEY must be set."},
+#     ),
+# )
 
 # =============================================================================
 # Authentication
 # =============================================================================
 
+# Optional until gateway APIs are implemented; uncomment validator when re-adding.
 ANSIBLE_BASE_JWT_KEY = ""
-validators.append(
-    Validator(
-        "ANSIBLE_BASE_JWT_KEY",
-        must_exist=True,
-        ne="",
-        messages={
-            "operations": ("ANSIBLE_BASE_JWT_KEY must be set. "),
-        },
-    ),
-)
+# validators.append(
+#     Validator(
+#         "ANSIBLE_BASE_JWT_KEY",
+#         must_exist=True,
+#         ne="",
+#         messages={
+#             "operations": ("ANSIBLE_BASE_JWT_KEY must be set. "),
+#         },
+#     ),
+# )
 
 REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = [
     "apps.core.authentication.ServiceJWTAuthentication",
@@ -200,15 +202,16 @@ validators.append(
 # External Services
 # =============================================================================
 
+# Optional until gateway APIs are implemented; uncomment validator when re-adding.
 SEGMENT_WRITE_KEY = ""
-validators.append(
-    Validator(
-        "SEGMENT_WRITE_KEY",
-        must_exist=True,
-        ne="",
-        messages={"operations": "SEGMENT_WRITE_KEY must be set."},
-    ),
-)
+# validators.append(
+#     Validator(
+#         "SEGMENT_WRITE_KEY",
+#         must_exist=True,
+#         ne="",
+#         messages={"operations": "SEGMENT_WRITE_KEY must be set."},
+#     ),
+# )
 
 # =============================================================================
 # URL Configuration
@@ -221,15 +224,16 @@ LOGOUT_URL = "/api/gateway/v1/logout/"
 # =============================================================================
 # Allowed Hosts
 # =============================================================================
+# Optional until gateway APIs are implemented; uncomment validator when re-adding.
 # Set via METRICS_SERVICE_ALLOWED_HOSTS (comma-separated or JSON array).
 # Example: METRICS_SERVICE_ALLOWED_HOSTS=metrics.example.com,api.example.com
 # Or:      METRICS_SERVICE_ALLOWED_HOSTS='["metrics.example.com","api.example.com"]'
 ALLOWED_HOSTS = []
-validators.append(
-    Validator(
-        "ALLOWED_HOSTS",
-        must_exist=True,
-        condition=lambda v: isinstance(v, list) and len(v) > 0,
-        messages={"condition": "ALLOWED_HOSTS must be set via METRICS_SERVICE_ALLOWED_HOSTS in production."},
-    ),
-)
+# validators.append(
+#     Validator(
+#         "ALLOWED_HOSTS",
+#         must_exist=True,
+#         condition=lambda v: isinstance(v, list) and len(v) > 0,
+#         messages={"condition": "ALLOWED_HOSTS must be set via METRICS_SERVICE_ALLOWED_HOSTS in production."},
+#     ),
+# )
