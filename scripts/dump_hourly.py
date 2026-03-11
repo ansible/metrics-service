@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 """
-Dump HourlyMetricsCollection raw_data to JSON files.
+Dump HourlyMetricsCollection records to JSON files.
 
 This script exports all HourlyMetricsCollection records to individual JSON files,
-named after the collector type and timestamps.
+split into data and metadata files:
+- {name}.data.json - Contains the raw_data field
+- {name}.metadata.json - Contains all other fields (excluding raw_data)
+
+Files are named after the collector type and timestamps.
 
 Usage:
     uv run scripts/dump_hourly.py
@@ -107,6 +111,10 @@ def dump_collections(output_dir: Path, status_filter: str | None = None) -> None
     """
     Dump all HourlyMetricsCollection records to JSON files.
 
+    Creates two files per record:
+    - {filename}.data.json - Contains raw_data field
+    - {filename}.metadata.json - Contains all other fields (excluding raw_data)
+
     Args:
         output_dir: Directory to write JSON files to
         status_filter: Optional status to filter by (e.g., 'collected', 'failed')
@@ -134,14 +142,32 @@ def dump_collections(output_dir: Path, status_filter: str | None = None) -> None
     for collection in queryset:
         try:
             filename = generate_filename(collection)
-            filepath = output_dir / filename
+            base_name = filename.replace(".json", "")
 
-            # Write raw_data to file
-            with open(filepath, "w") as f:
+            # Write raw_data to .data.json file
+            data_filepath = output_dir / f"{base_name}.data.json"
+            with open(data_filepath, "w") as f:
                 json.dump(collection.raw_data, f, indent=2, default=str)
 
+            # Write metadata to .metadata.json file (all fields except raw_data)
+            metadata = {
+                "id": collection.id,
+                "collector_type": collection.collector_type,
+                "collection_timestamp": str(collection.collection_timestamp),
+                "status": collection.status,
+                "collection_parameters": collection.collection_parameters,
+                "data_size_bytes": collection.data_size_bytes,
+                "error_message": collection.error_message,
+                "task_execution_id": collection.task_execution_id,
+                "created": str(collection.created),
+                "modified": str(collection.modified),
+            }
+            metadata_filepath = output_dir / f"{base_name}.metadata.json"
+            with open(metadata_filepath, "w") as f:
+                json.dump(metadata, f, indent=2, default=str)
+
             dumped_count += 1
-            print(f"[{dumped_count}/{total_count}] Dumped: {filename}")
+            print(f"[{dumped_count}/{total_count}] Dumped: {base_name}.{{data,metadata}}.json")
 
         except Exception as e:
             print(f"Error dumping collection {collection.id}: {e}", file=sys.stderr)

@@ -1,9 +1,17 @@
 #!/usr/bin/env python
 """
-Dump DailyMetricsSummary and AnonymizedMetricsPayload data to JSON files.
+Dump DailyMetricsSummary and AnonymizedMetricsPayload records to JSON files.
 
 This script exports DailyMetricsSummary and AnonymizedMetricsPayload records to individual JSON files,
-named after the summary date and type (daily or anonymized).
+split into data and metadata files:
+
+DailyMetricsSummary:
+- daily_summary_{YYYYMMDD}.data.json - Contains the aggregated_metrics field
+- daily_summary_{YYYYMMDD}.metadata.json - Contains all other fields (excluding aggregated_metrics)
+
+AnonymizedMetricsPayload:
+- anonymized_{YYYYMMDD}.data.json - Contains the anonymized_data field
+- anonymized_{YYYYMMDD}.metadata.json - Contains all other fields (excluding anonymized_data)
 
 Usage:
     uv run scripts/dump_daily_anonymized.py
@@ -71,6 +79,10 @@ def dump_daily_summaries(output_dir: Path, status_filter: str | None = None) -> 
     """
     Dump all DailyMetricsSummary records to JSON files.
 
+    Creates two files per record:
+    - {filename}.data.json - Contains aggregated_metrics field
+    - {filename}.metadata.json - Contains all other fields (excluding aggregated_metrics)
+
     Args:
         output_dir: Directory to write JSON files to
         status_filter: Optional status to filter by (e.g., 'aggregated', 'failed')
@@ -98,13 +110,18 @@ def dump_daily_summaries(output_dir: Path, status_filter: str | None = None) -> 
     for summary in queryset:
         try:
             filename = generate_daily_summary_filename(summary)
-            filepath = output_dir / filename
+            base_name = filename.replace(".json", "")
 
-            # Build comprehensive data structure
-            data = {
+            # Write aggregated_metrics to .data.json file
+            data_filepath = output_dir / f"{base_name}.data.json"
+            with open(data_filepath, "w") as f:
+                json.dump(summary.aggregated_metrics, f, indent=2, default=str)
+
+            # Write metadata to .metadata.json file (all fields except aggregated_metrics)
+            metadata = {
+                "id": summary.id,
                 "summary_date": str(summary.summary_date),
                 "status": summary.status,
-                "aggregated_metrics": summary.aggregated_metrics,
                 "config_data": summary.config_data,
                 "hourly_collection_ids": summary.hourly_collection_ids,
                 "hourly_collections_count": summary.hourly_collections_count,
@@ -113,16 +130,16 @@ def dump_daily_summaries(output_dir: Path, status_filter: str | None = None) -> 
                 if summary.aggregation_completed_at
                 else None,
                 "error_message": summary.error_message,
+                "rollup_task_execution_id": summary.rollup_task_execution_id,
                 "created": str(summary.created),
                 "modified": str(summary.modified),
             }
-
-            # Write data to file
-            with open(filepath, "w") as f:
-                json.dump(data, f, indent=2, default=str)
+            metadata_filepath = output_dir / f"{base_name}.metadata.json"
+            with open(metadata_filepath, "w") as f:
+                json.dump(metadata, f, indent=2, default=str)
 
             dumped_count += 1
-            print(f"[{dumped_count}/{total_count}] Dumped: {filename}")
+            print(f"[{dumped_count}/{total_count}] Dumped: {base_name}.{{data,metadata}}.json")
 
         except Exception as e:
             print(f"Error dumping summary {summary.id}: {e}", file=sys.stderr)
@@ -134,6 +151,10 @@ def dump_daily_summaries(output_dir: Path, status_filter: str | None = None) -> 
 def dump_anonymized_payloads(output_dir: Path, status_filter: str | None = None) -> None:
     """
     Dump all AnonymizedMetricsPayload records to JSON files.
+
+    Creates two files per record:
+    - {filename}.data.json - Contains anonymized_data field
+    - {filename}.metadata.json - Contains all other fields (excluding anonymized_data)
 
     Args:
         output_dir: Directory to write JSON files to
@@ -162,29 +183,35 @@ def dump_anonymized_payloads(output_dir: Path, status_filter: str | None = None)
     for payload in queryset:
         try:
             filename = generate_anonymized_payload_filename(payload)
-            filepath = output_dir / filename
+            base_name = filename.replace(".json", "")
 
-            # Build comprehensive data structure
-            data = {
+            # Write anonymized_data to .data.json file
+            data_filepath = output_dir / f"{base_name}.data.json"
+            with open(data_filepath, "w") as f:
+                json.dump(payload.anonymized_data, f, indent=2, default=str)
+
+            # Write metadata to .metadata.json file (all fields except anonymized_data)
+            metadata = {
+                "id": payload.id,
                 "summary_date": str(payload.summary_date),
                 "status": payload.status,
-                "anonymized_data": payload.anonymized_data,
                 "retry_count": payload.retry_count,
                 "max_retries": payload.max_retries,
                 "segment_event_name": payload.segment_event_name,
                 "segment_user_id": payload.segment_user_id,
                 "segment_message_id": payload.segment_message_id,
                 "sent_at": str(payload.sent_at) if payload.sent_at else None,
+                "daily_summary_id": payload.daily_summary_id,
+                "error_message": payload.error_message,
                 "created": str(payload.created),
                 "modified": str(payload.modified),
             }
-
-            # Write data to file
-            with open(filepath, "w") as f:
-                json.dump(data, f, indent=2, default=str)
+            metadata_filepath = output_dir / f"{base_name}.metadata.json"
+            with open(metadata_filepath, "w") as f:
+                json.dump(metadata, f, indent=2, default=str)
 
             dumped_count += 1
-            print(f"[{dumped_count}/{total_count}] Dumped: {filename}")
+            print(f"[{dumped_count}/{total_count}] Dumped: {base_name}.{{data,metadata}}.json")
 
         except Exception as e:
             print(f"Error dumping payload {payload.id}: {e}", file=sys.stderr)

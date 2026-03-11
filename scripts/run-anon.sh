@@ -7,6 +7,7 @@ uv run scripts/run_task.py collect_hourly_metrics '{"collector_type": "job_host_
 # disabled for now: uv run scripts/run_task.py collect_hourly_metrics '{"collector_type": "main_jobevent_service", "hour_timestamp": "20250613T10:00:00Z"}'
 uv run scripts/run_task.py collect_hourly_metrics '{"collector_type": "unified_jobs", "hour_timestamp": "20250613T10:00:00Z"}'
 
+# TODO dates from here on (20250613)
 # these just once per day, same table (misnomer but works)
 uv run scripts/run_task.py collect_snapshot_metrics '{"collector_type": "config"}'
 uv run scripts/run_task.py collect_snapshot_metrics '{"collector_type": "controller_version_service"}'
