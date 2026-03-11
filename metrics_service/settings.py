@@ -327,6 +327,20 @@ load_standard_settings_files(DYNACONF)
 # Load envvars at the end to allow them to override everything loaded so far.
 load_envvars(DYNACONF)
 
+# SEGMENT_WRITE_KEY from file (e.g. build-time secret or runtime-mounted secret)
+_segment_write_key_file = os.environ.get(
+    "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
+    "/etc/ansible-automation-platform/metrics/segment-write-key",
+)
+if Path(_segment_write_key_file).exists():
+    try:
+        with open(_segment_write_key_file) as _f:
+            _key = _f.read().strip()
+        if _key:
+            DYNACONF.set("SEGMENT_WRITE_KEY", _key)
+    except OSError:
+        pass
+
 # ALLOWED_HOSTS from environment: comma-separated list or JSON array
 if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
     import json
