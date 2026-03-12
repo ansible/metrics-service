@@ -341,26 +341,41 @@ def _decode_segment_key(raw: str) -> str:
         return raw
 
 
-_segment_write_key_path = os.environ.get(
-    "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
-    "/etc/ansible-automation-platform/metrics/segment-write-key",
-)
-_segment_path = Path(_segment_write_key_path)
-if _segment_path.exists():
+def _load_segment_write_key_from_file(
+    path: Path | None = None,
+    env: str | None = None,
+    dynaconf_instance=None,
+) -> None:
+    """Load SEGMENT_WRITE_KEY from file or directory and set on Dynaconf. Used at module load and in tests."""
+    if path is None:
+        _segment_write_key_path = os.environ.get(
+            "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
+            "/etc/ansible-automation-platform/metrics/segment-write-key",
+        )
+        path = Path(_segment_write_key_path)
+    if env is None:
+        env = environment
+    if dynaconf_instance is None:
+        dynaconf_instance = DYNACONF
+    if not path.exists():
+        return
     try:
-        if _segment_path.is_dir():
-            _key_name = "SEGMENT_WRITE_KEY_PROD" if environment == "production" else "SEGMENT_WRITE_KEY_DEV"
-            _key_file = _segment_path / _key_name
+        if path.is_dir():
+            _key_name = "SEGMENT_WRITE_KEY_PROD" if env == "production" else "SEGMENT_WRITE_KEY_DEV"
+            _key_file = path / _key_name
             if _key_file.is_file():
                 _key = _decode_segment_key(_key_file.read_text().strip())
                 if _key:
-                    DYNACONF.set("SEGMENT_WRITE_KEY", _key)
+                    dynaconf_instance.set("SEGMENT_WRITE_KEY", _key)
         else:
-            _key = _decode_segment_key(_segment_path.read_text().strip())
+            _key = _decode_segment_key(path.read_text().strip())
             if _key:
-                DYNACONF.set("SEGMENT_WRITE_KEY", _key)
+                dynaconf_instance.set("SEGMENT_WRITE_KEY", _key)
     except OSError:
         pass
+
+
+_load_segment_write_key_from_file()
 
 # ALLOWED_HOSTS from environment: comma-separated list or JSON array
 if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
