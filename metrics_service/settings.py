@@ -50,6 +50,7 @@ uv run dynaconf inspect -k VARIABLE
 """
 
 import base64
+import logging
 import os
 import sys
 from importlib import import_module
@@ -338,11 +339,13 @@ def _decode_segment_key(raw: str) -> str:
     try:
         return base64.b64decode(raw).decode("utf-8")
     except ValueError:
+        # Covers binascii.Error (malformed base64) and UnicodeDecodeError (non-UTF-8)
         return raw
 
 
 def _read_segment_key_from_path(path: Path, env: str) -> str | None:
     """Read SEGMENT_WRITE_KEY from a file or directory. Returns decoded key or None."""
+    logger = logging.getLogger(__name__)
     try:
         if path.is_dir():
             key_name = "SEGMENT_WRITE_KEY_PROD" if env == "production" else "SEGMENT_WRITE_KEY_DEV"
@@ -353,7 +356,14 @@ def _read_segment_key_from_path(path: Path, env: str) -> str | None:
             return None
         key = _decode_segment_key(path.read_text().strip())
         return key if key else None
-    except OSError:
+    except OSError as e:
+        filename = getattr(e, "filename", path)
+        logger.error(
+            "Failed to read segment write key from %s: %s",
+            filename,
+            e,
+            exc_info=True,
+        )
         return None
 
 
@@ -373,6 +383,11 @@ def _load_segment_write_key_from_file(
         env = environment
     if dynaconf_instance is None:
         dynaconf_instance = DYNACONF
+    # Respect env/settings precedence: do not overwrite if already set
+    if os.environ.get("METRICS_SERVICE_SEGMENT_WRITE_KEY", "").strip():
+        return
+    if dynaconf_instance.get("SEGMENT_WRITE_KEY"):
+        return
     if not path.exists():
         return
     key = _read_segment_key_from_path(path, env)
