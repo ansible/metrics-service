@@ -49,7 +49,6 @@ uv run dynaconf inspect -k VARIABLE
 ## Default variables
 """
 
-import base64
 import logging
 import os
 import sys
@@ -333,24 +332,15 @@ load_envvars(DYNACONF)
 # SEGMENT_WRITE_KEY from a single file (e.g. installed at build from pipeline secret).
 # Default path: /etc/ansible-automation-platform/metrics/segment-write-key.
 # Pipeline passes build secret metrics-service-segment-write-keys (SEGMENT_WRITE_KEY_DEV for
-# PR/devel, SEGMENT_WRITE_KEY_PROD for GA); one key is installed into that path. File content
-# is expected to be base64-encoded.
-def _decode_segment_key(raw: str) -> str:
-    try:
-        return base64.b64decode(raw).decode("utf-8")
-    except ValueError:
-        # Covers binascii.Error (malformed base64) and UnicodeDecodeError (non-UTF-8)
-        return raw
-
-
+# PR/devel, SEGMENT_WRITE_KEY_PROD for GA); one key is installed into that path.
+# File content is the raw plaintext key (no encoding).
 def _read_segment_key_from_path(path: Path) -> str | None:
-    """Read SEGMENT_WRITE_KEY from a single file (base64-encoded). Returns decoded key or None."""
+    """Read SEGMENT_WRITE_KEY from a single file. Returns the key or None."""
     logger = logging.getLogger(__name__)
     try:
         if not path.is_file():
             return None
-        raw = path.read_text().strip()
-        key = _decode_segment_key(raw)
+        key = path.read_text().strip()
         return key if key else None
     except OSError as e:
         filename = getattr(e, "filename", path)
