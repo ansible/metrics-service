@@ -49,6 +49,7 @@ uv run dynaconf inspect -k VARIABLE
 ## Default variables
 """
 
+import base64
 import os
 import sys
 from importlib import import_module
@@ -327,17 +328,37 @@ load_standard_settings_files(DYNACONF)
 # Load envvars at the end to allow them to override everything loaded so far.
 load_envvars(DYNACONF)
 
-# SEGMENT_WRITE_KEY from file (e.g. build-time secret or runtime-mounted secret)
-_segment_write_key_file = os.environ.get(
+
+# SEGMENT_WRITE_KEY from file or directory (e.g. K8s secret mount with DEV/PROD keys)
+# - Single file: path to a file containing the write key (legacy).
+# - Directory: path to a dir with SEGMENT_WRITE_KEY_DEV and SEGMENT_WRITE_KEY_PROD files
+#   (K8s secret metrics-service-segment-write-keys); key chosen by METRICS_SERVICE_MODE.
+# Keys in these files are expected to be base64-encoded.
+def _decode_segment_key(raw: str) -> str:
+    try:
+        return base64.b64decode(raw).decode("utf-8")
+    except ValueError:
+        return raw
+
+
+_segment_write_key_path = os.environ.get(
     "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
     "/etc/ansible-automation-platform/metrics/segment-write-key",
 )
-if Path(_segment_write_key_file).exists():
+_segment_path = Path(_segment_write_key_path)
+if _segment_path.exists():
     try:
-        with open(_segment_write_key_file) as _f:
-            _key = _f.read().strip()
-        if _key:
-            DYNACONF.set("SEGMENT_WRITE_KEY", _key)
+        if _segment_path.is_dir():
+            _key_name = "SEGMENT_WRITE_KEY_PROD" if environment == "production" else "SEGMENT_WRITE_KEY_DEV"
+            _key_file = _segment_path / _key_name
+            if _key_file.is_file():
+                _key = _decode_segment_key(_key_file.read_text().strip())
+                if _key:
+                    DYNACONF.set("SEGMENT_WRITE_KEY", _key)
+        else:
+            _key = _decode_segment_key(_segment_path.read_text().strip())
+            if _key:
+                DYNACONF.set("SEGMENT_WRITE_KEY", _key)
     except OSError:
         pass
 
