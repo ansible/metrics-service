@@ -12,7 +12,7 @@ Runs in two phases against a deployed metrics-service instance:
 
 If METRICS_URL is set, the script also reads the service's Prometheus
 /metrics endpoint before and after Phase 2 to report server-side
-CPU, memory, and latency — independent of client-side measurement noise.
+CPU and memory usage — independent of client-side measurement noise.
 
 Usage:
     # Port-forward the metrics-service pod first:
@@ -26,8 +26,7 @@ Usage:
 
 Environment variables:
     BASE_URL       Base URL of the metrics-service API (default: http://localhost:44926/api/metrics)
-    BENCHMARK_USER Admin username (default: admin). Note: USERNAME is reserved in zsh
-                   and cannot be overridden inline — use BENCHMARK_USER instead.
+    BENCHMARK_USER Admin username (default: admin)
     PASSWORD       Password for the above user (default: empty)
     METRICS_URL    URL of the pod's Prometheus /metrics endpoint (optional)
                    Set up with: kubectl port-forward -n aap26-next <pod> 18002:8000
@@ -38,6 +37,7 @@ Environment variables:
 # ruff: noqa: T201
 import os
 import statistics
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -48,12 +48,12 @@ from requests.auth import HTTPBasicAuth
 # Configuration
 # ---------------------------------------------------------------------------
 
-BASE_URL    = os.environ.get("BASE_URL", "http://localhost:44926/api/metrics").rstrip("/")
-USERNAME    = os.environ.get("BENCHMARK_USER", os.environ.get("USERNAME", "admin"))
-PASSWORD    = os.environ.get("PASSWORD", "")
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:44926/api/metrics").rstrip("/")
+USERNAME = os.environ.get("BENCHMARK_USER", "admin")
+PASSWORD = os.environ.get("PASSWORD", "")
 METRICS_URL = os.environ.get("METRICS_URL", "")
 CONCURRENCY = int(os.environ.get("CONCURRENCY", "5"))
-N_REQUESTS  = int(os.environ.get("REQUESTS", "100"))
+N_REQUESTS = int(os.environ.get("REQUESTS", "100"))
 
 # Endpoints to benchmark. Any that return 4xx/5xx are skipped automatically.
 CANDIDATE_ENDPOINTS = [
@@ -62,10 +62,10 @@ CANDIDATE_ENDPOINTS = [
     "/v1/teams/",
     "/v1/users/",
     "/v1/tasks/",
+    "/v1/tasks/executions/",
     "/v1/role_definitions/",
     "/v1/role_user_assignments/",
     "/v1/role_team_assignments/",
-    "/v1/feature_flags/",
     "/v1/settings/",
 ]
 
@@ -74,15 +74,23 @@ CANDIDATE_ENDPOINTS = [
 # HTTP helper
 # ---------------------------------------------------------------------------
 
+_thread_local = threading.local()
+
+
+def _session():
+    """Return a per-thread requests.Session with auth pre-configured."""
+    if not hasattr(_thread_local, "session"):
+        s = requests.Session()
+        s.auth = HTTPBasicAuth(USERNAME, PASSWORD)
+        _thread_local.session = s
+    return _thread_local.session
+
+
 def get(path):
     """GET an endpoint with Basic auth. Returns (latency_ms, http_status_code)."""
     start = time.perf_counter()
     try:
-        resp = requests.get(
-            BASE_URL + path,
-            auth=HTTPBasicAuth(USERNAME, PASSWORD),
-            timeout=30,
-        )
+        resp = _session().get(BASE_URL + path, timeout=30)
         return (time.perf_counter() - start) * 1000, resp.status_code
     except Exception as e:
         return (time.perf_counter() - start) * 1000, str(e)
@@ -96,6 +104,7 @@ def is_success(status):
 # ---------------------------------------------------------------------------
 # Prometheus helpers
 # ---------------------------------------------------------------------------
+
 
 def read_prometheus_metrics(url):
     """
@@ -135,6 +144,7 @@ def prometheus_delta(before, after, key):
 # ---------------------------------------------------------------------------
 # Benchmark phases
 # ---------------------------------------------------------------------------
+
 
 def probe_endpoints(candidates):
     """
@@ -249,13 +259,15 @@ def run_load_phase(endpoints):
 def print_client_summary(sequential_results, load_results):
     """Print aggregate latency across all endpoints combined for each phase."""
     all_sequential = [ms for times in sequential_results.values() for ms in times]
-    all_load       = [ms for times in load_results.values()       for ms in times]
+    all_load = [ms for times in load_results.values() for ms in times]
 
     print("\n" + "=" * 70)
     print("Client-side Summary")
     print("=" * 70)
     if all_sequential:
-        print(f"  Sequential — p50={p50(all_sequential):.1f}ms  p95={p95(all_sequential):.1f}ms  p99={p99(all_sequential):.1f}ms")
+        print(
+            f"  Sequential — p50={p50(all_sequential):.1f}ms  p95={p95(all_sequential):.1f}ms  p99={p99(all_sequential):.1f}ms"
+        )
     if all_load:
         print(f"  Load       — p50={p50(all_load):.1f}ms  p95={p95(all_load):.1f}ms  p99={p99(all_load):.1f}ms")
 
@@ -289,14 +301,23 @@ def print_server_metrics(before, after):
 # Percentile helpers
 # ---------------------------------------------------------------------------
 
-def p50(data): return statistics.quantiles(data, n=100)[49]
-def p95(data): return statistics.quantiles(data, n=100)[94]
-def p99(data): return statistics.quantiles(data, n=100)[98]
+
+def p50(data):
+    return statistics.quantiles(data, n=100)[49] if len(data) >= 2 else data[0]
+
+
+def p95(data):
+    return statistics.quantiles(data, n=100)[94] if len(data) >= 2 else data[0]
+
+
+def p99(data):
+    return statistics.quantiles(data, n=100)[98] if len(data) >= 2 else data[0]
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     print("=" * 70)
@@ -306,7 +327,7 @@ def main():
     print(f"  User        : {USERNAME}")
     print(f"  Workers     : {CONCURRENCY}")
     print(f"  Requests    : {N_REQUESTS} per endpoint (load phase)")
-    print(f"  Auth        : Basic auth")
+    print("  Auth        : Basic auth")
     print(f"  Prometheus  : {METRICS_URL or '(not configured — set METRICS_URL for server-side metrics)'}")
 
     # Verify the service is reachable before running the full benchmark.
