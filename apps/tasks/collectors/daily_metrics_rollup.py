@@ -22,33 +22,7 @@ from ..utils import (
 logger = logging.getLogger(__name__)
 
 
-def _merge_rollup_json(collections: list, rollup_processor) -> dict | None:
-    """
-    Merge hourly rollup JSON using the rollup processor's merge logic
-
-    Args:
-        collections: List of HourlyMetricsCollection objects with rollup data (JSON)
-        rollup_processor: Rollup processor instance for merging
-
-    Returns:
-        dict: Merged rollup JSON, or None if no data
-    """
-    merged = None
-
-    for collection in collections:
-        rollup_json = collection.raw_data
-
-        # Skip empty collections
-        if not rollup_json:
-            continue
-
-        # Merge JSON directly - rollup.merge(json, json) -> json
-        merged = rollup_processor.merge(merged, rollup_json)
-
-    return merged
-
-
-def _aggregate_collector_rollups(collections: list, rollup_processor) -> dict:
+def _merge_collects(collections: list, rollup_processor) -> dict:
     """
     Aggregate rollup statistics from hourly collections
 
@@ -63,11 +37,20 @@ def _aggregate_collector_rollups(collections: list, rollup_processor) -> dict:
         dict: Daily rollup JSON with merged statistics
     """
     # Merge all hourly rollup JSON
-    # rollup.merge(json, json) -> json
-    merged_json = _merge_rollup_json(collections, rollup_processor)
+    merged = None
 
-    # Return merged JSON directly - no base() call needed
-    return merged_json if merged_json is not None else {}
+    for collection in collections:
+        rollup_json = collection.raw_data
+
+        # Skip empty collections
+        if not rollup_json:
+            continue
+
+        # Merge JSON directly - rollup.merge(json, json) -> json
+        merged = rollup_processor.merge(merged, rollup_json)
+
+    # postprocess and return
+    return rollup_processor.base(merged).get("json", {})
 
 
 def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str, list], datetime, datetime]:
@@ -153,7 +136,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
             missing_hours.extend([f"{collector_type}:{hour}" for hour in range(24) if hour not in collected_hours])
 
         # Merge hourly rollups using rollup processor
-        daily_rollup[collector_type] = _aggregate_collector_rollups(collections, processor)
+        daily_rollup[collector_type] = _merge_collects(collections, processor)
 
     # Process daily snapshot collectors (expect 1 collection)
     for collector_type, processor in daily_rollup_processors.items():
@@ -161,7 +144,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
 
         # For daily snapshots, we just need the rollup data (no merging across hours)
         if collections:
-            daily_rollup[collector_type] = _aggregate_collector_rollups(collections, processor)
+            daily_rollup[collector_type] = _merge_collects(collections, processor)
         else:
             logger.warning(f"No {collector_type} collection found for summary date")
             daily_rollup[collector_type] = {}
