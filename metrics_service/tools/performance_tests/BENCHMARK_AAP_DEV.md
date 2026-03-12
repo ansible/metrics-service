@@ -11,7 +11,7 @@
 In a dedicated terminal (leave it running):
 
 ```bash
-cd /Users/semighdo/work/aap-dev
+cd <path-to-aap-dev>
 
 KUBECONFIG=.tmp/26-next.kubeconfig \
   bin/kubectl port-forward \
@@ -36,18 +36,18 @@ KUBECONFIG=.tmp/26-next.kubeconfig \
 
 ## Step 3 — Create the `awx` database in aap-dev postgres
 
-Run once. The postgres admin password is `CRut7l6IB1Qnw6rePnSKaiE4YYfYnyJw`.
+Run once. The postgres admin password is from [make admin-password].
 
 ```bash
-PGPASSWORD=CRut7l6IB1Qnw6rePnSKaiE4YYfYnyJw psql \
+PGPASSWORD=<your_postgres_password> psql \
   -h localhost -p 15432 -U postgres \
   -c "CREATE USER myuser WITH PASSWORD 'mypassword';" 2>/dev/null || true
 
-PGPASSWORD=CRut7l6IB1Qnw6rePnSKaiE4YYfYnyJw psql \
+PGPASSWORD=<your_postgres_password> psql \
   -h localhost -p 15432 -U postgres \
   -c "CREATE DATABASE awx WITH OWNER myuser;" 2>/dev/null || true
 
-PGPASSWORD=CRut7l6IB1Qnw6rePnSKaiE4YYfYnyJw psql \
+PGPASSWORD=<your_postgres_password> psql \
   -h localhost -p 15432 -U postgres -d awx \
   -c "GRANT ALL ON SCHEMA public TO myuser;"
 ```
@@ -61,17 +61,20 @@ permission issues).
 ```bash
 cd /Users/semighdo/work/metrics-service
 
+# Choose any password — it only needs to live for this benchmark session.
+export BENCHMARK_PW=<your-password-here>
+
 export METRICS_SERVICE_DATABASES__default__ENGINE=django.db.backends.postgresql
 export METRICS_SERVICE_DATABASES__default__HOST=localhost
 export METRICS_SERVICE_DATABASES__default__PORT=15432
 export METRICS_SERVICE_DATABASES__default__NAME=metrics_service
 export METRICS_SERVICE_DATABASES__default__USER=metrics_service
 export METRICS_SERVICE_DATABASES__default__PASSWORD=metrics_service_dev_password
-export DJANGO_SUPERUSER_PASSWORD=superadmin123
+export DJANGO_SUPERUSER_PASSWORD=$BENCHMARK_PW
 .venv/bin/python manage.py createsuperuser --username superadmin --email superadmin@example.com --noinput
 ```
 
-Then use `BENCHMARK_USER=superadmin PASSWORD=superadmin123` when running the HTTP benchmarks below.
+Then use `BENCHMARK_USER=superadmin PASSWORD=$BENCHMARK_PW` when running the HTTP benchmarks below.
 
 > **Note:** `USERNAME` is a reserved read-only variable in zsh and cannot be overridden inline.
 > Use `BENCHMARK_USER` instead.
@@ -138,7 +141,7 @@ cd /Users/semighdo/work/metrics-service
 
 BASE_URL=http://localhost:18002/api \
 BENCHMARK_USER=superadmin \
-PASSWORD=superadmin123 \
+PASSWORD=$BENCHMARK_PW \
 METRICS_URL=http://localhost:18002/metrics \
   .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
   | tee metrics_service/tools/performance_tests/results_small_http.txt
@@ -201,7 +204,7 @@ cd /Users/semighdo/work/metrics-service
 
 BASE_URL=http://localhost:18002/api \
 BENCHMARK_USER=superadmin \
-PASSWORD=superadmin123 \
+PASSWORD=$BENCHMARK_PW \
 METRICS_URL=http://localhost:18002/metrics \
   .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
   | tee metrics_service/tools/performance_tests/results_medium_http.txt
@@ -266,7 +269,7 @@ cd /Users/semighdo/work/metrics-service
 
 BASE_URL=http://localhost:18002/api \
 BENCHMARK_USER=superadmin \
-PASSWORD=superadmin123 \
+PASSWORD=$BENCHMARK_PW \
 METRICS_URL=http://localhost:18002/metrics \
   .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
   | tee metrics_service/tools/performance_tests/results_large_http.txt

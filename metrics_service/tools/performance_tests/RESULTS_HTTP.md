@@ -4,9 +4,9 @@
 
 | Scale  | Generator params    | Endpoints tested | Sequential p50 | Sequential p95 | Load p50 | Load p95 | Load p99 | RPS (avg) | Server mean latency | RSS memory |
 |--------|---------------------|------------------|----------------|----------------|----------|----------|----------|-----------|---------------------|------------|
-| Small  | J=100, T=50, H=16   | 8 of 9           | 198.0ms        | 205.3ms        | 1201.5ms | 1906.6ms | 2127.4ms | ~3.8      | 1004.8ms            | 83.9 MB    |
-| Medium | J=1000, T=50, H=20  | 8 of 9           | 206.0ms        | 263.9ms        | 1098.7ms | 1704.5ms | 1902.0ms | ~4.2      | 817.3ms             | 84.5 MB    |
-| Large  | J=2000, T=100, H=40 | 8 of 9           | 205.3ms        | 259.4ms        | 1159.8ms | 1703.5ms | 1964.5ms | ~4.1      | 781.4ms             | 85.0 MB    |
+| Small  | J=100, T=50, H=16   | 9 of 10           | 198.0ms        | 205.3ms        | 1201.5ms | 1906.6ms | 2127.4ms | ~3.8      | 1004.8ms            | 83.9 MB    |
+| Medium | J=1000, T=50, H=20  | 9 of 10           | 206.0ms        | 263.9ms        | 1098.7ms | 1704.5ms | 1902.0ms | ~4.2      | 817.3ms             | 84.5 MB    |
+| Large  | J=2000, T=100, H=40 | 9 of 10           | 205.3ms        | 259.4ms        | 1159.8ms | 1703.5ms | 1964.5ms | ~4.1      | 781.4ms             | 85.0 MB    |
 
 ---
 
@@ -141,68 +141,6 @@
 | Mean latency (server-side) | 1004.8ms |
 | CPU time used | 29.300s |
 | RSS memory (end) | 83.9 MB |
-
----
-
-## Medium Run Detail
-
-**Date of test run:** 2026-03-11
-**Scale:** ~4.6M events
-**Target:** `http://localhost:18002/api` (direct pod, bypassing gateway)
-**User:** superadmin (Django superuser)
-**Workers:** 5 | **Requests:** 100 per endpoint
-
-### Endpoint Availability
-
-| Endpoint                   | Status |
-|----------------------------|--------|
-| /v1/                       | ✓ 200  |
-| /v1/organizations/         | ✓ 200  |
-| /v1/teams/                 | ✓ 200  |
-| /v1/users/                 | ✓ 200  |
-| /v1/tasks/                 | ✓ 200  |
-| /v1/role_definitions/      | ✓ 200  |
-| /v1/role_user_assignments/ | ✓ 200  |
-| /v1/role_team_assignments/ | ✓ 200  |
-| /v1/feature_flags/         | ✗ 404 — skipped |
-| /v1/settings/              | ✓ 200  |
-
-### Phase 1: Sequential Latency (10 requests per endpoint)
-
-| Endpoint                   | min     | p50     | p95     | max     |
-|----------------------------|---------|---------|---------|---------|
-| /v1/                       | 201.6ms | 206.5ms | 296.9ms | 361.8ms |
-| /v1/organizations/         | 200.1ms | 205.9ms | 277.3ms | 295.5ms |
-| /v1/teams/                 | 201.2ms | 205.9ms | 232.3ms | 245.0ms |
-| /v1/users/                 | 200.5ms | 211.5ms | 276.2ms | 291.6ms |
-| /v1/tasks/                 | 200.2ms | 205.4ms | 232.1ms | 242.9ms |
-| /v1/role_definitions/      | 200.3ms | 204.8ms | 239.8ms | 246.2ms |
-| /v1/role_user_assignments/ | 199.2ms | 205.2ms | 246.1ms | 246.7ms |
-| /v1/role_team_assignments/ | 201.6ms | 208.3ms | 259.4ms | 268.9ms |
-| /v1/settings/              | 202.0ms | 206.9ms | 265.6ms | 271.9ms |
-| **Summary**                |         | **206.0ms** | **263.9ms** | |
-
-### Phase 2: Concurrent Load (100 requests, 5 workers)
-
-| Endpoint                   | p50      | p95      | p99      | RPS  |
-|----------------------------|----------|----------|----------|------|
-| /v1/                       | 1132.4ms | 1499.5ms | 1604.0ms | 4.2  |
-| /v1/organizations/         | 1098.0ms | 1766.7ms | 1894.1ms | 4.2  |
-| /v1/teams/                 | 1194.7ms | 1598.8ms | 1637.2ms | 4.1  |
-| /v1/users/                 | 1032.9ms | 1707.5ms | 1805.9ms | 4.3  |
-| /v1/tasks/                 | 1135.2ms | 1597.0ms | 1698.5ms | 4.3  |
-| /v1/role_definitions/      | 1104.6ms | 1701.6ms | 1824.4ms | 4.2  |
-| /v1/role_user_assignments/ | 1065.0ms | 1902.4ms | 1995.7ms | 4.2  |
-| /v1/role_team_assignments/ | 1060.4ms | 1704.5ms | 1806.7ms | 4.2  |
-| /v1/settings/              | 1098.3ms | 1889.2ms | 2598.7ms | 4.1  |
-| **Summary**                | **1098.7ms** | **1704.5ms** | **1902.0ms** | **~4.2** |
-
-### Server-side Metrics (Prometheus delta)
-
-| Metric | Value |
-|--------|-------|
-| CPU time used | 25.440s |
-| RSS memory (end) | 84.5 MB |
 
 ---
 
