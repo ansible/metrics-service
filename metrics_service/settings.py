@@ -330,11 +330,11 @@ load_standard_settings_files(DYNACONF)
 load_envvars(DYNACONF)
 
 
-# SEGMENT_WRITE_KEY from file or directory (e.g. K8s secret mount with DEV/PROD keys)
-# - Single file: path to a file containing the write key (legacy).
-# - Directory: path to a dir with SEGMENT_WRITE_KEY_DEV and SEGMENT_WRITE_KEY_PROD files
-#   (K8s secret metrics-service-segment-write-keys); key chosen by METRICS_SERVICE_MODE.
-# Keys in these files are expected to be base64-encoded.
+# SEGMENT_WRITE_KEY from a single file (e.g. installed at build from pipeline secret).
+# Default path: /etc/ansible-automation-platform/metrics/segment-write-key.
+# Pipeline passes build secret metrics-service-segment-write-keys (SEGMENT_WRITE_KEY_DEV for
+# PR/devel, SEGMENT_WRITE_KEY_PROD for GA); one key is installed into that path. File content
+# is expected to be base64-encoded.
 def _decode_segment_key(raw: str) -> str:
     try:
         return base64.b64decode(raw).decode("utf-8")
@@ -343,18 +343,14 @@ def _decode_segment_key(raw: str) -> str:
         return raw
 
 
-def _read_segment_key_from_path(path: Path, env: str) -> str | None:
-    """Read SEGMENT_WRITE_KEY from a file or directory. Returns decoded key or None."""
+def _read_segment_key_from_path(path: Path) -> str | None:
+    """Read SEGMENT_WRITE_KEY from a single file (base64-encoded). Returns decoded key or None."""
     logger = logging.getLogger(__name__)
     try:
-        if path.is_dir():
-            key_name = "SEGMENT_WRITE_KEY_PROD" if env == "production" else "SEGMENT_WRITE_KEY_DEV"
-            key_file = path / key_name
-            if key_file.is_file():
-                key = _decode_segment_key(key_file.read_text().strip())
-                return key if key else None
+        if not path.is_file():
             return None
-        key = _decode_segment_key(path.read_text().strip())
+        raw = path.read_text().strip()
+        key = _decode_segment_key(raw)
         return key if key else None
     except OSError as e:
         filename = getattr(e, "filename", path)
@@ -369,18 +365,15 @@ def _read_segment_key_from_path(path: Path, env: str) -> str | None:
 
 def _load_segment_write_key_from_file(
     path: Path | None = None,
-    env: str | None = None,
     dynaconf_instance=None,
 ) -> None:
-    """Load SEGMENT_WRITE_KEY from file or directory and set on Dynaconf. Used at module load and in tests."""
+    """Load SEGMENT_WRITE_KEY from file and set on Dynaconf. Used at module load and in tests."""
     if path is None:
         _segment_write_key_path = os.environ.get(
             "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
             "/etc/ansible-automation-platform/metrics/segment-write-key",
         )
         path = Path(_segment_write_key_path)
-    if env is None:
-        env = environment
     if dynaconf_instance is None:
         dynaconf_instance = DYNACONF
     # Respect env/settings precedence: do not overwrite if already set
@@ -390,7 +383,7 @@ def _load_segment_write_key_from_file(
         return
     if not path.exists():
         return
-    key = _read_segment_key_from_path(path, env)
+    key = _read_segment_key_from_path(path)
     if key:
         dynaconf_instance.set("SEGMENT_WRITE_KEY", key)
 

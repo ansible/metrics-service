@@ -1,7 +1,7 @@
 """
 Unit tests for segment write key loading in metrics_service.settings.
 
-Covers _decode_segment_key and _load_segment_write_key_from_file (file/dir loading).
+Covers _decode_segment_key and _load_segment_write_key_from_file (single file, base64).
 """
 
 import base64
@@ -38,7 +38,7 @@ class TestDecodeSegmentKey:
 
 @pytest.mark.unit
 class TestLoadSegmentWriteKeyFromFile:
-    """Tests for _load_segment_write_key_from_file (file/dir loading and OSError)."""
+    """Tests for _load_segment_write_key_from_file (single file, base64, and OSError)."""
 
     def test_path_does_not_exist_does_nothing(self):
         """When path does not exist, SEGMENT_WRITE_KEY is not set."""
@@ -58,6 +58,7 @@ class TestLoadSegmentWriteKeyFromFile:
         key_file = tmp_path / "segment-write-key"
         key_file.write_text(base64.b64encode(b"key-from-file").decode("ascii") + "\n")
         dynaconf_mock = mock.MagicMock()
+        dynaconf_mock.get.return_value = None
         _load_segment_write_key_from_file(path=key_file, dynaconf_instance=dynaconf_mock)
         dynaconf_mock.set.assert_called_once_with("SEGMENT_WRITE_KEY", "key-from-file")
 
@@ -68,35 +69,16 @@ class TestLoadSegmentWriteKeyFromFile:
         key_file = tmp_path / "segment-write-key"
         key_file.write_text("plain-write-key")
         dynaconf_mock = mock.MagicMock()
+        dynaconf_mock.get.return_value = None
         _load_segment_write_key_from_file(path=key_file, dynaconf_instance=dynaconf_mock)
         dynaconf_mock.set.assert_called_once_with("SEGMENT_WRITE_KEY", "plain-write-key")
 
-    def test_path_is_dir_uses_dev_key_file(self, tmp_path):
-        """When path is a directory and env is development, SEGMENT_WRITE_KEY_DEV is used."""
-        from metrics_service.settings import _load_segment_write_key_from_file
-
-        dev_file = tmp_path / "SEGMENT_WRITE_KEY_DEV"
-        dev_file.write_text(base64.b64encode(b"dev-key").decode("ascii"))
-        dynaconf_mock = mock.MagicMock()
-        _load_segment_write_key_from_file(path=tmp_path, env="development", dynaconf_instance=dynaconf_mock)
-        dynaconf_mock.set.assert_called_once_with("SEGMENT_WRITE_KEY", "dev-key")
-
-    def test_path_is_dir_uses_prod_key_file(self, tmp_path):
-        """When path is a directory and env is production, SEGMENT_WRITE_KEY_PROD is used."""
-        from metrics_service.settings import _load_segment_write_key_from_file
-
-        prod_file = tmp_path / "SEGMENT_WRITE_KEY_PROD"
-        prod_file.write_text(base64.b64encode(b"prod-key").decode("ascii"))
-        dynaconf_mock = mock.MagicMock()
-        _load_segment_write_key_from_file(path=tmp_path, env="production", dynaconf_instance=dynaconf_mock)
-        dynaconf_mock.set.assert_called_once_with("SEGMENT_WRITE_KEY", "prod-key")
-
-    def test_path_is_dir_missing_key_file_does_not_set(self, tmp_path):
-        """When path is a directory but key file is missing, SEGMENT_WRITE_KEY is not set."""
+    def test_path_is_dir_does_not_set(self, tmp_path):
+        """When path is a directory (no single key file), SEGMENT_WRITE_KEY is not set."""
         from metrics_service.settings import _load_segment_write_key_from_file
 
         dynaconf_mock = mock.MagicMock()
-        _load_segment_write_key_from_file(path=tmp_path, env="development", dynaconf_instance=dynaconf_mock)
+        _load_segment_write_key_from_file(path=tmp_path, dynaconf_instance=dynaconf_mock)
         dynaconf_mock.set.assert_not_called()
 
     def test_path_is_file_empty_key_not_set(self, tmp_path):
@@ -116,7 +98,7 @@ class TestLoadSegmentWriteKeyFromFile:
         dynaconf_mock = mock.MagicMock()
         path_mock = mock.MagicMock(spec=Path)
         path_mock.exists.return_value = True
-        path_mock.is_dir.return_value = False
+        path_mock.is_file.return_value = True
         path_mock.read_text.side_effect = OSError
         _load_segment_write_key_from_file(path=path_mock, dynaconf_instance=dynaconf_mock)
         dynaconf_mock.set.assert_not_called()
