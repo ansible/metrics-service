@@ -341,6 +341,22 @@ def _decode_segment_key(raw: str) -> str:
         return raw
 
 
+def _read_segment_key_from_path(path: Path, env: str) -> str | None:
+    """Read SEGMENT_WRITE_KEY from a file or directory. Returns decoded key or None."""
+    try:
+        if path.is_dir():
+            key_name = "SEGMENT_WRITE_KEY_PROD" if env == "production" else "SEGMENT_WRITE_KEY_DEV"
+            key_file = path / key_name
+            if key_file.is_file():
+                key = _decode_segment_key(key_file.read_text().strip())
+                return key if key else None
+            return None
+        key = _decode_segment_key(path.read_text().strip())
+        return key if key else None
+    except OSError:
+        return None
+
+
 def _load_segment_write_key_from_file(
     path: Path | None = None,
     env: str | None = None,
@@ -359,20 +375,9 @@ def _load_segment_write_key_from_file(
         dynaconf_instance = DYNACONF
     if not path.exists():
         return
-    try:
-        if path.is_dir():
-            _key_name = "SEGMENT_WRITE_KEY_PROD" if env == "production" else "SEGMENT_WRITE_KEY_DEV"
-            _key_file = path / _key_name
-            if _key_file.is_file():
-                _key = _decode_segment_key(_key_file.read_text().strip())
-                if _key:
-                    dynaconf_instance.set("SEGMENT_WRITE_KEY", _key)
-        else:
-            _key = _decode_segment_key(path.read_text().strip())
-            if _key:
-                dynaconf_instance.set("SEGMENT_WRITE_KEY", _key)
-    except OSError:
-        pass
+    key = _read_segment_key_from_path(path, env)
+    if key:
+        dynaconf_instance.set("SEGMENT_WRITE_KEY", key)
 
 
 _load_segment_write_key_from_file()
