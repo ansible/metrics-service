@@ -49,6 +49,8 @@ uv run dynaconf inspect -k VARIABLE
 ## Default variables
 """
 
+import base64
+import logging
 import os
 import sys
 from importlib import import_module
@@ -326,6 +328,67 @@ load_standard_settings_files(DYNACONF)
 
 # Load envvars at the end to allow them to override everything loaded so far.
 load_envvars(DYNACONF)
+
+
+# SEGMENT_WRITE_KEY from a single file (e.g. installed at build from pipeline secret).
+# Default path: /etc/ansible-automation-platform/metrics/segment-write-key.
+# Pipeline passes build secret metrics-service-segment-write-keys (SEGMENT_WRITE_KEY_DEV for
+# PR/devel, SEGMENT_WRITE_KEY_PROD for GA); one key is installed into that path. File content
+# is expected to be base64-encoded.
+def _decode_segment_key(raw: str) -> str:
+    try:
+        return base64.b64decode(raw).decode("utf-8")
+    except ValueError:
+        # Covers binascii.Error (malformed base64) and UnicodeDecodeError (non-UTF-8)
+        return raw
+
+
+def _read_segment_key_from_path(path: Path) -> str | None:
+    """Read SEGMENT_WRITE_KEY from a single file (base64-encoded). Returns decoded key or None."""
+    logger = logging.getLogger(__name__)
+    try:
+        if not path.is_file():
+            return None
+        raw = path.read_text().strip()
+        key = _decode_segment_key(raw)
+        return key if key else None
+    except OSError as e:
+        filename = getattr(e, "filename", path)
+        logger.error(
+            "Failed to read segment write key from %s: %s",
+            filename,
+            e,
+            exc_info=True,
+        )
+        return None
+
+
+def _load_segment_write_key_from_file(
+    path: Path | None = None,
+    dynaconf_instance=None,
+) -> None:
+    """Load SEGMENT_WRITE_KEY from file and set on Dynaconf. Used at module load and in tests."""
+    if path is None:
+        _segment_write_key_path = os.environ.get(
+            "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
+            "/etc/ansible-automation-platform/metrics/segment-write-key",
+        )
+        path = Path(_segment_write_key_path)
+    if dynaconf_instance is None:
+        dynaconf_instance = DYNACONF
+    # Respect env/settings precedence: do not overwrite if already set
+    if os.environ.get("METRICS_SERVICE_SEGMENT_WRITE_KEY", "").strip():
+        return
+    if dynaconf_instance.get("SEGMENT_WRITE_KEY"):
+        return
+    if not path.exists():
+        return
+    key = _read_segment_key_from_path(path)
+    if key:
+        dynaconf_instance.set("SEGMENT_WRITE_KEY", key)
+
+
+_load_segment_write_key_from_file()
 
 # ALLOWED_HOSTS from environment: comma-separated list or JSON array
 if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
