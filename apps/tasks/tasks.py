@@ -11,6 +11,13 @@ individual task modules organized by queue:
 
 import logging
 
+# Dashboard reports tasks
+from ..dashboard_reports.tasks import (
+    cleanup_dashboard_reports_old_data,
+    collect_dashboard_reports_data,
+    collect_dashboard_reports_initial_data,
+)
+
 # Import cleanup tasks
 from .cleanup.cleanup_activitystream import cleanup_activitystream
 from .cleanup.cleanup_metrics_data import cleanup_metrics_data
@@ -50,6 +57,10 @@ TASK_FUNCTIONS = {
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
+    # Dashboard reports
+    "collect_dashboard_reports_data": collect_dashboard_reports_data,
+    "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
+    "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -304,6 +315,30 @@ TASK_METADATA = {
             {"name": "Send batch of 10", "data": {"max_payloads": 10}},
         ],
     },
+    "collect_dashboard_reports_data": {
+        "category": "Dashboard Reports",
+        "description": "Collect data for automation-reports dashboard (job templates, top projects/users) with configurable date range",
+        "parameters": {
+            "start_date": {
+                "type": "string",
+                "description": "Start date for collection (ISO format, defaults to 30 days ago)",
+                "pattern": "datetime",
+            },
+            "end_date": {
+                "type": "string",
+                "description": "End date for collection (ISO format, defaults to now)",
+                "pattern": "datetime",
+            },
+        },
+        "examples": [
+            {"name": "Default collection (last 90 days)", "data": {}},
+            {
+                "name": "Custom date range",
+                "data": {"start_date": "2024-01-30T00:00:00Z", "end_date": "2024-01-31T23:59:59Z"},
+            },
+            {"name": "Last 7 days", "data": {"start_date": "2024-01-24T00:00:00Z", "end_date": "2024-01-31T00:00:00Z"}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -328,4 +363,8 @@ __all__ = [
     "TASK_FUNCTIONS",
     "TASK_LOCKS",
     "TASK_METADATA",
+    # Dashboard reports
+    "collect_dashboard_reports_data",
+    "collect_dashboard_reports_initial_data",
+    "cleanup_dashboard_reports_old_data",
 ]
