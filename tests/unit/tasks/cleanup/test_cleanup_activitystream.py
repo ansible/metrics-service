@@ -8,7 +8,7 @@ Tests cover:
 - Default 7-day threshold
 - Custom days_old parameter
 - Cutoff date returned in result
-- ValueError raised for invalid days_old values
+- Error result returned for invalid days_old values
 """
 
 from datetime import timedelta
@@ -127,17 +127,23 @@ class TestCleanupActivityStream:
 
         assert result["status"] == "success"
 
-    def test_raises_for_zero_days_old(self):
-        """days_old=0 raises ValueError."""
-        with pytest.raises(ValueError, match="days_old must be a positive integer"):
-            cleanup_activitystream(days_old=0)
+    def test_returns_error_for_zero_days_old(self):
+        """days_old=0 returns an error result dict (wrapper catches all exceptions)."""
+        result = cleanup_activitystream(days_old=0)
 
-    def test_raises_for_negative_days_old(self):
-        """Negative days_old raises ValueError."""
-        with pytest.raises(ValueError, match="days_old must be a positive integer"):
-            cleanup_activitystream(days_old=-1)
+        assert result["status"] == "error"
+        assert "days_old must be a positive integer" in result["error"]
 
-    def test_raises_for_non_integer_days_old(self):
-        """Non-integer days_old raises ValueError."""
-        with pytest.raises(ValueError, match="days_old must be a positive integer"):
-            cleanup_activitystream(days_old="seven")
+    def test_returns_error_for_negative_days_old(self):
+        """Negative days_old returns an error result dict."""
+        result = cleanup_activitystream(days_old=-1)
+
+        assert result["status"] == "error"
+        assert "days_old must be a positive integer" in result["error"]
+
+    def test_returns_error_for_non_integer_days_old(self):
+        """Non-integer days_old returns an error result dict."""
+        result = cleanup_activitystream(days_old="seven")
+
+        assert result["status"] == "error"
+        assert "days_old must be a positive integer" in result["error"]

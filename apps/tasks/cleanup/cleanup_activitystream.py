@@ -33,10 +33,10 @@ def cleanup_activitystream(**kwargs) -> dict[str, Any]:
             - dry_run (bool): If True, only count entries that would be deleted (default: False)
 
     Returns:
-        dict: Task result dictionary with cleanup statistics
-
-    Raises:
-        ValueError: If days_old is less than 1.
+        dict: Task result dictionary with cleanup statistics. Returns an error result
+        dict (status="error") when ``days_old`` is not a positive integer rather than
+        raising, because this function runs inside ``task_execution_wrapper`` which
+        converts all exceptions to error dicts before they reach the caller.
     """
     from ansible_base.activitystream.models import Entry as ActivityStreamEntry
 
@@ -44,7 +44,9 @@ def cleanup_activitystream(**kwargs) -> dict[str, Any]:
     dry_run = kwargs.get("dry_run", False)
 
     if not isinstance(days_old, int) or days_old < 1:
-        raise ValueError(f"days_old must be a positive integer (got {days_old!r})")
+        return create_task_result(
+            "error", error=f"days_old must be a positive integer (got {days_old!r})"
+        )
 
     log_task_execution(
         "cleanup_activitystream",
