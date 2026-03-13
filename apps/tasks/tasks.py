@@ -12,6 +12,7 @@ individual task modules organized by queue:
 import logging
 
 # Import cleanup tasks
+from .cleanup.cleanup_activitystream import cleanup_activitystream
 from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
@@ -39,6 +40,7 @@ TASK_FUNCTIONS = {
     # System tasks
     "hello_world": hello_world,
     "cleanup_old_tasks": cleanup_old_tasks,
+    "cleanup_activitystream": cleanup_activitystream,
     "cleanup_metrics_data": cleanup_metrics_data,
     "execute_db_task": execute_db_task,
     # Metrics Collection (hourly time-series and daily snapshots)
@@ -86,19 +88,34 @@ TASK_METADATA = {
                 "default": True,
                 "description": "If true, exclude recurring tasks from cleanup (recommended)",
             },
-            "activity_stream_days_old": {
+        },
+        "examples": [
+            {"name": "Standard cleanup (5 days)", "data": {"days_old": 5}},
+            {"name": "Test cleanup (dry run)", "data": {"days_old": 7, "dry_run": True}},
+            {"name": "Conservative cleanup", "data": {"days_old": 10, "include_executions": False}},
+        ],
+    },
+    "cleanup_activitystream": {
+        "category": "Maintenance",
+        "description": "Clean up old ActivityStream (django-ansible-base) audit log entries",
+        "parameters": {
+            "days_old": {
                 "type": "integer",
                 "default": 7,
                 "description": "Number of days old ActivityStream entries must be before they are removed",
                 "min": 1,
                 "max": 365,
             },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "If true, only count entries that would be deleted without actually deleting",
+            },
         },
         "examples": [
-            {"name": "Standard cleanup (5 days)", "data": {"days_old": 5}},
-            {"name": "Test cleanup (dry run)", "data": {"days_old": 7, "dry_run": True}},
-            {"name": "Conservative cleanup", "data": {"days_old": 10, "include_executions": False}},
-            {"name": "Custom activity stream retention", "data": {"days_old": 5, "activity_stream_days_old": 14}},
+            {"name": "Default (7 days)", "data": {}},
+            {"name": "Dry run", "data": {"dry_run": True}},
+            {"name": "Extended retention (30 days)", "data": {"days_old": 30}},
         ],
     },
     # System
@@ -263,6 +280,7 @@ __all__ = [
     # System tasks
     "hello_world",
     "cleanup_old_tasks",
+    "cleanup_activitystream",
     "cleanup_metrics_data",
     "execute_db_task",
     "submit_task_to_dispatcher",

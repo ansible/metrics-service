@@ -1,10 +1,9 @@
 """
-Clean up old completed and failed tasks from the database, and prune old ActivityStream entries.
+Clean up old completed and failed tasks from the database.
 
 This task removes tasks that have been completed or failed for more than
-the specified number of days. It also removes ActivityStream entries older than
-a configurable number of days. This helps maintain database performance
-and prevents unlimited growth of task history and audit logs.
+the specified number of days. This helps maintain database performance
+and prevents unlimited growth of task history.
 """
 
 import logging
@@ -18,62 +17,15 @@ from ..utils import create_task_result, log_task_execution, task, task_execution
 logger = logging.getLogger(__name__)
 
 
-def _cleanup_activity_stream(days_old: int, dry_run: bool) -> dict[str, Any]:
-    """
-    Remove ActivityStream entries older than ``days_old`` days.
-
-    Args:
-        days_old: Entries created more than this many days ago are eligible for deletion.
-            Must be a positive integer (>= 1) to prevent accidental wholesale deletion.
-        dry_run: When True, count but do not delete.
-
-    Returns:
-        dict with keys: cutoff_date, found, deleted
-
-    Raises:
-        ValueError: If days_old is less than 1.
-    """
-    if not isinstance(days_old, int) or days_old < 1:
-        raise ValueError(f"days_old must be a positive integer (got {days_old!r})")
-
-    from ansible_base.activitystream.models import Entry as ActivityStreamEntry
-
-    cutoff = timezone.now() - timedelta(days=days_old)
-    old_entries = ActivityStreamEntry.objects.filter(created__lt=cutoff)
-    found = old_entries.count()
-    deleted = 0
-
-    log_task_execution(
-        "cleanup_old_tasks",
-        "processing",
-        f"Cleaning up ActivityStream entries older than {days_old} days",
-    )
-
-    if not dry_run and found > 0:
-        _, deletion_info = old_entries.delete()
-        deleted = deletion_info.get("dab_activitystream.Entry", 0)
-        log_task_execution("cleanup_old_tasks", "completed", f"Deleted {deleted} ActivityStream entries")
-    else:
-        log_task_execution(
-            "cleanup_old_tasks", "completed", f"Found {found} ActivityStream entries that would be deleted"
-        )
-
-    return {
-        "cutoff_date": cutoff.isoformat(),
-        "found": found,
-        "deleted": deleted,
-    }
-
-
 @task(queue="metrics_cleanup", decorate=False)
 @task_execution_wrapper("cleanup_old_tasks")
 def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     """
-    Clean up old completed and failed tasks from the database, and prune ActivityStream entries.
+    Clean up old completed and failed tasks from the database.
 
     This task removes tasks that have been completed or failed for more than
-    the specified number of days. It also removes ActivityStream (django-ansible-base)
-    entries older than ``activity_stream_days_old`` days (default: 7).
+    the specified number of days. This helps maintain database performance
+    and prevents unlimited growth of task history.
 
     IMPORTANT: Recurring tasks are automatically preserved and will NOT be deleted,
     regardless of their age, to ensure scheduled tasks continue to function.
@@ -84,8 +36,6 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
             - dry_run (bool): If True, only count records that would be deleted (default: False)
             - include_executions (bool): Also cleanup related TaskExecution records (default: True)
             - preserve_recurring (bool): If True, exclude recurring tasks from cleanup (default: True)
-            - activity_stream_days_old (int): Number of days old ActivityStream entries must be
-              before they are removed (default: 7)
 
     Returns:
         dict: Task result dictionary with cleanup statistics
@@ -96,7 +46,6 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     dry_run = kwargs.get("dry_run", False)
     include_executions = kwargs.get("include_executions", True)
     preserve_recurring = kwargs.get("preserve_recurring", True)
-    activity_stream_days_old = kwargs.get("activity_stream_days_old", 7)
 
     log_task_execution("cleanup_old_tasks", "processing", f"Cleaning up tasks older than {days_old} days")
 
@@ -161,36 +110,17 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
             message += " (recurring tasks preserved)"
         log_task_execution("cleanup_old_tasks", "completed", message)
 
-    # --- ActivityStream cleanup ---
-    # Wrapped in its own try/except so a failure here (e.g. DB timeout on a large
-    # activity stream table) does not mask the task/execution deletions that have
-    # already been committed.  Callers receive partial results that accurately
-    # reflect what was deleted instead of a generic top-level error with no data.
-    as_error: str | None = None
-    as_result: dict[str, Any] = {"cutoff_date": None, "found": None, "deleted": None}
-    try:
-        as_result = _cleanup_activity_stream(activity_stream_days_old, dry_run)
-    except Exception as exc:
-        as_error = str(exc)
-        logger.exception("ActivityStream cleanup failed; task/execution cleanup already committed: %s", exc)
-
-    status = "partial_success" if as_error else "success"
-    result_data: dict[str, Any] = {
-        "days_old": days_old,
-        "cutoff_date": cutoff_date.isoformat(),
-        "dry_run": dry_run,
-        "include_executions": include_executions,
-        "preserve_recurring": preserve_recurring,
-        "tasks_found": task_count,
-        "executions_found": execution_count,
-        "tasks_deleted": deleted_tasks,
-        "executions_deleted": deleted_executions,
-        "activity_stream_days_old": activity_stream_days_old,
-        "activity_stream_cutoff_date": as_result["cutoff_date"],
-        "activity_stream_found": as_result["found"],
-        "activity_stream_deleted": as_result["deleted"],
-    }
-    if as_error:
-        result_data["activity_stream_error"] = as_error
-
-    return create_task_result(status, result_data)
+    return create_task_result(
+        "success",
+        {
+            "days_old": days_old,
+            "cutoff_date": cutoff_date.isoformat(),
+            "dry_run": dry_run,
+            "include_executions": include_executions,
+            "preserve_recurring": preserve_recurring,
+            "tasks_found": task_count,
+            "executions_found": execution_count,
+            "tasks_deleted": deleted_tasks,
+            "executions_deleted": deleted_executions,
+        },
+    )
