@@ -7,9 +7,11 @@ Tests cover:
 - Cascade deletion tracking
 - Recurring task preservation/deletion
 - ActivityStream entry cleanup
+- Partial-success behaviour when ActivityStream cleanup raises an exception
 """
 
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -470,3 +472,33 @@ class TestCleanupOldTasksActivityStream:
         expected_max = after - timedelta(days=7)
 
         assert expected_min <= cutoff <= expected_max
+
+    def test_partial_success_when_activity_stream_cleanup_raises(self, user):
+        """
+        When _cleanup_activity_stream raises, the overall status is 'partial_success'
+        and the result still contains the task/execution cleanup counts so that
+        already-committed deletions are not silently discarded.
+        """
+        from apps.tasks.models import Task
+
+        old_task = Task.objects.create(
+            name="Old task",
+            function_name="hello_world",
+            status="completed",
+            completed_at=timezone.now() - timedelta(days=10),
+        )
+
+        with patch(
+            "apps.tasks.cleanup.cleanup_old_tasks._cleanup_activity_stream",
+            side_effect=RuntimeError("simulated DB timeout"),
+        ):
+            result = cleanup_old_tasks(days_old=5, dry_run=False)
+
+        assert result["status"] == "partial_success"
+        assert result["activity_stream_error"] == "simulated DB timeout"
+        assert result["activity_stream_found"] is None
+        assert result["activity_stream_deleted"] is None
+        assert result["activity_stream_cutoff_date"] is None
+        # Task cleanup data must still be present and accurate
+        assert result["tasks_deleted"] >= 1
+        assert not Task.objects.filter(pk=old_task.pk).exists()

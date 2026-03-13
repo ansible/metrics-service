@@ -164,23 +164,35 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
         log_task_execution("cleanup_old_tasks", "completed", message)
 
     # --- ActivityStream cleanup ---
-    as_result = _cleanup_activity_stream(activity_stream_days_old, dry_run)
+    # Wrapped in its own try/except so a failure here (e.g. DB timeout on a large
+    # activity stream table) does not mask the task/execution deletions that have
+    # already been committed.  Callers receive partial results that accurately
+    # reflect what was deleted instead of a generic top-level error with no data.
+    as_error: str | None = None
+    as_result: dict[str, Any] = {"cutoff_date": None, "found": None, "deleted": None}
+    try:
+        as_result = _cleanup_activity_stream(activity_stream_days_old, dry_run)
+    except Exception as exc:
+        as_error = str(exc)
+        logger.exception("ActivityStream cleanup failed; task/execution cleanup already committed: %s", exc)
 
-    return create_task_result(
-        "success",
-        {
-            "days_old": days_old,
-            "cutoff_date": cutoff_date.isoformat(),
-            "dry_run": dry_run,
-            "include_executions": include_executions,
-            "preserve_recurring": preserve_recurring,
-            "tasks_found": task_count,
-            "executions_found": execution_count,
-            "tasks_deleted": deleted_tasks,
-            "executions_deleted": deleted_executions,
-            "activity_stream_days_old": activity_stream_days_old,
-            "activity_stream_cutoff_date": as_result["cutoff_date"],
-            "activity_stream_found": as_result["found"],
-            "activity_stream_deleted": as_result["deleted"],
-        },
-    )
+    status = "partial_success" if as_error else "success"
+    result_data: dict[str, Any] = {
+        "days_old": days_old,
+        "cutoff_date": cutoff_date.isoformat(),
+        "dry_run": dry_run,
+        "include_executions": include_executions,
+        "preserve_recurring": preserve_recurring,
+        "tasks_found": task_count,
+        "executions_found": execution_count,
+        "tasks_deleted": deleted_tasks,
+        "executions_deleted": deleted_executions,
+        "activity_stream_days_old": activity_stream_days_old,
+        "activity_stream_cutoff_date": as_result["cutoff_date"],
+        "activity_stream_found": as_result["found"],
+        "activity_stream_deleted": as_result["deleted"],
+    }
+    if as_error:
+        result_data["activity_stream_error"] = as_error
+
+    return create_task_result(status, result_data)
