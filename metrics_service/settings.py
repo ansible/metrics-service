@@ -449,6 +449,6 @@ if (env_settings := Path(apps_settings_dir / f"{environment}.py")).exists():
         DYNACONF.validators.register(*env_module.validators)
 
 # Update django.conf.settings with DYNACONF keys.
-export(__name__, DYNACONF, validation=True)
+export(__name__, DYNACONF, validation=False)
 
 ## --- End Settings | After this line only post validation can happen --- #
