@@ -86,11 +86,19 @@ TASK_METADATA = {
                 "default": True,
                 "description": "If true, exclude recurring tasks from cleanup (recommended)",
             },
+            "activity_stream_days_old": {
+                "type": "integer",
+                "default": 7,
+                "description": "Number of days old ActivityStream entries must be before they are removed",
+                "min": 1,
+                "max": 365,
+            },
         },
         "examples": [
             {"name": "Standard cleanup (5 days)", "data": {"days_old": 5}},
             {"name": "Test cleanup (dry run)", "data": {"days_old": 7, "dry_run": True}},
             {"name": "Conservative cleanup", "data": {"days_old": 10, "include_executions": False}},
+            {"name": "Custom activity stream retention", "data": {"days_old": 5, "activity_stream_days_old": 14}},
         ],
     },
     # System

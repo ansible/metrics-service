@@ -24,11 +24,18 @@ def _cleanup_activity_stream(days_old: int, dry_run: bool) -> dict[str, Any]:
 
     Args:
         days_old: Entries created more than this many days ago are eligible for deletion.
+            Must be a positive integer (>= 1) to prevent accidental wholesale deletion.
         dry_run: When True, count but do not delete.
 
     Returns:
         dict with keys: cutoff_date, found, deleted
+
+    Raises:
+        ValueError: If days_old is less than 1.
     """
+    if not isinstance(days_old, int) or days_old < 1:
+        raise ValueError(f"days_old must be a positive integer (got {days_old!r})")
+
     from ansible_base.activitystream.models import Entry as ActivityStreamEntry
 
     cutoff = timezone.now() - timedelta(days=days_old)
@@ -43,8 +50,8 @@ def _cleanup_activity_stream(days_old: int, dry_run: bool) -> dict[str, Any]:
     )
 
     if not dry_run and found > 0:
-        old_entries.delete()
-        deleted = found
+        _, deletion_info = old_entries.delete()
+        deleted = deletion_info.get("dab_activitystream.Entry", 0)
         log_task_execution("cleanup_old_tasks", "completed", f"Deleted {deleted} ActivityStream entries")
     else:
         log_task_execution(
@@ -90,6 +97,8 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     include_executions = kwargs.get("include_executions", True)
     preserve_recurring = kwargs.get("preserve_recurring", True)
     activity_stream_days_old = kwargs.get("activity_stream_days_old", 7)
+    if not isinstance(activity_stream_days_old, int) or activity_stream_days_old < 1:
+        raise ValueError(f"activity_stream_days_old must be a positive integer (got {activity_stream_days_old!r})")
 
     log_task_execution("cleanup_old_tasks", "processing", f"Cleaning up tasks older than {days_old} days")
 
