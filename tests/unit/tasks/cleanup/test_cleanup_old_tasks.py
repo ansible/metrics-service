@@ -502,3 +502,28 @@ class TestCleanupOldTasksActivityStream:
         # Task cleanup data must still be present and accurate
         assert result["tasks_deleted"] >= 1
         assert not Task.objects.filter(pk=old_task.pk).exists()
+
+    def test_invalid_activity_stream_days_old_yields_partial_success_not_top_level_failure(self, user):
+        """
+        An invalid activity_stream_days_old value must NOT raise before task cleanup runs.
+        The ValueError is raised inside _cleanup_activity_stream (wrapped in its own
+        try/except), so task/execution cleanup is completed first and the result is
+        'partial_success' rather than a top-level task failure.
+        """
+        from apps.tasks.models import Task
+
+        old_task = Task.objects.create(
+            name="Old task",
+            function_name="hello_world",
+            status="completed",
+            completed_at=timezone.now() - timedelta(days=10),
+        )
+
+        result = cleanup_old_tasks(days_old=5, activity_stream_days_old=0, dry_run=False)
+
+        assert result["status"] == "partial_success"
+        assert "activity_stream_error" in result
+        assert "days_old must be a positive integer" in result["activity_stream_error"]
+        # Task cleanup must have completed despite the bad AS parameter
+        assert result["tasks_deleted"] >= 1
+        assert not Task.objects.filter(pk=old_task.pk).exists()

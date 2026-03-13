@@ -97,8 +97,6 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     include_executions = kwargs.get("include_executions", True)
     preserve_recurring = kwargs.get("preserve_recurring", True)
     activity_stream_days_old = kwargs.get("activity_stream_days_old", 7)
-    if not isinstance(activity_stream_days_old, int) or activity_stream_days_old < 1:
-        raise ValueError(f"activity_stream_days_old must be a positive integer (got {activity_stream_days_old!r})")
 
     log_task_execution("cleanup_old_tasks", "processing", f"Cleaning up tasks older than {days_old} days")
 
