@@ -44,9 +44,7 @@ def cleanup_activitystream(**kwargs) -> dict[str, Any]:
     dry_run = kwargs.get("dry_run", False)
 
     if not isinstance(days_old, int) or days_old < 1:
-        return create_task_result(
-            "error", error=f"days_old must be a positive integer (got {days_old!r})"
-        )
+        return create_task_result("error", error=f"days_old must be a positive integer (got {days_old!r})")
 
     log_task_execution(
         "cleanup_activitystream",
