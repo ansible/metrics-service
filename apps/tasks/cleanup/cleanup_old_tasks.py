@@ -105,32 +105,24 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     # Calculate cutoff date for tasks
     cutoff_date = timezone.now() - timedelta(days=days_old)
 
-    # Find tasks that are completed or failed and older than cutoff date
-    # Use completed_at if available, otherwise fall back to modified date
-    old_tasks_filter = {
-        "status__in": ["completed", "failed"],
-        "completed_at__lt": cutoff_date,
-        "completed_at__isnull": False,
-    }
+    # Recurring tasks are excluded from cleanup to ensure scheduled tasks continue to function.
+    recurring_exclusion = {"cron_expression__isnull": True} if preserve_recurring else {}
 
-    # Exclude recurring tasks if preserve_recurring is True (default)
-    if preserve_recurring:
-        old_tasks_filter["cron_expression__isnull"] = True
+    # Find tasks that are completed or failed and older than cutoff date.
+    # Use completed_at if available, otherwise fall back to modified date.
+    old_tasks = Task.objects.filter(
+        status__in=["completed", "failed"],
+        completed_at__lt=cutoff_date,
+        completed_at__isnull=False,
+        **recurring_exclusion,
+    )
 
-    old_tasks = Task.objects.filter(**old_tasks_filter)
-
-    # Also include tasks that don't have completed_at but are old based on modified date
-    old_tasks_fallback_filter = {
-        "status__in": ["completed", "failed"],
-        "completed_at__isnull": True,
-        "modified__lt": cutoff_date,
-    }
-
-    # Exclude recurring tasks if preserve_recurring is True (default)
-    if preserve_recurring:
-        old_tasks_fallback_filter["cron_expression__isnull"] = True
-
-    old_tasks_fallback = Task.objects.filter(**old_tasks_fallback_filter)
+    old_tasks_fallback = Task.objects.filter(
+        status__in=["completed", "failed"],
+        completed_at__isnull=True,
+        modified__lt=cutoff_date,
+        **recurring_exclusion,
+    )
 
     # Combine querysets
     old_tasks = old_tasks | old_tasks_fallback
