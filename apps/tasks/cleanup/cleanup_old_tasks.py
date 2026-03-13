@@ -43,8 +43,8 @@ def _cleanup_activity_stream(days_old: int, dry_run: bool) -> dict[str, Any]:
     )
 
     if not dry_run and found > 0:
-        _, deletion_info = old_entries.delete()
-        deleted = deletion_info.get("activitystream.Entry", 0)
+        old_entries.delete()
+        deleted = found
         log_task_execution("cleanup_old_tasks", "completed", f"Deleted {deleted} ActivityStream entries")
     else:
         log_task_execution(
