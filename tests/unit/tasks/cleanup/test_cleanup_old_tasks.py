@@ -6,6 +6,7 @@ Tests cover:
 - Task and execution deletion
 - Cascade deletion tracking
 - Recurring task preservation/deletion
+- ActivityStream entry cleanup
 """
 
 from datetime import timedelta
@@ -312,6 +313,15 @@ class TestCleanupOldTasks:
 
         assert expected_min <= cutoff <= expected_max
 
+    def test_result_includes_activity_stream_fields(self):
+        """Test that the result dict always includes ActivityStream cleanup fields."""
+        result = cleanup_old_tasks(dry_run=True)
+
+        assert "activity_stream_days_old" in result
+        assert "activity_stream_cutoff_date" in result
+        assert "activity_stream_found" in result
+        assert "activity_stream_deleted" in result
+
     def test_cleans_up_tasks_with_empty_cron_expression(self, user):
         """Test tasks with empty cron_expression are treated as non-recurring and cleaned up."""
         # Arrange
@@ -367,3 +377,96 @@ class TestCleanupOldTasks:
 
         # Valid cron task should still exist
         assert Task.objects.filter(id=task_with_valid_cron.id).exists()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestCleanupOldTasksActivityStream:
+    """Test ActivityStream cleanup within cleanup_old_tasks."""
+
+    def _create_entry(self, days_ago: int):
+        """Create an ActivityStream Entry with a backdated created timestamp."""
+        from ansible_base.activitystream.models import Entry
+        from django.contrib.contenttypes.models import ContentType
+
+        # Use any available ContentType to satisfy the FK
+        ct = ContentType.objects.first()
+        entry = Entry.objects.create(
+            content_type=ct,
+            object_id="1",
+            operation="create",
+        )
+        # Backdate the immutable created field via queryset update
+        Entry.objects.filter(pk=entry.pk).update(created=timezone.now() - timedelta(days=days_ago))
+        return Entry.objects.get(pk=entry.pk)
+
+    def test_dry_run_counts_old_activity_stream_entries_without_deleting(self):
+        """Test dry_run=True reports old entries without deleting them."""
+        old_entry = self._create_entry(days_ago=10)
+
+        result = cleanup_old_tasks(activity_stream_days_old=7, dry_run=True)
+
+        assert result["activity_stream_found"] >= 1
+        assert result["activity_stream_deleted"] == 0
+
+        from ansible_base.activitystream.models import Entry
+
+        assert Entry.objects.filter(pk=old_entry.pk).exists()
+
+    def test_deletes_activity_stream_entries_older_than_threshold(self):
+        """Test entries older than activity_stream_days_old are deleted."""
+        old_entry = self._create_entry(days_ago=10)
+
+        result = cleanup_old_tasks(activity_stream_days_old=7, dry_run=False)
+
+        assert result["activity_stream_deleted"] >= 1
+
+        from ansible_base.activitystream.models import Entry
+
+        assert not Entry.objects.filter(pk=old_entry.pk).exists()
+
+    def test_preserves_recent_activity_stream_entries(self):
+        """Test entries newer than the threshold are not deleted."""
+        recent_entry = self._create_entry(days_ago=3)
+
+        result = cleanup_old_tasks(activity_stream_days_old=7, dry_run=False)
+
+        assert result["activity_stream_deleted"] == 0
+
+        from ansible_base.activitystream.models import Entry
+
+        assert Entry.objects.filter(pk=recent_entry.pk).exists()
+
+    def test_uses_default_7_day_threshold(self):
+        """Test the default threshold is 7 days for ActivityStream cleanup."""
+        result = cleanup_old_tasks(dry_run=True)
+
+        assert result["activity_stream_days_old"] == 7
+
+    def test_custom_activity_stream_days_old_parameter(self):
+        """Test custom activity_stream_days_old parameter is respected."""
+        old_entry = self._create_entry(days_ago=4)
+
+        # Should not be deleted with default 7-day threshold
+        result_7 = cleanup_old_tasks(activity_stream_days_old=7, dry_run=True)
+        assert result_7["activity_stream_found"] == 0
+
+        # Should be found with 3-day threshold
+        result_3 = cleanup_old_tasks(activity_stream_days_old=3, dry_run=True)
+        assert result_3["activity_stream_found"] >= 1
+
+        from ansible_base.activitystream.models import Entry
+
+        assert Entry.objects.filter(pk=old_entry.pk).exists()
+
+    def test_activity_stream_cutoff_date_in_result(self):
+        """Test the cutoff date for ActivityStream cleanup is returned correctly."""
+        before = timezone.now()
+        result = cleanup_old_tasks(activity_stream_days_old=7, dry_run=True)
+        after = timezone.now()
+
+        cutoff = timezone.datetime.fromisoformat(result["activity_stream_cutoff_date"])
+        expected_min = before - timedelta(days=7)
+        expected_max = after - timedelta(days=7)
+
+        assert expected_min <= cutoff <= expected_max
