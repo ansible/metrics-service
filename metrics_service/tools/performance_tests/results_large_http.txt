@@ -9,58 +9,57 @@ Metrics Service HTTP Benchmark
   Prometheus  : http://localhost:18002/metrics
 
 Verifying connectivity...
-  OK (200, 351ms)
+  OK (200, 322ms)
 
 Probing endpoints (skipping 4xx/5xx)...
-  ✓ /v1/                                     (200, 208ms)
-  ✓ /v1/organizations/                       (200, 601ms)
-  ✓ /v1/teams/                               (200, 278ms)
-  ✓ /v1/users/                               (200, 313ms)
-  ✓ /v1/tasks/                               (200, 264ms)
-  ✓ /v1/role_definitions/                    (200, 245ms)
-  ✓ /v1/role_user_assignments/               (200, 254ms)
-  ✓ /v1/role_team_assignments/               (200, 201ms)
-  ✗ /v1/feature_flags/                       (404) — skipped
-  ✓ /v1/settings/                            (200, 372ms)
+  ✓ /v1/                                     (200, 296ms)
+  ✓ /v1/organizations/                       (200, 227ms)
+  ✓ /v1/teams/                               (200, 206ms)
+  ✓ /v1/users/                               (200, 201ms)
+  ✓ /v1/tasks/                               (200, 259ms)
+  ✓ /v1/tasks/executions/                    (200, 205ms)
+  ✓ /v1/role_definitions/                    (200, 329ms)
+  ✓ /v1/role_user_assignments/               (200, 207ms)
+  ✓ /v1/role_team_assignments/               (200, 205ms)
+  ✓ /v1/settings/                            (200, 263ms)
 
 ======================================================================
 Phase 1: Sequential Latency (10 requests per endpoint)
 ======================================================================
-  /v1/                                     min= 199.5ms  p50= 202.9ms  p95= 232.2ms  max= 254.1ms
-  /v1/organizations/                       min= 201.2ms  p50= 211.8ms  p95= 283.5ms  max= 313.9ms
-  /v1/teams/                               min= 199.6ms  p50= 201.1ms  p95= 218.0ms  max= 230.4ms
-  /v1/users/                               min= 202.9ms  p50= 223.6ms  p95= 338.6ms  max= 410.4ms
-  /v1/tasks/                               min= 199.4ms  p50= 208.5ms  p95= 240.9ms  max= 242.5ms
-  /v1/role_definitions/                    min= 202.2ms  p50= 205.2ms  p95= 252.3ms  max= 263.8ms
-  /v1/role_user_assignments/               min= 199.1ms  p50= 227.0ms  p95= 272.7ms  max= 293.7ms
-  /v1/role_team_assignments/               min= 202.0ms  p50= 214.7ms  p95= 262.5ms  max= 282.9ms
-  /v1/settings/                            min= 200.1ms  p50= 204.2ms  p95= 230.9ms  max= 238.7ms
+  /v1/                                     min= 198.7ms  p50= 201.2ms  p95= 348.0ms  max= 303.8ms
+  /v1/organizations/                       min= 198.6ms  p50= 207.2ms  p95= 326.8ms  max= 297.3ms
+  /v1/teams/                               min= 199.5ms  p50= 202.7ms  p95= 306.6ms  max= 278.9ms
+  /v1/users/                               min= 198.4ms  p50= 201.5ms  p95= 235.6ms  max= 232.7ms
+  /v1/tasks/                               min= 197.3ms  p50= 202.4ms  p95= 209.7ms  max= 208.1ms
+  /v1/tasks/executions/                    min= 199.7ms  p50= 202.4ms  p95= 236.9ms  max= 234.0ms
+  /v1/role_definitions/                    min= 202.6ms  p50= 216.0ms  p95= 232.4ms  max= 231.7ms
+  /v1/role_user_assignments/               min= 200.1ms  p50= 201.5ms  p95= 237.6ms  max= 228.5ms
+  /v1/role_team_assignments/               min= 200.8ms  p50= 213.5ms  p95= 333.9ms  max= 322.7ms
+  /v1/settings/                            min= 202.3ms  p50= 219.5ms  p95= 319.5ms  max= 297.5ms
 
 ======================================================================
 Phase 2: Concurrent Load (100 requests, 5 workers)
 ======================================================================
-  /v1/                                     p50=1167.0ms  p95=1800.7ms  p99=1940.3ms  rps=  4.0
-  /v1/organizations/                       p50=1195.0ms  p95=1705.0ms  p99=1831.3ms  rps=  4.0
-  /v1/teams/                               p50=1203.6ms  p95=1837.7ms  p99=1964.6ms  rps=  3.9
-  /v1/users/                               p50=1132.4ms  p95=1609.0ms  p99=1892.1ms  rps=  4.2
-  /v1/tasks/                               p50=1005.9ms  p95=1496.7ms  p99=1701.7ms  rps=  4.5
-  /v1/role_definitions/                    p50=1148.4ms  p95=1934.5ms  p99=2193.7ms  rps=  4.0
-  /v1/role_user_assignments/               p50=1002.4ms  p95=1597.5ms  p99=1705.9ms  rps=  4.6
-  /v1/role_team_assignments/               p50=1208.1ms  p95=1538.6ms  p99=1667.3ms  rps=  4.1
-  /v1/settings/                            p50=1209.7ms  p95=1607.1ms  p99=1793.1ms  rps=  3.9
+  /v1/                                     p50=1192.8ms  p95=2005.2ms  p99=2195.0ms  rps=  3.8
+  /v1/organizations/                       p50=1176.2ms  p95=1992.5ms  p99=2135.3ms  rps=  3.9
+  /v1/teams/                               p50=1197.9ms  p95=1995.9ms  p99=2095.0ms  rps=  3.8
+  /v1/users/                               p50=1198.0ms  p95=1886.5ms  p99=2097.7ms  rps=  3.9
+  /v1/tasks/                               p50=1197.4ms  p95=1989.5ms  p99=2188.2ms  rps=  3.8
+  /v1/tasks/executions/                    p50=1148.3ms  p95=2103.3ms  p99=2272.8ms  rps=  3.9
+  /v1/role_definitions/                    p50=1198.9ms  p95=1970.1ms  p99=2194.9ms  rps=  3.8
+  /v1/role_user_assignments/               p50=1195.9ms  p95=1905.9ms  p99=1996.6ms  rps=  3.9
+  /v1/role_team_assignments/               p50=1200.4ms  p95=1665.8ms  p99=2122.9ms  rps=  4.0
+  /v1/settings/                            p50=1164.4ms  p95=1917.4ms  p99=2163.4ms  rps=  4.0
 
 ======================================================================
 Client-side Summary
 ======================================================================
-  Sequential — p50=205.3ms  p95=259.4ms  p99=324.5ms
-  Load       — p50=1159.8ms  p95=1703.5ms  p99=1964.5ms
+  Sequential — p50=203.8ms  p95=296.4ms  p99=322.5ms
+  Load       — p50=1194.9ms  p95=1936.6ms  p99=2125.0ms
 
 ======================================================================
 Server-side Metrics (Prometheus delta across load phase)
 ======================================================================
-  Requests received :      270
-  Responses sent    :      270
-  Mean latency      :    781.4 ms  (server-side, 270 requests)
-  CPU time used     :   24.740 s
-  RSS memory (end)  :     85.0 MB
+  CPU time used     :   27.050 s
+  RSS memory (end)  :     86.0 MB
 

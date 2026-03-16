@@ -267,12 +267,12 @@ TEST_DATE=2024-01-25 \
 ```bash
 cd /Users/semighdo/work/metrics-service
 
-BASE_URL=http://localhost:18002/api \
-BENCHMARK_USER=superadmin \
-PASSWORD=$BENCHMARK_PW \
-METRICS_URL=http://localhost:18002/metrics \
-  .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
-  | tee metrics_service/tools/performance_tests/results_large_http.txt
+  BASE_URL=http://localhost:18002/api \
+  BENCHMARK_USER=superadmin \
+  PASSWORD=$BENCHMARK_PW \
+  METRICS_URL=http://localhost:18002/metrics \
+    .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
+    | tee metrics_service/tools/performance_tests/results_large_http.txt
 ```
 
 ---
