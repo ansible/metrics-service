@@ -31,13 +31,9 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     """
     Anonymize daily metrics summary and prepare payload for Segment
 
-    This task:
-    1. Fetches DailyMetricsSummary (with complete daily rollup, non-anonymized)
-    2. Extracts rollup JSONs
-    3. Combines and anonymizes using anonymize_rollups() from metrics-utility
-    4. Adds config snapshot data
-    5. Creates AnonymizedMetricsPayload record
-    6. Does NOT send (separate task handles sending)
+    - Fetches DailyMetricsSummary non-anyonymized daily rollup
+    - anonymizes using anonymize_rollups() from metrics-utility
+    - Creates AnonymizedMetricsPayload record
 
     Args:
         **kwargs: Task data containing:
@@ -78,9 +74,6 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             controller_version_rollup=metrics.get("controller_version_service", {}),
             salt=kwargs.get("salt", generate_salt()),
         )
-
-        # Add config (simple snapshot, no anonymization)
-        anonymized_data["config"] = metrics.get("config", {})
 
         # Add metadata
         aggregation_timestamp = (

@@ -236,6 +236,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         **kwargs: Task data containing:
             - summary_date (str): Date to summarize (YYYY-MM-DD, defaults to yesterday)
             - database (str): Database name (default: 'awx')
+            - execution_id
 
     Returns:
         dict: Task result with summary ID and statistics
@@ -253,27 +254,21 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         # Query and group hourly collections by type
         collections_by_type, start_datetime, end_datetime = _collect_and_group_hourly_collections(summary_date)
 
+        # Extract config snapshot from daily collections
+        config_collections = collections_by_type.pop("config", [])
+        config = config_collections[0].raw_data if config_collections else {}
+        if not config:
+            logger.warning("No config collection found for summary date")
+
         # Merge hourly rollups into daily rollups
         daily_rollup, missing_hours = _merge_hourly_rollups(collections_by_type)
-
-        # Extract config snapshot from daily collections
-        # Config is collected once daily (not hourly), so we get the single collection's data
-        config_collections = collections_by_type.get("config", [])
-        if config_collections:
-            daily_rollup["config"] = config_collections[0].raw_data
-        else:
-            logger.warning("No config collection found for summary date")
-            daily_rollup["config"] = {}
-
-        # Note: All collectors (hourly and daily snapshots) are now collected by
-        # dedicated tasks and merged via _merge_hourly_rollups() or extracted above.
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
             summary_date,
             daily_rollup,
             collections_by_type,
-            daily_rollup.get("config", {}),
+            config,
             missing_hours,
             kwargs.get("execution_id"),
         )
