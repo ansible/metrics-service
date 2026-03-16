@@ -48,7 +48,7 @@ from requests.auth import HTTPBasicAuth
 # Configuration
 # ---------------------------------------------------------------------------
 
-BASE_URL = os.environ.get("BASE_URL", "http://localhost:44926/api/metrics").rstrip("/")
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:44926/api").rstrip("/")
 USERNAME = os.environ.get("BENCHMARK_USER", "admin")
 PASSWORD = os.environ.get("PASSWORD", "")
 METRICS_URL = os.environ.get("METRICS_URL", "")
