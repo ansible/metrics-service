@@ -23,7 +23,7 @@ KUBECONFIG=.tmp/26-next.kubeconfig \
 In another dedicated terminal (leave it running):
 
 ```bash
-cd /Users/semighdo/work/aap-dev
+cd <path-to-aap-dev>
 
 POD=$(KUBECONFIG=.tmp/26-next.kubeconfig \
   bin/kubectl get pods -n aap26-next \
@@ -59,7 +59,7 @@ Run once. This creates a superuser that can access all benchmarked endpoints
 permission issues).
 
 ```bash
-cd /Users/semighdo/work/metrics-service
+cd <path-to-metrics-service>
 
 # Choose any password — it only needs to live for this benchmark session.
 export BENCHMARK_PW=<your-password-here>
@@ -91,7 +91,7 @@ Each time: clean → generate data → run internal benchmark → run HTTP bench
 **Generate data:**
 
 ```bash
-cd /Users/semighdo/work/metrics-utility
+cd <path-to-metrics-utility>
 
 METRICS_UTILITY_DB_HOST=localhost \
   .venv/bin/python tools/anonymized_db_perf_data/clean_all_data.py --force
@@ -116,7 +116,7 @@ METRICS_UTILITY_DB_HOST=localhost \
 **Run internal collection/rollup benchmark:**
 
 ```bash
-cd /Users/semighdo/work/metrics-service
+cd <path-to-metrics-service>
 
 METRICS_SERVICE_DATABASES__default__HOST=localhost \
 METRICS_SERVICE_DATABASES__default__PORT=15432 \
@@ -137,7 +137,7 @@ TEST_DATE=2024-01-25 \
 **Run HTTP benchmark:**
 
 ```bash
-cd /Users/semighdo/work/metrics-service
+cd <path-to-metrics-service>
 
 BASE_URL=http://localhost:18002/api \
 BENCHMARK_USER=superadmin \
@@ -154,7 +154,7 @@ METRICS_URL=http://localhost:18002/metrics \
 **Generate data:**
 
 ```bash
-cd /Users/semighdo/work/metrics-utility
+cd <path-to-metrics-utility>
 
 METRICS_UTILITY_DB_HOST=localhost \
   .venv/bin/python tools/anonymized_db_perf_data/clean_all_data.py --force
@@ -179,7 +179,7 @@ METRICS_UTILITY_DB_HOST=localhost \
 **Run internal collection/rollup benchmark:**
 
 ```bash
-cd /Users/semighdo/work/metrics-service
+cd <path-to-metrics-service>
 
 METRICS_SERVICE_DATABASES__default__HOST=localhost \
 METRICS_SERVICE_DATABASES__default__PORT=15432 \
@@ -200,7 +200,7 @@ TEST_DATE=2024-01-25 \
 **Run HTTP benchmark:**
 
 ```bash
-cd /Users/semighdo/work/metrics-service
+cd <path-to-metrics-service>
 
 BASE_URL=http://localhost:18002/api \
 BENCHMARK_USER=superadmin \
@@ -219,7 +219,7 @@ METRICS_URL=http://localhost:18002/metrics \
 **Generate data:**
 
 ```bash
-cd /Users/semighdo/work/metrics-utility
+cd <path-to-metrics-utility>
 
 METRICS_UTILITY_DB_HOST=localhost \
   .venv/bin/python tools/anonymized_db_perf_data/clean_all_data.py --force
@@ -244,7 +244,7 @@ METRICS_UTILITY_DB_HOST=localhost \
 **Run internal collection/rollup benchmark:**
 
 ```bash
-cd /Users/semighdo/work/metrics-service
+cd <path-to-metrics-service>
 
 METRICS_SERVICE_DATABASES__default__HOST=localhost \
 METRICS_SERVICE_DATABASES__default__PORT=15432 \
@@ -265,7 +265,7 @@ TEST_DATE=2024-01-25 \
 **Run HTTP benchmark:**
 
 ```bash
-cd /Users/semighdo/work/metrics-service
+cd <path-to-metrics-service>
 
   BASE_URL=http://localhost:18002/api \
   BENCHMARK_USER=superadmin \
