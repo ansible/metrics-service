@@ -9,6 +9,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
@@ -112,9 +113,14 @@ def _process_single_payload(payload, results: dict) -> None:
     payload.save()
 
     try:
+        event_name = payload.segment_event_name
+        if getattr(settings, "SEGMENT_TEST_MODE", False):
+            event_name = f"{event_name}_Test"
+            logger.debug(f"SEGMENT_TEST_MODE enabled — using test event name: {event_name}")
+
         segment_status = send_to_segment(
             user_id=payload.segment_user_id,
-            event_name=payload.segment_event_name,
+            event_name=event_name,
             segment_data=payload.anonymized_data,
         )
 
