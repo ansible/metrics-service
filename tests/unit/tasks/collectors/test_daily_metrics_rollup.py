@@ -2,8 +2,7 @@
 Unit tests for apps/tasks/collectors/daily_metrics_rollup.py
 
 Tests cover:
-- _merge_rollup_json: JSON merging
-- _aggregate_collector_rollups: rollup computation with merged JSON
+- _merge_collects: JSON merging and rollup computation
 - _collect_and_group_hourly_collections: missing hours detection
 
 Note: All inline collection functions (_collect_config_data, etc.)
@@ -17,22 +16,22 @@ import pytest
 from django.utils import timezone
 
 from apps.tasks.collectors.daily_metrics_rollup import (
-    _aggregate_collector_rollups,
     _collect_and_group_hourly_collections,
-    _merge_rollup_json,
+    _merge_collects,
 )
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-class TestMergeRollupJson:
-    """Test _merge_rollup_json function."""
+class TestMergeCollects:
+    """Test _merge_collects function."""
 
-    def test_merges_json_directly(self, hourly_collection_factory):
-        """Test passes JSON directly to merge"""
+    def test_merges_and_processes_with_base(self, hourly_collection_factory):
+        """Test merges JSON and calls base() to get final result."""
         # Arrange
         mock_processor = MagicMock()
         mock_processor.merge.return_value = {"merged": "data"}
+        mock_processor.base.return_value = {"json": {"processed": "result"}}
 
         # Create collections with JSON data
         collection1 = hourly_collection_factory(
@@ -54,100 +53,64 @@ class TestMergeRollupJson:
         collections = [collection1, collection2]
 
         # Act
-        result = _merge_rollup_json(collections, mock_processor)
+        result = _merge_collects(collections, mock_processor)
 
-        # Assert
-        assert result == {"merged": "data"}
+        # Assert - calls base() and extracts "json" key
+        assert result == {"processed": "result"}
         assert mock_processor.merge.call_count == 2
+        mock_processor.base.assert_called_once_with({"merged": "data"})
 
-        # Verify JSON is passed directly
+        # Verify JSON is passed directly to merge
         first_call_arg = mock_processor.merge.call_args_list[0][0][1]
         assert first_call_arg == {"total_jobs": 100, "failed_jobs": 10}
         assert isinstance(first_call_arg, dict)
-
-    def test_preserves_scalar_values(self, hourly_collection_factory):
-        """Test passes JSON scalars directly without modification."""
-        # Arrange
-        mock_processor = MagicMock()
-        mock_processor.merge.return_value = {"result": "merged"}
-
-        collection = hourly_collection_factory(
-            raw_data={
-                "total": 100,
-                "count": 5,
-                "average": 20.5,
-            }
-        )
-
-        # Act
-        _merge_rollup_json([collection], mock_processor)
-
-        # Assert - JSON passed directly
-        call_arg = mock_processor.merge.call_args[0][1]
-        assert call_arg["total"] == 100
-        assert call_arg["count"] == 5
-        assert call_arg["average"] == pytest.approx(20.5)
 
     def test_handles_empty_collections(self):
         """Test handles empty collections list."""
         # Arrange
         mock_processor = MagicMock()
+        mock_processor.base.return_value = {"json": {}}
 
         # Act
-        result = _merge_rollup_json([], mock_processor)
+        result = _merge_collects([], mock_processor)
 
-        # Assert
-        assert result is None
+        # Assert - calls base(None) and returns empty dict
+        assert result == {}
         mock_processor.merge.assert_not_called()
+        mock_processor.base.assert_called_once_with(None)
 
     def test_skips_empty_raw_data(self, hourly_collection_factory):
         """Test skips collections with empty raw_data."""
         # Arrange
         mock_processor = MagicMock()
         mock_processor.merge.return_value = {"merged": "data"}
+        mock_processor.base.return_value = {"json": {"result": "processed"}}
 
         collection1 = hourly_collection_factory(raw_data={})
         collection2 = hourly_collection_factory(raw_data={"data": {"id": 1}})
 
         # Act
-        _merge_rollup_json([collection1, collection2], mock_processor)
+        result = _merge_collects([collection1, collection2], mock_processor)
 
         # Assert - only called once for non-empty collection
         assert mock_processor.merge.call_count == 1
+        assert result == {"result": "processed"}
 
-
-@pytest.mark.unit
-@pytest.mark.django_db
-class TestAggregateCollectorRollups:
-    """Test _aggregate_collector_rollups function."""
-
-    def test_computes_rollup_when_merged_data_exists(self, hourly_collection_factory):
-        """Test returns merged JSON directly without calling base()."""
+    def test_handles_missing_json_key_in_base_result(self, hourly_collection_factory):
+        """Test handles case where base() returns dict without 'json' key."""
         # Arrange
         mock_processor = MagicMock()
-        mock_processor.merge.return_value = {"total": 100, "count": 2}
+        mock_processor.merge.return_value = {"merged": "data"}
+        mock_processor.base.return_value = {"other_key": "value"}
 
-        collection = hourly_collection_factory(raw_data={"total": 10, "count": 1})
-
-        # Act
-        result = _aggregate_collector_rollups([collection], mock_processor)
-
-        # Assert - returns merged JSON directly, NO base() call
-        assert result == {"total": 100, "count": 2}
-        mock_processor.merge.assert_called_once()
-
-    def test_returns_empty_dict_when_no_merged_data(self):
-        """Test returns empty dict when merged JSON is None."""
-        # Arrange
-        mock_processor = MagicMock()
-        mock_processor.merge.return_value = None
+        collection = hourly_collection_factory(raw_data={"total": 10})
 
         # Act
-        result = _aggregate_collector_rollups([], mock_processor)
+        result = _merge_collects([collection], mock_processor)
 
-        # Assert
+        # Assert - returns empty dict when "json" key is missing
         assert result == {}
-        mock_processor.merge.assert_not_called()
+        mock_processor.base.assert_called_once()
 
 
 @pytest.mark.unit
