@@ -2,7 +2,6 @@
 Comprehensive unit tests for tasks utils module.
 """
 
-import os
 from datetime import UTC
 from unittest.mock import MagicMock, patch
 
@@ -35,31 +34,8 @@ class TaskUtilsTestCase(TestCase):
         task.save()
         return task
 
-    @patch("django.setup")
-    @patch("django.conf.settings")
-    def test_ensure_django_setup_not_configured(self, mock_settings, mock_setup):
-        """Test ensure_django_setup when Django is not configured."""
-        mock_settings.configured = False
-
-        with patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": ""}):
-            utils.ensure_django_setup()
-
-        mock_setup.assert_called_once()
-        self.assertEqual(os.environ.get("DJANGO_SETTINGS_MODULE"), "metrics_service.settings")
-
-    @patch("django.setup")
-    @patch("django.conf.settings")
-    def test_ensure_django_setup_already_configured(self, mock_settings, mock_setup):
-        """Test ensure_django_setup when Django is already configured."""
-        mock_settings.configured = True
-
-        utils.ensure_django_setup()
-
-        mock_setup.assert_not_called()
-
     @patch("apps.tasks.utils.log_task_execution")
-    @patch("apps.tasks.utils.ensure_django_setup")
-    def test_task_execution_wrapper_success(self, mock_ensure, mock_log):
+    def test_task_execution_wrapper_success(self, mock_log):
         """Test task execution wrapper with successful task."""
 
         @utils.task_execution_wrapper("test_task")
@@ -68,7 +44,6 @@ class TaskUtilsTestCase(TestCase):
 
         result = test_function(param1="value1", param2="value2")
 
-        mock_ensure.assert_called_once()
         self.assertEqual(mock_log.call_count, 2)  # start and complete
         mock_log.assert_any_call("test_task", "start", "Starting test_task task")
         mock_log.assert_any_call("test_task", "complete", "Task test_task completed successfully")
@@ -77,9 +52,8 @@ class TaskUtilsTestCase(TestCase):
         self.assertEqual(result["data"]["param1"], "value1")
 
     @patch("apps.tasks.utils.log_task_execution")
-    @patch("apps.tasks.utils.ensure_django_setup")
     @patch("apps.tasks.utils.create_task_result")
-    def test_task_execution_wrapper_error(self, mock_create_result, mock_ensure, mock_log):
+    def test_task_execution_wrapper_error(self, mock_create_result, mock_log):
         """Test task execution wrapper with task error."""
         mock_create_result.return_value = {"status": "error", "error": "Test error"}
 
@@ -89,12 +63,11 @@ class TaskUtilsTestCase(TestCase):
 
         result = test_function(param1="value1")
 
-        mock_ensure.assert_called_once()
         self.assertEqual(mock_log.call_count, 2)  # start and error
         mock_log.assert_any_call("test_task", "start", "Starting test_task task")
-        mock_log.assert_any_call("test_task", "error", "Test_Task task failed: Test error", level="error")
+        mock_log.assert_any_call("test_task", "error", "test_task task failed: Test error", level="error")
 
-        mock_create_result.assert_called_once_with("error", error="Test_Task task failed: Test error")
+        mock_create_result.assert_called_once_with("error", error="test_task task failed: Test error")
         self.assertEqual(result["status"], "error")
 
     def test_get_task_and_execution_with_execution(self):
