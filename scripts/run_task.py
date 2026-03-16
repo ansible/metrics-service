@@ -257,7 +257,7 @@ def run_task(task_name, params=None):
         print(json.dumps(result, indent=2, default=str))
         print("=" * 80)
 
-        return True
+        return result["status"] == "success"
 
     except Exception as e:
         print(f"\nError running task: {e}")
