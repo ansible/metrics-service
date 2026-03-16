@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# ruff: noqa: E402, T201
 """
 Dump HourlyMetricsCollection records to JSON files.
 
@@ -178,9 +179,7 @@ def dump_collections(output_dir: Path, status_filter: str | None = None) -> None
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Dump HourlyMetricsCollection raw_data to JSON files"
-    )
+    parser = argparse.ArgumentParser(description="Dump HourlyMetricsCollection raw_data to JSON files")
     parser.add_argument(
         "--output-dir",
         type=Path,

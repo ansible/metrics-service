@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# ruff: noqa: E402, T201
+
 """
 Dump DailyMetricsSummary and AnonymizedMetricsPayload records to JSON files.
 
@@ -25,7 +27,6 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # Initialize Django
