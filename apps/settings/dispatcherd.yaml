@@ -23,7 +23,7 @@ brokers:
 
 service:
   pool_kwargs:
-    max_workers: 4
+    max_workers: 1
 
   # Task execution settings
   task_settings:
