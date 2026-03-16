@@ -1,12 +1,12 @@
 #!/bin/bash
 # Entrypoint for dispatcherd container
 # Runs background task workers
-# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
+# Uses $HOME/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
 
-if [[ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]]; then
-    CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
+if [[ -x "${METRICS_SERVICE_CLI:-/var/lib/ansible-automation-platform/metrics/.venv/bin/metrics-service}" ]]; then
+    CLI="${METRICS_SERVICE_CLI:-/var/lib/ansible-automation-platform/metrics/.venv/bin/metrics-service}"
     run_dispatcherd() { exec "$CLI" dispatcherd "$@"; }
 else
     run_dispatcherd() { exec python3.12 manage.py run_dispatcherd "$@"; }

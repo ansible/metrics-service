@@ -1,15 +1,15 @@
 #!/bin/bash
 # Entrypoint for web container
 # Starts Nginx (TLS termination) and Gunicorn (WSGI server)
-# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
+# Uses $HOME/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
 
 # Define separator constant for banner
 readonly SEPARATOR="════════════════════════════════════════════════════════════════"
 
-if [[ -x "${VENV_GUNICORN:-/app/.venv/bin/gunicorn}" ]]; then
-    GUNICORN_CMD=("${VENV_GUNICORN:-/app/.venv/bin/gunicorn}")
+if [[ -x "${VENV_GUNICORN:-/var/lib/ansible-automation-platform/metrics/.venv/bin/gunicorn}" ]]; then
+    GUNICORN_CMD=("${VENV_GUNICORN:-/var/lib/ansible-automation-platform/metrics/.venv/bin/gunicorn}")
 else
     GUNICORN_CMD=(python3.12 -m gunicorn)
 fi

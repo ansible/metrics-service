@@ -25,11 +25,11 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: metrics-service-init
-    entrypoint: ["/app/scripts/entrypoint-init.sh"]
+    entrypoint: ["/var/lib/ansible-automation-platform/metrics/scripts/entrypoint-init.sh"]
     volumes:
-      - "./:/app:z"
-      - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - "./:/var/lib/ansible-automation-platform/metrics:z"
+      - "/var/lib/ansible-automation-platform/metrics/.venv"
+      - {type: tmpfs, target: /var/lib/ansible-automation-platform/metrics/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,11 +45,11 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: metrics-service-web
-    entrypoint: ["/app/scripts/entrypoint-web.sh"]
+    entrypoint: ["/var/lib/ansible-automation-platform/metrics/scripts/entrypoint-web.sh"]
     volumes:
-      - "./:/app:z"
-      - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - "./:/var/lib/ansible-automation-platform/metrics:z"
+      - "/var/lib/ansible-automation-platform/metrics/.venv"
+      - {type: tmpfs, target: /var/lib/ansible-automation-platform/metrics/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
     ports:
       - ${METRICS_SERVICE_PORT:-8000}:8000
     depends_on:
@@ -70,11 +70,11 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: metrics-service-dispatcher
-    entrypoint: ["/app/scripts/entrypoint-dispatcherd.sh"]
+    entrypoint: ["/var/lib/ansible-automation-platform/metrics/scripts/entrypoint-dispatcherd.sh"]
     volumes:
-      - "./:/app:z"
-      - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - "./:/var/lib/ansible-automation-platform/metrics:z"
+      - "/var/lib/ansible-automation-platform/metrics/.venv"
+      - {type: tmpfs, target: /var/lib/ansible-automation-platform/metrics/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,11 +95,11 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: metrics-service-scheduler
-    entrypoint: ["/app/scripts/entrypoint-scheduler.sh"]
+    entrypoint: ["/var/lib/ansible-automation-platform/metrics/scripts/entrypoint-scheduler.sh"]
     volumes:
-      - "./:/app:z"
-      - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - "./:/var/lib/ansible-automation-platform/metrics:z"
+      - "/var/lib/ansible-automation-platform/metrics/.venv"
+      - {type: tmpfs, target: /var/lib/ansible-automation-platform/metrics/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
     depends_on:
       postgres:
         condition: service_healthy

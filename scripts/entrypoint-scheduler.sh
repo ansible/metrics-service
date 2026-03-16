@@ -1,12 +1,12 @@
 #!/bin/bash
 # Entrypoint for scheduler container
 # Runs APScheduler for cron-based task scheduling
-# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
+# Uses $HOME/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
 
-if [[ -x "${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}" ]]; then
-    CLI="${METRICS_SERVICE_CLI:-/app/.venv/bin/metrics-service}"
+if [[ -x "${METRICS_SERVICE_CLI:-/var/lib/ansible-automation-platform/metrics/.venv/bin/metrics-service}" ]]; then
+    CLI="${METRICS_SERVICE_CLI:-/var/lib/ansible-automation-platform/metrics/.venv/bin/metrics-service}"
     run_scheduler() { exec "$CLI" scheduler "$@"; }
 else
     run_scheduler() { exec python3.12 manage.py run_task_scheduler "$@"; }

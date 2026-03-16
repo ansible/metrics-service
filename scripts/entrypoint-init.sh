@@ -1,12 +1,12 @@
 #!/bin/bash
 # Entrypoint for init container
 # Runs database migrations and initialization, then exits
-# Uses /app/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
+# Uses $HOME/.venv when present (Dockerfile.dev); otherwise system Python (production Dockerfile).
 
 set -e
 
-if [[ -x "${VENV_PYTHON:-/app/.venv/bin/python}" ]]; then
-    PYTHON="${VENV_PYTHON:-/app/.venv/bin/python}"
+if [[ -x "${VENV_PYTHON:-/var/lib/ansible-automation-platform/metrics/.venv/bin/python}" ]]; then
+    PYTHON="${VENV_PYTHON:-/var/lib/ansible-automation-platform/metrics/.venv/bin/python}"
 else
     PYTHON="${VENV_PYTHON:-python3.12}"
 fi

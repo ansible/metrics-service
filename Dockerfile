@@ -4,19 +4,23 @@
 
 FROM registry.access.redhat.com/ubi9/python-312:latest
 
-# Set working directory
-WORKDIR /app
-
 # Set environment variables for build and runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HOME=/var/lib/ansible-automation-platform/metrics \
+    METRICS_STATIC_ROOT=/var/lib/ansible-automation-platform/metrics/static \
+    METRICS_MEDIA_ROOT=/var/lib/ansible-automation-platform/metrics/media
 
+USER root
+
+# Create metrics user/group matching production container (UID 1001)
+RUN groupadd -r metrics && \
+    useradd -r -u 1001 -g metrics -d /var/lib/ansible-automation-platform/metrics -s /bin/bash metrics
 
 # Install only runtime dependencies (no build tools)
 # Use pre-built Python wheels instead of building from source
-USER root
 RUN dnf update -y && \
     dnf install -y \
         # Production runtime: Nginx for reverse proxy and TLS termination
@@ -24,18 +28,32 @@ RUN dnf update -y && \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
-# Create app directory and set permissions
-RUN mkdir -p /app && chown -R 1001:1001 /app
+# Create directory structure matching production container
+RUN mkdir -p \
+        /var/lib/ansible-automation-platform/metrics/static \
+        /var/lib/ansible-automation-platform/metrics/media \
+        /var/lib/ansible-automation-platform/metrics/logs \
+        /etc/ansible-automation-platform/metrics && \
+    mkdir -m 770 -p /run/ansible-automation-platform/metrics && \
+    chown -R metrics:metrics /var/lib/ansible-automation-platform/metrics && \
+    chown metrics:root /var/lib/ansible-automation-platform/metrics && \
+    chown metrics:root /var/lib/ansible-automation-platform/metrics/media && \
+    chown metrics:root /var/lib/ansible-automation-platform/metrics/logs && \
+    chmod 775 /var/lib/ansible-automation-platform/metrics && \
+    chmod 775 /var/lib/ansible-automation-platform/metrics/media && \
+    chmod 775 /var/lib/ansible-automation-platform/metrics/logs && \
+    chown metrics:root /etc/ansible-automation-platform/metrics
+
+WORKDIR /var/lib/ansible-automation-platform/metrics
 
 # Copy the application code
-COPY --chown=1001:1001 . /app/
+COPY --chown=metrics:metrics . /var/lib/ansible-automation-platform/metrics/
 
 # Red Hat Certification Requirement: Copy licenses directory to container root
 # This satisfies the HasLicense preflight check
 COPY --chown=root:root licenses /licenses
-# Switch to non-root user for install
 
-USER 1001
+USER metrics
 
 # Install Python dependencies using pre-built wheels (binaries)
 # Prefer binary packages to avoid compilation during build
@@ -44,13 +62,13 @@ RUN pip install --no-cache-dir --prefer-binary --only-binary :all: . || \
 
 # Copy and set up entrypoint scripts, Nginx config, and certificate generator
 USER root
-COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/generate-certs.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/entrypoint-init.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/entrypoint-web.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/entrypoint-dispatcherd.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/entrypoint-scheduler.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY --chown=metrics:metrics scripts/docker-entrypoint.sh /usr/local/bin/
+COPY --chown=metrics:metrics scripts/generate-certs.sh /usr/local/bin/
+COPY --chown=metrics:metrics scripts/entrypoint-init.sh /usr/local/bin/
+COPY --chown=metrics:metrics scripts/entrypoint-web.sh /usr/local/bin/
+COPY --chown=metrics:metrics scripts/entrypoint-dispatcherd.sh /usr/local/bin/
+COPY --chown=metrics:metrics scripts/entrypoint-scheduler.sh /usr/local/bin/
+COPY --chown=metrics:metrics scripts/nginx/nginx.conf /etc/nginx/nginx.conf
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh && \
     chmod 555 /usr/local/bin/generate-certs.sh && \
     chmod 555 /usr/local/bin/entrypoint-init.sh && \
@@ -59,24 +77,24 @@ RUN chmod 555 /usr/local/bin/docker-entrypoint.sh && \
     chmod 555 /usr/local/bin/entrypoint-scheduler.sh && \
     chmod 644 /etc/nginx/nginx.conf
 
-# Create necessary directories with proper permissions
-# Nginx directories need to be writable by user 1001
+# Nginx directories need to be writable by the metrics user
 RUN mkdir -p /etc/nginx/ssl /var/log/nginx /var/lib/nginx && \
-    chown -R 1001:1001 /etc/nginx /var/log/nginx /var/lib/nginx && \
+    chown -R metrics:metrics /etc/nginx /var/log/nginx /var/lib/nginx && \
     chmod 755 /etc/nginx/ssl /var/log/nginx /var/lib/nginx
-USER 1001
 
-# Collect static files into STATIC_ROOT for production serving by Nginx
-# This creates /app/staticfiles owned by user 1001
-RUN mkdir -p /app/logs /app/staticfiles && \
-    python3.12 manage.py collectstatic --noinput --clear
+USER metrics
 
-# Make app directory read-only (except logs and staticfiles)
+# Collect static files into METRICS_STATIC_ROOT for production serving by Nginx
+RUN python3.12 manage.py collectstatic --noinput --clear
+
+# Make app directory read-only (except logs, static, media)
 USER root
-RUN chmod -R a-w /app && \
-    chmod 555 /app && \
-    chmod 755 /app/logs /app/staticfiles
-USER 1001
+RUN chmod -R a-w /var/lib/ansible-automation-platform/metrics && \
+    chmod 555 /var/lib/ansible-automation-platform/metrics && \
+    chmod 755 /var/lib/ansible-automation-platform/metrics/logs \
+              /var/lib/ansible-automation-platform/metrics/static \
+              /var/lib/ansible-automation-platform/metrics/media
+USER metrics
 
 # Expose ports (8080 for HTTP, 8443 for HTTPS, 8000 for direct backend access)
 # Non-privileged ports allow running as non-root user (1001)
