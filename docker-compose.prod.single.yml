@@ -1,7 +1,7 @@
 # Production-style orchestration for metrics-service.
 #
 # Uses the main Dockerfile (Gunicorn + Dispatcher + Scheduler via
-# `python manage.py metrics_service run --workers 4`). Static files
+# `python manage.py metrics_service run --workers 1`). Static files
 # are collected at build time and served by WhiteNoise in the same
 # container. For high traffic, you can put Nginx (or another reverse
 # proxy) in front and serve /static/ from Nginx or a CDN.
@@ -40,7 +40,7 @@ services:
     container_name: metrics-service-prod
     # All-in-one: entrypoint starts Nginx (8080/8443) then runs the app command (Gunicorn on 127.0.0.1:8000 + Dispatcher + Scheduler)
     entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
-    command: ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "4"]
+    command: ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "1"]
     ports:
       - "${METRICS_SERVICE_HTTPS_PORT:-8443}:8443"
       - "${METRICS_SERVICE_HTTP_PORT:-8080}:8080"
