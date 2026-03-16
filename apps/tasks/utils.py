@@ -54,7 +54,7 @@ def task_execution_wrapper(task_name: str):
                 log_task_execution(task_name, "complete", f"Task {task_name} completed successfully")
                 return result
             except Exception as e:
-                error_msg = f"{task_name.title()} task failed: {str(e)}"
+                error_msg = f"{task_name} task failed: {str(e)}"
                 log_task_execution(task_name, "error", error_msg, level="error")
                 return create_task_result("error", error=error_msg)
 
