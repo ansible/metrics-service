@@ -24,8 +24,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--workers",
             type=int,
-            default=4,
-            help="Number of worker processes (default: 4)",
+            default=1,
+            help="Number of worker processes (default: 1)",
         )
         parser.add_argument(
             "--timeout",

@@ -79,8 +79,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--workers",
             type=int,
-            default=4,
-            help="Number of workers for both Gunicorn and dispatcher when not overridden (default: 4)",
+            default=1,
+            help="Number of workers for both Gunicorn and dispatcher when not overridden (default: 1)",
         )
         parser.add_argument(
             "--gunicorn-workers",
@@ -744,7 +744,7 @@ class Command(BaseCommand):
 
     def _extract_config(self, options: dict[str, Any]) -> dict[str, Any]:
         """Extract configuration from command options."""
-        workers = options.get("workers", 4)
+        workers = options.get("workers", 1)
         # argparse sets gunicorn_workers/dispatcher_workers to None when not passed;
         # treat None as "use workers" so options.get(..., workers) works as intended
         gunicorn_workers = options.get("gunicorn_workers")

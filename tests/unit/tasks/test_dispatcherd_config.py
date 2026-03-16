@@ -367,7 +367,7 @@ class TestBuildConfigFromDjangoSettings:
 
         assert "service" in config
         assert "pool_kwargs" in config["service"]
-        assert config["service"]["pool_kwargs"]["max_workers"] == 4
+        assert config["service"]["pool_kwargs"]["max_workers"] == 1
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")

@@ -53,7 +53,7 @@ class TestRunDispatcherdCommand(TestCase):
         # Verify argument configuration
         call_kwargs = calls[0][1]
         self.assertEqual(call_kwargs["type"], int)
-        self.assertEqual(call_kwargs["default"], 4)
+        self.assertEqual(call_kwargs["default"], 1)
         self.assertIn("worker", call_kwargs["help"].lower())
 
     def test_add_arguments_timeout(self):

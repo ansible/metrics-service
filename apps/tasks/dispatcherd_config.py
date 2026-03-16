@@ -161,7 +161,7 @@ def build_config_from_django_settings() -> dict[str, Any]:
                 },
             },
             "service": {
-                "pool_kwargs": {"max_workers": 4},
+                "pool_kwargs": {"max_workers": 1},
             },
         }
 
