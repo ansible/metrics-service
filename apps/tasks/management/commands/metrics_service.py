@@ -64,6 +64,13 @@ class Command(BaseCommand):
         tasks_parser = subparsers.add_parser("tasks", help="Manage database tasks")
         self._add_task_management_arguments(tasks_parser)
 
+        # Test pipeline
+        test_pipeline_parser = subparsers.add_parser(
+            "run-test-pipeline",
+            help="Run the full metrics pipeline end-to-end (intended for E2E testing with SEGMENT_TEST_MODE)",
+        )
+        self._add_test_pipeline_arguments(test_pipeline_parser)
+
     def _add_run_arguments(self, parser):
         """Add arguments for the run command."""
         parser.add_argument(
@@ -119,6 +126,38 @@ class Command(BaseCommand):
             type=int,
             default=60,
             help="Task scheduler check interval in seconds (default: 60)",
+        )
+
+    def _add_test_pipeline_arguments(self, parser):
+        """Add arguments for the run-test-pipeline command."""
+        parser.add_argument(
+            "--date",
+            dest="summary_date",
+            help="Date to run the pipeline for in YYYY-MM-DD format (default: yesterday)",
+        )
+        parser.add_argument(
+            "--skip-hourly",
+            action="store_true",
+            dest="skip_hourly",
+            help="Skip hourly metric collections (useful when data already exists in the DB)",
+        )
+        parser.add_argument(
+            "--skip-snapshot",
+            action="store_true",
+            dest="skip_snapshot",
+            help="Skip snapshot metric collections",
+        )
+        parser.add_argument(
+            "--hours",
+            nargs="+",
+            type=int,
+            metavar="HOUR",
+            help="Specific hours to collect (0-23). Defaults to all 24 hours. Ignored with --skip-hourly.",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Run even when SEGMENT_TEST_MODE is not enabled (use with caution — data goes to Segment as-is)",
         )
 
     def _add_init_settings_arguments(self, parser):
@@ -202,6 +241,8 @@ class Command(BaseCommand):
                 self._handle_init_system_tasks_command(options)
             elif command == "tasks":
                 self._handle_task_management_command(options)
+            elif command == "run-test-pipeline":
+                self._handle_run_test_pipeline_command(options)
             else:
                 self.output.error(f"Unknown command: {command}")
                 sys.exit(1)
@@ -211,6 +252,141 @@ class Command(BaseCommand):
         except Exception as e:
             self.output.error(f"Unexpected error: {e}")
             sys.exit(1)
+
+    def _handle_run_test_pipeline_command(self, options: dict[str, Any]) -> None:
+        """
+        Handle the run-test-pipeline command.
+
+        Runs the full metrics pipeline (hourly collections → snapshot collections →
+        daily rollup → anonymize & prepare → send to Segment) sequentially for a
+        single day. Designed for end-to-end testing with SEGMENT_TEST_MODE enabled.
+        """
+        import time
+        from datetime import date
+
+        from django.conf import settings
+
+        from apps.tasks.pipeline import run_test_pipeline
+
+        test_mode_active = bool(getattr(settings, "SEGMENT_TEST_MODE", False))
+        self._assert_test_mode_or_force(test_mode_active, options.get("force", False))
+
+        summary_date: date | None = self._parse_pipeline_date(options.get("summary_date"))
+        skip_hourly: bool = options.get("skip_hourly", False)
+        skip_snapshot: bool = options.get("skip_snapshot", False)
+        hours: list[int] | None = options.get("hours")
+
+        self._print_pipeline_plan(summary_date, test_mode_active, skip_hourly, skip_snapshot, hours)
+
+        start_time = time.time()
+        try:
+            result = run_test_pipeline(
+                summary_date=summary_date,
+                skip_hourly=skip_hourly,
+                skip_snapshot=skip_snapshot,
+                hours=hours,
+            )
+        except Exception as e:
+            raise CommandError(f"Pipeline raised an unexpected error: {e}") from e
+
+        elapsed = time.time() - start_time
+        self._print_pipeline_results(result, elapsed, test_mode_active)
+
+    def _assert_test_mode_or_force(self, test_mode_active: bool, force: bool) -> None:
+        """Abort unless SEGMENT_TEST_MODE is on or --force is passed."""
+        if not test_mode_active and not force:
+            self.output.error(
+                "SEGMENT_TEST_MODE is not enabled. Running without it sends data to Segment "
+                "WITHOUT the '_Test' suffix, mixing test data with real customer data."
+            )
+            self.output.warning(
+                "Set METRICS_SERVICE_SEGMENT_TEST_MODE=true and re-run, or pass --force to proceed anyway."
+            )
+            sys.exit(1)
+
+    def _parse_pipeline_date(self, date_str: str | None):
+        """Parse an optional ISO date string; returns None (yesterday) when absent."""
+        if not date_str:
+            return None
+        from datetime import date
+
+        try:
+            return date.fromisoformat(date_str)
+        except ValueError as e:
+            raise CommandError(f"Invalid --date value '{date_str}': {e}") from e
+
+    def _print_pipeline_plan(self, summary_date, test_mode_active, skip_hourly, skip_snapshot, hours):
+        """Print the pipeline configuration before running."""
+        import datetime
+
+        from django.utils import timezone
+
+        from apps.tasks.pipeline import HOURLY_COLLECTOR_TYPES, SNAPSHOT_COLLECTOR_TYPES
+
+        effective_date = summary_date or (timezone.now().date() - datetime.timedelta(days=1))
+        hour_count = len(hours) if hours else 24
+
+        self.output.write("")
+        self.output.success("Metrics Test Pipeline")
+        self.output.write_separator()
+        self.output.write(f"  Date:              {effective_date}")
+        self.output.write(f"  SEGMENT_TEST_MODE: {'ON' if test_mode_active else 'OFF (--force)'}")
+        self.output.write(
+            f"  Hourly:            {'SKIP' if skip_hourly else f'{len(HOURLY_COLLECTOR_TYPES)} types x {hour_count} hours'}"
+        )
+        self.output.write(
+            f"  Snapshot:          {'SKIP' if skip_snapshot else f'{len(SNAPSHOT_COLLECTOR_TYPES)} types'}"
+        )
+        self.output.write("  Rollup:            yes")
+        self.output.write("  Anonymize:         yes")
+        self.output.write("  Send:              yes")
+        self.output.write_separator()
+        self.output.write("")
+
+    def _print_pipeline_results(self, result: dict[str, Any], elapsed: float, test_mode_active: bool) -> None:
+        """Print the pipeline results after completion."""
+        from django.utils import timezone
+
+        self.output.write("Pipeline Results")
+        self.output.write_separator()
+
+        if result["status"] == "error":
+            self.output.error(f"Pipeline FAILED at step: {result.get('step', 'unknown')}")
+            self.output.error(f"Error: {result.get('error', 'no details')}")
+            sys.exit(1)
+
+        hourly = result.get("hourly")
+        if hourly == "skipped":
+            self.output.write("  Step 1 - Hourly collections: skipped")
+        else:
+            ok = sum(1 for r in hourly if r["result"].get("status") != "error")
+            self.output.write(f"  Step 1 - Hourly collections: {ok} succeeded, {len(hourly) - ok} failed")
+
+        snapshot = result.get("snapshot")
+        if snapshot == "skipped":
+            self.output.write("  Step 2 - Snapshot collections: skipped")
+        else:
+            ok = sum(1 for r in snapshot if r["result"].get("status") != "error")
+            self.output.write(f"  Step 2 - Snapshot collections: {ok} succeeded, {len(snapshot) - ok} failed")
+
+        rollup = result.get("rollup", {})
+        self.output.write(f"  Step 3 - Daily rollup: {rollup.get('status', 'unknown')}")
+
+        anon = result.get("anonymize", {})
+        self.output.write(f"  Step 4 - Anonymize & prepare: {anon.get('status', 'unknown')}")
+
+        send = result.get("send", {})
+        sr = send.get("results", {})
+        self.output.write(
+            f"  Step 5 - Send to Segment: {send.get('status', 'unknown')} "
+            f"(sent={sr.get('sent', 0)}, failed={sr.get('failed', 0)})"
+        )
+
+        summary_date = result.get("summary_date") or str(timezone.now().date())
+        self.output.write_separator()
+        self.output.success(f"Pipeline completed in {elapsed:.1f}s for {summary_date}")
+        if test_mode_active:
+            self.output.write("  Events sent with '_Test' suffix (SEGMENT_TEST_MODE=ON)")
 
     def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service (API, dispatcherd, scheduler only).
