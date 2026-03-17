@@ -5,6 +5,7 @@ This task fetches pending anonymized payloads from the database and sends them
 to Segment.com, handling retries and stale payload recovery.
 """
 
+import hashlib
 import logging
 from datetime import timedelta
 from typing import Any
@@ -117,10 +118,16 @@ def _process_single_payload(payload, results: dict) -> None:
             event_name = f"{event_name}_Test"
             logger.debug(f"SEGMENT_TEST_MODE enabled — using test event name: {event_name}")
 
+        hashed = hashlib.sha256(str(payload.created).encode("utf-8", errors="replace")).hexdigest()
+
         segment_status = send_to_segment(
             user_id=payload.segment_user_id,
             event_name=event_name,
             segment_data=payload.anonymized_data,
+            segment_meta={
+                "timestamp": payload.created,
+                "message_id": hashed,
+            },
         )
 
         if segment_status == "success":
@@ -137,7 +144,7 @@ def _process_single_payload(payload, results: dict) -> None:
         results["failed"] += 1
 
 
-def send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
+def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_meta: dict) -> str:
     """
     Send data to Segment.com using metrics-utility StorageSegment.
 
@@ -189,7 +196,9 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict) -> str:
 
         # Send data using StorageSegment.put()
         artifact_name = f"metrics_collection_{user_id}"
-        chunks = storage.put(artifact_name=artifact_name, dict=segment_data, event_name=event_name)
+        chunks = storage.put(
+            artifact_name=artifact_name, dict=segment_data, event_name=event_name, segment_meta=segment_meta
+        )
 
         # Log success with chunk information
         chunk_count = len(chunks) if chunks else 1
