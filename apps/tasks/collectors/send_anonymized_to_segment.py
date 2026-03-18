@@ -144,7 +144,7 @@ def _process_single_payload(payload, results: dict) -> None:
         results["failed"] += 1
 
 
-def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_meta: dict) -> str:
+def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_meta: dict = None) -> str:
     """
     Send data to Segment.com using metrics-utility StorageSegment.
 
