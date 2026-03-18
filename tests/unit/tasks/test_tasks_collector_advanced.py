@@ -65,7 +65,7 @@ class TestSegmentSendingTask(TestCase):
         assert result["results"]["sent"] == 0
         assert result["total_processed"] == 0
 
-    @patch("apps.tasks.utils.send_to_segment")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.send_to_segment")
     def test_send_to_segment_success(self, mock_send_to_segment):
         """Test successful sending to Segment."""
 
@@ -97,7 +97,7 @@ class TestSegmentSendingTask(TestCase):
         payload.refresh_from_db()
         assert payload.status == "sent"
 
-    @patch("apps.tasks.utils.send_to_segment")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.send_to_segment")
     def test_send_to_segment_specific_payload(self, mock_send_to_segment):
         """Test sending specific payload by ID."""
 
@@ -118,7 +118,7 @@ class TestSegmentSendingTask(TestCase):
         assert result["status"] == "success"
         assert result["results"]["sent"] == 1
 
-    @patch("apps.tasks.utils.send_to_segment")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.send_to_segment")
     def test_send_to_segment_retry_logic(self, mock_send_to_segment):
         """Test retry logic for failed sends."""
 

@@ -6,12 +6,12 @@ statistics, and stores in HourlyMetricsCollection.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from django.utils import timezone
 
-from ..utils import generic_collect_metrics, get_db_connection, task, task_execution_wrapper
+from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string, task, task_execution_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
         **kwargs: Task data containing:
             - collector_type (str): Type of collector (required)
             - database (str): Database name (default: 'awx')
+            - collection_timestamp (str): default yesterday 23:00
 
     Returns:
         dict: Task result with collection status and record ID
@@ -89,17 +90,16 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     # Extract optional execution_id for linking to TaskExecution
     execution_id = kwargs.get("execution_id")  # Available when called via execute_db_task
 
-    snapshot_timestamp = timezone.now()
-
-    # FIXME: temporary fix, but this needs more intentionality
-    # Snapshot collections belong to the previous day (the day being summarized)
-    # Use 23:00 of the previous day to ensure they fall within the daily rollup's query window
-    # which is [midnight previous_day, midnight today). This prevents snapshots from falling
-    # outside the rollup query when they run after midnight.
-    previous_day = snapshot_timestamp.date() - timedelta(days=1)
-    collection_timestamp = timezone.make_aware(datetime.combine(previous_day, datetime.min.time())).replace(
-        hour=23, minute=0, second=0, microsecond=0
-    )
+    # Determine hour to collect (default to previous full hour)
+    collection_timestamp_str = kwargs.get("collection_timestamp")
+    if collection_timestamp_str:
+        collection_timestamp = parse_datetime_string(collection_timestamp_str)
+        if collection_timestamp is None:
+            raise ValueError(f"Invalid collection_timestamp format: {collection_timestamp_str}")
+    else:
+        # Snapshot collections belong to the previous day (the day being summarized)
+        # Use 23:00 of the previous day to ensure they fall within the daily rollup's query window
+        collection_timestamp = timezone.now().replace(hour=23, minute=0, second=0, microsecond=0) - timedelta(days=1)
 
     # Get database connection
     db_connection = get_db_connection()

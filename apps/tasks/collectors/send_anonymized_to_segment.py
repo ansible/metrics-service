@@ -16,7 +16,6 @@ from django.utils import timezone
 from ..utils import (
     create_task_result,
     log_task_execution,
-    send_to_segment,
     task,
     task_execution_wrapper,
 )
@@ -118,10 +117,17 @@ def _process_single_payload(payload, results: dict) -> None:
             event_name = f"{event_name}_Test"
             logger.debug(f"SEGMENT_TEST_MODE enabled — using test event name: {event_name}")
 
+        # hashed on the other side, with chunk index
+        message_id = str(payload.created)
+
         segment_status = send_to_segment(
             user_id=payload.segment_user_id,
             event_name=event_name,
             segment_data=payload.anonymized_data,
+            segment_meta={
+                "timestamp": payload.created,
+                "message_id": message_id,
+            },
         )
 
         if segment_status == "success":
@@ -136,6 +142,72 @@ def _process_single_payload(payload, results: dict) -> None:
         payload.error_message = str(e)
         payload.save()
         results["failed"] += 1
+
+
+def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_meta: dict = None) -> str:
+    """
+    Send data to Segment.com using metrics-utility StorageSegment.
+
+    Args:
+        user_id: User ID for Segment tracking
+        event_name: Event name for tracking
+        segment_data: Dictionary of data to send
+
+    Returns:
+        str: "success" if sent, "segment_not_available" if Segment is not configured,
+             or "error: <message>" if sending failed.
+    """
+    try:
+        from metrics_utility.library.storage.segment import SEGMENT_AVAILABLE, StorageSegment
+    except ImportError:
+        logger.warning("metrics-utility segment integration not available")
+        return "segment_not_available"
+
+    if not SEGMENT_AVAILABLE or StorageSegment is None:
+        return "segment_not_available"
+
+    try:
+        import json
+
+        from django.conf import settings
+
+        # Get Segment write key from settings
+        write_key = getattr(settings, "SEGMENT_WRITE_KEY", None)
+        if not write_key:
+            logger.warning("SEGMENT_WRITE_KEY not configured in settings")
+            return "segment_not_available"
+
+        # Calculate data size for logging
+        data_size = len(json.dumps(segment_data).encode("utf-8"))
+
+        log_task_execution(
+            "segment_send",
+            "processing",
+            f"Sending data to Segment.com using StorageSegment (Size: {data_size} bytes)",
+        )
+
+        # Initialize StorageSegment with configuration
+        storage = StorageSegment(
+            write_key=write_key,
+            user_id=user_id,
+            debug=getattr(settings, "DEBUG", False),
+            use_bulk=data_size > 24 * 1024,  # Use bulk mode for large payloads
+        )
+
+        # Send data using StorageSegment.put()
+        artifact_name = f"metrics_collection_{user_id}"
+        chunks = storage.put(
+            artifact_name=artifact_name, dict=segment_data, event_name=event_name, segment_meta=segment_meta
+        )
+
+        # Log success with chunk information
+        chunk_count = len(chunks) if chunks else 1
+        logger.info(f"Successfully sent metrics to Segment.com (Size: {data_size} bytes, Chunks: {chunk_count})")
+        return "success"
+
+    except Exception as e:
+        logger.error(f"Error sending data to Segment.com: {str(e)}")
+        return f"error: {str(e)}"
 
 
 @task(queue="metrics_collectors", decorate=False)

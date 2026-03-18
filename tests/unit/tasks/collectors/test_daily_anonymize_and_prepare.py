@@ -9,7 +9,7 @@ Tests cover:
 - Salt generation and usage
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -42,7 +42,6 @@ class TestDailyAnonymizeAndPrepare:
                 "unified_jobs": {"test": "rollup3"},
                 "execution_environments": {"test": "rollup4"},
                 "credentials_service": {"test": "rollup5"},
-                "config": {"version": "1.0"},
             },
             hourly_collections_count=24,
             missing_hours=[],
@@ -72,7 +71,6 @@ class TestDailyAnonymizeAndPrepare:
 
         # Verify anonymized data includes required sections
         assert "statistics" in payload.anonymized_data
-        assert "config" in payload.anonymized_data
         assert "summary_metadata" in payload.anonymized_data
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
@@ -136,38 +134,6 @@ class TestDailyAnonymizeAndPrepare:
         # Summary status should remain 'aggregated' (transaction rolled back)
         daily_summary.refresh_from_db()
         assert daily_summary.status == "aggregated"
-
-    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
-    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
-    def test_adds_config_data(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
-        """Test adds config data to anonymized data."""
-        # Arrange
-        summary_date = timezone.now().date() - timedelta(days=1)
-        config_data = {"version": "1.0", "feature_enabled": True}
-
-        daily_summary_factory(
-            summary_date=summary_date,
-            status="aggregated",
-            aggregated_metrics={
-                "job_host_summary_service": {},
-                "unified_jobs": {},
-                "execution_environments": {},
-                "credentials_service": {},
-                "config": config_data,
-            },
-        )
-
-        mock_anonymize_rollups.return_value = {"statistics": {}}
-        mock_generate_salt.return_value = "test-salt"
-
-        # Act
-        result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
-
-        # Assert
-        from apps.tasks.models import AnonymizedMetricsPayload
-
-        payload = AnonymizedMetricsPayload.objects.get(id=result["payload_id"])
-        assert payload.anonymized_data["config"] == config_data
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
@@ -370,8 +336,7 @@ class TestDailyAnonymizeAndPrepare:
         from apps.tasks.models import AnonymizedMetricsPayload
 
         payload = AnonymizedMetricsPayload.objects.get(id=result["payload_id"])
-        todays_date = datetime.now(UTC).date().isoformat()
-        expected_event_name = f"Controller Metrics Daily Rollup {todays_date}"
+        expected_event_name = "Controller Metrics Daily Rollup"
         assert payload.segment_event_name == expected_event_name
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")

@@ -2,13 +2,13 @@
 Comprehensive unit tests for tasks utils module.
 """
 
-import os
 from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
 from apps.tasks import utils
+from apps.tasks.collectors.send_anonymized_to_segment import send_to_segment
 from apps.tasks.models import Task, TaskExecution
 
 
@@ -35,31 +35,8 @@ class TaskUtilsTestCase(TestCase):
         task.save()
         return task
 
-    @patch("django.setup")
-    @patch("django.conf.settings")
-    def test_ensure_django_setup_not_configured(self, mock_settings, mock_setup):
-        """Test ensure_django_setup when Django is not configured."""
-        mock_settings.configured = False
-
-        with patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": ""}):
-            utils.ensure_django_setup()
-
-        mock_setup.assert_called_once()
-        self.assertEqual(os.environ.get("DJANGO_SETTINGS_MODULE"), "metrics_service.settings")
-
-    @patch("django.setup")
-    @patch("django.conf.settings")
-    def test_ensure_django_setup_already_configured(self, mock_settings, mock_setup):
-        """Test ensure_django_setup when Django is already configured."""
-        mock_settings.configured = True
-
-        utils.ensure_django_setup()
-
-        mock_setup.assert_not_called()
-
     @patch("apps.tasks.utils.log_task_execution")
-    @patch("apps.tasks.utils.ensure_django_setup")
-    def test_task_execution_wrapper_success(self, mock_ensure, mock_log):
+    def test_task_execution_wrapper_success(self, mock_log):
         """Test task execution wrapper with successful task."""
 
         @utils.task_execution_wrapper("test_task")
@@ -68,7 +45,6 @@ class TaskUtilsTestCase(TestCase):
 
         result = test_function(param1="value1", param2="value2")
 
-        mock_ensure.assert_called_once()
         self.assertEqual(mock_log.call_count, 2)  # start and complete
         mock_log.assert_any_call("test_task", "start", "Starting test_task task")
         mock_log.assert_any_call("test_task", "complete", "Task test_task completed successfully")
@@ -77,9 +53,8 @@ class TaskUtilsTestCase(TestCase):
         self.assertEqual(result["data"]["param1"], "value1")
 
     @patch("apps.tasks.utils.log_task_execution")
-    @patch("apps.tasks.utils.ensure_django_setup")
     @patch("apps.tasks.utils.create_task_result")
-    def test_task_execution_wrapper_error(self, mock_create_result, mock_ensure, mock_log):
+    def test_task_execution_wrapper_error(self, mock_create_result, mock_log):
         """Test task execution wrapper with task error."""
         mock_create_result.return_value = {"status": "error", "error": "Test error"}
 
@@ -89,12 +64,11 @@ class TaskUtilsTestCase(TestCase):
 
         result = test_function(param1="value1")
 
-        mock_ensure.assert_called_once()
         self.assertEqual(mock_log.call_count, 2)  # start and error
         mock_log.assert_any_call("test_task", "start", "Starting test_task task")
-        mock_log.assert_any_call("test_task", "error", "Test_Task task failed: Test error", level="error")
+        mock_log.assert_any_call("test_task", "error", "test_task task failed: Test error", level="error")
 
-        mock_create_result.assert_called_once_with("error", error="Test_Task task failed: Test error")
+        mock_create_result.assert_called_once_with("error", error="test_task task failed: Test error")
         self.assertEqual(result["status"], "error")
 
     def test_get_task_and_execution_with_execution(self):
@@ -371,15 +345,15 @@ class TestGenerateSalt(TestCase):
 class TestSendToSegment(TestCase):
     """Test send_to_segment function."""
 
-    @patch("apps.tasks.utils.logger")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
     def test_send_to_segment_import_error(self, mock_logger):
         """Test send_to_segment when metrics-utility import fails."""
         with (
             patch.dict("sys.modules", {"metrics_utility.library.storage.segment": None}),
-            patch("apps.tasks.utils.logger"),
+            patch("apps.tasks.collectors.send_anonymized_to_segment.logger"),
         ):
             # The function handles ImportError internally, so we need to test the fallback
-            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+            result = send_to_segment("user1", "test_event", {"data": "test"})
 
             # Result should indicate segment not available if metrics-utility is not installed
             self.assertIn(result, ["success", "segment_not_available", "error"])
@@ -393,11 +367,11 @@ class TestSendToSegment(TestCase):
         ):
             mock_settings.SEGMENT_WRITE_KEY = None
 
-            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+            result = send_to_segment("user1", "test_event", {"data": "test"})
 
             self.assertEqual(result, "segment_not_available")
 
-    @patch("apps.tasks.utils.logger")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
     def test_send_to_segment_success(self, mock_logger):
         """Test send_to_segment successful transmission."""
         mock_storage_instance = MagicMock()
@@ -413,7 +387,7 @@ class TestSendToSegment(TestCase):
             mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
             mock_settings.DEBUG = False
 
-            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+            result = send_to_segment("user1", "test_event", {"data": "test"})
 
             self.assertEqual(result, "success")
             mock_storage_class.assert_called_once_with(
@@ -423,7 +397,7 @@ class TestSendToSegment(TestCase):
                 use_bulk=False,  # Small data, no bulk
             )
 
-    @patch("apps.tasks.utils.logger")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
     def test_send_to_segment_bulk_mode(self, mock_logger):
         """Test send_to_segment uses bulk mode for large data."""
         mock_storage_instance = MagicMock()
@@ -442,14 +416,14 @@ class TestSendToSegment(TestCase):
             mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
             mock_settings.DEBUG = False
 
-            result = utils.send_to_segment("user1", "test_event", large_data)
+            result = send_to_segment("user1", "test_event", large_data)
 
             self.assertEqual(result, "success")
             # Should use bulk mode for large data
             call_kwargs = mock_storage_class.call_args[1]
             self.assertTrue(call_kwargs["use_bulk"])
 
-    @patch("apps.tasks.utils.logger")
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
     def test_send_to_segment_exception(self, mock_logger):
         """Test send_to_segment handles exceptions."""
         with (
@@ -460,7 +434,7 @@ class TestSendToSegment(TestCase):
             mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
             mock_storage_class.side_effect = Exception("Connection error")
 
-            result = utils.send_to_segment("user1", "test_event", {"data": "test"})
+            result = send_to_segment("user1", "test_event", {"data": "test"})
 
             self.assertTrue(result.startswith("error:"))
             self.assertIn("Connection error", result)
