@@ -9,7 +9,7 @@ Tests cover:
 - Salt generation and usage
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -336,8 +336,7 @@ class TestDailyAnonymizeAndPrepare:
         from apps.tasks.models import AnonymizedMetricsPayload
 
         payload = AnonymizedMetricsPayload.objects.get(id=result["payload_id"])
-        todays_date = datetime.now(UTC).date().isoformat()
-        expected_event_name = f"Controller Metrics Daily Rollup {todays_date}"
+        expected_event_name = "Controller Metrics Daily Rollup"
         assert payload.segment_event_name == expected_event_name
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
