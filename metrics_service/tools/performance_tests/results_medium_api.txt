@@ -1,0 +1,148 @@
+======================================================================
+Metrics Service API Pipeline Benchmark
+======================================================================
+  Target    : http://localhost:18002/api
+  User      : superadmin
+  Test date : 2024-01-25
+  Prometheus: http://localhost:18002/metrics
+
+Verifying connectivity...
+  OK
+
+======================================================================
+Phase 1: Snapshot collectors (run once each)
+======================================================================
+  Collector                             Duration
+  ---------                             --------
+  execution_environments                  1.20s
+  config                                  0.09s
+  controller_version_service              0.04s
+  table_metadata                          0.04s
+
+  Total: 98.3s
+
+======================================================================
+Phase 2: Hourly collectors (24 hours x 4 collectors)
+======================================================================
+  Hour   Collector                             Duration
+  ----   ---------                             --------
+  0      job_host_summary_service                0.14s
+  0      unified_jobs                            0.04s
+  0      credentials_service                     0.03s
+  0      main_jobevent_service                   0.10s
+  1      job_host_summary_service                0.03s
+  1      unified_jobs                            0.05s
+  1      credentials_service                     0.01s
+  1      main_jobevent_service                   0.13s
+  2      job_host_summary_service                0.05s
+  2      unified_jobs                            0.08s
+  2      credentials_service                     0.07s
+  2      main_jobevent_service                   0.11s
+  3      job_host_summary_service                0.04s
+  3      unified_jobs                            0.09s
+  3      credentials_service                     0.06s
+  3      main_jobevent_service                   0.27s
+  4      job_host_summary_service                0.10s
+  4      unified_jobs                            0.04s
+  4      credentials_service                     0.04s
+  4      main_jobevent_service                   0.10s
+  5      job_host_summary_service                0.20s
+  5      unified_jobs                            0.03s
+  5      credentials_service                     0.01s
+  5      main_jobevent_service                   0.12s
+  6      job_host_summary_service                0.05s
+  6      unified_jobs                            0.06s
+  6      credentials_service                     0.06s
+  6      main_jobevent_service                   0.12s
+  7      job_host_summary_service                0.06s
+  7      unified_jobs                            0.05s
+  7      credentials_service                     0.04s
+  7      main_jobevent_service                   0.13s
+  8      job_host_summary_service                0.08s
+  8      unified_jobs                            0.04s
+  8      credentials_service                     0.07s
+  8      main_jobevent_service                   0.13s
+  9      job_host_summary_service                0.12s
+  9      unified_jobs                            0.02s
+  9      credentials_service                     0.01s
+  9      main_jobevent_service                   0.11s
+  10     job_host_summary_service                0.06s
+  10     unified_jobs                            0.03s
+  10     credentials_service                     0.04s
+  10     main_jobevent_service                   0.10s
+  11     job_host_summary_service                0.14s
+  11     unified_jobs                            0.04s
+  11     credentials_service                     0.30s
+  11     main_jobevent_service                   0.13s
+  12     job_host_summary_service                0.05s
+  12     unified_jobs                            0.04s
+  12     credentials_service                     0.03s
+  12     main_jobevent_service                   0.11s
+  13     job_host_summary_service                0.12s
+  13     unified_jobs                            0.08s
+  13     credentials_service                     0.02s
+  13     main_jobevent_service                   0.10s
+  14     job_host_summary_service                0.03s
+  14     unified_jobs                            0.11s
+  14     credentials_service                     0.04s
+  14     main_jobevent_service                   0.11s
+  15     job_host_summary_service                0.02s
+  15     unified_jobs                            0.10s
+  15     credentials_service                     0.02s
+  15     main_jobevent_service                   0.64s
+  16     job_host_summary_service                0.02s
+  16     unified_jobs                            0.04s
+  16     credentials_service                     0.02s
+  16     main_jobevent_service                   0.14s
+  17     job_host_summary_service                0.02s
+  17     unified_jobs                            0.02s
+  17     credentials_service                     0.05s
+  17     main_jobevent_service                   0.07s
+  18     job_host_summary_service                0.02s
+  18     unified_jobs                            0.10s
+  18     credentials_service                     0.01s
+  18     main_jobevent_service                   0.09s
+  19     job_host_summary_service                0.01s
+  19     unified_jobs                            0.05s
+  19     credentials_service                     0.01s
+  19     main_jobevent_service                   0.15s
+  20     job_host_summary_service                0.02s
+  20     unified_jobs                            0.09s
+  20     credentials_service                     0.01s
+  20     main_jobevent_service                   0.18s
+  21     job_host_summary_service                0.05s
+  21     unified_jobs                            0.10s
+  21     credentials_service                     0.01s
+  21     main_jobevent_service                   0.19s
+  22     job_host_summary_service                0.07s
+  22     unified_jobs                            0.03s
+  22     credentials_service                     0.02s
+  22     main_jobevent_service                   0.06s
+  23     job_host_summary_service                0.04s
+  23     unified_jobs                            0.04s
+  23     credentials_service                     0.08s
+  23     main_jobevent_service                   0.09s
+
+  Total: 2879.8s (48.0 min)
+
+======================================================================
+Phase 3: Daily rollup
+======================================================================
+  Duration: 0.10s
+
+======================================================================
+Summary
+======================================================================
+  Snapshot collectors:    98.33s
+  Hourly collection  :   2879.8s (48.0 min)
+  Daily rollup       :     0.10s
+  Total              :   3007.9s (50.1 min)
+
+======================================================================
+Server-side Metrics (Prometheus — web process only)
+======================================================================
+  Note: RSS here is the web process, not the dispatcherd workers
+  that ran the collectors. Not comparable to internal benchmark peak memory.
+  CPU time used (web process) :   79.270s
+  RSS memory (web process)    :     87.9 MB
+

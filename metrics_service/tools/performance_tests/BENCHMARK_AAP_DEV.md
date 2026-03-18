@@ -74,7 +74,7 @@ export DJANGO_SUPERUSER_PASSWORD=$BENCHMARK_PW
 .venv/bin/python manage.py createsuperuser --username superadmin --email superadmin@example.com --noinput
 ```
 
-Then use `BENCHMARK_USER=superadmin PASSWORD=$BENCHMARK_PW` when running the HTTP benchmarks below.
+Then use `BENCHMARK_USER=superadmin PASSWORD=$BENCHMARK_PW` when running the benchmarks below.
 
 > **Note:** `USERNAME` is a reserved read-only variable in zsh and cannot be overridden inline.
 > Use `BENCHMARK_USER` instead.
@@ -82,7 +82,12 @@ Then use `BENCHMARK_USER=superadmin PASSWORD=$BENCHMARK_PW` when running the HTT
 ## Step 5 — Run the benchmarks at each scale
 
 Repeat the following block for **small**, **medium**, and **large**.
-Each time: clean → generate data → run internal benchmark → run HTTP benchmark.
+Each time: clean → generate data → run internal benchmark → run API benchmark.
+
+> **Important:** The internal benchmark must run before the API benchmark. It populates
+> the `HourlyMetricsCollection` and `DailyMetricsSummary` tables that the API reads from.
+> Running the API benchmark without the internal benchmark first will produce results
+> against empty summary tables.
 
 ---
 
@@ -134,7 +139,7 @@ TEST_DATE=2024-01-25 \
   | tee metrics_service/tools/performance_tests/results_small_internal.txt
 ```
 
-**Run HTTP benchmark:**
+**Run API benchmark:**
 
 ```bash
 cd <path-to-metrics-service>
@@ -143,8 +148,9 @@ BASE_URL=http://localhost:18002/api \
 BENCHMARK_USER=superadmin \
 PASSWORD=$BENCHMARK_PW \
 METRICS_URL=http://localhost:18002/metrics \
-  .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
-  | tee metrics_service/tools/performance_tests/results_small_http.txt
+TEST_DATE=2024-01-25 \
+  .venv/bin/python metrics_service/tools/performance_tests/benchmark_api.py \
+  | tee metrics_service/tools/performance_tests/results_small_api.txt
 ```
 
 ---
@@ -197,7 +203,7 @@ TEST_DATE=2024-01-25 \
   | tee metrics_service/tools/performance_tests/results_medium_internal.txt
 ```
 
-**Run HTTP benchmark:**
+**Run API benchmark:**
 
 ```bash
 cd <path-to-metrics-service>
@@ -206,8 +212,9 @@ BASE_URL=http://localhost:18002/api \
 BENCHMARK_USER=superadmin \
 PASSWORD=$BENCHMARK_PW \
 METRICS_URL=http://localhost:18002/metrics \
-  .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
-  | tee metrics_service/tools/performance_tests/results_medium_http.txt
+TEST_DATE=2024-01-25 \
+  .venv/bin/python metrics_service/tools/performance_tests/benchmark_api.py \
+  | tee metrics_service/tools/performance_tests/results_medium_api.txt
 ```
 
 ---
@@ -262,17 +269,18 @@ TEST_DATE=2024-01-25 \
   | tee metrics_service/tools/performance_tests/results_large_internal.txt
 ```
 
-**Run HTTP benchmark:**
+**Run API benchmark:**
 
 ```bash
 cd <path-to-metrics-service>
 
-  BASE_URL=http://localhost:18002/api \
-  BENCHMARK_USER=superadmin \
-  PASSWORD=$BENCHMARK_PW \
-  METRICS_URL=http://localhost:18002/metrics \
-    .venv/bin/python metrics_service/tools/performance_tests/http_benchmark.py \
-    | tee metrics_service/tools/performance_tests/results_large_http.txt
+BASE_URL=http://localhost:18002/api \
+BENCHMARK_USER=superadmin \
+PASSWORD=$BENCHMARK_PW \
+METRICS_URL=http://localhost:18002/metrics \
+TEST_DATE=2024-01-25 \
+  .venv/bin/python metrics_service/tools/performance_tests/benchmark_api.py \
+  | tee metrics_service/tools/performance_tests/results_large_api.txt
 ```
 
 ---
@@ -284,8 +292,8 @@ Output files will be saved alongside this document:
 | File | Contents |
 |------|----------|
 | `results_small_internal.txt` | Small scale — collection/rollup timing and memory |
-| `results_small_http.txt` | Small scale — HTTP latency and Prometheus delta |
+| `results_small_api.txt` | Small scale — API pipeline timing and Prometheus delta |
 | `results_medium_internal.txt` | Medium scale — collection/rollup timing and memory |
-| `results_medium_http.txt` | Medium scale — HTTP latency and Prometheus delta |
+| `results_medium_api.txt` | Medium scale — API pipeline timing and Prometheus delta |
 | `results_large_internal.txt` | Large scale — collection/rollup timing and memory |
-| `results_large_http.txt` | Large scale — HTTP latency and Prometheus delta |
+| `results_large_api.txt` | Large scale — API pipeline timing and Prometheus delta |
