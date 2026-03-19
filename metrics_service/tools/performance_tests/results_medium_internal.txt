@@ -1,0 +1,100 @@
+
+================================================================================
+  Metrics Collection & Rollup Performance Test
+  Test Date: 2024-01-25
+================================================================================
+
+Cleaning old collections...
+Done
+
+Warm-up: running throwaway collector call to initialize DB connections and caches...
+Done
+
+Phase 1: Snapshot collectors — run once
+  execution_environments: 132.4 MB
+  config: 129.6 MB
+  controller_version_service: 128.3 MB
+  table_metadata: 122.5 MB
+  Total duration: 1.00s
+
+Phase 2: Hourly collectors — 24 hours
+  Hour  job_host_summary_service            unified_jobs     credentials_service   main_jobevent_service      Total   Memory MB
+     0                      0.11s                   0.05s                   0.06s                   0.82s      1.03s      172.5
+     1                      0.05s                   0.06s                   0.05s                   2.09s      2.25s      264.1
+     2                      0.06s                   0.06s                   0.05s                   2.82s      2.98s      327.6
+     3                      0.10s                   0.05s                   0.05s                   3.60s      3.80s      297.8
+     4                      0.10s                   0.05s                   0.05s                   2.86s      3.07s      323.5
+     5                      0.26s                   0.06s                   0.05s                   2.19s      2.56s      315.3
+     6                      0.05s                   0.06s                   0.05s                   2.91s      3.07s      301.9
+     7                      0.26s                   0.06s                   0.06s                   2.94s      3.31s      298.4
+     8                      0.06s                   0.05s                   0.05s                   2.60s      2.76s      307.1
+     9                      0.05s                   0.05s                   0.06s                   1.99s      2.15s      297.4
+    10                      0.05s                   0.05s                   0.05s                   2.32s      2.47s      361.4
+    11                      0.05s                   0.05s                   0.05s                   2.05s      2.20s      361.6
+    12                      0.05s                   0.05s                   0.05s                   2.42s      2.57s      364.2
+    13                      0.05s                   0.05s                   0.05s                   1.76s      1.92s      366.6
+    14                      0.06s                   0.06s                   0.05s                   2.58s      2.74s      362.6
+    15                      0.05s                   0.05s                   0.05s                   2.91s      3.07s      381.8
+    16                      0.05s                   0.05s                   0.05s                   2.19s      2.35s      381.1
+    17                      0.06s                   0.05s                   0.06s                   2.17s      2.33s      382.8
+    18                      0.05s                   0.05s                   0.05s                   2.65s      2.81s      376.8
+    19                      0.06s                   0.05s                   0.05s                   3.11s      3.27s      348.9
+    20                      0.05s                   0.05s                   0.05s                   2.76s      2.91s      357.0
+    21                      0.05s                   0.05s                   0.05s                   1.96s      2.12s      340.2
+    22                      0.05s                   0.05s                   0.05s                   1.81s      1.97s      354.3
+    23                      0.05s                   0.06s                   0.05s                   0.44s      0.60s      354.7
+
+  Hourly Collection Summary:
+    Total duration: 60.3s (1.0 min)
+    Collections created: 100
+    Total data size: 2.50 MB
+    job_host_summary_service total: 1.8s
+    unified_jobs total: 1.3s
+    credentials_service total: 1.3s
+    main_jobevent_service total: 55.9s
+    Slowest hour: 3.80s (hour 3)
+    Fastest hour: 0.60s (hour 23)
+
+Phase 3: Daily rollup
+  Duration: 0.05s
+  Status: success
+  Summaries created: 1
+  Memory after rollup: 359.5 MB
+
+================================================================================
+  Final Results
+================================================================================
+
+  Snapshot collectors:  1.00s
+  Hourly collection:    60.3s (1.0 min)
+    job_host_summary_service: 1.8s total, peak 382.8 MB
+    unified_jobs: 1.3s total, peak 382.8 MB
+    credentials_service: 1.3s total, peak 382.8 MB
+    main_jobevent_service: 55.9s total, peak 413.8 MB
+  Rollup:               0.05s, 359.5 MB after
+  Total:                61.4s (1.0 min)
+
+  Baseline memory: 132.3 MB
+  Peak memory:     413.8 MB (RSS, sampled every 50ms during execution)
+  Delta:           281.5 MB
+
+  Output Table Sizes:
+    HourlyMetricsCollection: 100 rows, 2.54 MB
+    DailyMetricsSummary:     1 rows, 0.00 MB
+
+  Source Table Counts (AWX DB):
+    Table                                   Total  On test date
+    -------------------------------- ------------  ------------
+    main_jobevent                       4,598,136  1,181,781
+    main_jobhostsummary                    80,000
+    main_host                                  80
+    main_unifiedjob                         4,000
+    main_job                                4,000
+    main_unifiedjobtemplate                    44
+    main_inventory                              4
+    main_organization                           4
+    main_credential                             0
+    main_credentialtype                         0
+    main_unifiedjob_credentials                 0
+    main_executionenvironment                   0
+
