@@ -18,4 +18,6 @@ app_name = "tasks"
 
 urlpatterns = [
     path("api/v1/tasks/", include("apps.tasks.v1.urls", namespace="v1")),
+    path("api/v1/metrics/", include("apps.tasks.v1.metrics_urls", namespace="metrics")),
+    path("api/v1/controller/", include("apps.tasks.v1.controller_urls", namespace="controller")),
 ]
