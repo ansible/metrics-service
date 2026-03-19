@@ -41,6 +41,8 @@ services:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
+      METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *"
     networks:
       - metrics-service
 
@@ -70,6 +72,8 @@ services:
       # Development-only password. In production, override with secrets management.
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
+      METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *"
     networks:
       - metrics-service
 
@@ -99,6 +103,8 @@ services:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
+      METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *"
     networks:
       - metrics-service
 
@@ -125,6 +131,8 @@ services:
       METRICS_SERVICE_DATABASES__default__HOST: postgres
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
+      METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *"
     networks:
       - metrics-service
 
