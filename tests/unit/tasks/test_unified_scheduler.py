@@ -341,19 +341,20 @@ class TestUnifiedTaskScheduler:
         with pytest.raises(ValueError, match="Unknown task function: unknown_function"):
             scheduler._add_scheduled_task("test_task", config)
 
-    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     @patch("dispatcherd.publish.submit_task")
     def test_execute_scheduled_task_success(self, mock_submit):
         """Test successful scheduled task execution."""
+        mock_hello_world = Mock()
         scheduler = UnifiedTaskScheduler()
 
-        with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure:
+        with (
+            patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": mock_hello_world}),
+            patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure,
+        ):
             scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
 
             mock_ensure.assert_called_once()
-            mock_submit.assert_called_once_with(
-                "apps.tasks.tasks.hello_world", kwargs={"message": "test"}, queue="metrics_tasks"
-            )
+            mock_submit.assert_called_once_with(mock_hello_world, kwargs={"message": "test"}, queue="metrics_tasks")
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
     def test_execute_scheduled_task_unknown_function(self):
