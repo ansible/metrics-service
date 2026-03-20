@@ -5,5 +5,5 @@
 	"sonarlint.connectedMode.project": {
 		"connectionId": "ansible",
 		"projectKey": "ansible_metrics-service"
-	},
+	}
 }
