@@ -41,18 +41,14 @@ Your service will be available at:
 ### Option 2: Local Development
 
 ```bash
-# Prerequisites: Python 3.11+, PostgreSQL 13+
+# Prerequisites: Python 3.12, PostgreSQL 13+
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# Install dependencies (project uses uv)
+uv sync --dev
 
-# Install dependencies
-pip install -e ".[dev]"
-
-# Configure
+# Configure (optional — for local overrides)
 cp settings.local.py.example settings.local.py
-# Edit the settings.local.py file to configure your local development environment.
+# Edit settings.local.py to configure your local development environment.
 
 # Set up database (configure via environment variables if needed)
 # See Configuration section below for environment variable options
@@ -113,21 +109,21 @@ GET /api/v1/tasks/available_functions/
 **System Tasks** (always enabled):
 
 - `cleanup_old_tasks` - Clean up completed/failed tasks
-- `cleanup_metrics_data` - Clean up old metrics data
 - `hello_world` - Simple test task for dispatcherd integration
 - `execute_db_task` - Execute database-defined tasks with lifecycle management
 
 **Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled, customer opt-out):
 
 **Hourly Collection Tasks**:
-- `collect_hourly_metrics` - Collect metrics every hour
-- `collect_snapshot_metrics` - Collect daily metrics
+- `collect_hourly_metrics` - Collect time-series metrics every hour (collector type via `collector_type` parameter)
+- `collect_snapshot_metrics` - Collect daily snapshot metrics (collector type via `collector_type` parameter)
 
-**Daily Rollup and Anonymization Tasks**:
+**Daily Rollup, Anonymization, and Cleanup Tasks**:
 
-- `daily_metrics_rollup` - Merge hourly collections and collect daily snapshots
+- `daily_metrics_rollup` - Merge hourly collections and create daily rollup summary
 - `daily_anonymize_and_prepare` - Anonymize daily rollup and prepare for transmission
 - `send_anonymized_to_segment` - Send anonymized metrics to Segment.com
+- `cleanup_metrics_data` - Clean up old metrics data based on retention policies
 
 ## Background Tasks
 
@@ -183,17 +179,20 @@ The feature flag values in the database then determine which task groups are act
 ### Code Quality Tools
 
 ```bash
-# Format code
-black .
+# Format + lint + test in one step (via poe task runner)
+uv run poe check
 
-# Lint code
-ruff check .
+# Or individually
+uv run poe format     # ruff format (includes import sorting)
+uv run poe lint       # ruff check
+uv run poe unit-test  # pytest
 
-# Type checking
+# Direct ruff commands
+ruff format .
+ruff check . --fix
+
+# Type checking (optional, gradual adoption)
 mypy .
-
-# Sort imports
-isort .
 ```
 
 ### Pre-commit Hooks
@@ -211,10 +210,11 @@ pre-commit run --all-files
 pre-commit run
 ```
 
-The pre-commit configuration automatically:
+The pre-commit configuration automatically runs:
 
-- Syncs requirements files when `pyproject.toml` or `uv.lock` changes
-- Ensures requirements files are always up-to-date before commits
+- `ruff check --fix` — lint and auto-fix
+- `ruff-format` — code formatting
+- Platform Service Framework validation
 
 ### Testing
 
@@ -321,7 +321,7 @@ Editable:
 - `apps/*/settings.py` - Each app settings in the loading order
 - `apps/settings/{mode}.py` - Settings specific to the current `METRICS_SERVICE_MODE`
 - `settings.local.py` - For local settings (git ignored)
-- `/etc/ansible-automation-platoform/metrics-service/settings.yaml` - for prod environment overrides
+- `/etc/ansible-automation-platform/metrics_service/` - for prod environment overrides
 - `METRICS_SERVICE_` prefixed environment variables
 
 ### Common Environment Variables
@@ -383,7 +383,13 @@ All logs use Django's configured format with timestamps, log levels, request IDs
 2025-01-18 10:15:24,789 WARNING  [] apps.core.utils Database connection slow: 2.3s
 ```
 
-For comprehensive configuration documentation, validators, troubleshooting, and testing information, see **[metrics_service/settings/README.md](metrics_service/settings/README.md)**.
+To inspect the full settings loading history or debug a specific variable:
+
+```bash
+export DJANGO_SETTINGS_MODULE=metrics_service.settings
+uv run dynaconf inspect -m debug -f yaml   # full loading history
+uv run dynaconf inspect -k VARIABLE_NAME   # single variable
+```
 
 ## Deployment
 
@@ -407,13 +413,13 @@ docker run -p 8000:8000 \
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Make your changes with tests
-4. Run the test suite: `pytest`
-5. Run code quality checks: `ruff check . && black . && mypy .`
+4. Run the test suite: `uv run pytest`
+5. Run code quality checks: `uv run poe check`
 6. Submit a pull request
 
 ### Development Standards
 
-- **Code Style**: Black formatting, 120 character line length
+- **Code Style**: Ruff formatting, 120 character line length
 - **Type Hints**: Required for all new code
 - **Documentation**: Docstrings for public APIs
 - **Testing**: Test coverage for new features
