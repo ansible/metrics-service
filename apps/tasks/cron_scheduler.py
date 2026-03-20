@@ -215,8 +215,9 @@ class UnifiedTaskScheduler:
 
             queue = get_queue_for_function(function_name)
 
-            # Submit to dispatcherd using string reference for consistency
-            submit_task(f"apps.tasks.tasks.{function_name}", kwargs=task_args, queue=queue)
+            # Submit the registered callable directly — submit_task does not resolve strings
+            submit_task(TASK_FUNCTIONS[function_name], kwargs=task_args, queue=queue)
+
 
             logger.info(f"Submitted scheduled task {task_id} ({function_name}) to queue {queue}")
 
