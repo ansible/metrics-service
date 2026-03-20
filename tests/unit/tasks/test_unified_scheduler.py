@@ -347,14 +347,14 @@ class TestUnifiedTaskScheduler:
         mock_hello_world = Mock()
         scheduler = UnifiedTaskScheduler()
 
-        with patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": mock_hello_world}):
-            with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure:
-                scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
+        with (
+            patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": mock_hello_world}),
+            patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure,
+        ):
+            scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
 
-                mock_ensure.assert_called_once()
-                mock_submit.assert_called_once_with(
-                    mock_hello_world, kwargs={"message": "test"}, queue="metrics_tasks"
-                )
+            mock_ensure.assert_called_once()
+            mock_submit.assert_called_once_with(mock_hello_world, kwargs={"message": "test"}, queue="metrics_tasks")
 
     @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
     def test_execute_scheduled_task_unknown_function(self):
