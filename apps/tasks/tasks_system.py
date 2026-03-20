@@ -92,6 +92,13 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
 
         log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
+        # Auto-retry if the task failed and has attempts remaining
+        if status == "failed":
+            task.refresh_from_db()
+            if task.can_retry():
+                logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts})")
+                task.retry()
+
         return result
 
     except Exception as e:
