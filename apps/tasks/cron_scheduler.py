@@ -192,9 +192,7 @@ class UnifiedTaskScheduler:
                 return
 
             if task.status in ("cancelled", "completed"):
-                logger.warning(
-                    f"System task '{task_id}' has status '{task.status}' and will not be executed"
-                )
+                logger.warning(f"System task '{task_id}' has status '{task.status}' and will not be executed")
                 return
 
             # Re-check the feature flag stored in task_data so that disabling the flag
