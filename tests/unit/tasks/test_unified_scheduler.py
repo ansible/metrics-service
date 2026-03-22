@@ -341,37 +341,47 @@ class TestUnifiedTaskScheduler:
         with pytest.raises(ValueError, match="Unknown task function: unknown_function"):
             scheduler._add_scheduled_task("test_task", config)
 
-    @patch("dispatcherd.publish.submit_task")
-    def test_execute_scheduled_task_success(self, mock_submit):
-        """Test successful scheduled task execution."""
-        mock_hello_world = Mock()
+    def test_execute_scheduled_task_success(self):
+        """Test successful scheduled task execution routes through _execute_database_task."""
+        scheduler = UnifiedTaskScheduler()
+
+        mock_task = Mock()
+        mock_task.id = 42
+        mock_task.status = "pending"
+        mock_task.task_data = {}
+
+        with (
+            patch("apps.tasks.models.Task") as mock_task_model,
+            patch.object(scheduler, "_execute_database_task") as mock_execute_db,
+        ):
+            mock_task_model.objects.filter.return_value.first.return_value = mock_task
+
+            scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
+
+            mock_task_model.objects.filter.assert_called_once_with(name="test_task", is_system_task=True)
+            mock_execute_db.assert_called_once_with(mock_task.id)
+
+    def test_execute_scheduled_task_task_not_found(self):
+        """Test executing scheduled task when task is not found in DB logs error and returns."""
         scheduler = UnifiedTaskScheduler()
 
         with (
-            patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": mock_hello_world}),
-            patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured") as mock_ensure,
+            patch("apps.tasks.models.Task") as mock_task_model,
+            patch.object(scheduler, "_execute_database_task") as mock_execute_db,
         ):
-            scheduler._execute_scheduled_task("test_task", "hello_world", {"message": "test"})
+            mock_task_model.objects.filter.return_value.first.return_value = None
 
-            mock_ensure.assert_called_once()
-            mock_submit.assert_called_once_with(mock_hello_world, kwargs={"message": "test"}, queue="metrics_tasks")
+            scheduler._execute_scheduled_task("missing_task", "hello_world", {})  # Should log error and return
 
-    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {})
-    def test_execute_scheduled_task_unknown_function(self):
-        """Test executing scheduled task with unknown function."""
-        scheduler = UnifiedTaskScheduler()
+            mock_execute_db.assert_not_called()
 
-        with patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"):
-            scheduler._execute_scheduled_task("test_task", "unknown_function", {})  # Should log error
-
-    @patch("apps.tasks.cron_scheduler.TASK_FUNCTIONS", {"hello_world": Mock()})
     def test_execute_scheduled_task_config_error(self):
-        """Test executing scheduled task with configuration error."""
+        """Test executing scheduled task when an unexpected error occurs is handled gracefully."""
         scheduler = UnifiedTaskScheduler()
 
-        with patch(
-            "apps.tasks.dispatcherd_config.ensure_dispatcherd_configured", side_effect=Exception("Config error")
-        ):
+        with patch("apps.tasks.models.Task") as mock_task_model:
+            mock_task_model.objects.filter.side_effect = Exception("DB error")
+
             scheduler._execute_scheduled_task("test_task", "hello_world", {})  # Should catch error
 
     def test_get_queue_for_function_known_functions(self):
