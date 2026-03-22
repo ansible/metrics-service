@@ -169,56 +169,46 @@ class UnifiedTaskScheduler:
 
     def _execute_scheduled_task(self, task_id: str, function_name: str, args: dict[str, Any]):
         """
-        Execute a scheduled task by submitting it to dispatcherd.
+        Execute a scheduled task by looking it up from the DB and routing through execute_db_task.
 
-        Checks feature flags at runtime before execution to ensure tasks
-        are only run when their associated feature is enabled.
+        This ensures task_data always comes from the DB (maintained by init-system-tasks),
+        and all tasks go through the same lifecycle management path as DB-scheduled tasks.
 
         Args:
-            task_id: Unique identifier for the task
-            function_name: Name of the function to execute
-            args: Arguments to pass to the function (may contain _feature_flag)
+            task_id: Unique identifier for the task (matches Task.name for system tasks)
+            function_name: Unused. The function to execute is determined by the DB task record
+                  inside _execute_database_task; this parameter exists only because APScheduler
+                  was originally registered with it and removing it would require re-registering
+                  all scheduled jobs.
+            args: Unused. The feature flag and other task data are re-read from task.task_data
+                  at runtime to reflect the current DB state.
         """
         try:
-            # FIXME: probably doesn't make sense here at all? why only scheduled?
-            # ..feature_flag TaskGroup, but ignored because wrong type
+            from .models import Task
 
-            # Check feature flag from args
-            feature_flag_to_check = args.get("_feature_flag")
+            task = Task.objects.filter(name=task_id, is_system_task=True).first()
 
-            if feature_flag_to_check:
+            if not task:
+                logger.error(
+                    f"System task '{task_id}' not found in database - run 'manage.py metrics_service init-system-tasks'"
+                )
+                return
+
+            if task.status in ("cancelled", "completed"):
+                logger.warning(f"System task '{task_id}' has status '{task.status}' and will not be executed")
+                return
+
+            # Re-check the feature flag stored in task_data so that disabling the flag
+            # at runtime stops execution without requiring a scheduler restart.
+            feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
+            if feature_flag:
                 from .task_groups import get_feature_enabled_from_db
 
-                is_enabled = get_feature_enabled_from_db(feature_flag_to_check, False)
-                if not is_enabled:
-                    logger.info(
-                        f"Skipping task {task_id} ({function_name}): feature flag {feature_flag_to_check} is disabled"
-                    )
+                if not get_feature_enabled_from_db(feature_flag):
+                    logger.info(f"Skipping task '{task_id}': feature flag '{feature_flag}' is disabled")
                     return
 
-            # Remove _feature_flag from args before passing to task function
-            task_args = {k: v for k, v in args.items() if k != "_feature_flag"}
-
-            # Ensure dispatcherd is configured before attempting to submit tasks
-            from .dispatcherd_config import ensure_dispatcherd_configured
-
-            ensure_dispatcherd_configured()
-
-            from dispatcherd.publish import submit_task
-
-            # Validate the task function exists
-            if function_name not in TASK_FUNCTIONS:
-                raise ValueError(f"Unknown task function: {function_name}")
-
-            # Determine queue based on function name
-            from .dispatcherd_config import get_queue_for_function
-
-            queue = get_queue_for_function(function_name)
-
-            # Submit the registered callable directly — submit_task does not resolve strings
-            submit_task(TASK_FUNCTIONS[function_name], kwargs=task_args, queue=queue)
-
-            logger.info(f"Submitted scheduled task {task_id} ({function_name}) to queue {queue}")
+            self._execute_database_task(task.id)
 
         except Exception as e:
             logger.error(f"Failed to execute scheduled task {task_id}: {str(e)}")

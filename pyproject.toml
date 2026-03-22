@@ -78,6 +78,9 @@ where = ["."]
 include = ["metrics_service*", "apps*"]
 exclude = ["tests*"]
 
+[tool.setuptools.package-data]
+"apps.settings" = ["*.yaml"]
+
 
 [dependency-groups]
 dev=[

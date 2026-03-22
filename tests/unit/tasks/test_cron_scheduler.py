@@ -19,76 +19,73 @@ from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
 
 @pytest.mark.unit
-@pytest.mark.django_db
 class TestExecuteScheduledTaskFeatureFlags:
-    """Test feature flag checking in _execute_scheduled_task."""
+    """Test feature flag checking in _execute_scheduled_task.
 
-    @patch("dispatcherd.publish.submit_task")
-    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    The implementation reads _feature_flag from task.task_data (live DB) at runtime,
+    then routes through _execute_database_task. All DB access is mocked here.
+    """
+
+    def _make_mock_task(self, task_id=42, task_data=None):
+        """Return a MagicMock that looks like a Task with the given task_data."""
+        mock_task = MagicMock()
+        mock_task.id = task_id
+        mock_task.task_data = task_data if task_data is not None else {}
+        return mock_task
+
+    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
-    def test_skips_task_when_feature_flag_disabled(
-        self, mock_get_feature_enabled, mock_ensure_config, mock_submit_task
-    ):
-        """Test task is skipped when feature flag is disabled."""
-        # Arrange
+    @patch("apps.tasks.models.Task")
+    def test_skips_task_when_feature_flag_disabled(self, mock_task_cls, mock_get_feature_enabled, mock_execute_db):
+        """Task is skipped when its feature flag is disabled in the DB."""
         scheduler = UnifiedTaskScheduler()
         mock_get_feature_enabled.return_value = False
+        mock_task_cls.objects.filter.return_value.first.return_value = self._make_mock_task(
+            task_data={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"}
+        )
 
-        task_id = "test_task"
-        function_name = "hello_world"
-        args = {"_feature_flag": "ANONYMIZED_DATA_COLLECTION", "message": "test"}
+        scheduler._execute_scheduled_task("test_task", "hello_world", {})
 
-        # Act
-        scheduler._execute_scheduled_task(task_id, function_name, args)
+        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION")
+        mock_execute_db.assert_not_called()
 
-        # Assert
-        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION", False)
-        mock_submit_task.assert_not_called()
-
-    @patch("dispatcherd.publish.submit_task")
-    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
-    def test_executes_task_when_feature_flag_enabled(
-        self, mock_get_feature_enabled, mock_ensure_config, mock_submit_task
-    ):
-        """Test task executes when feature flag is enabled."""
-        # Arrange
+    @patch("apps.tasks.models.Task")
+    def test_executes_task_when_feature_flag_enabled(self, mock_task_cls, mock_get_feature_enabled, mock_execute_db):
+        """Task proceeds to _execute_database_task when its feature flag is enabled."""
         scheduler = UnifiedTaskScheduler()
         mock_get_feature_enabled.return_value = True
+        mock_task = self._make_mock_task(task_id=42, task_data={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"})
+        mock_task_cls.objects.filter.return_value.first.return_value = mock_task
 
-        task_id = "test_task"
-        function_name = "hello_world"
-        args = {"_feature_flag": "ANONYMIZED_DATA_COLLECTION", "message": "test"}
+        scheduler._execute_scheduled_task("test_task", "hello_world", {})
 
-        # Act
-        scheduler._execute_scheduled_task(task_id, function_name, args)
+        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION")
+        mock_execute_db.assert_called_once_with(42)
 
-        # Assert
-        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION", False)
-        mock_submit_task.assert_called_once()
-        # Verify _feature_flag was removed from args
-        call_kwargs = mock_submit_task.call_args.kwargs
-        assert "_feature_flag" not in call_kwargs["kwargs"]
-        assert call_kwargs["kwargs"]["message"] == "test"
-
-    @patch("dispatcherd.publish.submit_task")
-    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    def test_executes_task_when_no_feature_flag(self, mock_ensure_config, mock_submit_task):
-        """Test task executes normally when no feature flag is specified."""
-        # Arrange
+    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
+    @patch("apps.tasks.models.Task")
+    def test_executes_task_when_no_feature_flag(self, mock_task_cls, mock_execute_db):
+        """Task proceeds without a feature flag check when task_data has no _feature_flag."""
         scheduler = UnifiedTaskScheduler()
+        mock_task = self._make_mock_task(task_id=7, task_data={})
+        mock_task_cls.objects.filter.return_value.first.return_value = mock_task
 
-        task_id = "test_task"
-        function_name = "hello_world"
-        args = {"message": "test"}  # No _feature_flag
+        scheduler._execute_scheduled_task("test_task", "hello_world", {})
 
-        # Act
-        scheduler._execute_scheduled_task(task_id, function_name, args)
+        mock_execute_db.assert_called_once_with(7)
 
-        # Assert
-        mock_submit_task.assert_called_once()
-        call_kwargs = mock_submit_task.call_args.kwargs
-        assert call_kwargs["kwargs"]["message"] == "test"
+    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
+    @patch("apps.tasks.models.Task")
+    def test_logs_error_when_task_not_in_db(self, mock_task_cls, mock_execute_db):
+        """Logs an error and skips execution when the system task is missing from DB."""
+        scheduler = UnifiedTaskScheduler()
+        mock_task_cls.objects.filter.return_value.first.return_value = None
+
+        scheduler._execute_scheduled_task("missing_task", "hello_world", {})
+
+        mock_execute_db.assert_not_called()
 
 
 @pytest.mark.unit
