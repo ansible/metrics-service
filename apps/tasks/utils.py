@@ -2,6 +2,7 @@
 Utility functions for task management and execution.
 """
 
+import functools
 import logging
 from datetime import UTC
 from typing import Any
@@ -45,6 +46,7 @@ def task_execution_wrapper(task_name: str):
     """
 
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(**kwargs):
             ensure_django_setup()
             log_task_execution(task_name, "start", f"Starting {task_name} task")
