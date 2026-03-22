@@ -176,9 +176,12 @@ class UnifiedTaskScheduler:
 
         Args:
             task_id: Unique identifier for the task (matches Task.name for system tasks)
-            function_name: Name of the function to execute
-            args: Arguments originally registered with the scheduler (unused; feature flag is
-                  re-read from task.task_data at runtime to reflect the current DB state)
+            function_name: Unused. The function to execute is determined by the DB task record
+                  inside _execute_database_task; this parameter exists only because APScheduler
+                  was originally registered with it and removing it would require re-registering
+                  all scheduled jobs.
+            args: Unused. The feature flag and other task data are re-read from task.task_data
+                  at runtime to reflect the current DB state.
         """
         try:
             from .models import Task
