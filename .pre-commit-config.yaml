@@ -1,4 +1,10 @@
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.2
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
   - repo: local
     hooks:
       - id: framework-validation
@@ -7,9 +13,3 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-      # Sync requirements files when pyproject.toml or uv.lock changes
-      - id: sync-requirements
-        name: Sync requirements files
-        entry: bash -c './sync-requirements.sh && git add requirements*.txt dev-requirements.txt'
-        language: system
-        files: ^(pyproject\.toml|uv\.lock)$

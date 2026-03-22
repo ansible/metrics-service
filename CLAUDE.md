@@ -4,624 +4,179 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-### Setup and Database
+### Setup
 
 ```bash
-# Install dependencies (project uses uv for package management)
-pip install -e ".[dev]"
-# OR using uv (faster, project default)
+# Install dependencies (project uses uv)
 uv sync --dev
 
 # Run database migrations
-python manage.py migrate
-# OR with virtual environment
 .venv/bin/python manage.py migrate
 
-# Initialize Setting table with defaults
-python manage.py metrics_service init-default-settings
-
-# Initialize ServiceID for ansible-base (required)
-python manage.py metrics_service init-service-id
-
-# Initialize system tasks (cleanup, metrics collection)
-python manage.py metrics_service init-system-tasks
+# Initialize required objects (run after every migration)
+python manage.py metrics_service init-service-id      # Required for DAB resource registry
+python manage.py metrics_service init-default-settings # Initialize feature flag DB table
+python manage.py metrics_service init-system-tasks     # Register scheduled background tasks
 
 # Create superuser
 python manage.py createsuperuser
+```
 
-# Run development server
+### Running the Service
+
+```bash
+# Full service (Django + dispatcherd + APScheduler)
+python manage.py metrics_service run
+
+# Development server only
 python manage.py runserver
 
-# OR run complete metrics service (Django + dispatcher + scheduler)
-python manage.py metrics_service run
+# With Docker (includes PostgreSQL)
+docker-compose up
 ```
 
 ### Testing
 
 ```bash
-# Run all tests (automatically uses .venv if available)
-pytest
-# OR explicitly with virtual environment
-.venv/bin/python -m pytest
+# Run all tests (--reuse-db is set by default in pytest config, DB is reused between runs)
+uv run pytest
 
-# Run with coverage (configured for 80% minimum)
-pytest --cov=metrics_service --cov=apps
-.venv/bin/python -m pytest --cov=metrics_service --cov=apps
+# Force DB recreation when schema changes
+uv run pytest --create-db
 
-# Run unit tests only
-pytest -m unit
+# Run specific subset
+uv run pytest tests/unit/tasks/
+uv run pytest -m unit
+uv run pytest -m integration
 
-# Run integration tests only
-pytest -m integration
-
-# Run specific test file
-pytest tests/unit/test_models.py
-.venv/bin/python -m pytest tests/unit/test_models.py
-
-# Run tests with verbose output and short traceback
-.venv/bin/python -m pytest -v --tb=short
-
-# Run tests with coverage report
-.venv/bin/python -m pytest --cov=apps --cov=metrics_service --cov-report=term-missing -v
-```
-
-#### Coverage Measurement Best Practices
-
-**IMPORTANT**: When checking coverage for specific files, always run the FULL test suite (or at least the full test directory) with coverage on the MODULE, not on individual file paths.
-
-```bash
-# ❌ WRONG - Reports 0% or incorrect coverage because module isn't imported
-pytest tests/unit/tasks/test_models.py --cov=apps/tasks/models.py
-
-# ✅ CORRECT - Run all tests in directory with module-level coverage
-uv run pytest tests/unit/tasks/ --cov=apps.tasks
-
-# ✅ CORRECT - Check specific file coverage from full test run
-uv run pytest tests/unit/tasks/ --cov=apps.tasks --cov-report=term-missing | grep "models.py"
-
-# ✅ CORRECT - Full project coverage
+# With coverage (80% minimum enforced)
 uv run pytest --cov=apps --cov=metrics_service --cov-report=term-missing
 ```
 
-**Why this matters:**
-- Coverage tools need the module to be imported during test execution
-- Running isolated tests may not import the target module, resulting in "module not imported" warnings
-- Always use module names (e.g., `apps.tasks`) not file paths (e.g., `apps/tasks/models.py`) in --cov
-- Run comprehensive test suites, not individual test files, when measuring coverage
+**Coverage measurement:** Always run coverage on the module (`--cov=apps.tasks`), never on file paths. Run the full test suite, not individual files, to get accurate coverage.
 
 ### Code Quality
 
 ```bash
-# Format code (120 character line length)
-ruff format .
-.venv/bin/ruff format .
+# Format + lint + test (via poe task runner)
+uv run poe check
 
-# Lint code (extensive rule set including security, complexity)
-ruff check .
-.venv/bin/ruff check .
+# Individual poe tasks
+uv run poe format   # ruff format
+uv run poe lint     # ruff check
+uv run poe unit-test
 
-# Fix linting issues automatically
-ruff check . --fix
-.venv/bin/ruff check . --fix
-
-# Fix unsafe issues (use with caution)
-.venv/bin/ruff check . --unsafe-fixes --fix
-
-# Type checking (configured for gradual adoption - NOT actively used)
-mypy .
-
-# Run all quality checks together (format + lint)
-ruff format . && ruff check . --fix
+# Or directly
 .venv/bin/ruff format . && .venv/bin/ruff check . --fix
 ```
 
-### Pre-commit Hooks and Requirements Management
+### Running Django Commands with Imports
 
 ```bash
-# Install pre-commit hooks (automatically syncs requirements)
-pre-commit install
+# For one-off commands that need Django context
+python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(list(TASK_FUNCTIONS))"
 
-# Run hooks on all files
-pre-commit run --all-files
-
-# Manually sync requirements files from pyproject.toml/uv.lock
-./sync-requirements.sh
-# OR using make
-make sync-requirements
-
-# Check if requirements are in sync
-make requirements-check
-```
-
-### Django Shell and Debugging
-
-```bash
-# Start Django shell for interactive testing
-python manage.py shell
-.venv/bin/python manage.py shell
-
-# Start shell with specific settings
-.venv/bin/python manage.py shell --settings=metrics_service.settings.development
-
-# Create tasks programmatically in shell
-python manage.py shell
->>> from apps.tasks.models import Task
->>> task = Task.objects.create(name="Test Task", function_name="hello_world")
-
-# Check dispatcherd status and logs
-docker-compose logs -f metrics-dispatcher
-```
-
-### Running Python Commands with Django
-
-**IMPORTANT:** When running Python commands that import Django apps, you MUST use Django's environment setup.
-
-```bash
-# ❌ WRONG - Direct python -c fails with Django imports
-python -c "from apps.tasks.tasks import TASK_FUNCTIONS"
-# Error: ModuleNotFoundError: No module named 'django'
-
-# ✅ CORRECT - Use manage.py shell -c for Django imports
-python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(len(TASK_FUNCTIONS))"
-.venv/bin/python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(len(TASK_FUNCTIONS))"
-
-# ✅ CORRECT - Multi-line commands with shell -c
-.venv/bin/python manage.py shell -c "
-from apps.tasks.tasks import TASK_FUNCTIONS
-print(f'Total tasks: {len(TASK_FUNCTIONS)}')
-for name in TASK_FUNCTIONS:
-    print(f'  - {name}')
-"
-
-# ✅ CORRECT - Testing uses pytest (pytest-django handles Django setup automatically)
-.venv/bin/python -m pytest tests/unit/tasks/
-pytest tests/unit/tasks/
-
-# ✅ CORRECT - Standalone scripts that don't import Django apps
-python scripts/run_task.py hello_world
-.venv/bin/python scripts/run_task.py hello_world
-```
-
-**When to use each method:**
-- **`manage.py shell -c "..."`** - For one-off commands importing Django apps/models
-- **`pytest`** - For running tests (pytest-django plugin handles Django setup)
-- **`manage.py shell`** - For interactive Python with Django
-- **`python script.py`** - For standalone scripts without Django imports
-
-### Background Tasks (Dispatcherd)
-
-```bash
-# Dispatcherd is always enabled in this service
-
-# Run complete service (includes dispatcher and scheduler)
-python manage.py metrics_service run
-
-# OR run individual components (for development/debugging)
-python manage.py metrics_service run --workers 2
-
-# Create sample tasks (using Django shell or admin interface)
-python manage.py shell
-```
-
-### Docker
-
-```bash
-# Start full stack with PostgreSQL and task dispatcher
-docker-compose up
-
-# Start in background
-docker-compose up -d
-
-# View logs
-docker-compose logs -f metrics-service
-docker-compose logs -f metrics-dispatcher
-```
-
-### Quick Start with Task Dashboard
-
-```bash
-# Start with Docker Compose (includes web server + task dispatcher)
-docker-compose up
-
-# Or manually start complete metrics service (Django + dispatcher + scheduler)
-python manage.py metrics_service run
-
-# Or start only Django development server
-python manage.py runserver
-
-# Access the dashboard at http://localhost:8000/dashboard/
-```
-
-### Metrics Service Management
-
-The `metrics_service` command provides centralized management with a unified entry point:
-
-```bash
-# Run complete service (Django server + task dispatcher + scheduler)
-python manage.py metrics_service run
-
-# Initialize Setting table with defaults
-python manage.py metrics_service init-default-settings
-
-# Initialize ServiceID for ansible-base
-python manage.py metrics_service init-service-id
-
-# Initialize/update system tasks
-python manage.py metrics_service init-system-tasks
-
-# List current system tasks
-python manage.py metrics_service init-system-tasks --list
-
-# Task management
-python manage.py metrics_service tasks create --name "My Task" --function "hello_world"
-python manage.py metrics_service tasks list
-python manage.py metrics_service tasks show 1
-python manage.py metrics_service tasks cancel 1
-python manage.py metrics_service tasks retry 1
-
-# Custom service configuration
-python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 8
-```
-
-### Unified Command Structure
-
-The `metrics_service` command consolidates all service management operations into a single entry point:
-
-#### Main Commands:
-
-- **`run`** - Start the complete metrics service (Django + dispatcher + scheduler)
-- **`init-default-settings`** - Initialize the Setting DB table with feature flag defaults
-- **`remove-default-settings`** - Remove default settings from the Setting DB table
-- **`init-service-id`** - Initialize ServiceID for ansible-base resource registry
-- **`init-system-tasks`** - Initialize system-defined tasks (cleanup, metrics collection)
-- **`tasks`** - Manage database tasks (create, list, show, cancel, retry)
-
-#### Command Examples:
-
-```bash
-# Get help for any command
-python manage.py metrics_service --help
-python manage.py metrics_service tasks --help
-
-# Run service with custom configuration
-python manage.py metrics_service run --host 0.0.0.0 --port 8080 --workers 4
-# Or set Gunicorn and dispatcher workers separately: --gunicorn-workers N --dispatcher-workers N
-
-# Task management
-python manage.py metrics_service tasks create --name "Cleanup" --function "cleanup_old_tasks" --cron "0 2 * * *"
-python manage.py metrics_service tasks list --status pending --limit 10
-python manage.py metrics_service tasks show 1
-python manage.py metrics_service tasks cancel 1
-python manage.py metrics_service tasks retry 1
-
-# System initialization
-python manage.py metrics_service init-default-settings
-python manage.py metrics_service init-service-id
-python manage.py metrics_service init-system-tasks
+# Never use plain python -c for Django imports — it fails without Django setup
 ```
 
 ## Architecture Overview
 
-### Project Structure
+### App Structure
 
-This is a Django-based service following Ansible Automation Platform (AAP) standards with these key components:
-
-- **`apps/core/`** - Core business logic, models, and background tasks
-- **`apps/api/v1/`** - Versioned REST API endpoints with reduced code duplication
-- **`apps/health/`** - Health check endpoints for Kubernetes deployment
-- **`apps/dashboard/`** - Web-based task management dashboard with real-time monitoring
-- **`metrics_service/settings/`** - Split Django settings (development, production, test)
-- **`tests/`** - Comprehensive test suite (unit, integration, functional)
-
-### Key Models (`apps/core/models.py`)
-
-- **User** - Custom user model with Django-Ansible-Base integration
-- **Organization** - Organizations with user/admin management
-- **Team** - Teams within organizations with hierarchical support
-
-- **Task/TaskExecution/TaskChain** - Comprehensive background task system with dependencies and scheduling (see `apps/tasks/models.py`)
-
-### API Architecture (`apps/api/v1/`)
-
-- **Base classes** - `BaseViewSet` and `UserManagementMixin` reduce code duplication
-- **Versioned endpoints** - URL-based versioning (`/api/v1/`)
-- **Comprehensive filtering** - Field-based filtering, search, pagination, and sorting
-- **Task Management APIs** - Full CRUD operations for tasks with real-time status monitoring
-- **OpenAPI documentation** - Available at `/api/docs/`
-
-### Task Dashboard (`apps/dashboard/`)
-
-The web-based dashboard provides a centralized interface for task management:
-
-- **Real-time Monitoring** - Live updates of running and pending tasks every 5 seconds
-- **Task Visualization** - Separate sections for running tasks, pending tasks, and complete history
-- **Task Creation** - Interactive form with function selection, parameter input, and scheduling
-- **Task Controls** - Retry failed tasks, cancel pending/running tasks
-- **Statistics Dashboard** - Live counters for task statuses (running, pending, completed, failed)
-- **Responsive Design** - Mobile-friendly interface using Tailwind CSS
-
-#### Dashboard Features
-
-- **URL**: `/dashboard/` (requires authentication)
-- **Auto-refresh**: Updates every 5 seconds without page reload
-- **Task Actions**: Create, retry, cancel tasks directly from the interface
-- **Function Discovery**: Automatically loads available task functions from the system
-- **JSON Parameter Input**: Support for complex task parameters via JSON input
-- **DateTime Scheduling**: Built-in date/time picker for scheduling future tasks
-
-### Background Task System (`apps/tasks/` and `apps/core/tasks.py`)
-
-The service includes a comprehensive background task system with:
-
-- **Task functions** - `cleanup_old_tasks`, `cleanup_metrics_data`, `execute_db_task`, `hello_world`
-- **Database-driven tasks** - Tasks defined in DB with dependency management
-- **Dispatcherd integration** - Always enabled, multi-worker task processing with health monitoring
-- **Scheduling** - Cron-like recurring tasks and dependency chains
-- **Type safety** - Full type hints on all task functions and utilities
-
-## Django-Ansible-Base Integration
-
-### Important: ServiceID Initialization
-
-Always run `python manage.py metrics_service init-service-id` after migrations. This creates the required ServiceID object for DAB's resource registry system.
-
-### DAB Features Available
-
-- **RBAC** - Role-based access control with permission registry
-- **Authentication** - Multiple backends (local, LDAP, SAML, OAuth)
-- **Resource Registry** - Cross-service resource synchronization
-- **Activity Stream** - Audit logging for model changes
-- **Feature Enabled** - Runtime feature control via FEATURE_ENABLED settings
-
-### Settings Configuration
-
-- **Environment variables** - Use `METRICS_SERVICE_` prefix for configuration
-- **Dynaconf integration** - Complex configuration via `config/settings.yaml`
-- **Split settings** - Separate files for development, production, and testing
-
-## Testing Strategy
-
-### Test Organization
-
-- **`tests/unit/`** - Unit tests for individual components
-- **`tests/integration/`** - Integration tests for component interactions
-- **`tests/conftest.py`** - Shared test fixtures and configuration
-
-### Test Markers
-
-Use pytest markers for test categorization:
-
-- `@pytest.mark.unit` - Unit tests
-- `@pytest.mark.integration` - Integration tests
-- `@pytest.mark.slow` - Slow-running tests
-
-### Coverage Requirements
-
-- Minimum 80% coverage enforced via pytest configuration
-- Coverage reports generated in HTML and XML formats
-
-## Task Management API Endpoints
-
-### Core Task Endpoints
-
-```bash
-# Get all tasks with filtering and pagination
-GET /api/v1/tasks/
-GET /api/v1/tasks/?status=running
-GET /api/v1/tasks/?status=pending
-
-# Create a new task
-POST /api/v1/tasks/
-{
-  "name": "My Task",
-  "function_name": "hello_world",
-  "task_data": {},
-  "scheduled_time": "2024-09-04T15:30:00Z"  // Optional
-}
-
-# Get running tasks only
-GET /api/v1/tasks/running/
-
-# Get pending tasks only
-GET /api/v1/tasks/pending/
-
-# Retry a failed task
-POST /api/v1/tasks/{id}/retry/
-
-# Cancel a pending or running task
-POST /api/v1/tasks/{id}/cancel/
-
-# Get available task functions
-GET /api/v1/tasks/available_functions/
+```
+apps/
+  core/           # Custom User/Organization/Team models, DAB integration, RBAC
+  tasks/          # Background task system (models, scheduling, execution)
+  dynamic_settings/ # Runtime DB-backed feature flags (Setting model)
+  settings/       # Dynaconf settings layering (see below)
+  dashboard/      # Web UI for task monitoring at /dashboard/
+metrics_service/
+  settings/       # Split Django settings (development, production, test)
 ```
 
-### Available Task Functions
+### Settings Loading Order (Dynaconf)
 
-The system includes these built-in task functions organized by feature groups:
+Settings are merged in this order (later overrides earlier):
 
-**System Tasks** (always enabled):
+1. `metrics_service/settings.py` — framework defaults (read-only)
+2. `apps/settings/defaults.py` — project-wide defaults
+3. `apps/core/settings.py` — DAB-related settings
+4. `apps/*/settings.py` — per-app settings
+5. `apps/settings/{mode}.py` — mode-specific (dev/prod/test)
+6. `settings.local.py` — local overrides (git-ignored)
+7. `/etc/ansible-automation-platform/metrics_service/settings.yaml` — prod
+8. `METRICS_SERVICE_*` environment variables
 
-- **`cleanup_old_tasks`** - Clean up completed/failed tasks
-- **`cleanup_metrics_data`** - Clean up old metrics data
-- **`execute_db_task`** - Execute database-defined tasks with full lifecycle management
-- **`hello_world`** - Simple test task for dispatcherd integration
-
-**Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION` feature flag):
-
-- **`collect_hourly_metrics`** - Collect metrics every hour
-- **`collect_snapshot_metrics`** - Collect daily metrics
-- **`daily_metrics_rollup`** - Merge collections and create daily rollup
-- **`daily_anonymize_and_prepare`** - Anonymize daily rollup and prepare for transmission
-- **`send_anonymized_to_segment`** - Send anonymized metrics to Segment.com
-
-## Development Notes
-
-### Code Style Standards
-
-- **Line length** - 120 characters (configured in pyproject.toml)
-- **Import organization** - Sorted with isort, grouped by type
-- **Type hints** - Required for all new code, comprehensive type coverage
-- **Docstrings** - Required for all public methods and classes
-- **Code duplication** - Extensive use of mixins and utility functions to reduce duplication
-
-### Custom User Model
-
-The project uses a custom User model (`core.User`) that extends AbstractDABUser with enhanced functionality including access control and password handling.
-
-### Feature Enabled Configuration
-
-Dispatcherd is permanently enabled. Other features can be controlled via the `FEATURE_ENABLED` setting:
-
+Use Dynaconf merge markers when extending lists/dicts in app settings:
 ```python
-FEATURE_ENABLED = {
-    "ANONYMIZED_DATA_COLLECTION": True,  # Default enabled (customer opt-out)
-}
+INSTALLED_APPS = "@merge_unique my_new_app"
+DATABASES__default__PORT = 5433
 ```
 
-**Environment Variable Mapping:**
+### Task System (`apps/tasks/`)
 
-- `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=true/false` → Controls all metrics collection and transmission
+The task system has several layers:
 
-**Task Groups and Feature Flags:**
+- **`models.py`** — `Task`, `TaskExecution`, `TaskChain` DB models
+- **`tasks.py`** — `TASK_FUNCTIONS` registry mapping function names to callables
+- **`task_groups.py`** — `TASK_GROUPS` config: defines what tasks run, their cron schedules, args, and which feature flag controls them. This is the source of truth for scheduled tasks — edit here, then run `init-system-tasks` to sync to DB.
+- **`cron_scheduler.py`** — APScheduler integration for recurring tasks
+- **`dispatcherd_config.py`** — Dispatcherd worker configuration
+- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`)
+- **`cleanup/`** — Cleanup functions (`cleanup_old_tasks`, `cleanup_activitystream`, `cleanup_metrics_data`)
+- **`simple/`** — Simple tasks (`hello_world`)
+- **`services/`** — Output formatting utilities
+- **`v1/`** — REST API for task CRUD (`/api/v1/tasks/`)
 
-- **System Tasks** - Always enabled (no feature flag required)
-  - `cleanup_old_tasks` - Daily cleanup of old completed/failed tasks
-  - `hello_world` - Hourly health check
+### Task Groups and Feature Flags
 
-- **Metrics Collection Group** - Controlled by `ANONYMIZED_DATA_COLLECTION` (default: **enabled**, customer opt-out)
-  - Hourly collection: `collect_hourly_metrics`
-  - Daily rollup: `daily_metrics_rollup`
-  - Anonymization: `daily_anonymize_and_prepare`
-  - Transmission to Segment: `send_anonymized_to_segment`
-  - Data cleanup: `cleanup_metrics_data`
+`task_groups.py` defines two groups:
 
-Note: All metrics tasks are controlled by a single flag since anonymization requires collected data to work. This is an opt-out feature that sends anonymized usage data to Red Hat.
+- **`SYSTEM_TASKS_GROUP`** — Always enabled. Runs `cleanup_old_tasks` (daily 2 AM) and `hello_world` (hourly).
+- **`METRICS_COLLECTION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains all hourly/daily collection, rollup, anonymization, and Segment transmission tasks.
 
-**Automatic Database Initialization:**
-
-Feature flags are managed in the `dynamic_settings_setting` table:
-- Use `python manage.py metrics_service init-default-settings` to initialize or update default settings
-- The init command updates unchanged defaults to match current configuration but preserves modified settings
-- Modified settings (those with a `previous_value`) are never overwritten by init
-- Use `python manage.py metrics_service remove-default-settings` to remove unchanged default settings from the database
-- The remove command only removes settings that haven't been modified (those without a `previous_value`)
-- Settings can be queried/modified via SQL, Django shell, or API
-
-**Runtime Feature Flag Checking:**
-
-Hourly collection tasks automatically check feature flags before execution:
-- Tasks skip execution when their feature flag is disabled
-- No scheduler restart needed - changes take effect immediately
-- Logged when tasks are skipped for visibility
-
-### Logging Configuration
-
-**Setting Log Level:**
-
-The log level is controlled by the `METRICS_SERVICE_LOG_LEVEL` environment variable:
+Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE_ENABLED` in Django settings if not in DB.
 
 ```bash
-# For development - see everything
-export METRICS_SERVICE_LOG_LEVEL=DEBUG
-
-# For production - standard informational logging (default)
-export METRICS_SERVICE_LOG_LEVEL=INFO
-
-# For troubleshooting - warnings and errors only
-export METRICS_SERVICE_LOG_LEVEL=WARNING
-
-# For critical issues only
-export METRICS_SERVICE_LOG_LEVEL=ERROR
+# Toggle at runtime without restart
+METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
 ```
 
-**Quick Debug Mode:**
+### API Structure
 
-```bash
-# Run server with debug logging
-METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py runserver
+Each app exposes its own versioned API under a `v1/` subdirectory:
+- `apps/tasks/v1/` — Task management endpoints (`/api/v1/tasks/`)
+- `apps/core/v1/` — Core resource endpoints
+- `apps/dynamic_settings/v1/` — Settings API
 
-# Run tests with debug logging
-METRICS_SERVICE_LOG_LEVEL=DEBUG pytest
-```
+All viewsets use `BaseViewSet` / `UserManagementMixin` base classes. OpenAPI docs at `/api/docs/`.
 
-**How It Works:**
+### Dynamic Settings (`apps/dynamic_settings/`)
 
-- \*\* Django logging- we use built in django logging in conjunction with Dynaconf to help us handle out logging level. The logging level is established at app start up and defaults to "INFO". If you need to change the log level, you will have to restart the app after updating the environment variable `METRICS_SERVICE_LOG_LEVEL`.
-
-### Database Configuration
-
-- **Development** - PostgreSQL for consistent development/production setup
-- **Production** - PostgreSQL with environment variable configuration
-- **Docker** - Includes PostgreSQL service
-
-### Code Architecture Patterns
-
-- **Utility functions** - Common functionality in `apps/core/utils.py`
-- **Mixins** - Reusable model and serializer functionality
-- **Base classes** - `BaseViewSet`, `BaseModelSerializer` for consistent API patterns
-- **Type safety** - All methods have type hints and return type annotations
-
-## Common Workflows
-
-### Adding New Models
-
-1. Create model in `apps/core/models.py` following existing patterns
-2. Create migrations: `python manage.py makemigrations`
-3. Apply migrations: `python manage.py migrate`
-4. Add to API if needed in `apps/api/v1/`
-
-### Adding Background Tasks
-
-1. Define task function in `apps/core/tasks.py`
-2. Add to `TASK_FUNCTIONS` dictionary
-3. Create Task model instance or use programmatic scheduling
-4. Test with dispatcherd: `python manage.py metrics_service run`
-
-### API Development
-
-1. Use base classes (`BaseViewSet`, `UserManagementMixin`) to reduce duplication
-2. Follow existing filtering and serialization patterns
-3. Add OpenAPI documentation with `@extend_schema`
-4. Test API endpoints thoroughly
+Provides a DB-backed `Setting` model for runtime configuration. Feature flags checked here at task execution time — no restart needed when toggling. Managed via:
+- `python manage.py metrics_service init-default-settings` — seed defaults
+- `python manage.py metrics_service remove-default-settings` — remove unmodified defaults
+- `python manage.py dynamic_settings reload_config` — reload config from DB
 
 ## Key Development Patterns
 
-### Package Management and Environment
+### Adding a New Background Task
 
-- **UV Package Manager**: This project uses `uv` for fast dependency management (`uv sync --dev`)
-- **Virtual Environment**: Commands should use `.venv/bin/python` for consistency
-- **Requirements Sync**: Requirements files are automatically synced via pre-commit hooks when `pyproject.toml` or `uv.lock` changes
+1. Implement the function in `apps/tasks/collectors/`, `apps/tasks/cleanup/`, or `apps/tasks/simple/`
+2. Add to `TASK_FUNCTIONS` dict in `apps/tasks/tasks.py`
+3. Add a task config entry to the appropriate `TaskGroup` in `apps/tasks/task_groups.py`
+4. Run `python manage.py metrics_service init-system-tasks` to sync to DB
 
-### Essential Initialization Steps
+### Code Style
 
-- **Setting**: Always run `python manage.py metrics_service init-default-settings` (optional)
-- **ServiceID**: Always run `python manage.py metrics_service init-service-id` after migrations (required for DAB)
-- **System Tasks**: Run `python manage.py metrics_service init-system-tasks` to initialize background tasks
+- Line length: 120 characters
+- Ruff rules include security (bandit), complexity (mccabe/pylint), and style checks
+- All new code requires type hints and docstrings on public methods
+- Migrations excluded from linting
 
-### Testing and Quality Patterns
+### Test Organization
 
-- **Test Coverage**: 80% minimum coverage enforced, use `.venv/bin/python -m pytest --cov=apps --cov=metrics_service --cov-report=term-missing -v`
-- **Code Quality**: 120-char lines, comprehensive ruff rules including security checks
-- **Test Markers**: Use `@pytest.mark.unit` and `@pytest.mark.integration` for categorization
-
-### Task System Architecture
-
-- **Dispatcherd**: Always enabled and integrates with the unified `metrics_service` command
-- **Task Routing**: Automatic task routing - immediate tasks go to dispatcherd, scheduled tasks use APScheduler
-- **Management Command**: Use `python manage.py metrics_service run` for complete service (Django + dispatcher + scheduler)
-- **Task Groups**: Tasks organized into feature-controlled groups (System, Anonymized Data, Metrics Collection)
-
-### Feature Enabled System
-
-- **Configuration**: Use `FEATURE_ENABLED` dict in Django settings or environment variables with `METRICS_SERVICE_` prefix
-- **Group-Level Control**: Feature flags are applied at the task group level. All tasks in a group share the same feature flag.
-- **Task-Level Override**: Individual tasks can be disabled via `enabled: false` field regardless of the group's feature flag status.
-- **Environment Variables**:
-  - `METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION` controls all metrics collection, rollup, anonymization, and transmission (default: **enabled**, customer opt-out)
-- **Runtime Control**: Features can be toggled via database settings or environment variables without service restart
-
-### Code Organization
-
-- **Apps Structure**: `core/` (models, business logic), `api/v1/` (REST endpoints), `tasks/` (background tasks), `dashboard/` (web UI)
-- **Mixins**: Extensive use of mixins (`AccessControlMixin`, `StatusTrackingMixin`) to reduce code duplication
-- **Type Safety**: All new code requires type hints and return type annotations
+- `tests/unit/` and `apps/core/tests/` — unit tests (both are testpaths)
+- `tests/integration/` — integration tests
+- `apps/dynamic_settings/tests/` — app-local tests
+- Markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`
