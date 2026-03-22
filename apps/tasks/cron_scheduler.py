@@ -177,7 +177,8 @@ class UnifiedTaskScheduler:
         Args:
             task_id: Unique identifier for the task (matches Task.name for system tasks)
             function_name: Name of the function to execute
-            args: Arguments originally registered with the scheduler (used for feature flag check only)
+            args: Arguments originally registered with the scheduler (unused; feature flag is
+                  re-read from task.task_data at runtime to reflect the current DB state)
         """
         try:
             from .models import Task
@@ -189,6 +190,22 @@ class UnifiedTaskScheduler:
                     f"System task '{task_id}' not found in database - run 'manage.py metrics_service init-system-tasks'"
                 )
                 return
+
+            if task.status in ("cancelled", "completed"):
+                logger.warning(
+                    f"System task '{task_id}' has status '{task.status}' and will not be executed"
+                )
+                return
+
+            # Re-check the feature flag stored in task_data so that disabling the flag
+            # at runtime stops execution without requiring a scheduler restart.
+            feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
+            if feature_flag:
+                from .task_groups import get_feature_enabled_from_db
+
+                if not get_feature_enabled_from_db(feature_flag):
+                    logger.info(f"Skipping task '{task_id}': feature flag '{feature_flag}' is disabled")
+                    return
 
             self._execute_database_task(task.id)
 

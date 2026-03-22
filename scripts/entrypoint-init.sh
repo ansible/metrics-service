@@ -76,6 +76,12 @@ echo "─── Initializing System Tasks ───"
 echo "✓ System tasks initialized"
 echo ""
 
+# Collect static files into STATIC_ROOT so WhiteNoise can serve them
+echo "─── Collecting Static Files ───"
+"$PYTHON" manage.py collectstatic --noinput --clear
+echo "✓ Static files collected"
+echo ""
+
 echo "════════════════════════════════════════════════════════════════"
 echo "  Database initialization complete"
 echo "════════════════════════════════════════════════════════════════"
