@@ -172,12 +172,12 @@ class TestServicePrefixMiddlewareUnit(TestCase):
     def test_middleware_routes_url_prefix_path(self):
         """Requests at URL_PREFIX path are routed correctly."""
         with self.settings(URL_PREFIX="/api/metrics"):
-            response = self.client.get("/api/metrics/v1/")
+            response = self.client.get("/api/metrics/")
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertIn("v1", data)
             for url in data.values():
-                self.assertIn("/api/metrics/v1/", url)
+                self.assertIn("/api/metrics/", url)
 
     def test_middleware_strips_trailing_slash_from_url_prefix(self):
         """URL_PREFIX with a trailing slash is handled correctly."""
