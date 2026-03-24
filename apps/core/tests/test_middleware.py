@@ -138,6 +138,62 @@ class TestServicePrefixMiddlewareUnit(TestCase):
         middleware = ServicePrefixMiddleware(mock_get_response)
         self.assertIsNotNone(middleware)
 
+    def test_middleware_uses_url_prefix_when_set(self):
+        """When URL_PREFIX is set, api_prefix and service_prefix are derived from it."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/api/metrics"):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            self.assertEqual(middleware.api_prefix, "/api/metrics")
+            self.assertEqual(middleware.service_prefix, "/metrics")
+
+    def test_middleware_falls_back_to_root_urlconf_when_url_prefix_unset(self):
+        """When URL_PREFIX is None, prefix is derived from ROOT_URLCONF."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX=None):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            expected_service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
+            self.assertEqual(middleware.service_prefix, f"/{expected_service_name}")
+            self.assertEqual(middleware.api_prefix, f"/api/{expected_service_name}")
+
+    def test_middleware_routes_url_prefix_path(self):
+        """Requests at URL_PREFIX path are routed correctly."""
+        with self.settings(URL_PREFIX="/api/metrics"):
+            response = self.client.get("/api/metrics/v1/")
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertIn("v1", data)
+            for url in data.values():
+                self.assertIn("/api/metrics/v1/", url)
+
+    def test_middleware_strips_trailing_slash_from_url_prefix(self):
+        """URL_PREFIX with a trailing slash is handled correctly."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/api/metrics/"):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            self.assertEqual(middleware.api_prefix, "/api/metrics")
+            self.assertEqual(middleware.service_prefix, "/metrics")
+
 
 class TestAPIRootViewMiddlewareUnit(TestCase):
     """Unit tests for APIRootViewMiddleware."""
