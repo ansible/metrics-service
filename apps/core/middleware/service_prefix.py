@@ -37,8 +37,8 @@ class ServicePrefixMiddleware:
         if url_prefix:
             # URL_PREFIX is the full API prefix, e.g. "/api/metrics"
             self.api_prefix = url_prefix.rstrip("/")
-            # Derive the bare service prefix by stripping the leading "/api"
-            self.service_prefix = self.api_prefix[4:] if self.api_prefix.startswith("/api") else self.api_prefix
+            # Derive the bare service prefix by stripping the leading "/api" segment
+            self.service_prefix = self.api_prefix[4:] if self.api_prefix.startswith("/api/") else self.api_prefix
         else:
             # Fall back to deriving from ROOT_URLCONF (e.g. "metrics_service" → "/metrics-service")
             service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")

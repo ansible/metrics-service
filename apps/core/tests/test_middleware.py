@@ -194,6 +194,22 @@ class TestServicePrefixMiddlewareUnit(TestCase):
             self.assertEqual(middleware.api_prefix, "/api/metrics")
             self.assertEqual(middleware.service_prefix, "/metrics")
 
+    def test_middleware_url_prefix_not_under_api_segment(self):
+        """URL_PREFIX that does not start with '/api/' is used verbatim as service_prefix."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/apis/metrics"):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            self.assertEqual(middleware.api_prefix, "/apis/metrics")
+            # '/apis/metrics' does not start with '/api/' so service_prefix is unchanged
+            self.assertEqual(middleware.service_prefix, "/apis/metrics")
+
 
 class TestAPIRootViewMiddlewareUnit(TestCase):
     """Unit tests for APIRootViewMiddleware."""
