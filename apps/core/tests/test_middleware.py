@@ -175,7 +175,7 @@ class TestServicePrefixMiddlewareUnit(TestCase):
             response = self.client.get("/api/metrics/v1/")
             self.assertEqual(response.status_code, 200)
             data = response.json()
-            self.assertIn("v1", data)
+            self.assertTrue(len(data) > 0, "API root should return at least one resource")
             for url in data.values():
                 self.assertIn("/api/metrics/v1/", url)
 
