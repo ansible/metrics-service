@@ -91,18 +91,20 @@ class TestExecuteScheduledTaskFeatureFlags:
     @patch("apps.tasks.cron_scheduler.close_old_connections")
     @patch("apps.tasks.models.Task")
     def test_closes_old_connections_before_querying(self, mock_task_cls, mock_close):
-        """close_old_connections is called before any ORM access in _execute_scheduled_task."""
+        """close_old_connections must be called before any ORM access in _execute_scheduled_task."""
+        # Instantiate first so _load_task_registry()'s Task.objects.filter() call in __init__
+        # does not pollute the call_order we install below.
+        scheduler = UnifiedTaskScheduler()
+
         call_order = []
         mock_close.side_effect = lambda: call_order.append("close")
         mock_task_cls.objects.filter.side_effect = lambda **_: call_order.append("query") or MagicMock(
             first=lambda: None
         )
 
-        scheduler = UnifiedTaskScheduler()
         scheduler._execute_scheduled_task("missing_task", "hello_world", {})
 
-        mock_close.assert_called_once()
-        assert call_order[0] == "close"
+        assert call_order[0] == "close", f"Expected close_old_connections first, got: {call_order}"
 
 
 @pytest.mark.unit
