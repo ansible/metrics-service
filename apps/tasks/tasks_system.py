@@ -152,11 +152,15 @@ def create_system_tasks() -> dict[str, Any]:
     """
     Create system-defined tasks from task groups in the database.
 
-    This function removes all existing system tasks and recreates them from
-    task group definitions, ensuring the database always matches the code.
+    This function is intended to be called only from the init container
+    (entrypoint-init.sh), before the application and scheduler start. At that
+    point no tasks can be running, so unconditional deletion is safe.
+
+    Removes all existing system tasks and recreates them from task group
+    definitions, ensuring the database always matches the code.
 
     Returns:
-        dict: Summary of tasks created and removed
+        dict: Summary of tasks created and removed.
     """
     try:
         from .models import Task

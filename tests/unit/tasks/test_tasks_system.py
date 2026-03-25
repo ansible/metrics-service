@@ -180,6 +180,20 @@ class TestSystemTaskCreation(TestCase):
             assert result["created"] == 0
             assert result["removed"] == 0
 
+    def test_all_system_tasks_deleted_on_reinit(self):
+        """All existing system tasks are unconditionally removed on reinit.
+
+        create_system_tasks() is only called from the init container, before
+        the app starts, so no tasks can be running at that point.
+        """
+        for name in ("task_a", "task_b"):
+            Task.objects.create(name=name, function_name="hello_world", is_system_task=True)
+        with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
+            result = tasks_system.create_system_tasks()
+
+        assert result["removed"] == 2
+        assert Task.objects.filter(is_system_task=True).count() == 0
+
 
 # =============================================================================
 # System Task Helper Functions Tests
