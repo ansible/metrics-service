@@ -170,14 +170,38 @@ class TestServicePrefixMiddlewareUnit(TestCase):
             self.assertEqual(middleware.api_prefix, f"/api/{expected_service_name}")
 
     def test_middleware_routes_url_prefix_path(self):
-        """Requests at URL_PREFIX path are routed correctly."""
+        """With URL_PREFIX set, requests at the API prefix are rewritten to /api/...
+
+        Directly instantiates ServicePrefixMiddleware inside the settings context so
+        the cached api_prefix reflects the override — using self.client would not
+        work because ClientHandler loads middleware before override_settings takes
+        effect.
+        """
+        from django.test import RequestFactory
+
+        from apps.core.middleware import ServicePrefixMiddleware
+
         with self.settings(URL_PREFIX="/api/metrics"):
-            response = self.client.get("/api/metrics/v1/")
-            self.assertEqual(response.status_code, 200)
-            data = response.json()
-            self.assertTrue(len(data) > 0, "API root should return at least one resource")
-            for url in data.values():
-                self.assertIn("/api/metrics/v1/", url)
+            factory = RequestFactory()
+            request = factory.get("/api/metrics/v1/")
+
+            rewritten_paths = []
+
+            def capture_get_response(req):
+                from django.http import HttpResponse
+
+                rewritten_paths.append(req.path_info)
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(capture_get_response)
+            middleware(request)
+
+            # Path must be rewritten to the canonical /api/ form
+            self.assertEqual(rewritten_paths[0], "/api/v1/")
+            # The original prefixed path is stored for DRF breadcrumbs / templates
+            self.assertEqual(request._api_service_prefix, "/api/metrics")
+            # get_full_path() must restore the prefixed form so response URLs are correct
+            self.assertIn("/api/metrics/", request.get_full_path())
 
     def test_middleware_strips_trailing_slash_from_url_prefix(self):
         """URL_PREFIX with a trailing slash is handled correctly."""
