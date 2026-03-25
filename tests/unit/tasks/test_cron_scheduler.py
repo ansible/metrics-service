@@ -19,6 +19,7 @@ from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestExecuteScheduledTaskFeatureFlags:
     """Test feature flag checking in _execute_scheduled_task.
 
@@ -86,6 +87,24 @@ class TestExecuteScheduledTaskFeatureFlags:
         scheduler._execute_scheduled_task("missing_task", "hello_world", {})
 
         mock_execute_db.assert_not_called()
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_before_querying(self, mock_task_cls, mock_close):
+        """close_old_connections must be called before any ORM access in _execute_scheduled_task."""
+        # Instantiate first so _load_task_registry()'s Task.objects.filter() call in __init__
+        # does not pollute the call_order we install below.
+        scheduler = UnifiedTaskScheduler()
+
+        call_order = []
+        mock_close.side_effect = lambda: call_order.append("close")
+        mock_task_cls.objects.filter.side_effect = lambda **_: (
+            call_order.append("query") or MagicMock(first=lambda: None)
+        )
+
+        scheduler._execute_scheduled_task("missing_task", "hello_world", {})
+
+        assert call_order[0] == "close", f"Expected close_old_connections first, got: {call_order}"
 
 
 @pytest.mark.unit
@@ -208,6 +227,33 @@ class TestPeriodicDatabaseSync:
         # Assert
         mock_execute.assert_not_called()
 
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_before_querying(self, mock_task_model, mock_close):
+        """close_old_connections must be called before any ORM access."""
+        call_order = []
+        mock_close.side_effect = lambda: call_order.append("close")
+        mock_task_model.immediate_tasks.side_effect = lambda: call_order.append("query") or []
+        mock_task_model.scheduled_tasks.return_value = []
+        mock_task_model.recurring_tasks.return_value = []
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._periodic_database_sync()
+
+        mock_close.assert_called_once()
+        assert call_order[0] == "close"
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_even_on_error(self, mock_task_model, mock_close):
+        """close_old_connections is called even when the sync body raises."""
+        mock_task_model.immediate_tasks.side_effect = Exception("db gone")
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._periodic_database_sync()
+
+        mock_close.assert_called_once()
+
 
 @pytest.mark.unit
 @pytest.mark.django_db
@@ -322,6 +368,36 @@ class TestExecuteDatabaseTaskErrors:
 
         # Assert
         mock_remove.assert_called_once_with(1)
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_before_querying(self, mock_task_model, mock_close):
+        """close_old_connections is called before any ORM access in _execute_database_task."""
+        call_order = []
+        mock_close.side_effect = lambda: call_order.append("close")
+
+        def get_side_effect(**kwargs):
+            call_order.append("query")
+            raise Exception("db gone")
+
+        mock_task_model.objects.get.side_effect = get_side_effect
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._execute_database_task(999)
+
+        mock_close.assert_called_once()
+        assert call_order[0] == "close"
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_even_on_error(self, mock_task_model, mock_close):
+        """close_old_connections is called even when the task body raises."""
+        mock_task_model.objects.get.side_effect = Exception("db gone")
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._execute_database_task(999)
+
+        mock_close.assert_called_once()
 
 
 @pytest.mark.unit
