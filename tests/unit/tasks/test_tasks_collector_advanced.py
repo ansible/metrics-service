@@ -39,7 +39,10 @@ class TestHourlyCollectionTasks:
         fixed_ts = "2024-01-15T13:00:00+00:00"
 
         with (
-            patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=_make_mock_collector_registry("unified_jobs")),
+            patch(
+                "apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors",
+                return_value=_make_mock_collector_registry("unified_jobs"),
+            ),
             patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
         ):
             from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
@@ -55,7 +58,10 @@ class TestHourlyCollectionTasks:
         later_now = timezone.now() + timedelta(hours=3)
 
         with (
-            patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=_make_mock_collector_registry("unified_jobs")),
+            patch(
+                "apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors",
+                return_value=_make_mock_collector_registry("unified_jobs"),
+            ),
             patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
             patch("apps.tasks.collectors.collect_hourly_metrics.timezone") as mock_tz,
         ):
@@ -78,7 +84,10 @@ class TestSnapshotCollectionTasks:
         fixed_ts = "2024-01-14T23:00:00+00:00"
 
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=_make_mock_collector_registry("config")),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors",
+                return_value=_make_mock_collector_registry("config"),
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
         ):
             from apps.tasks.collectors.collect_snapshot_metrics import collect_snapshot_metrics
@@ -93,7 +102,10 @@ class TestSnapshotCollectionTasks:
         later_now = timezone.now() + timedelta(days=2)
 
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=_make_mock_collector_registry("config")),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors",
+                return_value=_make_mock_collector_registry("config"),
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
             patch("apps.tasks.collectors.collect_snapshot_metrics.timezone") as mock_tz,
         ):
