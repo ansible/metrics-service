@@ -180,54 +180,19 @@ class TestSystemTaskCreation(TestCase):
             assert result["created"] == 0
             assert result["removed"] == 0
 
-    def test_running_task_not_deleted_without_force(self):
-        """Running system tasks are preserved when force=False (the default)."""
-        running = Task.objects.create(
-            name="run_task", function_name="hello_world", is_system_task=True, status="running"
-        )
+    def test_all_system_tasks_deleted_on_reinit(self):
+        """All existing system tasks are unconditionally removed on reinit.
+
+        create_system_tasks() is only called from the init container, before
+        the app starts, so no tasks can be running at that point.
+        """
+        for name in ("task_a", "task_b"):
+            Task.objects.create(name=name, function_name="hello_world", is_system_task=True)
         with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
-            result = tasks_system.create_system_tasks(force=False)
+            result = tasks_system.create_system_tasks()
 
-        assert result["skipped"] == 1
-        assert Task.objects.filter(id=running.id).exists()
-
-    def test_running_task_deleted_with_force(self):
-        """Running system tasks are deleted when force=True."""
-        running = Task.objects.create(
-            name="run_task", function_name="hello_world", is_system_task=True, status="running"
-        )
-        with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
-            result = tasks_system.create_system_tasks(force=True)
-
-        assert result["skipped"] == 0
-        assert not Task.objects.filter(id=running.id).exists()
-
-    def test_non_running_tasks_deleted_when_running_task_skipped(self):
-        """Non-running system tasks are still deleted even when a running task is skipped."""
-        running = Task.objects.create(
-            name="run_task", function_name="hello_world", is_system_task=True, status="running"
-        )
-        pending = Task.objects.create(
-            name="pend_task", function_name="hello_world", is_system_task=True, status="pending"
-        )
-        with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
-            result = tasks_system.create_system_tasks(force=False)
-
-        assert result["skipped"] == 1
-        assert result["removed"] == 1
-        assert Task.objects.filter(id=running.id).exists()
-        assert not Task.objects.filter(id=pending.id).exists()
-
-    def test_skipped_task_name_and_id_appear_in_results(self):
-        """Warning message for each skipped task includes its name and ID."""
-        running = Task.objects.create(
-            name="my_running_task", function_name="hello_world", is_system_task=True, status="running"
-        )
-        with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
-            result = tasks_system.create_system_tasks(force=False)
-
-        assert any("my_running_task" in msg for msg in result["tasks"])
-        assert any(str(running.id) in msg for msg in result["tasks"])
+        assert result["removed"] == 2
+        assert Task.objects.filter(is_system_task=True).count() == 0
 
 
 # =============================================================================
