@@ -98,8 +98,8 @@ class TestExecuteScheduledTaskFeatureFlags:
 
         call_order = []
         mock_close.side_effect = lambda: call_order.append("close")
-        mock_task_cls.objects.filter.side_effect = lambda **_: call_order.append("query") or MagicMock(
-            first=lambda: None
+        mock_task_cls.objects.filter.side_effect = lambda **_: (
+            call_order.append("query") or MagicMock(first=lambda: None)
         )
 
         scheduler._execute_scheduled_task("missing_task", "hello_world", {})
