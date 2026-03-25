@@ -148,27 +148,42 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
 
 # runs during `manage.py metrics_service init-system-tasks`
-def create_system_tasks() -> dict[str, Any]:
+def create_system_tasks(force: bool = False) -> dict[str, Any]:
     """
     Create system-defined tasks from task groups in the database.
 
-    This function removes all existing system tasks and recreates them from
-    task group definitions, ensuring the database always matches the code.
+    This function removes existing system tasks and recreates them from task group
+    definitions. Running tasks are skipped by default to avoid corrupting in-progress
+    executions during rolling deployments. Pass force=True to delete them anyway.
+
+    Args:
+        force: When True, delete running system tasks too (matches legacy behaviour).
+               When False (default), skip running tasks and warn.
 
     Returns:
-        dict: Summary of tasks created and removed
+        dict: Summary with keys created, removed, skipped, tasks (messages).
     """
     try:
         from .models import Task
         from .task_groups import get_all_enabled_tasks
     except ImportError:
         # Handle case where Django isn't fully set up yet
-        return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "removed": 0}
+        return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "removed": 0, "skipped": 0}
 
-    results = {"created": 0, "removed": 0, "tasks": []}
+    results = {"created": 0, "removed": 0, "skipped": 0, "tasks": []}
 
-    # Remove all existing system tasks
-    _, deletion_info = Task.objects.filter(is_system_task=True).delete()
+    # Identify and skip running tasks unless --force was passed
+    if not force:
+        for task in Task.objects.filter(is_system_task=True, status="running"):
+            logger.warning(f"Skipping deletion of running task: {task.name} (ID: {task.id})")
+            results["tasks"].append(f"Skipped running task: {task.name} (ID: {task.id})")
+            results["skipped"] += 1
+
+    # Delete system tasks, excluding running ones unless force=True
+    delete_qs = Task.objects.filter(is_system_task=True)
+    if not force:
+        delete_qs = delete_qs.exclude(status="running")
+    _, deletion_info = delete_qs.delete()
     removed_count = deletion_info.get("tasks.Task", 0)
     results["removed"] = removed_count
     if removed_count > 0:

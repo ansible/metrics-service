@@ -149,6 +149,11 @@ class Command(BaseCommand):
             action="store_true",
             help="List current system tasks",
         )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Delete running system tasks too. Use with caution during active deployments.",
+        )
 
     def _add_task_management_arguments(self, parser):
         """Add arguments for task management."""
@@ -281,8 +286,9 @@ class Command(BaseCommand):
 
             from apps.tasks.tasks import create_system_tasks
 
+            force = options.get("force", False)
             start_time = time.time()
-            results = create_system_tasks()
+            results = create_system_tasks(force=force)
             elapsed_time = time.time() - start_time
 
             self._display_system_tasks_results(results, elapsed_time)
@@ -302,6 +308,8 @@ class Command(BaseCommand):
             self.output.write(f"  Removed: {results['removed']} tasks")
         if results.get("created", 0) > 0:
             self.output.write(f"  Created: {results['created']} tasks")
+        if results.get("skipped", 0) > 0:
+            self.output.write(f"  Skipped (running): {results['skipped']} tasks")
         self.output.write("")
 
         # Display task details
