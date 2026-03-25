@@ -355,6 +355,7 @@ class UnifiedTaskScheduler:
 
     def _execute_database_task(self, task_id: int):
         """Execute a database task by submitting it to dispatcherd."""
+        close_old_connections()
         try:
             from .models import Task
 

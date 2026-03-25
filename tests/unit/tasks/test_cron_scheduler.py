@@ -92,12 +92,17 @@ class TestExecuteScheduledTaskFeatureFlags:
     @patch("apps.tasks.models.Task")
     def test_closes_old_connections_before_querying(self, mock_task_cls, mock_close):
         """close_old_connections is called before any ORM access in _execute_scheduled_task."""
-        mock_task_cls.objects.filter.return_value.first.return_value = None  # task not found
+        call_order = []
+        mock_close.side_effect = lambda: call_order.append("close")
+        mock_task_cls.objects.filter.side_effect = lambda **_: call_order.append("query") or MagicMock(
+            first=lambda: None
+        )
 
         scheduler = UnifiedTaskScheduler()
         scheduler._execute_scheduled_task("missing_task", "hello_world", {})
 
         mock_close.assert_called_once()
+        assert call_order[0] == "close"
 
 
 @pytest.mark.unit
@@ -361,6 +366,36 @@ class TestExecuteDatabaseTaskErrors:
 
         # Assert
         mock_remove.assert_called_once_with(1)
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_before_querying(self, mock_task_model, mock_close):
+        """close_old_connections is called before any ORM access in _execute_database_task."""
+        call_order = []
+        mock_close.side_effect = lambda: call_order.append("close")
+
+        def get_side_effect(**kwargs):
+            call_order.append("query")
+            raise Exception("db gone")
+
+        mock_task_model.objects.get.side_effect = get_side_effect
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._execute_database_task(999)
+
+        mock_close.assert_called_once()
+        assert call_order[0] == "close"
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_even_on_error(self, mock_task_model, mock_close):
+        """close_old_connections is called even when the task body raises."""
+        mock_task_model.objects.get.side_effect = Exception("db gone")
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._execute_database_task(999)
+
+        mock_close.assert_called_once()
 
 
 @pytest.mark.unit
