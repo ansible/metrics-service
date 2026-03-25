@@ -10,6 +10,9 @@ generates canonical /api/... URLs.
 
 For the /<service-name> case, SCRIPT_NAME is set so reverse()
 generates /<service-name>/... URLs.
+
+The service name is determined by URL_PREFIX when set (e.g. URL_PREFIX="/api/metrics"
+gives service_prefix="/metrics"), falling back to a name derived from ROOT_URLCONF.
 """
 
 from django.conf import settings
@@ -23,13 +26,24 @@ class ServicePrefixMiddleware:
     Two routing modes:
     1. /api/<service-name>/... → /api/... (no SCRIPT_NAME, canonical URLs)
     2. /<service-name>/... → /... (SCRIPT_NAME set for prefixed URLs)
+
+    The prefix is taken from URL_PREFIX when set (e.g. "/api/metrics"), falling
+    back to a name derived from ROOT_URLCONF (e.g. "metrics_service" → "/metrics-service").
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
-        # Get service name from ROOT_URLCONF (e.g., "metrics_service" -> "metrics-service")
-        self.service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
-        self.service_prefix = f"/{self.service_name}"
+        url_prefix = getattr(settings, "URL_PREFIX", None)
+        if url_prefix:
+            # URL_PREFIX is the full API prefix, e.g. "/api/metrics"
+            self.api_prefix = url_prefix.rstrip("/")
+            # Derive the bare service prefix by stripping the leading "/api" segment
+            self.service_prefix = self.api_prefix[4:] if self.api_prefix.startswith("/api/") else self.api_prefix
+        else:
+            # Fall back to deriving from ROOT_URLCONF (e.g. "metrics_service" → "/metrics-service")
+            service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
+            self.service_prefix = f"/{service_name}"
+            self.api_prefix = f"/api{self.service_prefix}"
 
     def __call__(self, request):
         path = request.path_info
@@ -39,7 +53,7 @@ class ServicePrefixMiddleware:
         # Store the API prefix so views can build correct absolute URLs
         # Store original path for DRF breadcrumbs
         # Patch get_full_path to return the original path for templates
-        api_prefix = f"/api{self.service_prefix}"
+        api_prefix = self.api_prefix
         if path.startswith(api_prefix):
             request._original_path = path
             request._api_service_prefix = api_prefix

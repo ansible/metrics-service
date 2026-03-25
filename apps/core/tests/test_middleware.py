@@ -138,6 +138,102 @@ class TestServicePrefixMiddlewareUnit(TestCase):
         middleware = ServicePrefixMiddleware(mock_get_response)
         self.assertIsNotNone(middleware)
 
+    def test_middleware_uses_url_prefix_when_set(self):
+        """When URL_PREFIX is set, api_prefix and service_prefix are derived from it."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/api/metrics"):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            self.assertEqual(middleware.api_prefix, "/api/metrics")
+            self.assertEqual(middleware.service_prefix, "/metrics")
+
+    def test_middleware_falls_back_to_root_urlconf_when_url_prefix_unset(self):
+        """When URL_PREFIX is None, prefix is derived from ROOT_URLCONF."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX=None):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            expected_service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
+            self.assertEqual(middleware.service_prefix, f"/{expected_service_name}")
+            self.assertEqual(middleware.api_prefix, f"/api/{expected_service_name}")
+
+    def test_middleware_routes_url_prefix_path(self):
+        """With URL_PREFIX set, requests at the API prefix are rewritten to /api/...
+
+        Directly instantiates ServicePrefixMiddleware inside the settings context so
+        the cached api_prefix reflects the override — using self.client would not
+        work because ClientHandler loads middleware before override_settings takes
+        effect.
+        """
+        from django.test import RequestFactory
+
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/api/metrics"):
+            factory = RequestFactory()
+            request = factory.get("/api/metrics/v1/")
+
+            rewritten_paths = []
+
+            def capture_get_response(req):
+                from django.http import HttpResponse
+
+                rewritten_paths.append(req.path_info)
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(capture_get_response)
+            middleware(request)
+
+            # Path must be rewritten to the canonical /api/ form
+            self.assertEqual(rewritten_paths[0], "/api/v1/")
+            # The original prefixed path is stored for DRF breadcrumbs / templates
+            self.assertEqual(request._api_service_prefix, "/api/metrics")
+            # get_full_path() must restore the prefixed form so response URLs are correct
+            self.assertIn("/api/metrics/", request.get_full_path())
+
+    def test_middleware_strips_trailing_slash_from_url_prefix(self):
+        """URL_PREFIX with a trailing slash is handled correctly."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/api/metrics/"):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            self.assertEqual(middleware.api_prefix, "/api/metrics")
+            self.assertEqual(middleware.service_prefix, "/metrics")
+
+    def test_middleware_url_prefix_not_under_api_segment(self):
+        """URL_PREFIX that does not start with '/api/' is used verbatim as service_prefix."""
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/apis/metrics"):
+
+            def mock_get_response(request):
+                from django.http import HttpResponse
+
+                return HttpResponse("OK")
+
+            middleware = ServicePrefixMiddleware(mock_get_response)
+            self.assertEqual(middleware.api_prefix, "/apis/metrics")
+            # '/apis/metrics' does not start with '/api/' so service_prefix is unchanged
+            self.assertEqual(middleware.service_prefix, "/apis/metrics")
+
 
 class TestAPIRootViewMiddlewareUnit(TestCase):
     """Unit tests for APIRootViewMiddleware."""
