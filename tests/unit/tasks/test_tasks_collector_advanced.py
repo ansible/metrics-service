@@ -6,7 +6,7 @@ that aren't covered by the basic comprehensive tests.
 """
 
 from datetime import UTC, date, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.test import TestCase
@@ -16,10 +16,93 @@ from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
 from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
 
 
+def _make_mock_collector_registry(collector_type: str):
+    """Return a minimal collector registry that never touches a real DB."""
+    mock_collector = MagicMock()
+    mock_collector.gather.return_value = {}
+    return {
+        collector_type: {
+            "collector_func": lambda **kw: mock_collector,
+            "rollup_processor": None,
+            "description": "test",
+        }
+    }
+
+
 @pytest.mark.unit
 @pytest.mark.django_db
-class TestHourlyCollectionTasks(TestCase):
-    """Test hourly collection tasks."""
+class TestHourlyCollectionTasks:
+    """Test that collect_hourly_metrics uses a scheduler-injected hour_timestamp correctly."""
+
+    def test_uses_provided_hour_timestamp(self):
+        """When hour_timestamp is supplied (as injected by the scheduler), it must be used as-is."""
+        fixed_ts = "2024-01-15T13:00:00+00:00"
+
+        with (
+            patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=_make_mock_collector_registry("unified_jobs")),
+            patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
+        ):
+            from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+            result = collect_hourly_metrics(collector_type="unified_jobs", hour_timestamp=fixed_ts)
+
+        assert result["status"] == "success"
+        assert result["timestamp"] == fixed_ts
+
+    def test_retry_with_injected_timestamp_ignores_wall_clock(self):
+        """A retry that supplies the original hour_timestamp must collect the same window even if wall clock has advanced."""
+        pinned_ts = "2024-01-15T13:00:00+00:00"
+        later_now = timezone.now() + timedelta(hours=3)
+
+        with (
+            patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=_make_mock_collector_registry("unified_jobs")),
+            patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
+            patch("apps.tasks.collectors.collect_hourly_metrics.timezone") as mock_tz,
+        ):
+            mock_tz.now.return_value = later_now
+            from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+            result = collect_hourly_metrics(collector_type="unified_jobs", hour_timestamp=pinned_ts)
+
+        assert result["status"] == "success"
+        assert result["timestamp"] == pinned_ts
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestSnapshotCollectionTasks:
+    """Test that collect_snapshot_metrics uses a scheduler-injected collection_timestamp correctly."""
+
+    def test_uses_provided_collection_timestamp(self):
+        """When collection_timestamp is supplied (as injected by the scheduler), it must be used as-is."""
+        fixed_ts = "2024-01-14T23:00:00+00:00"
+
+        with (
+            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=_make_mock_collector_registry("config")),
+            patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
+        ):
+            from apps.tasks.collectors.collect_snapshot_metrics import collect_snapshot_metrics
+
+            result = collect_snapshot_metrics(collector_type="config", collection_timestamp=fixed_ts)
+
+        assert result["status"] == "success"
+
+    def test_retry_with_injected_timestamp_ignores_wall_clock(self):
+        """A retry that supplies the original collection_timestamp must collect the same window even if wall clock has advanced."""
+        pinned_ts = "2024-01-14T23:00:00+00:00"
+        later_now = timezone.now() + timedelta(days=2)
+
+        with (
+            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=_make_mock_collector_registry("config")),
+            patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
+            patch("apps.tasks.collectors.collect_snapshot_metrics.timezone") as mock_tz,
+        ):
+            mock_tz.now.return_value = later_now
+            from apps.tasks.collectors.collect_snapshot_metrics import collect_snapshot_metrics
+
+            result = collect_snapshot_metrics(collector_type="config", collection_timestamp=pinned_ts)
+
+        assert result["status"] == "success"
 
 
 @pytest.mark.unit
