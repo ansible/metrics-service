@@ -178,6 +178,7 @@ class TestPredefinedTaskGroups(TestCase):
         # Daily snapshot collection
         assert "daily_config" in task_ids
         assert "daily_execution_environments" in task_ids
+        assert "daily_feature_flags" in task_ids
         # Daily processing tasks
         assert "cleanup_metrics_data" in task_ids
         assert "daily_metrics_rollup" in task_ids

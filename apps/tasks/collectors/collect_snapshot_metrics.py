@@ -26,12 +26,14 @@ def _get_snapshot_collectors():
     from metrics_utility.anonymized_rollups import (
         ControllerVersionAnonymizedRollup,
         ExecutionEnvironmentsAnonymizedRollup,
+        FeatureFlagsAnonymizedRollup,
         TableMetadataAnonymizedRollup,
     )
     from metrics_utility.library.collectors.controller import (
         config,
         controller_version_service,
         execution_environments,
+        feature_flags_service,
         table_metadata,
     )
 
@@ -52,6 +54,11 @@ def _get_snapshot_collectors():
             "collector_func": controller_version_service,
             "rollup_processor": ControllerVersionAnonymizedRollup,
             "description": "Controller version snapshot",
+        },
+        "feature_flags_service": {
+            "collector_func": feature_flags_service,
+            "rollup_processor": FeatureFlagsAnonymizedRollup,
+            "description": "Feature flags snapshot",
         },
         "table_metadata": {
             "collector_func": table_metadata,

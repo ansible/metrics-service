@@ -220,6 +220,15 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "description": "Collect table metadata snapshot daily",
             "category": "daily_collection",
         },
+        {
+            "task_id": "daily_feature_flags",
+            "function": "collect_snapshot_metrics",
+            "cron": "45 1 * * *",  # Daily at 1:45 AM
+            "args": {"collector_type": "feature_flags_service"},
+            "enabled": True,
+            "description": "Collect feature flags snapshot daily",
+            "category": "daily_collection",
+        },
         # Daily Rollup
         {
             "task_id": "daily_metrics_rollup",

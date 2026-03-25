@@ -101,6 +101,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         CredentialsAnonymizedRollup,
         # EventModulesAnonymizedRollup,
         ExecutionEnvironmentsAnonymizedRollup,
+        FeatureFlagsAnonymizedRollup,
         JobHostSummaryAnonymizedRollup,
         JobsAnonymizedRollup,
         TableMetadataAnonymizedRollup,
@@ -119,6 +120,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     daily_rollup_processors = {
         "execution_environments": ExecutionEnvironmentsAnonymizedRollup(),
         "controller_version_service": ControllerVersionAnonymizedRollup(),
+        "feature_flags_service": FeatureFlagsAnonymizedRollup(),
         "table_metadata": TableMetadataAnonymizedRollup(),
     }
 

@@ -72,6 +72,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             credentials_rollup=metrics.get("credentials_service", {}),
             table_metadata_rollup=metrics.get("table_metadata", {}),
             controller_version_rollup=metrics.get("controller_version_service", {}),
+            feature_flags_rollup=metrics.get("feature_flags_service", {}),
             salt=kwargs.get("salt", generate_salt()),
         )
 
