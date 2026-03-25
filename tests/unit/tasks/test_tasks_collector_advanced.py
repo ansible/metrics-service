@@ -482,3 +482,46 @@ class TestHourlyCollectionRetryBehavior(TestCase):
         assert collection.status == "collected", "New collection should have status='collected'"
         assert collection.error_message == ""
         assert collection.raw_data == {"new": "data"}
+
+    def test_integrity_error_treated_as_success(self):
+        """
+        Verify that an IntegrityError from a concurrent write is treated as success.
+
+        If two executions race to write the same (collector_type, collection_timestamp),
+        the unique_together constraint raises IntegrityError on the loser. Since the data
+        already exists, the task has nothing left to do and should return success rather
+        than failing and triggering a retry.
+        """
+        from datetime import datetime
+        from unittest.mock import MagicMock, patch
+
+        from django.db import IntegrityError
+
+        from apps.tasks.utils import generic_collect_metrics
+
+        collection_timestamp = datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)
+
+        mock_collector = MagicMock()
+        mock_collector.gather.return_value = {"data": "value"}
+        mock_db = MagicMock()
+
+        collector_registry = {
+            "unified_jobs": {
+                "collector_func": lambda db: mock_collector,
+                "rollup_processor": None,
+            }
+        }
+
+        with patch("apps.tasks.models.HourlyMetricsCollection.objects") as mock_objects:
+            mock_objects.update_or_create.side_effect = IntegrityError("duplicate key value")
+
+            result = generic_collect_metrics(
+                collector_type="unified_jobs",
+                collector_registry=collector_registry,
+                collection_mode="hourly",
+                timestamp=collection_timestamp,
+                db_connection=mock_db,
+            )
+
+        assert result["status"] == "success"
+        assert "duplicate" in result["message"].lower()

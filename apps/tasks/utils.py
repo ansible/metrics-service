@@ -417,6 +417,8 @@ def generic_collect_metrics(
             # Task execution not found or deleted, continue without it
             logger.debug(f"TaskExecution {task_execution_id} not found, proceeding without link")
 
+    from django.db import IntegrityError
+
     try:
         # For snapshot collectors, filter out collection_time (audit-only param, not used by collector)
         actual_collector_kwargs = collector_kwargs.copy() if collector_kwargs else {}
@@ -450,6 +452,24 @@ def generic_collect_metrics(
                 "message": f"{action} {collection_mode} collection for {collector_type}",
                 "task_type": f"collect_{collector_type}",
                 "collection_id": collection.id,
+                "collector_type": collector_type,
+                "timestamp": timestamp.isoformat(),
+            },
+        )
+
+    except IntegrityError:
+        # A concurrent execution already wrote this (collector_type, collection_timestamp) record.
+        # The unique_together constraint on HourlyMetricsCollection is the intended guard here —
+        # the data exists, so this execution has nothing left to do.
+        logger.warning(
+            f"Duplicate collection skipped for {collector_type} at {timestamp.isoformat()} "
+            f"(unique constraint violation — record already written by concurrent execution)"
+        )
+        return create_task_result(
+            "success",
+            {
+                "message": f"Skipped duplicate {collection_mode} collection for {collector_type}",
+                "task_type": f"collect_{collector_type}",
                 "collector_type": collector_type,
                 "timestamp": timestamp.isoformat(),
             },
