@@ -12,6 +12,7 @@ from typing import Any
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from django.db import close_old_connections
 from django.utils import timezone
 
 from .tasks import TASK_FUNCTIONS
@@ -183,6 +184,7 @@ class UnifiedTaskScheduler:
             args: Unused. The feature flag and other task data are re-read from task.task_data
                   at runtime to reflect the current DB state.
         """
+        close_old_connections()
         try:
             from .models import Task
 
@@ -241,6 +243,7 @@ class UnifiedTaskScheduler:
 
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
+        close_old_connections()
         try:
             from .models import Task
 
