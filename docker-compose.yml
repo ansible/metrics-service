@@ -25,11 +25,15 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: metrics-service-init
-    entrypoint: ["/app/scripts/entrypoint-init.sh"]
+    entrypoint: ["/app/scripts/init.sh"]
     volumes:
       - "./:/app:z"
       - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - {
+          type: tmpfs,
+          target: /app/metrics_service.egg-info,
+          tmpfs: { mode: 0o01777 },
+        }
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,7 +53,11 @@ services:
     volumes:
       - "./:/app:z"
       - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - {
+          type: tmpfs,
+          target: /app/metrics_service.egg-info,
+          tmpfs: { mode: 0o01777 },
+        }
     ports:
       - ${METRICS_SERVICE_PORT:-8000}:8000
     depends_on:
@@ -74,7 +82,11 @@ services:
     volumes:
       - "./:/app:z"
       - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - {
+          type: tmpfs,
+          target: /app/metrics_service.egg-info,
+          tmpfs: { mode: 0o01777 },
+        }
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,7 +111,11 @@ services:
     volumes:
       - "./:/app:z"
       - "/app/.venv"
-      - {type: tmpfs, target: /app/metrics_service.egg-info, tmpfs: {mode: 0o01777}}
+      - {
+          type: tmpfs,
+          target: /app/metrics_service.egg-info,
+          tmpfs: { mode: 0o01777 },
+        }
     depends_on:
       postgres:
         condition: service_healthy

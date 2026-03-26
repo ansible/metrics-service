@@ -46,14 +46,14 @@ RUN pip install --no-cache-dir --prefer-binary --only-binary :all: . || \
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/generate-certs.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/entrypoint-init.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/init.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/entrypoint-web.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/entrypoint-dispatcherd.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/entrypoint-scheduler.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/nginx/nginx.conf /etc/nginx/nginx.conf
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh && \
     chmod 555 /usr/local/bin/generate-certs.sh && \
-    chmod 555 /usr/local/bin/entrypoint-init.sh && \
+    chmod 555 /usr/local/bin/init.sh && \
     chmod 555 /usr/local/bin/entrypoint-web.sh && \
     chmod 555 /usr/local/bin/entrypoint-dispatcherd.sh && \
     chmod 555 /usr/local/bin/entrypoint-scheduler.sh && \

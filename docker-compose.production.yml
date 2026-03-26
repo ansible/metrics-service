@@ -27,7 +27,8 @@ services:
       POSTGRES_USER: metrics_service
       POSTGRES_PASSWORD: ${METRICS_SERVICE_DATABASES__default__PASSWORD:?METRICS_SERVICE_DATABASES__default__PASSWORD is required}
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "metrics_service", "-d", "metrics_service"]
+      test:
+        ["CMD", "pg_isready", "-U", "metrics_service", "-d", "metrics_service"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,13 +42,12 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: metrics-service-init-prod
-    entrypoint: ["/usr/local/bin/entrypoint-init.sh"]
-    restart: "no"  # Runs once and exits
+    entrypoint: ["/usr/local/bin/init.sh"]
+    restart: "no" # Runs once and exits
     depends_on:
       postgres:
         condition: service_healthy
-    environment: &common-env
-      # Django Core
+    environment: &common-env # Django Core
       METRICS_SERVICE_MODE: production
       METRICS_SERVICE_SECRET_KEY: ${METRICS_SERVICE_SECRET_KEY:?METRICS_SERVICE_SECRET_KEY is required}
       METRICS_SERVICE_ALLOWED_HOSTS: ${METRICS_SERVICE_ALLOWED_HOSTS:-localhost,127.0.0.1,metrics-service}
