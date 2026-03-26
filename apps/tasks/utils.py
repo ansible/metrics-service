@@ -417,6 +417,8 @@ def generic_collect_metrics(
             # Task execution not found or deleted, continue without it
             logger.debug(f"TaskExecution {task_execution_id} not found, proceeding without link")
 
+    from django.db import IntegrityError
+
     try:
         # For snapshot collectors, filter out collection_time (audit-only param, not used by collector)
         actual_collector_kwargs = collector_kwargs.copy() if collector_kwargs else {}
@@ -429,17 +431,33 @@ def generic_collect_metrics(
         # Process rollup if processor provided, otherwise use raw data
         rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
 
-        collection, created = HourlyMetricsCollection.objects.update_or_create(
-            collector_type=collector_type,
-            collection_timestamp=timestamp,
-            defaults={
-                "raw_data": rollup_data,
-                "status": "collected",
-                "error_message": "",
-                "collection_parameters": collection_params,
-                "task_execution": task_execution_instance,
-            },
-        )
+        try:
+            collection, created = HourlyMetricsCollection.objects.update_or_create(
+                collector_type=collector_type,
+                collection_timestamp=timestamp,
+                defaults={
+                    "raw_data": rollup_data,
+                    "status": "collected",
+                    "error_message": "",
+                    "collection_parameters": collection_params,
+                    "task_execution": task_execution_instance,
+                },
+            )
+        except IntegrityError:
+            # Another execution wrote this record first. The data is already saved, so return success.
+            logger.warning(
+                f"Duplicate collection skipped for {collector_type} at {timestamp.isoformat()} "
+                f"(unique constraint violation - record already written by concurrent execution)"
+            )
+            return create_task_result(
+                "success",
+                {
+                    "message": f"Skipped duplicate {collection_mode} collection for {collector_type}",
+                    "task_type": f"collect_{collector_type}",
+                    "collector_type": collector_type,
+                    "timestamp": timestamp.isoformat(),
+                },
+            )
 
         action = "Created" if created else "Updated"
         log_task_execution(f"collect_{collector_type}", "completed", f"{action} {collection_mode} ID: {collection.id}")

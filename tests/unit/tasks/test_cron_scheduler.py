@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.utils import timezone
 
-from apps.tasks.cron_scheduler import UnifiedTaskScheduler
+from apps.tasks.cron_scheduler import UnifiedTaskScheduler, _inject_dispatch_timestamps
 
 
 @pytest.mark.unit
@@ -461,3 +461,54 @@ class TestRemoveDatabaseTask:
 
         # Assert - still removed from tracking
         assert 1 not in scheduler._db_task_jobs
+
+
+@pytest.mark.unit
+class TestInjectDispatchTimestamps:
+    """
+    Test that _inject_dispatch_timestamps pins the correct time-window key into
+    task_data at dispatch time so retries always collect the originally intended window.
+    """
+
+    def test_injects_hour_timestamp_for_hourly_collector(self):
+        """collect_hourly_metrics tasks get hour_timestamp set to the previous full hour."""
+        fixed_now = timezone.now().replace(minute=30, second=0, microsecond=0)
+        expected = (fixed_now.replace(minute=0) - timedelta(hours=1)).isoformat()
+
+        with patch("apps.tasks.cron_scheduler.timezone") as mock_tz:
+            mock_tz.now.return_value = fixed_now
+            result = _inject_dispatch_timestamps("collect_hourly_metrics", {"collector_type": "unified_jobs"})
+
+        assert result["hour_timestamp"] == expected
+
+    def test_injects_collection_timestamp_for_snapshot_collector(self):
+        """collect_snapshot_metrics tasks get collection_timestamp set to yesterday at 23:00."""
+        fixed_now = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        expected = (fixed_now.replace(hour=23) - timedelta(days=1)).isoformat()
+
+        with patch("apps.tasks.cron_scheduler.timezone") as mock_tz:
+            mock_tz.now.return_value = fixed_now
+            result = _inject_dispatch_timestamps("collect_snapshot_metrics", {"collector_type": "config"})
+
+        assert result["collection_timestamp"] == expected
+
+    def test_does_not_overwrite_existing_hour_timestamp(self):
+        """An explicit hour_timestamp already in task_data must not be replaced."""
+        fixed_ts = "2024-01-15T10:00:00+00:00"
+        result = _inject_dispatch_timestamps(
+            "collect_hourly_metrics", {"collector_type": "unified_jobs", "hour_timestamp": fixed_ts}
+        )
+        assert result["hour_timestamp"] == fixed_ts
+
+    def test_does_not_modify_unrelated_functions(self):
+        """Functions not in the injection map are returned unchanged."""
+        original = {"some_key": "some_value"}
+        result = _inject_dispatch_timestamps("hello_world", original)
+        assert result == original
+
+    def test_returns_a_copy_not_the_original_dict(self):
+        """The original task_data dict must not be mutated."""
+        original = {"collector_type": "unified_jobs"}
+        result = _inject_dispatch_timestamps("collect_hourly_metrics", original)
+        assert "hour_timestamp" not in original
+        assert "hour_timestamp" in result
