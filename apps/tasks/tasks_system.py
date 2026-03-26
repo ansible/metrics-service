@@ -116,7 +116,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
     try:
         # Create execution record
-        TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
+        execution = TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
 
         # Ensure dispatcherd is configured before attempting to submit tasks
         from .dispatcherd_config import ensure_dispatcherd_configured
@@ -132,7 +132,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         queue = get_queue_for_function(task.function_name)
 
         # Submit to dispatcherd using execute_db_task as the entry point
-        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
+        submit_task(execute_db_task, kwargs={"task_id": task.id, "execution_id": execution.id}, queue=queue)
 
         # Update task status to indicate it's been submitted
         task.status = "pending"

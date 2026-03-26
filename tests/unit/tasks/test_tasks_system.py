@@ -671,12 +671,14 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
         assert call_kwargs["kwargs"]["task_id"] == task.id
         assert call_kwargs["queue"] == "metrics_tasks"
 
+        # Verify execution_id is passed so execute_db_task can update the record
+        execution = TaskExecution.objects.filter(task=task).first()
+        assert execution is not None
+        assert call_kwargs["kwargs"]["execution_id"] == execution.id
+
         # Verify task status updated
         task.refresh_from_db()
         assert task.status == "pending"
-
-        # Verify execution record created
-        assert TaskExecution.objects.filter(task=task).exists()
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
