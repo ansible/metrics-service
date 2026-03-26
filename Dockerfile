@@ -42,22 +42,26 @@ USER 1001
 RUN pip install --no-cache-dir --prefer-binary --only-binary :all: . || \
     pip install --no-cache-dir --prefer-binary .
 
-# Copy and set up entrypoint scripts, Nginx config, and certificate generator
+# Copy and set up entrypoint scripts, Nginx config, and supervisord configs
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/generate-certs.sh /usr/local/bin/
-COPY --chown=1001:1001 scripts/entrypoint-init.sh /usr/local/bin/
+COPY --chown=1001:1001 scripts/init.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/entrypoint-web.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/entrypoint-dispatcherd.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/entrypoint-scheduler.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY --chown=1001:1001 scripts/supervisord/supervisord_web.conf /etc/supervisord_web.conf
+COPY --chown=1001:1001 scripts/supervisord/supervisord_dispatcherd.conf /etc/supervisord_dispatcherd.conf
+COPY --chown=1001:1001 scripts/supervisord/supervisord_scheduler.conf /etc/supervisord_scheduler.conf
 RUN chmod 555 /usr/local/bin/docker-entrypoint.sh && \
-    chmod 555 /usr/local/bin/generate-certs.sh && \
-    chmod 555 /usr/local/bin/entrypoint-init.sh && \
+    chmod 555 /usr/local/bin/init.sh && \
     chmod 555 /usr/local/bin/entrypoint-web.sh && \
     chmod 555 /usr/local/bin/entrypoint-dispatcherd.sh && \
     chmod 555 /usr/local/bin/entrypoint-scheduler.sh && \
-    chmod 644 /etc/nginx/nginx.conf
+    chmod 644 /etc/nginx/nginx.conf && \
+    chmod 644 /etc/supervisord_web.conf && \
+    chmod 644 /etc/supervisord_dispatcherd.conf && \
+    chmod 644 /etc/supervisord_scheduler.conf
 
 # Create necessary directories with proper permissions
 # Nginx directories need to be writable by user 1001
