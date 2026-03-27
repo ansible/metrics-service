@@ -115,7 +115,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
         {
             "task_id": "daily_task_cleanup",
             "function": "cleanup_old_tasks",
-            "cron": "0 2 * * *",  # Daily at 2 AM
+            "cron": "0 5 * * *",  # Daily at 5 AM
             "args": {
                 "days_old": 5,
                 "dry_run": False,
