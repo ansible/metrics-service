@@ -115,7 +115,6 @@ def submit_task_to_dispatcher(task: Any) -> None:
     from .models import TaskExecution
 
     try:
-        # Create execution record
         execution = TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
 
         # Ensure dispatcherd is configured before attempting to submit tasks
