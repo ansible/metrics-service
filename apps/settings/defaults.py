@@ -123,7 +123,7 @@ DATABASES = {
 # also used by tasks - unless set in the db.
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": True,  # Controls all metrics collection, rollup, anonymization, and sending
-    "DASHBOARD_COLLECTION_ENABLED": False,  # automation-reports integration (customer opt-in)
+    "DASHBOARD_COLLECTION": False,  # automation-reports integration (customer opt-in)
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
