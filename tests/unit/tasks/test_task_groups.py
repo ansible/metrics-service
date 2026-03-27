@@ -205,7 +205,7 @@ class TestPredefinedTaskGroups(TestCase):
         for group in TASK_GROUPS:
             all_enabled_tasks.extend(group.get_enabled_tasks())
 
-        seen_slots: dict[tuple[str, str], str] = {}
+        seen_slots: dict[tuple[int, int], str] = {}
         for task in all_enabled_tasks:
             cron = task.get("cron", "")
             if not cron:
@@ -213,15 +213,16 @@ class TestPredefinedTaskGroups(TestCase):
             parts = cron.split()
             if len(parts) < 2:
                 continue
-            minute, hour = parts[0], parts[1]
-            # Only compare tasks that fire at a fixed hour (not wildcards)
-            if hour == "*" or minute == "*":
+            minute_raw, hour_raw = parts[0], parts[1]
+            # Only compare tasks that fire at a single fixed hour:minute.
+            if not (minute_raw.isdigit() and hour_raw.isdigit()):
                 continue
+            minute, hour = int(minute_raw), int(hour_raw)
             slot = (hour, minute)
             task_id = task["task_id"]
             assert slot not in seen_slots, (
                 f"Tasks '{task_id}' and '{seen_slots[slot]}' share the same cron slot "
-                f"{hour}:{minute.zfill(2)} - reschedule one to avoid concurrent execution"
+                f"{hour}:{minute:02d} - reschedule one to avoid concurrent execution"
             )
             seen_slots[slot] = task_id
 
