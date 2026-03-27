@@ -190,6 +190,42 @@ class TestPredefinedTaskGroups(TestCase):
         enabled_tasks = METRICS_COLLECTION_GROUP.get_enabled_tasks()
         assert len(enabled_tasks) == 0
 
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
+    def test_no_duplicate_cron_slots(self):
+        """Assert that no two enabled tasks across all groups share the same cron hour:minute slot.
+
+        Two tasks sharing the same hour and minute may run concurrently, which can cause
+        data races (for example, a cleanup task deleting records that a rollup task is
+        actively writing). This test prevents that class of scheduling conflict from being
+        introduced silently.
+        """
+        from apps.tasks.task_groups import TASK_GROUPS
+
+        all_enabled_tasks = []
+        for group in TASK_GROUPS:
+            all_enabled_tasks.extend(group.get_enabled_tasks())
+
+        seen_slots: dict[tuple[int, int], str] = {}
+        for task in all_enabled_tasks:
+            cron = task.get("cron", "")
+            if not cron:
+                continue
+            parts = cron.split()
+            if len(parts) < 2:
+                continue
+            minute_raw, hour_raw = parts[0], parts[1]
+            # Only compare tasks that fire at a single fixed hour:minute.
+            if not (minute_raw.isdigit() and hour_raw.isdigit()):
+                continue
+            minute, hour = int(minute_raw), int(hour_raw)
+            slot = (hour, minute)
+            task_id = task["task_id"]
+            assert slot not in seen_slots, (
+                f"Tasks '{task_id}' and '{seen_slots[slot]}' share the same cron slot "
+                f"{hour}:{minute:02d} - reschedule one to avoid concurrent execution"
+            )
+            seen_slots[slot] = task_id
+
 
 class TestTaskGroupFunctions(TestCase):
     """Test utility functions for task groups."""
