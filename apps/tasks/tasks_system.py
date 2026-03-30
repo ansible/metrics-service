@@ -80,9 +80,14 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         update_task_status(task, execution, status="running")
         log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
 
-        # Execute the actual task function
+        # Execute the actual task function, forwarding execution_id so inner
+        # tasks (e.g. collect_daily_metrics) can link their collections back to
+        # this TaskExecution record.
         task_function = TASK_FUNCTIONS[task.function_name]
-        result = task_function(**task.task_data)
+        task_kwargs = {**task.task_data}
+        if execution_id:
+            task_kwargs["execution_id"] = execution_id
+        result = task_function(**task_kwargs)
 
         # Complete task execution
         status = "completed" if result.get("status") == "success" else "failed"
