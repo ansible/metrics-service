@@ -152,7 +152,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
             daily_rollup[collector_type] = _merge_collects(collections, processor)
         else:
             logger.warning(f"No {collector_type} collection found for summary date")
-            daily_rollup[collector_type] = {}
+            daily_rollup[collector_type] = _merge_collects([], processor)
 
     return daily_rollup, missing_hours
 
