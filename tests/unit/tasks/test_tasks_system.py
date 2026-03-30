@@ -172,8 +172,7 @@ class TestSystemTaskCreation(TestCase):
 
     def test_create_system_tasks_with_disabled_tasks(self):
         """Test handling of disabled system tasks."""
-        # Disabled tasks are filtered by get_all_enabled_tasks()
-        with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value={}):
             result = tasks_system.create_system_tasks()
 
             # All tasks filtered out
@@ -188,7 +187,7 @@ class TestSystemTaskCreation(TestCase):
         """
         for name in ("task_a", "task_b"):
             Task.objects.create(name=name, function_name="hello_world", is_system_task=True)
-        with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value={}):
             result = tasks_system.create_system_tasks()
 
         assert result["removed"] == 2
@@ -716,7 +715,7 @@ class TestCreateSystemTasksExceptionHandling(TestCase):
         )
 
     @patch("apps.tasks.tasks_system._create_task_from_group")
-    @patch("apps.tasks.task_groups.get_all_enabled_tasks")
+    @patch("apps.tasks.task_groups.get_all_tasks_for_init")
     def test_handles_exception_creating_individual_task(self, mock_get_tasks, mock_create_task):
         """Test create_system_tasks handles exceptions per task."""
         # Arrange

@@ -10,10 +10,12 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 
 from apps.tasks.task_groups import (
+    ANONYMIZATION_GROUP,
     METRICS_COLLECTION_GROUP,
     SYSTEM_TASKS_GROUP,
     TaskGroup,
     get_all_enabled_tasks,
+    get_all_tasks_for_init,
 )
 
 
@@ -162,14 +164,12 @@ class TestPredefinedTaskGroups(TestCase):
         assert "daily_task_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
-    def test_metrics_collection_group_enabled(self):
-        """Test metrics collection group when feature flag is enabled."""
+    def test_metrics_collection_group_always_enabled(self):
+        """Test metrics collection group has no feature flag and always returns its tasks."""
         assert METRICS_COLLECTION_GROUP.name == "metrics_collection"
-        assert METRICS_COLLECTION_GROUP.feature_flag == "ANONYMIZED_DATA_COLLECTION"
+        assert METRICS_COLLECTION_GROUP.feature_flag is None
 
         task_ids = [task["task_id"] for task in METRICS_COLLECTION_GROUP.get_enabled_tasks()]
-        # Should have all tasks when flag is enabled
         assert len(task_ids) > 0
         # Hourly collection tasks
         assert "hourly_job_host_summary" in task_ids
@@ -180,15 +180,30 @@ class TestPredefinedTaskGroups(TestCase):
         assert "daily_execution_environments" in task_ids
         # Daily processing tasks
         assert "cleanup_metrics_data" in task_ids
-        assert "daily_anonymize" in task_ids
         assert "daily_metrics_rollup" in task_ids
+        # Anonymize and send tasks must NOT be in this group
+        assert "daily_anonymize" not in task_ids
+        assert "send_to_segment_daily" not in task_ids
+
+    def test_anonymization_group_structure(self):
+        """Test ANONYMIZATION_GROUP contains only the two opt-out tasks with the correct flag."""
+        assert ANONYMIZATION_GROUP.name == "anonymization"
+        assert ANONYMIZATION_GROUP.feature_flag == "ANONYMIZED_DATA_COLLECTION"
+
+        task_ids = [task["task_id"] for task in ANONYMIZATION_GROUP.tasks]
+        assert set(task_ids) == {"daily_anonymize", "send_to_segment_daily"}
+
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
+    def test_anonymization_group_enabled(self):
+        """Test ANONYMIZATION_GROUP returns both tasks when flag is enabled."""
+        task_ids = [task["task_id"] for task in ANONYMIZATION_GROUP.get_enabled_tasks()]
+        assert "daily_anonymize" in task_ids
         assert "send_to_segment_daily" in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
-    def test_metrics_collection_group_disabled(self):
-        """Test metrics collection group when feature flag is disabled."""
-        enabled_tasks = METRICS_COLLECTION_GROUP.get_enabled_tasks()
-        assert len(enabled_tasks) == 0
+    def test_anonymization_group_disabled(self):
+        """Test ANONYMIZATION_GROUP returns no tasks when flag is disabled."""
+        assert ANONYMIZATION_GROUP.get_enabled_tasks() == []
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
     def test_no_duplicate_cron_slots(self):
@@ -231,28 +246,64 @@ class TestTaskGroupFunctions(TestCase):
     """Test utility functions for task groups."""
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
-    def test_get_all_enabled_tasks(self):
-        """Test getting all enabled tasks from all groups."""
+    def test_get_all_enabled_tasks_flag_false(self):
+        """Collection tasks are present when flag is false, only anonymize/send are absent."""
         all_tasks = get_all_enabled_tasks()
-
-        # Should have only system tasks when metrics collection is disabled
         task_ids = list(all_tasks.keys())
 
         # System tasks (always enabled)
         assert "daily_task_cleanup" in task_ids
         assert "hourly_health_check" in task_ids
 
-        # Metrics collection tasks (disabled)
-        assert "hourly_job_host_summary" not in task_ids
-        assert "hourly_host_metrics" not in task_ids
-        assert "daily_metrics_rollup" not in task_ids
+        # Metrics collection tasks - (always enabled regardless of the flag)
+        assert "hourly_job_host_summary" in task_ids
+        assert "daily_metrics_rollup" in task_ids
+        assert "cleanup_metrics_data" in task_ids
+
+        # Anonymize and send tasks (must be absent when flag is false)
         assert "daily_anonymize" not in task_ids
         assert "send_to_segment_daily" not in task_ids
 
-        # Check that group information is added to tasks
+        # Every returned task config must have the group metadata
         for _task_id, task_config in all_tasks.items():
             assert "group" in task_config
             assert "group_description" in task_config
+
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
+    def test_get_all_enabled_tasks_flag_true(self):
+        """All tasks including anonymize/send are present when flag is true."""
+        all_tasks = get_all_enabled_tasks()
+        task_ids = list(all_tasks.keys())
+
+        assert "daily_anonymize" in task_ids
+        assert "send_to_segment_daily" in task_ids
+        assert "hourly_job_host_summary" in task_ids
+        assert "daily_metrics_rollup" in task_ids
+
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
+    def test_get_all_tasks_for_init_includes_flagged_tasks(self):
+        """get_all_tasks_for_init() returns anonymize/send tasks even when flag is false."""
+        all_tasks = get_all_tasks_for_init()
+        task_ids = list(all_tasks.keys())
+
+        # Anonymize/send tasks must be present regardless of the flag
+        assert "daily_anonymize" in task_ids
+        assert "send_to_segment_daily" in task_ids
+
+        # The feature_flag must be stored in their config for runtime checking
+        assert all_tasks["daily_anonymize"]["feature_flag"] == "ANONYMIZED_DATA_COLLECTION"
+        assert all_tasks["send_to_segment_daily"]["feature_flag"] == "ANONYMIZED_DATA_COLLECTION"
+
+        # Collection tasks must also be present
+        assert "hourly_job_host_summary" in task_ids
+        assert "daily_metrics_rollup" in task_ids
+        assert "daily_task_cleanup" in task_ids
+
+    def test_get_all_tasks_for_init_excludes_individually_disabled_tasks(self):
+        """get_all_tasks_for_init() still respects per-task enabled=False."""
+        all_tasks = get_all_tasks_for_init()
+        # hourly_job_events has enabled=False in METRICS_COLLECTION_GROUP
+        assert "hourly_job_events" not in all_tasks
 
 
 class TestTaskGroupIntegration(TestCase):
@@ -274,36 +325,38 @@ class TestTaskGroupIntegration(TestCase):
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
     def test_all_flags_enabled(self):
-        """Test when metrics collection feature flag is enabled."""
+        """Test that all tasks are present when ANONYMIZED_DATA_COLLECTION is enabled."""
         all_tasks = get_all_enabled_tasks()
-
-        # Should have tasks from all groups
         task_ids = list(all_tasks.keys())
 
         # System tasks
         assert any("cleanup" in task_id for task_id in task_ids)
 
-        # Metrics collection tasks
+        # Metrics collection tasks (always on)
         assert any("hourly" in task_id for task_id in task_ids)
         assert "daily_metrics_rollup" in task_ids
 
-        # Anonymization tasks
+        # Anonymization tasks (from ANONYMIZATION_GROUP, enabled when flag is true)
         assert "daily_anonymize" in task_ids
         assert "send_to_segment_daily" in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
-    def test_minimal_system_only(self):
-        """Test when only system tasks are enabled."""
+    def test_flag_false_stops_only_anonymize_send(self):
+        """Collection and cleanup tasks are present when flag is false; only anonymize/send are absent."""
         all_tasks = get_all_enabled_tasks()
-
-        # Only system tasks should be present
         task_ids = list(all_tasks.keys())
-        # System tasks should be present
-        assert any("cleanup" in task_id for task_id in task_ids)
 
-        # Should only have system tasks
-        task_ids = list(all_tasks.keys())
-        system_task_ids = [task["task_id"] for task in SYSTEM_TASKS_GROUP.tasks]
+        # System tasks must still be present
+        assert "daily_task_cleanup" in task_ids
+        assert "hourly_health_check" in task_ids
 
-        for task_id in task_ids:
-            assert task_id in system_task_ids
+        # Metrics collection tasks must still be present
+        assert "hourly_job_host_summary" in task_ids
+        assert "hourly_unified_jobs" in task_ids
+        assert "hourly_credentials" in task_ids
+        assert "daily_metrics_rollup" in task_ids
+        assert "cleanup_metrics_data" in task_ids
+
+        # Only these two must be absent
+        assert "daily_anonymize" not in task_ids
+        assert "send_to_segment_daily" not in task_ids
