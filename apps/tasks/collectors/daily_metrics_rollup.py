@@ -15,8 +15,6 @@ from django.utils import timezone
 from ..utils import (
     create_task_result,
     log_task_execution,
-    task,
-    task_execution_wrapper,
 )
 
 logger = logging.getLogger(__name__)
@@ -214,8 +212,6 @@ def _save_daily_summary(
     return daily_summary, created, hourly_collections_count
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("daily_metrics_rollup")
 def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     """
     Create daily summary from hourly rollups

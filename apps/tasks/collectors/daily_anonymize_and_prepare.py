@@ -18,15 +18,11 @@ from ..utils import (
     create_task_result,
     generate_salt,
     log_task_execution,
-    task,
-    task_execution_wrapper,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("daily_anonymize_and_prepare")
 def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     """
     Anonymize daily metrics summary and prepare payload for Segment

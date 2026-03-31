@@ -12,13 +12,11 @@ from typing import Any
 
 from django.utils import timezone
 
-from ..utils import create_task_result, log_task_execution, task, task_execution_wrapper
+from ..utils import create_task_result, log_task_execution
 
 logger = logging.getLogger(__name__)
 
 
-@task(queue="metrics_cleanup", decorate=False)
-@task_execution_wrapper("cleanup_activitystream")
 def cleanup_activitystream(**kwargs) -> dict[str, Any]:
     """
     Clean up old ActivityStream entries from the database.

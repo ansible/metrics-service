@@ -16,8 +16,6 @@ from django.utils import timezone
 from ..utils import (
     create_task_result,
     log_task_execution,
-    task,
-    task_execution_wrapper,
 )
 
 logger = logging.getLogger(__name__)
@@ -210,8 +208,6 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
         return f"error: {str(e)}"
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("send_anonymized_to_segment")
 def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     """
     Send anonymized payload to Segment.

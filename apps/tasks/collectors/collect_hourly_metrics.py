@@ -11,7 +11,7 @@ from typing import Any
 
 from django.utils import timezone
 
-from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string, task, task_execution_wrapper
+from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,6 @@ def _get_hourly_collectors():
     }
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_hourly_metrics")
 def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     """
     Collect hourly metrics for a specific collector type.

@@ -11,7 +11,7 @@ from typing import Any
 
 from django.utils import timezone
 
-from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string, task, task_execution_wrapper
+from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,6 @@ def _get_snapshot_collectors():
     }
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_snapshot_metrics")
 def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     """
     Collect snapshot metrics for a specific collector type.
