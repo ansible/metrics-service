@@ -2,7 +2,6 @@
 Enhanced unit tests for cron_scheduler.py to improve coverage.
 
 Tests cover:
-- Feature flag checking in _execute_scheduled_task
 - _periodic_database_sync task discovery and routing
 - Error handling in _add_database_scheduled_task
 - Error handling in _add_database_recurring_task
@@ -16,95 +15,6 @@ import pytest
 from django.utils import timezone
 
 from apps.tasks.cron_scheduler import UnifiedTaskScheduler, _inject_dispatch_timestamps
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-class TestExecuteScheduledTaskFeatureFlags:
-    """Test feature flag checking in _execute_scheduled_task.
-
-    The implementation reads _feature_flag from task.task_data (live DB) at runtime,
-    then routes through _execute_database_task. All DB access is mocked here.
-    """
-
-    def _make_mock_task(self, task_id=42, task_data=None):
-        """Return a MagicMock that looks like a Task with the given task_data."""
-        mock_task = MagicMock()
-        mock_task.id = task_id
-        mock_task.task_data = task_data if task_data is not None else {}
-        return mock_task
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
-    @patch("apps.tasks.models.Task")
-    def test_skips_task_when_feature_flag_disabled(self, mock_task_cls, mock_get_feature_enabled, mock_execute_db):
-        """Task is skipped when its feature flag is disabled in the DB."""
-        scheduler = UnifiedTaskScheduler()
-        mock_get_feature_enabled.return_value = False
-        mock_task_cls.objects.filter.return_value.first.return_value = self._make_mock_task(
-            task_data={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"}
-        )
-
-        scheduler._execute_scheduled_task("test_task", "hello_world", {})
-
-        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION")
-        mock_execute_db.assert_not_called()
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
-    @patch("apps.tasks.models.Task")
-    def test_executes_task_when_feature_flag_enabled(self, mock_task_cls, mock_get_feature_enabled, mock_execute_db):
-        """Task proceeds to _execute_database_task when its feature flag is enabled."""
-        scheduler = UnifiedTaskScheduler()
-        mock_get_feature_enabled.return_value = True
-        mock_task = self._make_mock_task(task_id=42, task_data={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"})
-        mock_task_cls.objects.filter.return_value.first.return_value = mock_task
-
-        scheduler._execute_scheduled_task("test_task", "hello_world", {})
-
-        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION")
-        mock_execute_db.assert_called_once_with(42)
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.models.Task")
-    def test_executes_task_when_no_feature_flag(self, mock_task_cls, mock_execute_db):
-        """Task proceeds without a feature flag check when task_data has no _feature_flag."""
-        scheduler = UnifiedTaskScheduler()
-        mock_task = self._make_mock_task(task_id=7, task_data={})
-        mock_task_cls.objects.filter.return_value.first.return_value = mock_task
-
-        scheduler._execute_scheduled_task("test_task", "hello_world", {})
-
-        mock_execute_db.assert_called_once_with(7)
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.models.Task")
-    def test_logs_error_when_task_not_in_db(self, mock_task_cls, mock_execute_db):
-        """Logs an error and skips execution when the system task is missing from DB."""
-        scheduler = UnifiedTaskScheduler()
-        mock_task_cls.objects.filter.return_value.first.return_value = None
-
-        scheduler._execute_scheduled_task("missing_task", "hello_world", {})
-
-        mock_execute_db.assert_not_called()
-
-    @patch("apps.tasks.cron_scheduler.close_old_connections")
-    @patch("apps.tasks.models.Task")
-    def test_closes_old_connections_before_querying(self, mock_task_cls, mock_close):
-        """close_old_connections must be called before any ORM access in _execute_scheduled_task."""
-        # Instantiate first so _load_task_registry()'s Task.objects.filter() call in __init__
-        # does not pollute the call_order we install below.
-        scheduler = UnifiedTaskScheduler()
-
-        call_order = []
-        mock_close.side_effect = lambda: call_order.append("close")
-        mock_task_cls.objects.filter.side_effect = lambda **_: (
-            call_order.append("query") or MagicMock(first=lambda: None)
-        )
-
-        scheduler._execute_scheduled_task("missing_task", "hello_world", {})
-
-        assert call_order[0] == "close", f"Expected close_old_connections first, got: {call_order}"
 
 
 @pytest.mark.unit
@@ -359,7 +269,9 @@ class TestExecuteDatabaseTaskErrors:
 
         mock_task = MagicMock()
         mock_task.id = 1
+        mock_task.name = "test_task"
         mock_task.status = "running"
+        mock_task.task_data = {}
         mock_task.cron_expression = None
         mock_task_model.objects.get.return_value = mock_task
 
