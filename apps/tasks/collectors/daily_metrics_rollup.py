@@ -150,6 +150,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
             daily_rollup[collector_type] = _merge_collects(collections, processor)
         else:
             logger.warning(f"No {collector_type} collection found for summary date")
+            missing_hours.append(f"{collector_type}:daily")
             daily_rollup[collector_type] = _merge_collects([], processor)
 
     return daily_rollup, missing_hours
@@ -250,6 +251,20 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         summary_date = timezone.now().date() - timedelta(days=1)
 
     log_task_execution("daily_metrics_rollup", "processing", f"Creating daily rollup for: {summary_date}")
+
+    # Check upstream dependency: at least some hourly collections must exist
+    from ..models import HourlyMetricsCollection
+
+    start_dt = timezone.make_aware(datetime.combine(summary_date, datetime.min.time()))
+    end_dt = start_dt + timedelta(days=1)
+    has_collections = HourlyMetricsCollection.objects.filter(
+        collection_timestamp__gte=start_dt, collection_timestamp__lt=end_dt, status="collected"
+    ).exists()
+
+    if not has_collections:
+        msg = f"No collected hourly metrics found for {summary_date} — upstream dependency not met"
+        log_task_execution("daily_metrics_rollup", "skipped", msg)
+        return create_task_result("error", error=msg)
 
     try:
         # Query and group hourly collections by type

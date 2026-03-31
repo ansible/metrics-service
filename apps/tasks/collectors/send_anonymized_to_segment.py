@@ -232,14 +232,23 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     payload_id = kwargs.get("payload_id")
     stale_minutes = kwargs.get("stale_minutes", 10)
 
-    log_task_execution("send_anonymized_to_segment", "processing", "Sending anonymized payloads to Segment")
-
     try:
-        # Threshold for stale "sending" payloads (process crashed before completion)
         stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
 
-        # Get payloads to send
+        # Check for pending payloads early to avoid unnecessary work
         payloads = _get_payloads_to_send(payload_id, max_payloads, stale_threshold)
+        if not payloads:
+            log_task_execution("send_anonymized_to_segment", "skipped", "No pending payloads to send")
+            return create_task_result(
+                "success",
+                {
+                    "task_type": "send_anonymized_to_segment",
+                    "results": {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0},
+                    "total_processed": 0,
+                },
+            )
+
+        log_task_execution("send_anonymized_to_segment", "processing", "Sending anonymized payloads to Segment")
 
         # Initialize results
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
