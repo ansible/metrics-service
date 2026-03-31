@@ -270,7 +270,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
 DASHBOARD_COLLECTION_GROUP = TaskGroup(
     name="dashboard_collection",
     description="Automation-reports dashboard data collection (SQL-based, separate from anonymization)",
-    feature_flag="DASHBOARD_COLLECTION_ENABLED",
+    feature_flag="DASHBOARD_COLLECTION",
     tasks=[
         {
             "task_id": "initial_dashboard_collection",
