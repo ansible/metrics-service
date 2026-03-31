@@ -212,12 +212,14 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     """
     Send anonymized payload to Segment.
 
-    This task:
+    Acquires an advisory lock to prevent concurrent execution, then:
     1. Fetches AnonymizedMetricsPayload records with status=pending/retry
     2. Recovers stale "sending" payloads (stuck for > 10 minutes)
     3. Sends to Segment using send_to_segment helper
     4. Updates payload status based on result
-    5. Handles retries for failed sends
+
+    If no payloads are pending, this is a no-op (returns success with 0 sent).
+    If the lock cannot be acquired, the task fails and will be retried.
 
     Args:
         **kwargs: Task data containing:

@@ -33,8 +33,8 @@ def cleanup_activitystream(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result dictionary with cleanup statistics. Returns an error result
         dict (status="error") when ``days_old`` is not a positive integer rather than
-        raising, because this function runs inside ``task_execution_wrapper`` which
-        converts all exceptions to error dicts before they reach the caller.
+        raising, so that ``execute_db_task`` marks the task as failed with a clear
+        message instead of recording a raw exception traceback.
     """
     from ansible_base.activitystream.models import Entry as ActivityStreamEntry
 

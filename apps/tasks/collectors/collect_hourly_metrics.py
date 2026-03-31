@@ -95,6 +95,9 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         if hour_timestamp is None:
             raise ValueError(f"Invalid hour_timestamp format: {hour_timestamp_str}")
     else:
+        # Fallback only — the cron scheduler pins hour_timestamp into task_data
+        # at dispatch time via _inject_dispatch_timestamps(), so retries reuse
+        # the original window instead of recomputing from now.
         now = timezone.now()
         hour_timestamp = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
 

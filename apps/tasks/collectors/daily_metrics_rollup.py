@@ -218,21 +218,13 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     Create daily summary from hourly rollups
 
     This task:
-    1. Queries all hourly rollup collections for the previous day
+    1. Checks that hourly collections exist for the target date
     2. Merges hourly rollups into daily rollups using rollup processor merge logic
     3. Extracts daily snapshot data (execution_environments, config)
     4. Creates DailyMetricsSummary record with complete daily rollup
 
-    Collectors:
-        - Hourly merged (from HourlyMetricsCollection):
-            - job_host_summary_service
-            - unified_jobs
-            - credentials_service
-        - Daily snapshots (from HourlyMetricsCollection):
-            - execution_environments
-            - controller_version_service
-            - table_metadata
-            - config
+    If the upstream dependency (hourly collections) is not met or the lock
+    cannot be acquired, the task fails and will be retried automatically.
 
     Args:
         **kwargs: Task data containing:
