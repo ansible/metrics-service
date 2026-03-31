@@ -150,6 +150,38 @@ class TestExecuteDbTask(TestCase):
         assert "Test exception" in result["error"]
 
     @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_with_advisory_lock(self):
+        """Test that tasks in TASK_LOCKS go through run_with_lock."""
+        self.task.function_name = "daily_metrics_rollup"
+        self.task.save()
+
+        with patch("apps.tasks.utils.run_with_lock") as mock_lock:
+            mock_lock.return_value = {"status": "success"}
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "success"
+        mock_lock.assert_called_once()
+        assert mock_lock.call_args[0][0] == "daily_metrics_rollup"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_contended_lock_triggers_retry(self):
+        """Test that a task which cannot acquire its advisory lock fails and is retried."""
+        self.task.function_name = "daily_metrics_rollup"
+        self.task.max_attempts = 3
+        self.task.save()
+
+        with patch("apps.tasks.utils.run_with_lock") as mock_lock:
+            mock_lock.return_value = {"status": "error", "error": "Could not acquire lock"}
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "error"
+        assert "lock" in result["error"].lower()
+
+        self.task.refresh_from_db()
+        # Task should have been auto-retried (back to pending)
+        assert self.task.status == "pending"
+
+    @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_auto_retry_with_delay(self):
         """Test auto-retry sets delay from task_data retry_delay_seconds."""
         from django.utils import timezone

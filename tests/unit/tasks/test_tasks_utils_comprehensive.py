@@ -264,6 +264,35 @@ class TestGetDbConnection(TestCase):
         self.assertEqual(result, mock_raw_conn)
 
 
+class TestRunWithLock(TestCase):
+    """Test run_with_lock function."""
+
+    @patch("metrics_utility.library.lock.lock")
+    def test_run_with_lock_acquired(self, mock_lock_cls):
+        """Test run_with_lock when lock is acquired."""
+        mock_lock_cls.return_value.__enter__ = MagicMock(return_value=True)
+        mock_lock_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        fn = MagicMock(return_value={"status": "success"})
+        result = utils.run_with_lock("my_lock", "my_task", fn, foo="bar")
+
+        fn.assert_called_once_with(foo="bar")
+        self.assertEqual(result["status"], "success")
+
+    @patch("metrics_utility.library.lock.lock")
+    def test_run_with_lock_not_acquired(self, mock_lock_cls):
+        """Test run_with_lock when lock cannot be acquired."""
+        mock_lock_cls.return_value.__enter__ = MagicMock(return_value=False)
+        mock_lock_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        fn = MagicMock()
+        result = utils.run_with_lock("my_lock", "my_task", fn)
+
+        fn.assert_not_called()
+        self.assertEqual(result["status"], "error")
+        self.assertIn("Could not acquire lock", result["error"])
+
+
 class TestGenerateSalt(TestCase):
     """Test generate_salt function."""
 

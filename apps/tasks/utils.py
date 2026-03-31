@@ -285,6 +285,31 @@ def get_db_connection(db_name: str = "awx"):
     return django_connection.connection
 
 
+def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):
+    """
+    Execute a task function under a PostgreSQL advisory lock.
+
+    If the lock cannot be acquired (another instance of the same task is running),
+    returns an error result which triggers auto-retry.
+
+    Args:
+        lock_key: Unique key for the advisory lock
+        task_name: Task name for logging
+        fn: Task function to execute
+        **kwargs: Arguments to pass to fn
+    """
+    from django.db import connection
+    from metrics_utility.library.lock import lock
+
+    with lock(lock_key, wait=False, db=connection) as acquired:
+        if not acquired:
+            msg = f"Could not acquire lock '{lock_key}' — another {task_name} instance is running"
+            logger.warning(msg)
+            log_task_execution(task_name, "skipped", msg)
+            return create_task_result("error", error=msg)
+        return fn(**kwargs)
+
+
 def generate_salt() -> str:
     """
     Generate a unique UUID4 salt for anonymization.

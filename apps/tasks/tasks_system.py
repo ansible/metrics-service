@@ -15,6 +15,7 @@ from .utils import (
     ensure_django_setup,
     handle_task_error,
     log_task_execution,
+    run_with_lock,
     update_task_status,
 )
 
@@ -47,7 +48,7 @@ def _claim_task(task_id):
         attempts=models.F("attempts") + 1,
     )
     if not claimed:
-        return None
+        return None, None
 
     task = Task.objects.get(id=task_id)
 
@@ -86,18 +87,17 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
     try:
         from .models import Task
 
-        result = _claim_task(task_id)
-        if result is None:
+        task, execution = _claim_task(task_id)
+        if task is None:
             if not Task.objects.filter(id=task_id).exists():
                 return create_task_result("error", error=f"Task matching query does not exist: {task_id}")
+
             logger.warning(f"Task {task_id} already claimed by another worker, skipping")
             return create_task_result("error", error="Task already claimed by another worker")
 
-        task, execution = result
-
         # Import TASK_FUNCTIONS here to avoid circular import
         # This import happens at runtime, not module load time
-        from .tasks import TASK_FUNCTIONS
+        from .tasks import TASK_FUNCTIONS, TASK_LOCKS
 
         # Validate task function exists
         if task.function_name not in TASK_FUNCTIONS:
@@ -107,14 +107,15 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         log_task_execution(task.function_name, "start", f"Starting {task.function_name} task")
         log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
 
-        # Execute the actual task function, forwarding execution_id so inner
-        # tasks (e.g. collect_daily_metrics) can link their collections back to
-        # this TaskExecution record.
+        # Execute the actual task function, with advisory lock if required
+        # Forwarding execution_id the task can link collections back to TaskExecution
         task_function = TASK_FUNCTIONS[task.function_name]
-        task_kwargs = {**task.task_data}
-        if execution_id:
-            task_kwargs["execution_id"] = execution_id
-        result = task_function(**task_kwargs)
+        if task.function_name in TASK_LOCKS:
+            result = run_with_lock(
+                task.function_name, task.name, task_function, execution_id=execution.id, **task.task_data
+            )
+        else:
+            result = task_function(execution_id=execution.id, **task.task_data)
 
         # Complete task execution
         status = "completed" if result.get("status") == "success" else "failed"
@@ -187,7 +188,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
         task.save()
-        # FIXME
+        # FIXME: no execution here, move inside execute_db_task
         # Also mark the TaskExecution row as failed so it doesn't stay pending
         # forever. Guard with try/except in case the create() call itself failed
         # and `execution` was never bound.

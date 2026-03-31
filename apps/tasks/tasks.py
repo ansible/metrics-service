@@ -52,6 +52,17 @@ TASK_FUNCTIONS = {
     "send_anonymized_to_segment": send_anonymized_to_segment,
 }
 
+# Tasks that require a PostgreSQL advisory lock during scheduled execution.
+# The lock key is the function name. Locking is applied in execute_db_task,
+# so direct invocations (e.g. run_task.py) run without contention.
+TASK_LOCKS = {
+    "collect_hourly_metrics",
+    "collect_snapshot_metrics",
+    "daily_metrics_rollup",
+    "daily_anonymize_and_prepare",
+    "send_anonymized_to_segment",
+}
+
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
     # Testing
@@ -315,5 +326,6 @@ __all__ = [
     "send_anonymized_to_segment",
     # Configuration
     "TASK_FUNCTIONS",
+    "TASK_LOCKS",
     "TASK_METADATA",
 ]
