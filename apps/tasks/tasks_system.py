@@ -164,7 +164,7 @@ def create_system_tasks() -> dict[str, Any]:
     """
     try:
         from .models import Task
-        from .task_groups import get_all_enabled_tasks
+        from .task_groups import get_all_tasks_for_init
     except ImportError:
         # Handle case where Django isn't fully set up yet
         return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "removed": 0}
@@ -179,8 +179,12 @@ def create_system_tasks() -> dict[str, Any]:
         results["tasks"].append(f"Removed {removed_count} existing system tasks")
         logger.info(f"Removed {removed_count} existing system tasks")
 
-    # Get all task group definitions
-    task_groups = get_all_enabled_tasks()
+    # Get all task group definitions. Use get_all_tasks_for_init() (not get_all_enabled_tasks())
+    # so that feature-flagged tasks such as daily_anonymize and send_to_segment_daily are always
+    # written to the DB with _feature_flag stored in task_data. The runtime check in
+    # cron_scheduler._execute_scheduled_task() then gates execution without requiring re-init
+    # when the flag is toggled.
+    task_groups = get_all_tasks_for_init()
 
     # Create fresh tasks from task groups
     for task_id, config in task_groups.items():

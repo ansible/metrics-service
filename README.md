@@ -112,18 +112,17 @@ GET /api/v1/tasks/available_functions/
 - `hello_world` - Simple test task for dispatcherd integration
 - `execute_db_task` - Execute database-defined tasks with lifecycle management
 
-**Anonymized Metrics Collection** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled, customer opt-out):
+**Metrics Collection Tasks** (always enabled - run regardless of opt-out flag):
 
-**Hourly Collection Tasks**:
 - `collect_hourly_metrics` - Collect time-series metrics every hour (collector type via `collector_type` parameter)
 - `collect_snapshot_metrics` - Collect daily snapshot metrics (collector type via `collector_type` parameter)
-
-**Daily Rollup, Anonymization, and Cleanup Tasks**:
-
 - `daily_metrics_rollup` - Merge hourly collections and create daily rollup summary
+- `cleanup_metrics_data` - Clean up old metrics data based on retention policies
+
+**Anonymization and Transmission Tasks** (controlled by `ANONYMIZED_DATA_COLLECTION`, default: enabled, customer opt-out):
+
 - `daily_anonymize_and_prepare` - Anonymize daily rollup and prepare for transmission
 - `send_anonymized_to_segment` - Send anonymized metrics to Segment.com
-- `cleanup_metrics_data` - Clean up old metrics data based on retention policies
 
 ## Background Tasks
 
@@ -171,7 +170,7 @@ METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
 
 These environment variables (or their default values) are used to populate the feature flags database tables during `mangage.py metrics_service init-default-settings`. You can also use `python manage.py metrics_service remove-default-settings` to remove these settings from the database.
 
-The feature flag values in the database then determine which task groups are active in the scheduler. If the value is missing from the database, the environment variables get used again.
+The feature flag value in the database determines whether the anonymization and transmission tasks run. Collection, rollup, and cleanup tasks always run regardless of this flag. If the value is missing from the database, the environment variable is used as the fallback.
 
 
 ## Development
