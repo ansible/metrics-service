@@ -6,13 +6,13 @@ communication, and testing tasks with proper error handling and status tracking.
 """
 
 import logging
-import os
 from typing import Any
+
+from django.db import models
 
 from .utils import (
     create_task_result,
     ensure_django_setup,
-    get_task_and_execution,
     handle_task_error,
     log_task_execution,
     update_task_status,
@@ -33,10 +33,34 @@ except ImportError:
         return decorator
 
 
-# FIXME: is this really a task, or more like a task runner .. used by submit_task_to_dispatcher
-# ... doesn't that mean that this is the ONLY task? apart from periodic sync? .. or what other submit_task bare
+def _claim_task(task_id):
+    """Atomically claim a task for execution, returning (task, execution) or None if already claimed."""
+    import os
+
+    from django.utils import timezone
+
+    from .models import Task, TaskExecution
+
+    claimed = Task.objects.filter(id=task_id, status="pending").update(
+        status="running",
+        started_at=timezone.now(),
+        attempts=models.F("attempts") + 1,
+    )
+    if not claimed:
+        return None
+
+    task = Task.objects.get(id=task_id)
+
+    execution = TaskExecution.objects.create(
+        task=task,
+        status="running",
+        worker_id=f"dispatcher-{os.getpid()}",
+    )
+
+    return task, execution
 
 
+# This is the sole dispatcherd entry point — all DB tasks are routed through it.
 @task(queue="metrics_tasks", decorate=False)
 def execute_db_task(**kwargs) -> dict[str, Any]:
     """
@@ -49,23 +73,27 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing:
             - task_id (int): ID of the task to execute (required)
-            - execution_id (int): ID of the execution record (optional)
 
     Returns:
         dict: Task result dictionary with execution status and results
     """
     ensure_django_setup()
-    log_task_execution("execute_db_task", "start", "Starting database task execution")
 
     task_id = kwargs.get("task_id")
     if not task_id:
         return create_task_result("error", error="task_id is required")
 
-    execution_id = kwargs.get("execution_id")
-
     try:
-        # Get task and execution objects
-        task, execution = get_task_and_execution(task_id, execution_id)
+        from .models import Task
+
+        result = _claim_task(task_id)
+        if result is None:
+            if not Task.objects.filter(id=task_id).exists():
+                return create_task_result("error", error=f"Task matching query does not exist: {task_id}")
+            logger.warning(f"Task {task_id} already claimed by another worker, skipping")
+            return create_task_result("error", error="Task already claimed by another worker")
+
+        task, execution = result
 
         # Import TASK_FUNCTIONS here to avoid circular import
         # This import happens at runtime, not module load time
@@ -76,8 +104,7 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
             error_msg = f"Task function '{task.function_name}' not found in TASK_FUNCTIONS"
             return handle_task_error(task, execution, error_msg)
 
-        # Start task execution
-        update_task_status(task, execution, status="running")
+        log_task_execution(task.function_name, "start", f"Starting {task.function_name} task")
         log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
 
         # Execute the actual task function, forwarding execution_id so inner
@@ -95,6 +122,11 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
 
         update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
 
+        if status == "completed":
+            log_task_execution(task.function_name, "complete", f"Task {task.function_name} completed successfully")
+        else:
+            error_msg = f"{task.function_name} task failed: {error_message}"
+            log_task_execution(task.function_name, "error", error_msg, level="error")
         log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
         # Auto-retry if the task failed and has attempts remaining
@@ -107,7 +139,7 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         return result
 
     except Exception as e:
-        return handle_task_error(None, None, task_id=task_id, execution_id=execution_id, exception=e)
+        return handle_task_error(None, None, task_id=task_id, exception=e)
 
 
 def submit_task_to_dispatcher(task: Any) -> None:
@@ -120,7 +152,10 @@ def submit_task_to_dispatcher(task: Any) -> None:
     from .models import TaskExecution
 
     try:
-        execution = TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
+        # Guard against duplicate submissions
+        if TaskExecution.objects.filter(task=task, status__in=["pending", "running"]).exists():
+            logger.warning(f"Task {task.name} (ID: {task.id}) already has a pending or running execution, skipping")
+            return
 
         # Ensure dispatcherd is configured before attempting to submit tasks
         from .dispatcherd_config import ensure_dispatcherd_configured
@@ -136,7 +171,8 @@ def submit_task_to_dispatcher(task: Any) -> None:
         queue = get_queue_for_function(task.function_name)
 
         # Submit to dispatcherd using execute_db_task as the entry point
-        submit_task(execute_db_task, kwargs={"task_id": task.id, "execution_id": execution.id}, queue=queue)
+        # TaskExecution is created inside _claim_task to avoid orphaned records
+        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
         # Update task status to indicate it's been submitted
         task.status = "pending"
@@ -149,6 +185,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
         task.save()
+        # FIXME
         # Also mark the TaskExecution row as failed so it doesn't stay pending
         # forever. Guard with try/except in case the create() call itself failed
         # and `execution` was never bound.
