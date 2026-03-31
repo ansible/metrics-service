@@ -405,6 +405,18 @@ wheels = [
 ]
 
 [[package]]
+name = "django-generate-series"
+version = "2026.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4a/26/5c87218e0ba903c2115f13b3dc38dd8fe41bedef9ad827429a004834d2d9/django_generate_series-2026.2.1.tar.gz", hash = "sha256:9e0a12fa13ed706529b4a13f8766c822a6c67b40db50ee5ad43e14d7777bf967", size = 15476, upload-time = "2026-02-13T06:01:49.863Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/36/87/5a4d50167af83b325ab778b8f35b8934dac7d8547ae9e3c7eced8d8ee873/django_generate_series-2026.2.1-py3-none-any.whl", hash = "sha256:900b26b46f501f4388763f3ee4a2fed6c2a3a66836e988224d0a9948180ffd2c", size = 13522, upload-time = "2026-02-13T06:01:48.709Z" },
+]
+
+[[package]]
 name = "django-prometheus"
 version = "2.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -745,6 +757,7 @@ dependencies = [
     { name = "django" },
     { name = "django-ansible-base", extra = ["api-documentation", "feature-flags", "jwt-consumer", "resource-registry"] },
     { name = "django-extensions" },
+    { name = "django-generate-series" },
     { name = "django-prometheus" },
     { name = "djangorestframework" },
     { name = "dynaconf" },
@@ -805,6 +818,7 @@ requires-dist = [
     { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-extensions", specifier = ">=3.2" },
+    { name = "django-generate-series", specifier = ">=2026.2.1" },
     { name = "django-prometheus", specifier = ">=2.3.1" },
     { name = "djangorestframework", specifier = ">=3.15" },
     { name = "dynaconf", specifier = ">=3.1.0" },
@@ -848,7 +862,7 @@ dev = [
 
 [[package]]
 name = "metrics-utility"
-version = "0.7.20260311"
+version = "0.7.20260315"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -863,9 +877,9 @@ dependencies = [
     { name = "segment-analytics-python" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6c/6d/9f2cfbe2778c0208cb59de32cae71221baa259b6b1dbe0b7f0999253d9e7/metrics_utility-0.7.20260311.tar.gz", hash = "sha256:8362e421131ea95be7e14cb2cb92ad6efdb5fdc9912b9aad7ae36ef3c75624d6", size = 947270, upload-time = "2026-03-11T13:22:03.988Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/8b/30890e8999d019059305ed916263d7fd66093b9c2fa3f6a114bedf92c8f1/metrics_utility-0.7.20260315.tar.gz", hash = "sha256:c445f145e20701ab50f7496486686545d5767ea19dc8b985726484f98ec30eb0", size = 956587, upload-time = "2026-03-15T03:02:18.159Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/dc/42ea0ee9dd02d2d95dace86865bc8e3e0aa952ec338d1bbf472ad4cb3aff/metrics_utility-0.7.20260311-py3-none-any.whl", hash = "sha256:c8bdbaba6b360d686c614a27fe2eeed063dc490b5b0f18371f52452b83c90569", size = 458759, upload-time = "2026-03-11T13:22:02.31Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/4e/8ab040d47af549e1d720e380ec6cc350c900914f18b50f79195497bfb318/metrics_utility-0.7.20260315-py3-none-any.whl", hash = "sha256:177fa5dda216e783871587ec84690813237c32b0ce810d10a2f98a833f52935a", size = 465712, upload-time = "2026-03-15T03:02:17.006Z" },
 ]
 
 [[package]]

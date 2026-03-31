@@ -118,6 +118,7 @@ django==5.2.7 \
     #   django-crum
     #   django-extensions
     #   django-flags
+    #   django-generate-series
     #   django-prometheus
     #   djangorestframework
     #   drf-spectacular
@@ -137,6 +138,10 @@ django-flags==5.1.0 \
     --hash=sha256:47f33efba238fe83a2c1f6f5764147fe62d770039f64b3a039e0e461bbc36e79 \
     --hash=sha256:6cfb15151f94d13de1a497901fc1dd4f0510251e5ec23a6732d674824f499e72
     # via django-ansible-base
+django-generate-series==2026.2.1 \
+    --hash=sha256:900b26b46f501f4388763f3ee4a2fed6c2a3a66836e988224d0a9948180ffd2c \
+    --hash=sha256:9e0a12fa13ed706529b4a13f8766c822a6c67b40db50ee5ad43e14d7777bf967
+    # via metrics-service
 django-prometheus==2.4.1 \
     --hash=sha256:073628243d2a6de6a8a8c20e5b512872dfb85d66e1b60b28bcf1eca0155dad95 \
     --hash=sha256:7fe5af7f7c9ad9cd8a429fe0f3f1bf651f0e244f77162147869eab7ec09cc5e7
@@ -198,9 +203,9 @@ kubernetes==34.1.0 \
     --hash=sha256:8fe8edb0b5d290a2f3ac06596b23f87c658977d46b5f8df9d0f4ea83d0003912 \
     --hash=sha256:bffba2272534e224e6a7a74d582deb0b545b7c9879d2cd9e4aae9481d1f2cc2a
     # via metrics-utility
-metrics-utility==0.7.20260311 \
-    --hash=sha256:8362e421131ea95be7e14cb2cb92ad6efdb5fdc9912b9aad7ae36ef3c75624d6 \
-    --hash=sha256:c8bdbaba6b360d686c614a27fe2eeed063dc490b5b0f18371f52452b83c90569
+metrics-utility==0.7.20260315 \
+    --hash=sha256:177fa5dda216e783871587ec84690813237c32b0ce810d10a2f98a833f52935a \
+    --hash=sha256:c445f145e20701ab50f7496486686545d5767ea19dc8b985726484f98ec30eb0
     # via metrics-service
 numpy==2.3.3 \
     --hash=sha256:067e3d7159a5d8f8a0b46ee11148fc35ca9b21f61e3c49fbd0a027450e65a33b \

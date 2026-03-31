@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     *dab_applications,
     *project_applications,
     *extra_applications,
+    "django_generate_series",  # Dashboard data for automation-reports integration
 ]
 
 # Enable debug mode
