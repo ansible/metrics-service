@@ -220,11 +220,8 @@ def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[
         results: Results dict to update
         task_model: Task model class
     """
-    # FIXME: feature_flag .. update
-    # Prepare task data including feature flag for runtime checking
     task_data = config.get("args", {}).copy()
     if config.get("feature_flag"):
-        # FIXME: no, unless users can edit feature flags by posting args .. separate field from task_data? or the task just looks itself up?
         task_data["_feature_flag"] = config["feature_flag"]
 
     new_task = task_model.objects.create(

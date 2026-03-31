@@ -74,8 +74,7 @@ class TestDashboardViews(TestCase):
         # Mock TASK_FUNCTIONS
         mock_task_functions.keys.return_value = [
             "hello_world",
-            "execute_db_task",
-            "hello_world",
+            "cleanup_old_tasks",
         ]
 
         # Mock render to return a mock response
@@ -104,8 +103,7 @@ class TestDashboardViews(TestCase):
         assert context["user"] == self.user
         assert context["available_functions"] == [
             "hello_world",
-            "execute_db_task",
-            "hello_world",
+            "cleanup_old_tasks",
         ]
         assert context["database_driven"] is True
 

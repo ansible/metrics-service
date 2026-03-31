@@ -17,7 +17,6 @@ class BaseTaskFunctionsTest(unittest.TestCase):
         from apps.tasks.tasks import TASK_FUNCTIONS
 
         expected_functions = [
-            "execute_db_task",
             "hello_world",
             "cleanup_old_tasks",
         ]

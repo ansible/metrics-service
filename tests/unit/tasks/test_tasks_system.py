@@ -22,9 +22,9 @@ from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
-    execute_db_task,
     submit_task_to_dispatcher,
 )
+from apps.tasks.tasks_system import execute_db_task
 from tests.test_utils import get_test_password
 
 User = get_user_model()
@@ -135,7 +135,6 @@ class TestTaskRegistry(TestCase):
     def test_task_functions_contains_expected_functions(self):
         """Test TASK_FUNCTIONS contains all expected task functions."""
         expected_functions = [
-            "execute_db_task",
             "hello_world",
             "cleanup_old_tasks",
         ]
