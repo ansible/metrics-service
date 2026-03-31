@@ -133,8 +133,10 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         if status == "failed":
             task.refresh_from_db()
             if task.can_retry():
-                logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts})")
-                task.retry()
+                retry_delay = task.task_data.get("retry_delay_seconds", 600)
+                delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
+                logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
+                task.retry(delay_seconds=retry_delay)
 
         return result
 

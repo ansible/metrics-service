@@ -149,6 +149,32 @@ class TestExecuteDbTask(TestCase):
         assert result["status"] == "error"
         assert "Test exception" in result["error"]
 
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_auto_retry_with_delay(self):
+        """Test auto-retry sets delay from task_data retry_delay_seconds."""
+        from django.utils import timezone
+
+        self.task.function_name = "hello_world"
+        self.task.max_attempts = 3
+        self.task.task_data = {"retry_delay_seconds": 120}
+        self.task.save()
+
+        before = timezone.now()
+
+        with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
+            mock_fns.__contains__.return_value = True
+            mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "error"
+        self.task.refresh_from_db()
+        # Task should have been retried with delay
+        assert self.task.status == "pending"
+        assert self.task.scheduled_time is not None
+        # scheduled_time should be ~120s after the retry call
+        delta = (self.task.scheduled_time - before).total_seconds()
+        assert 118 <= delta <= 125, f"Expected scheduled_time ~120s in the future, got {delta:.1f}s"
+
 
 # =============================================================================
 # Task Registry Tests
