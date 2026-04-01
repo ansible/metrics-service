@@ -169,9 +169,9 @@ class TestExecuteDbTask(TestCase):
         assert execution.status == "failed"
         assert "Boom" in execution.error_message
 
-        # The Task itself should also be failed
+        # The Task should be auto-retried (back to pending) since max_attempts=3
         self.task.refresh_from_db()
-        assert self.task.status == "failed"
+        assert self.task.status == "pending"
 
     @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_with_advisory_lock(self):
@@ -179,7 +179,7 @@ class TestExecuteDbTask(TestCase):
         self.task.function_name = "daily_metrics_rollup"
         self.task.save()
 
-        with patch("apps.tasks.utils.run_with_lock") as mock_lock:
+        with patch("apps.tasks.tasks_system.run_with_lock") as mock_lock:
             mock_lock.return_value = {"status": "success"}
             result = execute_db_task(task_id=self.task.id)
 
@@ -194,7 +194,7 @@ class TestExecuteDbTask(TestCase):
         self.task.max_attempts = 3
         self.task.save()
 
-        with patch("apps.tasks.utils.run_with_lock") as mock_lock:
+        with patch("apps.tasks.tasks_system.run_with_lock") as mock_lock:
             mock_lock.return_value = {"status": "error", "error": "Could not acquire lock"}
             result = execute_db_task(task_id=self.task.id)
 

@@ -113,12 +113,16 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         # Execute the actual task function, with advisory lock if required
         # Forwarding execution_id the task can link collections back to TaskExecution
         task_function = TASK_FUNCTIONS[task.function_name]
-        if task.function_name in TASK_LOCKS:
-            result = run_with_lock(
-                task.function_name, task.name, task_function, execution_id=execution.id, **task.task_data
-            )
-        else:
-            result = task_function(execution_id=execution.id, **task.task_data)
+        try:
+            if task.function_name in TASK_LOCKS:
+                result = run_with_lock(
+                    task.function_name, task.name, task_function, execution_id=execution.id, **task.task_data
+                )
+            else:
+                result = task_function(execution_id=execution.id, **task.task_data)
+        except Exception as e:
+            logger.exception(f"Task {task.function_name} raised: {e}")
+            result = create_task_result("error", error=f"Task execution failed: {e}")
 
         # Complete task execution
         status = "completed" if result.get("status") == "success" else "failed"
