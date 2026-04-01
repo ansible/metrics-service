@@ -74,9 +74,18 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
 
     execution_id = kwargs.get("execution_id")
 
-    # Determine since/until window (default: previous full calendar day, UTC)
-    now = timezone.now()
-    today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Determine since/until window (default: previous full calendar day, UTC).
+    # Use a scheduler-injected hour_timestamp (today's midnight at dispatch time) when
+    # available so that retries always operate on the originally intended window even if
+    # wall-clock "now" has rolled past midnight into the next day.
+    hour_timestamp_str = kwargs.pop("hour_timestamp", None)
+    if hour_timestamp_str:
+        today_midnight = parse_datetime_string(hour_timestamp_str)
+        if today_midnight is None:
+            raise ValueError(f"Invalid hour_timestamp format: {hour_timestamp_str}")
+    else:
+        now = timezone.now()
+        today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     since_str = kwargs.get("since")
     if since_str:

@@ -47,6 +47,10 @@ def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
             now.replace(hour=23, minute=0, second=0, microsecond=0) - timedelta(days=1)
         ).isoformat()
 
+    elif function_name == "collect_daily_metrics" and "hour_timestamp" not in task_data:
+        now = timezone.now()
+        task_data["hour_timestamp"] = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
     return task_data
 
 

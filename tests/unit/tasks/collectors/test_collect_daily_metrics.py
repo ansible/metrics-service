@@ -348,3 +348,99 @@ class TestCollectDailyMetrics:
         assert result["status"] == "error"
         assert "DB unavailable" in result["error"]
         mock_generic.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Scheduler-injected hour_timestamp (retry-safety)
+    # ------------------------------------------------------------------
+
+    def test_returns_error_for_invalid_hour_timestamp(self):
+        """collect_daily_metrics returns error dict for an unparseable hour_timestamp."""
+        from apps.tasks.collectors.collect_daily_metrics import collect_daily_metrics
+
+        result = collect_daily_metrics(
+            collector_type="task_executions_service",
+            hour_timestamp="not-a-date",
+        )
+
+        assert result["status"] == "error"
+        assert "Invalid hour_timestamp format" in result["error"]
+
+    @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
+    @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
+    @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
+    def test_uses_injected_hour_timestamp_as_today_midnight(self, mock_registry, mock_get_db, mock_generic):
+        """When hour_timestamp is supplied it is used as today_midnight, not timezone.now()."""
+        mock_registry.return_value = {"task_executions_service": {}}
+        mock_get_db.return_value = MagicMock()
+        mock_generic.return_value = {"status": "success"}
+
+        # hour_timestamp represents today's midnight at dispatch time (2024-03-10 00:00 UTC)
+        injected_midnight = "2024-03-10T00:00:00+00:00"
+
+        with patch("apps.tasks.collectors.collect_daily_metrics.timezone") as mock_tz:
+            # Wall clock is now the *next* day — must not affect the window
+            mock_tz.now.return_value = _make_utc(2024, 3, 11, 2, 0, 0)
+
+            from apps.tasks.collectors.collect_daily_metrics import collect_daily_metrics
+
+            collect_daily_metrics(
+                collector_type="task_executions_service",
+                hour_timestamp=injected_midnight,
+            )
+
+        call_kwargs = mock_generic.call_args.kwargs
+        expected_since = _make_utc(2024, 3, 9, 0, 0, 0)
+        expected_until = _make_utc(2024, 3, 10, 0, 0, 0)
+
+        assert call_kwargs["collector_kwargs"]["since"] == expected_since
+        assert call_kwargs["collector_kwargs"]["until"] == expected_until
+
+    @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
+    @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
+    @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
+    def test_retry_with_injected_timestamp_ignores_wall_clock(self, mock_registry, mock_get_db, mock_generic):
+        """A retry that carries hour_timestamp must collect the originally intended day even if
+        wall-clock now has advanced past midnight into the next calendar day."""
+        mock_registry.return_value = {"task_executions_service": {}}
+        mock_get_db.return_value = MagicMock()
+        mock_generic.return_value = {"status": "success"}
+
+        # Task was dispatched on 2024-03-10 (midnight = 2024-03-10T00:00:00Z)
+        injected_midnight = "2024-03-10T00:00:00+00:00"
+
+        with patch("apps.tasks.collectors.collect_daily_metrics.timezone") as mock_tz:
+            # Retry happens after midnight — wall clock is now 2024-03-11
+            mock_tz.now.return_value = _make_utc(2024, 3, 11, 0, 5, 0)
+
+            from apps.tasks.collectors.collect_daily_metrics import collect_daily_metrics
+
+            result = collect_daily_metrics(
+                collector_type="task_executions_service",
+                hour_timestamp=injected_midnight,
+            )
+
+        assert result["status"] == "success"
+
+        call_kwargs = mock_generic.call_args.kwargs
+        # Window must still cover 2024-03-09 → 2024-03-10, not 2024-03-10 → 2024-03-11
+        assert call_kwargs["collector_kwargs"]["since"] == _make_utc(2024, 3, 9, 0, 0, 0)
+        assert call_kwargs["collector_kwargs"]["until"] == _make_utc(2024, 3, 10, 0, 0, 0)
+
+    @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
+    @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
+    @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
+    def test_timezone_now_not_called_when_hour_timestamp_provided(self, mock_registry, mock_get_db, mock_generic):
+        """timezone.now() must not be consulted when hour_timestamp is already present."""
+        mock_registry.return_value = {"task_executions_service": {}}
+        mock_get_db.return_value = MagicMock()
+        mock_generic.return_value = {"status": "success"}
+
+        with patch("apps.tasks.collectors.collect_daily_metrics.timezone") as mock_tz:
+            from apps.tasks.collectors.collect_daily_metrics import collect_daily_metrics
+
+            collect_daily_metrics(
+                collector_type="task_executions_service",
+                hour_timestamp="2024-03-10T00:00:00+00:00",
+            )
+
+        mock_tz.now.assert_not_called()
