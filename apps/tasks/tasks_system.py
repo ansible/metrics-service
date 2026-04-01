@@ -80,9 +80,14 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         update_task_status(task, execution, status="running")
         log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
 
-        # Execute the actual task function
+        # Execute the actual task function, forwarding execution_id so inner
+        # tasks (e.g. collect_daily_metrics) can link their collections back to
+        # this TaskExecution record.
         task_function = TASK_FUNCTIONS[task.function_name]
-        result = task_function(**task.task_data)
+        task_kwargs = {**task.task_data}
+        if execution_id:
+            task_kwargs["execution_id"] = execution_id
+        result = task_function(**task_kwargs)
 
         # Complete task execution
         status = "completed" if result.get("status") == "success" else "failed"
@@ -115,7 +120,6 @@ def submit_task_to_dispatcher(task: Any) -> None:
     from .models import TaskExecution
 
     try:
-        # Create execution record
         execution = TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
 
         # Ensure dispatcherd is configured before attempting to submit tasks
@@ -145,6 +149,15 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
         task.save()
+        # Also mark the TaskExecution row as failed so it doesn't stay pending
+        # forever. Guard with try/except in case the create() call itself failed
+        # and `execution` was never bound.
+        try:
+            execution.status = "failed"
+            execution.error_message = f"Failed to submit to dispatcher: {str(e)}"
+            execution.save()
+        except Exception as save_err:  # execution may be unbound if create() failed
+            logger.debug(f"Could not mark TaskExecution as failed: {save_err}")
 
 
 # runs during `manage.py metrics_service init-system-tasks`

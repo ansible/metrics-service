@@ -17,6 +17,7 @@ from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
 # Import collector tasks
+from .collectors.collect_daily_metrics import collect_daily_metrics
 from .collectors.collect_hourly_metrics import collect_hourly_metrics
 from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
@@ -43,9 +44,10 @@ TASK_FUNCTIONS = {
     "cleanup_activitystream": cleanup_activitystream,
     "cleanup_metrics_data": cleanup_metrics_data,
     "execute_db_task": execute_db_task,
-    # Metrics Collection (hourly time-series and daily snapshots)
+    # Metrics Collection (hourly time-series, daily snapshots, and daily time-range)
     "collect_hourly_metrics": collect_hourly_metrics,
     "collect_snapshot_metrics": collect_snapshot_metrics,
+    "collect_daily_metrics": collect_daily_metrics,
     # Daily Rollup and Anonymization Tasks
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
@@ -194,6 +196,36 @@ TASK_METADATA = {
             },
         ],
     },
+    "collect_daily_metrics": {
+        "category": "Metrics Collection",
+        "description": "Collect daily time-range metrics (previous full day) for a specific collector type",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Type of daily collector to run (e.g., task_executions_service)",
+            },
+            "since": {
+                "type": "string",
+                "description": "ISO timestamp for start of collection window (defaults to yesterday 00:00 UTC)",
+            },
+            "until": {
+                "type": "string",
+                "description": "ISO timestamp for end of collection window (defaults to today 00:00 UTC)",
+            },
+        },
+        "examples": [
+            {"name": "Task executions (default: yesterday)", "data": {"collector_type": "task_executions_service"}},
+            {
+                "name": "Task executions (specific day)",
+                "data": {
+                    "collector_type": "task_executions_service",
+                    "since": "2024-01-01T00:00:00Z",
+                    "until": "2024-01-02T00:00:00Z",
+                },
+            },
+        ],
+    },
     "collect_snapshot_metrics": {
         "category": "Metrics Collection",
         "description": "Collect daily snapshot metrics for a specific collector type",
@@ -286,9 +318,10 @@ __all__ = [
     "submit_task_to_dispatcher",
     "create_system_tasks",
     "get_system_task_info",
-    # Metrics collection (hourly and snapshot)
+    # Metrics collection (hourly, snapshot, and daily time-range)
     "collect_hourly_metrics",
     "collect_snapshot_metrics",
+    "collect_daily_metrics",
     # Daily rollup and anonymization tasks
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",

@@ -101,9 +101,11 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         CredentialsAnonymizedRollup,
         # EventModulesAnonymizedRollup,
         ExecutionEnvironmentsAnonymizedRollup,
+        FeatureFlagsAnonymizedRollup,
         JobHostSummaryAnonymizedRollup,
         JobsAnonymizedRollup,
         TableMetadataAnonymizedRollup,
+        TaskExecutionsAnonymizedRollup,
     )
 
     # Rollup processors for each collector type
@@ -115,11 +117,14 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         "unified_jobs": JobsAnonymizedRollup(),
     }
 
-    # Daily snapshot collectors expect 1 collection per day
+    # Daily snapshot collectors expect 1 collection per day.
+    # task_executions_service is also 1/day (daily time-range collector, not snapshot).
     daily_rollup_processors = {
         "execution_environments": ExecutionEnvironmentsAnonymizedRollup(),
         "controller_version_service": ControllerVersionAnonymizedRollup(),
+        "feature_flags_service": FeatureFlagsAnonymizedRollup(),
         "table_metadata": TableMetadataAnonymizedRollup(),
+        "task_executions_service": TaskExecutionsAnonymizedRollup(),
     }
 
     # Merge hourly rollups into daily rollups
@@ -147,7 +152,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
             daily_rollup[collector_type] = _merge_collects(collections, processor)
         else:
             logger.warning(f"No {collector_type} collection found for summary date")
-            daily_rollup[collector_type] = {}
+            daily_rollup[collector_type] = _merge_collects([], processor)
 
     return daily_rollup, missing_hours
 

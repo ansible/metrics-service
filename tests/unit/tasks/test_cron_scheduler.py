@@ -512,3 +512,23 @@ class TestInjectDispatchTimestamps:
         result = _inject_dispatch_timestamps("collect_hourly_metrics", original)
         assert "hour_timestamp" not in original
         assert "hour_timestamp" in result
+
+    def test_injects_hour_timestamp_for_daily_collector(self):
+        """collect_daily_metrics tasks get hour_timestamp set to today's midnight (UTC)."""
+        fixed_now = timezone.now().replace(hour=14, minute=30, second=0, microsecond=0)
+        expected = fixed_now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+        with patch("apps.tasks.cron_scheduler.timezone") as mock_tz:
+            mock_tz.now.return_value = fixed_now
+            result = _inject_dispatch_timestamps("collect_daily_metrics", {"collector_type": "task_executions_service"})
+
+        assert result["hour_timestamp"] == expected
+
+    def test_does_not_overwrite_existing_hour_timestamp_for_daily_collector(self):
+        """An explicit hour_timestamp already in daily task_data must not be replaced."""
+        fixed_ts = "2024-01-15T00:00:00+00:00"
+        result = _inject_dispatch_timestamps(
+            "collect_daily_metrics",
+            {"collector_type": "task_executions_service", "hour_timestamp": fixed_ts},
+        )
+        assert result["hour_timestamp"] == fixed_ts

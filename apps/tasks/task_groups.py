@@ -220,6 +220,24 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "description": "Collect table metadata snapshot daily",
             "category": "daily_collection",
         },
+        {
+            "task_id": "daily_feature_flags",
+            "function": "collect_snapshot_metrics",
+            "cron": "45 1 * * *",  # Daily at 1:45 AM
+            "args": {"collector_type": "feature_flags_service"},
+            "enabled": True,
+            "description": "Collect feature flags snapshot daily",
+            "category": "daily_collection",
+        },
+        {
+            "task_id": "daily_task_executions",
+            "function": "collect_daily_metrics",
+            "cron": "50 1 * * *",  # Daily at 1:50 AM — after snapshots (1:45 AM), before rollup (2:00 AM)
+            "args": {"collector_type": "task_executions_service"},
+            "enabled": True,
+            "description": "Collect task execution observability metrics for the previous day (pipeline health)",
+            "category": "daily_collection",
+        },
         # Daily Rollup
         {
             "task_id": "daily_metrics_rollup",
