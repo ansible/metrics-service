@@ -132,7 +132,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         if self.status != "pending":
             return False
 
-        # Check if scheduled time has passed
+        # Check if immediate or scheduled time has passed
         return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
     def can_retry(self) -> bool:
@@ -235,6 +235,14 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
             return "croniter not available"
         except Exception:
             return "Invalid cron_expression"
+
+    @classmethod
+    def ready_to_run(cls):
+        """Queryset equivalent of is_ready_to_run() — pending non-recurring tasks whose scheduled_time has passed or is null."""
+        return cls.objects.filter(
+            status="pending",
+            cron_expression__isnull=True,
+        ).filter(models.Q(scheduled_time__isnull=True) | models.Q(scheduled_time__lte=timezone.now()))
 
     @classmethod
     def immediate_tasks(cls):

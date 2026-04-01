@@ -8,7 +8,7 @@ communication, and testing tasks with proper error handling and status tracking.
 import logging
 from typing import Any
 
-from django.db import models
+from django.db import models, transaction
 
 from .utils import (
     create_task_result,
@@ -42,21 +42,26 @@ def _claim_task(task_id):
 
     from .models import Task, TaskExecution
 
-    claimed = Task.objects.filter(id=task_id, status="pending").update(
-        status="running",
-        started_at=timezone.now(),
-        attempts=models.F("attempts") + 1,
-    )
-    if not claimed:
-        return None, None
+    with transaction.atomic():
+        claimed = (
+            Task.ready_to_run()
+            .filter(id=task_id)
+            .update(
+                status="running",
+                started_at=timezone.now(),
+                attempts=models.F("attempts") + 1,
+            )
+        )
+        if not claimed:
+            return None, None
 
-    task = Task.objects.get(id=task_id)
+        task = Task.objects.get(id=task_id)
 
-    execution = TaskExecution.objects.create(
-        task=task,
-        status="running",
-        worker_id=f"dispatcher-{os.getpid()}",
-    )
+        execution = TaskExecution.objects.create(
+            task=task,
+            status="running",
+            worker_id=f"dispatcher-{os.getpid()}",
+        )
 
     return task, execution
 
