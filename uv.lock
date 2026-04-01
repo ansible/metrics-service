@@ -825,7 +825,7 @@ requires-dist = [
     { name = "factory-boy", marker = "extra == 'test'", specifier = ">=3.3" },
     { name = "gunicorn", specifier = ">=23.0" },
     { name = "ldap-filter", marker = "extra == 'ldap'", specifier = ">=1.0.1" },
-    { name = "metrics-utility", specifier = ">=0.7.20260318" },
+    { name = "metrics-utility", specifier = ">=0.7.20260331" },
     { name = "packaging", specifier = ">=20.0" },
     { name = "pip", specifier = ">=25.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
@@ -864,7 +864,7 @@ dev = [
 
 [[package]]
 name = "metrics-utility"
-version = "0.7.20260318"
+version = "0.7.20260331"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -879,9 +879,9 @@ dependencies = [
     { name = "segment-analytics-python" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/66/35/7ca7845716f827356fa0345951fe7f87946a184bb36308ef138cd2eef972/metrics_utility-0.7.20260318.tar.gz", hash = "sha256:81ff5f1ec4e05ba19d9e2e5e297143f6379081a055b45ad95f7b3fecbf633367", size = 960794, upload-time = "2026-03-18T13:39:34.694Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/0a/a48263c8a31d44ce5ba5b0d372b7f1993080036a6a4e2079c8ee5584ed75/metrics_utility-0.7.20260331.tar.gz", hash = "sha256:ebf25c722e13dfe59bfdd9ba085110114af81b83e604851dd368a0e8878eed74", size = 968931, upload-time = "2026-03-31T14:43:53.989Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/87/24c171436e88c4b25923943c7a983a87cf77bdaefc1bf59c877779241eaf/metrics_utility-0.7.20260318-py3-none-any.whl", hash = "sha256:0a8ce6e2dea300d78c3ecaa8f6c98ffa8294142f607bd8889ea59a7c477a550a", size = 469573, upload-time = "2026-03-18T13:39:33.189Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/f1/68d6bdeaf93fef93bba8b01fcf614e40224fb6889018d27bc059dc3f1977/metrics_utility-0.7.20260331-py3-none-any.whl", hash = "sha256:67d044b527ac7b1fac58df6c401e0ba015dd809f74bb721eecf776deb2cdaa0e", size = 482647, upload-time = "2026-03-31T14:43:55.581Z" },
 ]
 
 [[package]]
