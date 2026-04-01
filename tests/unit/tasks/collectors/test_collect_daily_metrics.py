@@ -12,12 +12,10 @@ Tests cover:
 - collect_daily_metrics: error propagation when generic_collect_metrics raises
 """
 
-from datetime import datetime, timezone as dt_timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.utils import timezone
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -26,7 +24,7 @@ from django.utils import timezone
 
 def _make_utc(year, month, day, hour=0, minute=0, second=0):
     """Return a timezone-aware UTC datetime."""
-    return datetime(year, month, day, hour, minute, second, tzinfo=dt_timezone.utc)
+    return datetime(year, month, day, hour, minute, second, tzinfo=UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -127,9 +125,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_default_window_covers_previous_full_day(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_default_window_covers_previous_full_day(self, mock_registry, mock_get_db, mock_generic):
         """Without since/until the window should be yesterday 00:00 → today 00:00 UTC."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -154,9 +150,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_collection_timestamp_is_since_at_23h(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_collection_timestamp_is_since_at_23h(self, mock_registry, mock_get_db, mock_generic):
         """collection_timestamp must equal the since date at 23:00 UTC."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -182,9 +176,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_explicit_since_until_parsed_correctly(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_explicit_since_until_parsed_correctly(self, mock_registry, mock_get_db, mock_generic):
         """Explicit ISO since/until strings must be parsed and forwarded."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -205,9 +197,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_explicit_since_with_z_suffix(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_explicit_since_with_z_suffix(self, mock_registry, mock_get_db, mock_generic):
         """'Z' suffix in ISO strings must be accepted (parsed as UTC)."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -232,9 +222,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_passes_daily_collection_mode(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_passes_daily_collection_mode(self, mock_registry, mock_get_db, mock_generic):
         """collection_mode='daily' must be passed to generic_collect_metrics."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -249,9 +237,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_uses_default_db_connection(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_uses_default_db_connection(self, mock_registry, mock_get_db, mock_generic):
         """get_db_connection must be called with 'default' (metrics-service DB)."""
         mock_registry.return_value = {"task_executions_service": {}}
         fake_conn = MagicMock()
@@ -268,9 +254,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_passes_execution_id_when_provided(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_passes_execution_id_when_provided(self, mock_registry, mock_get_db, mock_generic):
         """execution_id kwarg must be forwarded as task_execution_id."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -285,9 +269,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_returns_generic_collect_metrics_result(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_returns_generic_collect_metrics_result(self, mock_registry, mock_get_db, mock_generic):
         """Return value of generic_collect_metrics must be propagated unchanged."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -303,9 +285,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_passes_collector_type_to_generic(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_passes_collector_type_to_generic(self, mock_registry, mock_get_db, mock_generic):
         """collector_type must be forwarded verbatim to generic_collect_metrics."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -320,9 +300,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_passes_registry_to_generic(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_passes_registry_to_generic(self, mock_registry, mock_get_db, mock_generic):
         """The registry returned by _get_daily_collectors must be forwarded."""
         registry = {"task_executions_service": {"collector_func": MagicMock()}}
         mock_registry.return_value = registry
@@ -342,9 +320,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_returns_error_dict_when_generic_raises(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_returns_error_dict_when_generic_raises(self, mock_registry, mock_get_db, mock_generic):
         """When generic_collect_metrics raises, the wrapper returns an error dict."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
@@ -360,9 +336,7 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_returns_error_dict_when_db_connection_raises(
-        self, mock_registry, mock_get_db, mock_generic
-    ):
+    def test_returns_error_dict_when_db_connection_raises(self, mock_registry, mock_get_db, mock_generic):
         """When get_db_connection raises, the wrapper returns an error dict."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.side_effect = Exception("DB unavailable")
