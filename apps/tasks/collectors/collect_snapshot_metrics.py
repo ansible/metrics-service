@@ -11,7 +11,7 @@ from typing import Any
 
 from django.utils import timezone
 
-from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string
+from ..utils import create_task_result, generic_collect_metrics, get_db_connection, parse_datetime_string
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +84,10 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
 
     Returns:
         dict: Task result with collection status and record ID
-
-    Raises:
-        ValueError: If collector_type is missing or invalid
     """
     collector_type = kwargs.pop("collector_type", None)
     if not collector_type:
-        raise ValueError("collector_type parameter is required")
+        return create_task_result("error", error="collector_type parameter is required")
 
     # Extract optional execution_id for linking to TaskExecution
     execution_id = kwargs.get("execution_id")  # Available when called via execute_db_task
@@ -100,7 +97,7 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     if collection_timestamp_str:
         collection_timestamp = parse_datetime_string(collection_timestamp_str)
         if collection_timestamp is None:
-            raise ValueError(f"Invalid collection_timestamp format: {collection_timestamp_str}")
+            return create_task_result("error", error=f"Invalid collection_timestamp format: {collection_timestamp_str}")
     else:
         # Snapshot collections belong to the previous day (the day being summarized)
         # Use 23:00 of the previous day to ensure they fall within the daily rollup's query window

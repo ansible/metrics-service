@@ -109,7 +109,7 @@ def handle_task_error(
     except Exception as save_error:
         logger.error(f"Failed to update task status after error: {save_error}")
 
-    return {"status": "error", "error": error_message}
+    return create_task_result("error", error=error_message)
 
 
 def update_task_status(
@@ -352,7 +352,7 @@ def generic_collect_metrics(
 
     if collector_type not in collector_registry:
         valid = ", ".join(sorted(collector_registry.keys()))
-        raise ValueError(f"Unknown collector_type: {collector_type}. Valid types: {valid}")
+        return create_task_result("error", error=f"Unknown collector_type: {collector_type}. Valid types: {valid}")
 
     config = collector_registry[collector_type]
     log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")
