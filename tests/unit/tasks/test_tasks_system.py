@@ -137,6 +137,7 @@ class TestExecuteDbTask(TestCase):
         self.task.refresh_from_db()
         assert self.task.status == "failed"
 
+    @pytest.mark.django_db(transaction=True)
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_execute_db_task_function_exception(self, mock_task_functions):
         """Test execute_db_task when task function raises exception."""
@@ -148,6 +149,29 @@ class TestExecuteDbTask(TestCase):
 
         assert result["status"] == "error"
         assert "Test exception" in result["error"]
+
+    @pytest.mark.django_db(transaction=True)
+    @patch("apps.tasks.tasks.TASK_FUNCTIONS")
+    def test_execute_db_task_exception_marks_execution_failed(self, mock_task_functions):
+        """Test that an exception after _claim_task marks the TaskExecution as failed.
+
+        Before the fix, the except block passed None for both task and execution,
+        leaving the TaskExecution stuck in "running" status forever.
+        """
+        mock_function = Mock(side_effect=Exception("Boom"))
+        mock_task_functions.__getitem__.return_value = mock_function
+        mock_task_functions.__contains__.return_value = True
+
+        execute_db_task(task_id=self.task.id)
+
+        # The TaskExecution created by _claim_task must be marked as failed
+        execution = TaskExecution.objects.get(task=self.task)
+        assert execution.status == "failed"
+        assert "Boom" in execution.error_message
+
+        # The Task itself should also be failed
+        self.task.refresh_from_db()
+        assert self.task.status == "failed"
 
     @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_with_advisory_lock(self):

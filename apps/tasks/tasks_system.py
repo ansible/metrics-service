@@ -84,6 +84,9 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
     if not task_id:
         return create_task_result("error", error="task_id is required")
 
+    task = None
+    execution = None
+
     try:
         from .models import Task
 
@@ -142,7 +145,7 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
         return result
 
     except Exception as e:
-        return handle_task_error(None, None, task_id=task_id, exception=e)
+        return handle_task_error(task, execution, task_id=task_id, exception=e)
 
 
 def submit_task_to_dispatcher(task: Any) -> None:
@@ -188,16 +191,6 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
         task.save()
-        # FIXME: no execution here, move inside execute_db_task
-        # Also mark the TaskExecution row as failed so it doesn't stay pending
-        # forever. Guard with try/except in case the create() call itself failed
-        # and `execution` was never bound.
-        try:
-            execution.status = "failed"
-            execution.error_message = f"Failed to submit to dispatcher: {str(e)}"
-            execution.save()
-        except Exception as save_err:  # execution may be unbound if create() failed
-            logger.debug(f"Could not mark TaskExecution as failed: {save_err}")
 
 
 # runs during `manage.py metrics_service init-system-tasks`
