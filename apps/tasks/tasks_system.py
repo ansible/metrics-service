@@ -66,6 +66,68 @@ def _claim_task(task_id):
     return task, execution
 
 
+def execute_function(task, execution, task_function, locked):
+    try:
+        if locked:
+            return run_with_lock(
+                task.function_name,  # lock_key
+                task.name,
+                task_function,
+                execution_id=execution.id,
+                **task.task_data,
+            )
+        else:
+            return task_function(execution_id=execution.id, **task.task_data)
+
+    except Exception as e:
+        logger.exception(f"Task {task.function_name} raised: {e}")
+        return create_task_result("error", error=f"Task execution failed: {e}")
+
+
+def execute_claimed(task, execution):
+    # Import TASK_FUNCTIONS here to avoid circular import
+    # This import happens at runtime, not module load time
+    from .tasks import TASK_FUNCTIONS, TASK_LOCKS
+
+    # Validate task function exists
+    if task.function_name not in TASK_FUNCTIONS:
+        error_msg = f"Task function '{task.function_name}' not found in TASK_FUNCTIONS"
+        return handle_task_error(task, execution, error_msg)
+
+    log_task_execution(task.function_name, "start", f"Starting {task.function_name} task")
+    log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
+
+    # Execute the actual task function, with advisory lock if required
+    # Forwarding execution_id the task can link collections back to TaskExecution
+    task_function = TASK_FUNCTIONS[task.function_name]
+    locked = task.function_name in TASK_LOCKS
+    result = execute_function(task, execution, task_function, locked)
+
+    # Complete task execution
+    status = "completed" if result.get("status") == "success" else "failed"
+    error_message = result.get("error", "") if status == "failed" else ""
+
+    update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
+
+    if status == "completed":
+        log_task_execution(task.function_name, "complete", f"Task {task.function_name} completed successfully")
+    else:
+        error_msg = f"{task.function_name} task failed: {error_message}"
+        log_task_execution(task.function_name, "error", error_msg, level="error")
+    log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
+
+    # Auto-retry if the task failed and has attempts remaining
+    if status == "failed":
+        task.refresh_from_db()
+        if task.can_retry():
+            retry_delay = task.task_data.get("retry_delay_seconds", 600)
+            delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
+            logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
+            task.retry(delay_seconds=retry_delay)
+
+    return result
+
+
 # This is the sole dispatcherd entry point — all DB tasks are routed through it.
 @task(queue="metrics_tasks", decorate=False)
 def execute_db_task(**kwargs) -> dict[str, Any]:
@@ -103,58 +165,12 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
             logger.warning(f"Task {task_id} already claimed by another worker, skipping")
             return create_task_result("error", error="Task already claimed by another worker")
 
-        # Import TASK_FUNCTIONS here to avoid circular import
-        # This import happens at runtime, not module load time
-        from .tasks import TASK_FUNCTIONS, TASK_LOCKS
-
-        # Validate task function exists
-        if task.function_name not in TASK_FUNCTIONS:
-            error_msg = f"Task function '{task.function_name}' not found in TASK_FUNCTIONS"
-            return handle_task_error(task, execution, error_msg)
-
-        log_task_execution(task.function_name, "start", f"Starting {task.function_name} task")
-        log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
-
-        # Execute the actual task function, with advisory lock if required
-        # Forwarding execution_id the task can link collections back to TaskExecution
-        task_function = TASK_FUNCTIONS[task.function_name]
-        try:
-            if task.function_name in TASK_LOCKS:
-                result = run_with_lock(
-                    task.function_name, task.name, task_function, execution_id=execution.id, **task.task_data
-                )
-            else:
-                result = task_function(execution_id=execution.id, **task.task_data)
-        except Exception as e:
-            logger.exception(f"Task {task.function_name} raised: {e}")
-            result = create_task_result("error", error=f"Task execution failed: {e}")
-
-        # Complete task execution
-        status = "completed" if result.get("status") == "success" else "failed"
-        error_message = result.get("error", "") if status == "failed" else ""
-
-        update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
-
-        if status == "completed":
-            log_task_execution(task.function_name, "complete", f"Task {task.function_name} completed successfully")
-        else:
-            error_msg = f"{task.function_name} task failed: {error_message}"
-            log_task_execution(task.function_name, "error", error_msg, level="error")
-        log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
-
-        # Auto-retry if the task failed and has attempts remaining
-        if status == "failed":
-            task.refresh_from_db()
-            if task.can_retry():
-                retry_delay = task.task_data.get("retry_delay_seconds", 600)
-                delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
-                logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
-                task.retry(delay_seconds=retry_delay)
-
-        return result
+        return execute_claimed(task, execution)
 
     except Exception as e:
-        return handle_task_error(task, execution, task_id=task_id, exception=e)
+        return handle_task_error(
+            task, execution, task_id=task_id, execution_id=(execution.id if execution else None), exception=e
+        )
 
 
 def submit_task_to_dispatcher(task: Any) -> None:
