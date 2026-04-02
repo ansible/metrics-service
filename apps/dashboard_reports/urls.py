@@ -7,6 +7,7 @@ from apps.dashboard_reports.viewsets import (
     LabelsViewSet,
     OrganizationsViewSet,
     ProjectsViewSet,
+    SubscriptionCostViewSet,
 )
 
 app_name = "dashboard_reports"
@@ -17,6 +18,7 @@ router.register(r"templates", JobTemplatesViewSet, basename="templates")
 router.register(r"projects", ProjectsViewSet, basename="projects")
 router.register(r"labels", LabelsViewSet, basename="labels")
 router.register(r"report", DashboardReportViewSet, basename="report")
+router.register(r"subscription_costs", SubscriptionCostViewSet, basename="subscription_costs")
 
 urlpatterns = [
     # Dashboard report endpoints at /api/v1/
