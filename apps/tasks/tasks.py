@@ -17,6 +17,7 @@ from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
 # Import collector tasks
+from .collectors.collect_daily_metrics import collect_daily_metrics
 from .collectors.collect_hourly_metrics import collect_hourly_metrics
 from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
@@ -28,7 +29,6 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 from .simple.hello_world import hello_world
 from .tasks_system import (
     create_system_tasks,
-    execute_db_task,
     get_system_task_info,
     submit_task_to_dispatcher,
 )
@@ -42,14 +42,25 @@ TASK_FUNCTIONS = {
     "cleanup_old_tasks": cleanup_old_tasks,
     "cleanup_activitystream": cleanup_activitystream,
     "cleanup_metrics_data": cleanup_metrics_data,
-    "execute_db_task": execute_db_task,
-    # Metrics Collection (hourly time-series and daily snapshots)
+    # Metrics Collection (hourly time-series, daily snapshots, and daily time-range)
     "collect_hourly_metrics": collect_hourly_metrics,
     "collect_snapshot_metrics": collect_snapshot_metrics,
+    "collect_daily_metrics": collect_daily_metrics,
     # Daily Rollup and Anonymization Tasks
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
+}
+
+# Tasks that require a PostgreSQL advisory lock during scheduled execution.
+# The lock key is the function name. Locking is applied in execute_db_task,
+# so direct invocations (e.g. run_task.py) run without contention.
+TASK_LOCKS = {
+    "collect_hourly_metrics",
+    "collect_snapshot_metrics",
+    "daily_metrics_rollup",
+    "daily_anonymize_and_prepare",
+    "send_anonymized_to_segment",
 }
 
 # Enhanced task metadata for dashboard display
@@ -118,16 +129,6 @@ TASK_METADATA = {
             {"name": "Extended retention (30 days)", "data": {"days_old": 30}},
         ],
     },
-    # System
-    "execute_db_task": {
-        "category": "System",
-        "description": "Execute a database-defined task with comprehensive lifecycle management",
-        "parameters": {
-            "task_id": {"type": "integer", "required": True, "description": "ID of the task to execute"},
-            "execution_id": {"type": "integer", "description": "ID of the execution record (optional)"},
-        },
-        "examples": [{"name": "Execute task by ID", "data": {"task_id": 123}}],
-    },
     "cleanup_metrics_data": {
         "category": "Maintenance",
         "description": "Clean up old metrics data based on retention policies",
@@ -191,6 +192,36 @@ TASK_METADATA = {
             {
                 "name": "Specific hour",
                 "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
+            },
+        ],
+    },
+    "collect_daily_metrics": {
+        "category": "Metrics Collection",
+        "description": "Collect daily time-range metrics (previous full day) for a specific collector type",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Type of daily collector to run (e.g., task_executions_service)",
+            },
+            "since": {
+                "type": "string",
+                "description": "ISO timestamp for start of collection window (defaults to yesterday 00:00 UTC)",
+            },
+            "until": {
+                "type": "string",
+                "description": "ISO timestamp for end of collection window (defaults to today 00:00 UTC)",
+            },
+        },
+        "examples": [
+            {"name": "Task executions (default: yesterday)", "data": {"collector_type": "task_executions_service"}},
+            {
+                "name": "Task executions (specific day)",
+                "data": {
+                    "collector_type": "task_executions_service",
+                    "since": "2024-01-01T00:00:00Z",
+                    "until": "2024-01-02T00:00:00Z",
+                },
             },
         ],
     },
@@ -282,18 +313,19 @@ __all__ = [
     "cleanup_old_tasks",
     "cleanup_activitystream",
     "cleanup_metrics_data",
-    "execute_db_task",
     "submit_task_to_dispatcher",
     "create_system_tasks",
     "get_system_task_info",
-    # Metrics collection (hourly and snapshot)
+    # Metrics collection (hourly, snapshot, and daily time-range)
     "collect_hourly_metrics",
     "collect_snapshot_metrics",
+    "collect_daily_metrics",
     # Daily rollup and anonymization tasks
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",
     "send_anonymized_to_segment",
     # Configuration
     "TASK_FUNCTIONS",
+    "TASK_LOCKS",
     "TASK_METADATA",
 ]

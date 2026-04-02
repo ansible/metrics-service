@@ -56,8 +56,8 @@ class TestTaskRetry:
         assert task.attempts == 1  # Attempts NOT reset
         mock_submit.assert_called_once_with(task)
 
-    def test_retry_skips_scheduled_task(self, user):
-        """Test retry doesn't submit scheduled task (lines 174-178)."""
+    def test_retry_clears_scheduled_time_and_submits(self, user):
+        """Test retry without delay clears scheduled_time and submits immediately."""
         # Arrange
         future_time = timezone.now() + timedelta(hours=1)
         task = Task.objects.create(
@@ -78,7 +78,8 @@ class TestTaskRetry:
         assert result is True
         task.refresh_from_db()
         assert task.status == "pending"
-        mock_submit.assert_not_called()  # Not submitted, handled by scheduler
+        assert task.scheduled_time is None
+        mock_submit.assert_called_once_with(task)
 
     def test_retry_skips_recurring_task(self, user):
         """Test retry doesn't submit recurring task (lines 174-178)."""

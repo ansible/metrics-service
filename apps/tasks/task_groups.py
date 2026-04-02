@@ -115,7 +115,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
         {
             "task_id": "daily_task_cleanup",
             "function": "cleanup_old_tasks",
-            "cron": "0 2 * * *",  # Daily at 2 AM
+            "cron": "0 5 * * *",  # Daily at 5 AM
             "args": {
                 "days_old": 5,
                 "dry_run": False,
@@ -138,13 +138,13 @@ SYSTEM_TASKS_GROUP = TaskGroup(
     ],
 )
 
-# Metrics Collection Group - Controlled by ANONYMIZED_DATA_COLLECTION
-# All metrics tasks (collection, rollup, anonymization, sending) are controlled by a single flag
-# since anonymization requires the collected data to work.
+# Metrics Collection Group - Always enabled, no feature flag.
+# Raw collection, rollup, and cleanup run regardless of the ANONYMIZED_DATA_COLLECTION flag.
+# Operators who opt out of sending data to Red Hat will still collect local metrics
+# to prevent a data gap if sending is enabled later.
 METRICS_COLLECTION_GROUP = TaskGroup(
     name="metrics_collection",
-    description="Metrics collection, rollup, anonymization, and transmission to Red Hat",
-    feature_flag="ANONYMIZED_DATA_COLLECTION",
+    description="Metrics collection, rollup, and cleanup (always enabled)",
     tasks=[
         # Hourly Collection Tasks
         {
@@ -220,6 +220,24 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "description": "Collect table metadata snapshot daily",
             "category": "daily_collection",
         },
+        {
+            "task_id": "daily_feature_flags",
+            "function": "collect_snapshot_metrics",
+            "cron": "45 1 * * *",  # Daily at 1:45 AM
+            "args": {"collector_type": "feature_flags_service"},
+            "enabled": True,
+            "description": "Collect feature flags snapshot daily",
+            "category": "daily_collection",
+        },
+        {
+            "task_id": "daily_task_executions",
+            "function": "collect_daily_metrics",
+            "cron": "50 1 * * *",  # Daily at 1:50 AM — after snapshots (1:45 AM), before rollup (2:00 AM)
+            "args": {"collector_type": "task_executions_service"},
+            "enabled": True,
+            "description": "Collect task execution observability metrics for the previous day (pipeline health)",
+            "category": "daily_collection",
+        },
         # Daily Rollup
         {
             "task_id": "daily_metrics_rollup",
@@ -229,25 +247,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "enabled": True,
             "description": "Create daily rollup from hourly collections",
             "category": "daily_rollup",
-        },
-        # Anonymization and Sending
-        {
-            "task_id": "daily_anonymize",
-            "function": "daily_anonymize_and_prepare",
-            "cron": "0 3 * * *",  # Daily at 3:00 AM
-            "args": {},
-            "enabled": True,
-            "description": "Anonymize daily summary for Segment transmission",
-            "category": "daily_anonymization",
-        },
-        {
-            "task_id": "send_to_segment_daily",
-            "function": "send_anonymized_to_segment",
-            "cron": "30 3 * * *",  # Daily at 3:30 AM
-            "args": {},
-            "enabled": True,
-            "description": "Send anonymized payloads to Segment",
-            "category": "daily_send",
         },
         # Cleanup Task
         {
@@ -266,16 +265,50 @@ METRICS_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+# Anonymization Group - Controlled by ANONYMIZED_DATA_COLLECTION.
+# Only these two tasks are gated by the flag, disabling it stops data being sent to Red Hat
+# while leaving local collection intact so there is no data gap after enabling again.
+ANONYMIZATION_GROUP = TaskGroup(
+    name="anonymization",
+    description="Anonymization and transmission of metrics to Red Hat (opt-out via ANONYMIZED_DATA_COLLECTION)",
+    feature_flag="ANONYMIZED_DATA_COLLECTION",
+    tasks=[
+        {
+            "task_id": "daily_anonymize",
+            "function": "daily_anonymize_and_prepare",
+            "cron": "0 3 * * *",  # Daily at 3:00 AM
+            "args": {},
+            "enabled": True,
+            "description": "Anonymize daily summary for Segment transmission",
+            "category": "daily_anonymization",
+        },
+        {
+            "task_id": "send_to_segment_daily",
+            "function": "send_anonymized_to_segment",
+            "cron": "30 3 * * *",  # Daily at 3:30 AM
+            "args": {},
+            "enabled": True,
+            "description": "Send anonymized payloads to Segment",
+            "category": "daily_send",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
+    ANONYMIZATION_GROUP,
 ]
 
 
 def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
     """
     Get all enabled tasks from all groups.
+
+    Group-level feature flags are evaluated at call, so tasks whose group flag
+    is disabled are excluded. Use get_all_tasks_for_init() when you need
+    all tasks unconditionally.
 
     Returns:
         Dictionary mapping task_id to task configuration for all enabled tasks.
@@ -291,6 +324,35 @@ def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
             task_config["group"] = group.name
             task_config["group_description"] = group.description
             # Add group's feature flag for runtime checking
+            if group.feature_flag:
+                task_config["feature_flag"] = group.feature_flag
+            all_tasks[task_id] = task_config
+
+    return all_tasks
+
+
+def get_all_tasks_for_init() -> dict[str, dict[str, Any]]:
+    """
+    Get all tasks from all groups for use by init-system-tasks.
+
+    This function does NOT evaluate group-level feature flags.
+    Every task that has enabled=True (or no enabled field) is included.
+    The group's feature_flag is embedded in each task config.
+
+    Returns:
+        Dictionary mapping task_id to task configuration for all individually-enabled
+        tasks across all groups, with feature_flag included where applicable.
+    """
+    all_tasks = {}
+
+    for group in TASK_GROUPS:
+        # Respect individual task enabled fields but ignore the group-level flag.
+        individually_enabled = [task for task in group.tasks if task.get("enabled", True)]
+        for task in individually_enabled:
+            task_id = task["task_id"]
+            task_config = task.copy()
+            task_config["group"] = group.name
+            task_config["group_description"] = group.description
             if group.feature_flag:
                 task_config["feature_flag"] = group.feature_flag
             all_tasks[task_id] = task_config

@@ -7,16 +7,48 @@ and database tasks without database polling, using APScheduler for optimal perfo
 
 import logging
 import threading
-from typing import Any
+from datetime import timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from django.db import close_old_connections
 from django.utils import timezone
 
-from .tasks import TASK_FUNCTIONS
-
 logger = logging.getLogger(__name__)
+
+
+def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
+    """
+    Inject a fixed time-window timestamp into task_data at the moment a recurring
+    task is dispatched by the scheduler.
+
+    Time-sensitive collectors compute their target window from timezone.now() when
+    no explicit timestamp is present. If the task is retried hours later, "now" has
+    shifted and the retry collects the wrong window. By pinning the timestamp here —
+    before the task is even submitted — every retry of the same execution copy
+    operates on the originally intended window.
+
+    Only sets the key when it is absent, so manually created tasks that already
+    carry an explicit timestamp are left untouched.
+    """
+    task_data = task_data.copy()
+
+    if function_name == "collect_hourly_metrics" and "hour_timestamp" not in task_data:
+        now = timezone.now()
+        task_data["hour_timestamp"] = (now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)).isoformat()
+
+    elif function_name == "collect_snapshot_metrics" and "collection_timestamp" not in task_data:
+        now = timezone.now()
+        task_data["collection_timestamp"] = (
+            now.replace(hour=23, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        ).isoformat()
+
+    elif function_name == "collect_daily_metrics" and "hour_timestamp" not in task_data:
+        now = timezone.now()
+        task_data["hour_timestamp"] = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    return task_data
 
 
 class UnifiedTaskScheduler:
@@ -31,53 +63,11 @@ class UnifiedTaskScheduler:
         """Initialize the task scheduler."""
         self.scheduler = BackgroundScheduler()
         self.running = False
-        self._lock = threading.Lock()  # FIXME unused?
+        self._lock = threading.Lock()
         self.check_interval = check_interval
-
-        # Task registry for scheduled tasks from task groups
-        # FIXME dead? .. not, used to register ap scheduler cron thing .. but scheduled somewhere else?
-        self.task_registry: dict[str, dict[str, Any]] = {}
-        self._load_task_registry()
 
         # Database task tracking
         self._db_task_jobs: dict[int, str] = {}  # task_id -> job_id mapping
-
-    def _load_task_registry(self):
-        """
-        Load task registry from database (source of truth).
-
-        All tasks including system tasks are stored in the tasks_task table.
-        Task group definitions are synced to the database on startup.
-        """
-        try:
-            from .models import Task
-
-            # Load all system tasks (recurring) from database
-            # FIXME: ==system cronjobs .. why just these? .. ok, only used to register those, while the rest happens in periodic_database_sync .. keep just there? .. still should just do pending, and probably not filter by system tasks?
-            system_tasks = Task.objects.filter(is_system_task=True, cron_expression__isnull=False).exclude(
-                status__in=["cancelled", "completed"]
-            )
-            # TODO:^ so.. should be either Task.recurring_tasks(); or nothing at all until we start & sync
-
-            # Convert to registry format
-            self.task_registry = {}
-            for task in system_tasks:
-                self.task_registry[task.name] = {
-                    "function": task.function_name,
-                    "cron": task.cron_expression,
-                    "args": task.task_data or {},
-                    "description": task.description,
-                    "enabled": True,  # All in DB are enabled
-                    "task_id": task.name,
-                    "db_id": task.id,
-                }
-
-            logger.info(f"Loaded {len(self.task_registry)} system tasks from database")
-
-        except Exception as e:
-            logger.error(f"Failed to load task registry from database: {str(e)}")
-            # Fallback to empty registry
-            self.task_registry = {}
 
     def start(self):
         """Start the cron scheduler."""
@@ -87,9 +77,6 @@ class UnifiedTaskScheduler:
                 return
 
             try:
-                # Add all tasks to the scheduler (feature flag check happens at runtime)
-                self._add_registry_tasks()
-
                 # Start the scheduler
                 self.scheduler.start()
                 self.running = True
@@ -101,15 +88,14 @@ class UnifiedTaskScheduler:
                 self.scheduler.add_job(
                     func=self._periodic_database_sync,
                     trigger="interval",
-                    seconds=self.check_interval,  # Check every minute by default
+                    seconds=self.check_interval,
                     id="periodic_db_sync",
                     name="Periodic Database Task Sync",
-                    replace_existing=True,  # FIXME?
+                    replace_existing=True,
                     max_instances=1,  # Prevent overlapping executions
                 )
 
                 logger.info("Task scheduler started")
-                logger.info(f"Registered {len(self.task_registry)} task group tasks")
                 logger.info(f"Loaded {len(self._db_task_jobs)} database tasks")
                 logger.info(f"Periodic database sync will run every {self.check_interval} seconds")
 
@@ -131,90 +117,6 @@ class UnifiedTaskScheduler:
             except Exception as e:
                 logger.error(f"Error stopping cron scheduler: {str(e)}")
 
-    def _add_registry_tasks(self):
-        """Add all enabled tasks from the registry to the scheduler."""
-        for task_id, config in self.task_registry.items():
-            if not config.get("enabled", True):
-                logger.debug(f"Skipping disabled task: {task_id}")
-                continue
-
-            try:
-                self._add_scheduled_task(task_id, config)
-            except Exception as e:
-                logger.error(f"Failed to add task {task_id}: {str(e)}")
-
-    def _add_scheduled_task(self, task_id: str, config: dict[str, Any]):
-        """Add a single scheduled task to the scheduler."""
-        function_name = config["function"]
-
-        # Validate function exists
-        if function_name not in TASK_FUNCTIONS:
-            raise ValueError(f"Unknown task function: {function_name}")
-
-        # Create trigger based on cron expression
-        trigger = CronTrigger.from_crontab(config["cron"])
-
-        # Add job to scheduler (feature flag is checked at runtime via args['_feature_flag'])
-        self.scheduler.add_job(
-            func=self._execute_scheduled_task,
-            trigger=trigger,
-            args=[task_id, function_name, config.get("args", {})],
-            id=task_id,
-            name=config.get("description", task_id),
-            replace_existing=True,
-            max_instances=1,  # Prevent overlapping executions
-        )
-
-        logger.info(f"Added scheduled task: {task_id} ({config['cron']})")
-
-    def _execute_scheduled_task(self, task_id: str, function_name: str, args: dict[str, Any]):
-        """
-        Execute a scheduled task by looking it up from the DB and routing through execute_db_task.
-
-        This ensures task_data always comes from the DB (maintained by init-system-tasks),
-        and all tasks go through the same lifecycle management path as DB-scheduled tasks.
-
-        Args:
-            task_id: Unique identifier for the task (matches Task.name for system tasks)
-            function_name: Unused. The function to execute is determined by the DB task record
-                  inside _execute_database_task; this parameter exists only because APScheduler
-                  was originally registered with it and removing it would require re-registering
-                  all scheduled jobs.
-            args: Unused. The feature flag and other task data are re-read from task.task_data
-                  at runtime to reflect the current DB state.
-        """
-        try:
-            from .models import Task
-
-            task = Task.objects.filter(name=task_id, is_system_task=True).first()
-
-            if not task:
-                logger.error(
-                    f"System task '{task_id}' not found in database - run 'manage.py metrics_service init-system-tasks'"
-                )
-                return
-
-            if task.status in ("cancelled", "completed"):
-                logger.warning(f"System task '{task_id}' has status '{task.status}' and will not be executed")
-                return
-
-            # Re-check the feature flag stored in task_data so that disabling the flag
-            # at runtime stops execution without requiring a scheduler restart.
-            feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
-            if feature_flag:
-                from .task_groups import get_feature_enabled_from_db
-
-                if not get_feature_enabled_from_db(feature_flag):
-                    logger.info(f"Skipping task '{task_id}': feature flag '{feature_flag}' is disabled")
-                    return
-
-            self._execute_database_task(task.id)
-
-        except Exception as e:
-            logger.error(f"Failed to execute scheduled task {task_id}: {str(e)}")
-
-    # FIXME: is this what does it, or is it all apscheduler now?
-    # FIXME: sync_database_tasks vs periodic_database_sync
     def _sync_database_tasks(self):
         """Synchronize database tasks with the scheduler."""
         try:
@@ -241,6 +143,7 @@ class UnifiedTaskScheduler:
 
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
+        close_old_connections()
         try:
             from .models import Task
 
@@ -352,6 +255,7 @@ class UnifiedTaskScheduler:
 
     def _execute_database_task(self, task_id: int):
         """Execute a database task by submitting it to dispatcherd."""
+        close_old_connections()
         try:
             from .models import Task
 
@@ -363,13 +267,31 @@ class UnifiedTaskScheduler:
                 self._remove_database_task(task_id)
                 return
 
+            if task.status in ("cancelled", "completed"):
+                logger.warning(f"Task '{task.name}' has status '{task.status}' and will not be executed")
+                self._remove_database_task(task_id)
+                return
+
+            # Check feature flag at runtime so toggling takes effect without restart
+            feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
+            if feature_flag:
+                from .task_groups import get_feature_enabled_from_db
+
+                if not get_feature_enabled_from_db(feature_flag):
+                    logger.info(f"Skipping task '{task.name}': feature flag '{feature_flag}' is disabled")
+                    # Remove non-recurring tasks from tracking so they can be
+                    # retried on the next periodic sync when the flag is re-enabled.
+                    if not task.cron_expression:
+                        self._remove_database_task(task_id)
+                    return
+
             # Handle recurring tasks by creating a new execution record
             if task.cron_expression:
                 # Create a new task record for this execution
                 execution_task = Task.objects.create(
                     name=f"{task.name} (Execution {timezone.now().strftime('%Y-%m-%d %H:%M:%S')})",
                     function_name=task.function_name,
-                    task_data=task.task_data,
+                    task_data=_inject_dispatch_timestamps(task.function_name, task.task_data or {}),
                     scheduled_time=None,  # Execute immediately
                     cron_expression=None,  # This is not a recurring task
                     max_attempts=task.max_attempts,

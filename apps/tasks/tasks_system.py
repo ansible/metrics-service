@@ -6,15 +6,16 @@ communication, and testing tasks with proper error handling and status tracking.
 """
 
 import logging
-import os
 from typing import Any
+
+from django.db import models, transaction
 
 from .utils import (
     create_task_result,
     ensure_django_setup,
-    get_task_and_execution,
     handle_task_error,
     log_task_execution,
+    run_with_lock,
     update_task_status,
 )
 
@@ -33,10 +34,101 @@ except ImportError:
         return decorator
 
 
-# FIXME: is this really a task, or more like a task runner .. used by submit_task_to_dispatcher
-# ... doesn't that mean that this is the ONLY task? apart from periodic sync? .. or what other submit_task bare
+def _claim_task(task_id):
+    """Atomically claim a task for execution, returning (task, execution) or None if already claimed."""
+    import os
+
+    from django.utils import timezone
+
+    from .models import Task, TaskExecution
+
+    with transaction.atomic():
+        claimed = (
+            Task.ready_to_run()
+            .filter(id=task_id)
+            .update(
+                status="running",
+                started_at=timezone.now(),
+                attempts=models.F("attempts") + 1,
+            )
+        )
+        if not claimed:
+            return None, None
+
+        task = Task.objects.get(id=task_id)
+
+        execution = TaskExecution.objects.create(
+            task=task,
+            status="running",
+            worker_id=f"dispatcher-{os.getpid()}",
+        )
+
+    return task, execution
 
 
+def execute_function(task, execution, task_function, locked):
+    try:
+        if locked:
+            return run_with_lock(
+                task.function_name,  # lock_key
+                task.name,
+                task_function,
+                execution_id=execution.id,
+                **task.task_data,
+            )
+        else:
+            return task_function(execution_id=execution.id, **task.task_data)
+
+    except Exception as e:
+        logger.exception(f"Task {task.function_name} raised: {e}")
+        return create_task_result("error", error=f"Task execution failed: {e}")
+
+
+def execute_claimed(task, execution):
+    # Import TASK_FUNCTIONS here to avoid circular import
+    # This import happens at runtime, not module load time
+    from .tasks import TASK_FUNCTIONS, TASK_LOCKS
+
+    # Validate task function exists
+    if task.function_name not in TASK_FUNCTIONS:
+        error_msg = f"Task function '{task.function_name}' not found in TASK_FUNCTIONS"
+        return handle_task_error(task, execution, error_msg)
+
+    log_task_execution(task.function_name, "start", f"Starting {task.function_name} task")
+    log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
+
+    # Execute the actual task function, with advisory lock if required
+    # Forwarding execution_id the task can link collections back to TaskExecution
+    task_function = TASK_FUNCTIONS[task.function_name]
+    locked = task.function_name in TASK_LOCKS
+    result = execute_function(task, execution, task_function, locked)
+
+    # Complete task execution
+    status = "completed" if result.get("status") == "success" else "failed"
+    error_message = result.get("error", "") if status == "failed" else ""
+
+    update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
+
+    if status == "completed":
+        log_task_execution(task.function_name, "complete", f"Task {task.function_name} completed successfully")
+    else:
+        error_msg = f"{task.function_name} task failed: {error_message}"
+        log_task_execution(task.function_name, "error", error_msg, level="error")
+    log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
+
+    # Auto-retry if the task failed and has attempts remaining
+    if status == "failed":
+        task.refresh_from_db()
+        if task.can_retry():
+            retry_delay = task.task_data.get("retry_delay_seconds", 600)
+            delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
+            logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
+            task.retry(delay_seconds=retry_delay)
+
+    return result
+
+
+# This is the sole dispatcherd entry point — all DB tasks are routed through it.
 @task(queue="metrics_tasks", decorate=False)
 def execute_db_task(**kwargs) -> dict[str, Any]:
     """
@@ -49,60 +141,36 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing:
             - task_id (int): ID of the task to execute (required)
-            - execution_id (int): ID of the execution record (optional)
 
     Returns:
         dict: Task result dictionary with execution status and results
     """
     ensure_django_setup()
-    log_task_execution("execute_db_task", "start", "Starting database task execution")
 
     task_id = kwargs.get("task_id")
     if not task_id:
         return create_task_result("error", error="task_id is required")
 
-    execution_id = kwargs.get("execution_id")
+    task = None
+    execution = None
 
     try:
-        # Get task and execution objects
-        task, execution = get_task_and_execution(task_id, execution_id)
+        from .models import Task
 
-        # Import TASK_FUNCTIONS here to avoid circular import
-        # This import happens at runtime, not module load time
-        from .tasks import TASK_FUNCTIONS
+        task, execution = _claim_task(task_id)
+        if task is None:
+            if not Task.objects.filter(id=task_id).exists():
+                return create_task_result("error", error=f"Task matching query does not exist: {task_id}")
 
-        # Validate task function exists
-        if task.function_name not in TASK_FUNCTIONS:
-            error_msg = f"Task function '{task.function_name}' not found in TASK_FUNCTIONS"
-            return handle_task_error(task, execution, error_msg)
+            logger.warning(f"Task {task_id} already claimed by another worker, skipping")
+            return create_task_result("error", error="Task already claimed by another worker")
 
-        # Start task execution
-        update_task_status(task, execution, status="running")
-        log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
-
-        # Execute the actual task function
-        task_function = TASK_FUNCTIONS[task.function_name]
-        result = task_function(**task.task_data)
-
-        # Complete task execution
-        status = "completed" if result.get("status") == "success" else "failed"
-        error_message = result.get("error", "") if status == "failed" else ""
-
-        update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
-
-        log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
-
-        # Auto-retry if the task failed and has attempts remaining
-        if status == "failed":
-            task.refresh_from_db()
-            if task.can_retry():
-                logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts})")
-                task.retry()
-
-        return result
+        return execute_claimed(task, execution)
 
     except Exception as e:
-        return handle_task_error(None, None, task_id=task_id, execution_id=execution_id, exception=e)
+        return handle_task_error(
+            task, execution, task_id=task_id, execution_id=(execution.id if execution else None), exception=e
+        )
 
 
 def submit_task_to_dispatcher(task: Any) -> None:
@@ -115,8 +183,10 @@ def submit_task_to_dispatcher(task: Any) -> None:
     from .models import TaskExecution
 
     try:
-        # Create execution record
-        TaskExecution.objects.create(task=task, status="pending", worker_id=f"dispatcher-{os.getpid()}")
+        # Guard against duplicate submissions
+        if TaskExecution.objects.filter(task=task, status__in=["pending", "running"]).exists():
+            logger.warning(f"Task {task.name} (ID: {task.id}) already has a pending or running execution, skipping")
+            return
 
         # Ensure dispatcherd is configured before attempting to submit tasks
         from .dispatcherd_config import ensure_dispatcherd_configured
@@ -132,6 +202,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         queue = get_queue_for_function(task.function_name)
 
         # Submit to dispatcherd using execute_db_task as the entry point
+        # TaskExecution is created inside _claim_task to avoid orphaned records
         submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
         # Update task status to indicate it's been submitted
@@ -152,15 +223,19 @@ def create_system_tasks() -> dict[str, Any]:
     """
     Create system-defined tasks from task groups in the database.
 
-    This function removes all existing system tasks and recreates them from
-    task group definitions, ensuring the database always matches the code.
+    This function is intended to be called only from the init container
+    (entrypoint-init.sh), before the application and scheduler start. At that
+    point no tasks can be running, so unconditional deletion is safe.
+
+    Removes all existing system tasks and recreates them from task group
+    definitions, ensuring the database always matches the code.
 
     Returns:
-        dict: Summary of tasks created and removed
+        dict: Summary of tasks created and removed.
     """
     try:
         from .models import Task
-        from .task_groups import get_all_enabled_tasks
+        from .task_groups import get_all_tasks_for_init
     except ImportError:
         # Handle case where Django isn't fully set up yet
         return {"error": "ERROR_DJANGO_NOT_READY", "created": 0, "removed": 0}
@@ -175,8 +250,12 @@ def create_system_tasks() -> dict[str, Any]:
         results["tasks"].append(f"Removed {removed_count} existing system tasks")
         logger.info(f"Removed {removed_count} existing system tasks")
 
-    # Get all task group definitions
-    task_groups = get_all_enabled_tasks()
+    # Get all task group definitions. Use get_all_tasks_for_init() (not get_all_enabled_tasks())
+    # so that feature-flagged tasks such as daily_anonymize and send_to_segment_daily are always
+    # written to the DB with _feature_flag stored in task_data. The runtime check in
+    # cron_scheduler._execute_database_task() then gates execution without requiring re-init
+    # when the flag is toggled.
+    task_groups = get_all_tasks_for_init()
 
     # Create fresh tasks from task groups
     for task_id, config in task_groups.items():
@@ -199,11 +278,8 @@ def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[
         results: Results dict to update
         task_model: Task model class
     """
-    # FIXME: feature_flag .. update
-    # Prepare task data including feature flag for runtime checking
     task_data = config.get("args", {}).copy()
     if config.get("feature_flag"):
-        # FIXME: no, unless users can edit feature flags by posting args .. separate field from task_data? or the task just looks itself up?
         task_data["_feature_flag"] = config["feature_flag"]
 
     new_task = task_model.objects.create(

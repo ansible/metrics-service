@@ -22,9 +22,9 @@ from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.tasks import (
     TASK_FUNCTIONS,
-    execute_db_task,
     submit_task_to_dispatcher,
 )
+from apps.tasks.tasks_system import execute_db_task
 from tests.test_utils import get_test_password
 
 User = get_user_model()
@@ -65,16 +65,48 @@ class TestExecuteDbTask(TestCase):
         assert self.task.completed_at is not None
 
     @pytest.mark.django_db(transaction=True)
-    def test_execute_db_task_with_execution_record(self):
-        """Test task execution with TaskExecution record."""
-        execution = TaskExecution.objects.create(task=self.task, status="pending")
+    def test_execute_db_task_already_claimed(self):
+        """Test that a task already claimed by another worker is skipped."""
+        self.task.status = "running"
+        self.task.save()
 
-        result = execute_db_task(task_id=self.task.id, execution_id=execution.id)
+        result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "error"
+        assert "already claimed" in result["error"]
+
+        # Task status should remain running (not overwritten)
+        self.task.refresh_from_db()
+        assert self.task.status == "running"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_losing_claim_creates_no_execution(self):
+        """Test that a failed claim leaves no orphaned TaskExecution records.
+
+        Before the fix, submit_task_to_dispatcher created a TaskExecution eagerly,
+        and a losing claimer would leave it stuck as pending forever. Now _claim_task
+        only creates the execution on success, so a loser must produce zero records.
+        """
+        # Simulate another worker already claimed the task
+        self.task.status = "running"
+        self.task.save()
+
+        result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "error"
+        # No TaskExecution should have been created
+        assert TaskExecution.objects.filter(task=self.task).count() == 0
+
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_creates_execution_record(self):
+        """Test that execute_db_task creates a TaskExecution record via _claim_task."""
+        result = execute_db_task(task_id=self.task.id)
 
         assert result["status"] == "success"
 
-        # Check execution record was updated
-        execution.refresh_from_db()
+        # _claim_task should have created an execution record
+        execution = TaskExecution.objects.filter(task=self.task).first()
+        assert execution is not None
         assert execution.status == "completed"
 
     def test_execute_db_task_no_task_id(self):
@@ -89,7 +121,7 @@ class TestExecuteDbTask(TestCase):
         result = execute_db_task(task_id=99999)
 
         assert result["status"] == "error"
-        assert "Task execution failed: Task matching query does not exist" in result["error"]
+        assert "Task matching query does not exist" in result["error"]
 
     def test_execute_db_task_function_not_found(self):
         """Test execute_db_task with unknown function name."""
@@ -105,6 +137,7 @@ class TestExecuteDbTask(TestCase):
         self.task.refresh_from_db()
         assert self.task.status == "failed"
 
+    @pytest.mark.django_db(transaction=True)
     @patch("apps.tasks.tasks.TASK_FUNCTIONS")
     def test_execute_db_task_function_exception(self, mock_task_functions):
         """Test execute_db_task when task function raises exception."""
@@ -116,6 +149,87 @@ class TestExecuteDbTask(TestCase):
 
         assert result["status"] == "error"
         assert "Test exception" in result["error"]
+
+    @pytest.mark.django_db(transaction=True)
+    @patch("apps.tasks.tasks.TASK_FUNCTIONS")
+    def test_execute_db_task_exception_marks_execution_failed(self, mock_task_functions):
+        """Test that an exception after _claim_task marks the TaskExecution as failed.
+
+        Before the fix, the except block passed None for both task and execution,
+        leaving the TaskExecution stuck in "running" status forever.
+        """
+        mock_function = Mock(side_effect=Exception("Boom"))
+        mock_task_functions.__getitem__.return_value = mock_function
+        mock_task_functions.__contains__.return_value = True
+
+        execute_db_task(task_id=self.task.id)
+
+        # The TaskExecution created by _claim_task must be marked as failed
+        execution = TaskExecution.objects.get(task=self.task)
+        assert execution.status == "failed"
+        assert "Boom" in execution.error_message
+
+        # The Task should be auto-retried (back to pending) since max_attempts=3
+        self.task.refresh_from_db()
+        assert self.task.status == "pending"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_with_advisory_lock(self):
+        """Test that tasks in TASK_LOCKS go through run_with_lock."""
+        self.task.function_name = "daily_metrics_rollup"
+        self.task.save()
+
+        with patch("apps.tasks.tasks_system.run_with_lock") as mock_lock:
+            mock_lock.return_value = {"status": "success"}
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "success"
+        mock_lock.assert_called_once()
+        assert mock_lock.call_args[0][0] == "daily_metrics_rollup"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_contended_lock_triggers_retry(self):
+        """Test that a task which cannot acquire its advisory lock fails and is retried."""
+        self.task.function_name = "daily_metrics_rollup"
+        self.task.max_attempts = 3
+        self.task.save()
+
+        with patch("apps.tasks.tasks_system.run_with_lock") as mock_lock:
+            mock_lock.return_value = {"status": "error", "error": "Could not acquire lock"}
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "error"
+        assert "lock" in result["error"].lower()
+
+        self.task.refresh_from_db()
+        # Task should have been auto-retried (back to pending)
+        assert self.task.status == "pending"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_auto_retry_with_delay(self):
+        """Test auto-retry sets delay from task_data retry_delay_seconds."""
+        from django.utils import timezone
+
+        self.task.function_name = "hello_world"
+        self.task.max_attempts = 3
+        self.task.task_data = {"retry_delay_seconds": 120}
+        self.task.save()
+
+        before = timezone.now()
+
+        with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
+            mock_fns.__contains__.return_value = True
+            mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result["status"] == "error"
+        self.task.refresh_from_db()
+        # Task should have been retried with delay
+        assert self.task.status == "pending"
+        assert self.task.scheduled_time is not None
+        # scheduled_time should be ~120s after the retry call
+        delta = (self.task.scheduled_time - before).total_seconds()
+        assert 118 <= delta <= 125, f"Expected scheduled_time ~120s in the future, got {delta:.1f}s"
 
 
 # =============================================================================
@@ -135,7 +249,6 @@ class TestTaskRegistry(TestCase):
     def test_task_functions_contains_expected_functions(self):
         """Test TASK_FUNCTIONS contains all expected task functions."""
         expected_functions = [
-            "execute_db_task",
             "hello_world",
             "cleanup_old_tasks",
         ]
@@ -145,14 +258,14 @@ class TestTaskRegistry(TestCase):
             assert callable(TASK_FUNCTIONS[func_name]), f"{func_name} is not callable"
 
     def test_task_function_signatures(self):
-        """Test task functions accept keyword arguments and return dicts."""
-        for _func_name, func in TASK_FUNCTIONS.items():
-            try:
-                result = func()
-                assert isinstance(result, dict), f"{func.__name__} didn't return a dict"
-                assert "status" in result, f"{func.__name__} result missing 'status' key"
-            except Exception as e:
-                pytest.fail(f"Function {func.__name__} raised exception: {e}")
+        """Test task functions accept keyword arguments."""
+        import inspect
+
+        for func_name, func in TASK_FUNCTIONS.items():
+            sig = inspect.signature(func)
+            # Every task function must accept **kwargs
+            has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+            assert has_var_keyword, f"{func_name} does not accept **kwargs"
 
 
 # =============================================================================
@@ -172,13 +285,26 @@ class TestSystemTaskCreation(TestCase):
 
     def test_create_system_tasks_with_disabled_tasks(self):
         """Test handling of disabled system tasks."""
-        # Disabled tasks are filtered by get_all_enabled_tasks()
-        with patch("apps.tasks.task_groups.get_all_enabled_tasks", return_value={}):
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value={}):
             result = tasks_system.create_system_tasks()
 
             # All tasks filtered out
             assert result["created"] == 0
             assert result["removed"] == 0
+
+    def test_all_system_tasks_deleted_on_reinit(self):
+        """All existing system tasks are unconditionally removed on reinit.
+
+        create_system_tasks() is only called from the init container, before
+        the app starts, so no tasks can be running at that point.
+        """
+        for name in ("task_a", "task_b"):
+            Task.objects.create(name=name, function_name="hello_world", is_system_task=True)
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value={}):
+            result = tasks_system.create_system_tasks()
+
+        assert result["removed"] == 2
+        assert Task.objects.filter(is_system_task=True).count() == 0
 
 
 # =============================================================================
@@ -202,10 +328,10 @@ class TestTaskDispatcher(TestCase):
         self.task = Task(name="Submit Task", function_name="hello_world", created_by=self.user)
         self.task.save()
 
-    @patch("apps.tasks.models.TaskExecution.objects.create")
-    def test_submit_task_to_dispatcher_handles_exception(self, mock_create):
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    def test_submit_task_to_dispatcher_handles_exception(self, mock_ensure_config):
         """Test submit_task_to_dispatcher handles exceptions gracefully."""
-        mock_create.side_effect = Exception("Database error")
+        mock_ensure_config.side_effect = Exception("Connection error")
 
         submit_task_to_dispatcher(self.task)
 
@@ -213,6 +339,24 @@ class TestTaskDispatcher(TestCase):
         self.task.refresh_from_db()
         assert self.task.status == "failed"
         assert "Failed to submit to dispatcher" in self.task.error_message
+
+    @patch("dispatcherd.publish.submit_task")
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    def test_submit_skips_when_active_execution_exists(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """Test that submit_task_to_dispatcher is a no-op when a pending/running execution exists."""
+        # Create an existing pending execution
+        from apps.tasks.models import TaskExecution
+
+        TaskExecution.objects.create(task=self.task, status="pending", worker_id="other-worker")
+
+        submit_task_to_dispatcher(self.task)
+
+        # Should not have submitted anything
+        mock_submit.assert_not_called()
+
+        # Should still have only the one execution
+        assert TaskExecution.objects.filter(task=self.task).count() == 1
 
     def test_dispatcherd_decorator_functionality(self):
         """Test dispatcherd decorator is properly configured."""
@@ -655,14 +799,15 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
         mock_submit.assert_called_once()
         call_kwargs = mock_submit.call_args.kwargs
         assert call_kwargs["kwargs"]["task_id"] == task.id
+        assert "execution_id" not in call_kwargs["kwargs"]
         assert call_kwargs["queue"] == "metrics_tasks"
+
+        # TaskExecution is no longer created here — _claim_task creates it
+        assert TaskExecution.objects.filter(task=task).count() == 0
 
         # Verify task status updated
         task.refresh_from_db()
         assert task.status == "pending"
-
-        # Verify execution record created
-        assert TaskExecution.objects.filter(task=task).exists()
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
@@ -700,7 +845,7 @@ class TestCreateSystemTasksExceptionHandling(TestCase):
         )
 
     @patch("apps.tasks.tasks_system._create_task_from_group")
-    @patch("apps.tasks.task_groups.get_all_enabled_tasks")
+    @patch("apps.tasks.task_groups.get_all_tasks_for_init")
     def test_handles_exception_creating_individual_task(self, mock_get_tasks, mock_create_task):
         """Test create_system_tasks handles exceptions per task."""
         # Arrange

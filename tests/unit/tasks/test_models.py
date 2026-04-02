@@ -82,6 +82,26 @@ class TestTaskModel:
 
         assert task.can_retry() is False
 
+    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
+    def test_retry_with_delay_sets_scheduled_time(self, mock_submit):
+        """Test retry(delay_seconds=...) sets scheduled_time in the future."""
+        task = Task.objects.create(
+            name="Delayed Retry Task",
+            function_name="hello_world",
+            status="failed",
+            attempts=1,
+            max_attempts=3,
+        )
+
+        before = timezone.now()
+        result = task.retry(delay_seconds=120)
+
+        assert result is True
+        task.refresh_from_db()
+        assert task.status == "pending"
+        assert task.scheduled_time is not None
+        assert task.scheduled_time >= before + timedelta(seconds=119)
+
     def test_can_delete_regular_task(self):
         """Test can_delete returns True for regular tasks"""
         task = Task.objects.create(name="Regular Task", function_name="test_func", is_system_task=False)

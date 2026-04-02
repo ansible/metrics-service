@@ -2,7 +2,6 @@
 Enhanced unit tests for cron_scheduler.py to improve coverage.
 
 Tests cover:
-- Feature flag checking in _execute_scheduled_task
 - _periodic_database_sync task discovery and routing
 - Error handling in _add_database_scheduled_task
 - Error handling in _add_database_recurring_task
@@ -15,77 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.utils import timezone
 
-from apps.tasks.cron_scheduler import UnifiedTaskScheduler
-
-
-@pytest.mark.unit
-class TestExecuteScheduledTaskFeatureFlags:
-    """Test feature flag checking in _execute_scheduled_task.
-
-    The implementation reads _feature_flag from task.task_data (live DB) at runtime,
-    then routes through _execute_database_task. All DB access is mocked here.
-    """
-
-    def _make_mock_task(self, task_id=42, task_data=None):
-        """Return a MagicMock that looks like a Task with the given task_data."""
-        mock_task = MagicMock()
-        mock_task.id = task_id
-        mock_task.task_data = task_data if task_data is not None else {}
-        return mock_task
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
-    @patch("apps.tasks.models.Task")
-    def test_skips_task_when_feature_flag_disabled(self, mock_task_cls, mock_get_feature_enabled, mock_execute_db):
-        """Task is skipped when its feature flag is disabled in the DB."""
-        scheduler = UnifiedTaskScheduler()
-        mock_get_feature_enabled.return_value = False
-        mock_task_cls.objects.filter.return_value.first.return_value = self._make_mock_task(
-            task_data={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"}
-        )
-
-        scheduler._execute_scheduled_task("test_task", "hello_world", {})
-
-        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION")
-        mock_execute_db.assert_not_called()
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
-    @patch("apps.tasks.models.Task")
-    def test_executes_task_when_feature_flag_enabled(self, mock_task_cls, mock_get_feature_enabled, mock_execute_db):
-        """Task proceeds to _execute_database_task when its feature flag is enabled."""
-        scheduler = UnifiedTaskScheduler()
-        mock_get_feature_enabled.return_value = True
-        mock_task = self._make_mock_task(task_id=42, task_data={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"})
-        mock_task_cls.objects.filter.return_value.first.return_value = mock_task
-
-        scheduler._execute_scheduled_task("test_task", "hello_world", {})
-
-        mock_get_feature_enabled.assert_called_once_with("ANONYMIZED_DATA_COLLECTION")
-        mock_execute_db.assert_called_once_with(42)
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.models.Task")
-    def test_executes_task_when_no_feature_flag(self, mock_task_cls, mock_execute_db):
-        """Task proceeds without a feature flag check when task_data has no _feature_flag."""
-        scheduler = UnifiedTaskScheduler()
-        mock_task = self._make_mock_task(task_id=7, task_data={})
-        mock_task_cls.objects.filter.return_value.first.return_value = mock_task
-
-        scheduler._execute_scheduled_task("test_task", "hello_world", {})
-
-        mock_execute_db.assert_called_once_with(7)
-
-    @patch.object(UnifiedTaskScheduler, "_execute_database_task")
-    @patch("apps.tasks.models.Task")
-    def test_logs_error_when_task_not_in_db(self, mock_task_cls, mock_execute_db):
-        """Logs an error and skips execution when the system task is missing from DB."""
-        scheduler = UnifiedTaskScheduler()
-        mock_task_cls.objects.filter.return_value.first.return_value = None
-
-        scheduler._execute_scheduled_task("missing_task", "hello_world", {})
-
-        mock_execute_db.assert_not_called()
+from apps.tasks.cron_scheduler import UnifiedTaskScheduler, _inject_dispatch_timestamps
 
 
 @pytest.mark.unit
@@ -208,6 +137,33 @@ class TestPeriodicDatabaseSync:
         # Assert
         mock_execute.assert_not_called()
 
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_before_querying(self, mock_task_model, mock_close):
+        """close_old_connections must be called before any ORM access."""
+        call_order = []
+        mock_close.side_effect = lambda: call_order.append("close")
+        mock_task_model.immediate_tasks.side_effect = lambda: call_order.append("query") or []
+        mock_task_model.scheduled_tasks.return_value = []
+        mock_task_model.recurring_tasks.return_value = []
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._periodic_database_sync()
+
+        mock_close.assert_called_once()
+        assert call_order[0] == "close"
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_even_on_error(self, mock_task_model, mock_close):
+        """close_old_connections is called even when the sync body raises."""
+        mock_task_model.immediate_tasks.side_effect = Exception("db gone")
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._periodic_database_sync()
+
+        mock_close.assert_called_once()
+
 
 @pytest.mark.unit
 @pytest.mark.django_db
@@ -313,7 +269,9 @@ class TestExecuteDatabaseTaskErrors:
 
         mock_task = MagicMock()
         mock_task.id = 1
+        mock_task.name = "test_task"
         mock_task.status = "running"
+        mock_task.task_data = {}
         mock_task.cron_expression = None
         mock_task_model.objects.get.return_value = mock_task
 
@@ -322,6 +280,36 @@ class TestExecuteDatabaseTaskErrors:
 
         # Assert
         mock_remove.assert_called_once_with(1)
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_before_querying(self, mock_task_model, mock_close):
+        """close_old_connections is called before any ORM access in _execute_database_task."""
+        call_order = []
+        mock_close.side_effect = lambda: call_order.append("close")
+
+        def get_side_effect(**kwargs):
+            call_order.append("query")
+            raise Exception("db gone")
+
+        mock_task_model.objects.get.side_effect = get_side_effect
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._execute_database_task(999)
+
+        mock_close.assert_called_once()
+        assert call_order[0] == "close"
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.models.Task")
+    def test_closes_old_connections_even_on_error(self, mock_task_model, mock_close):
+        """close_old_connections is called even when the task body raises."""
+        mock_task_model.objects.get.side_effect = Exception("db gone")
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._execute_database_task(999)
+
+        mock_close.assert_called_once()
 
 
 @pytest.mark.unit
@@ -385,3 +373,74 @@ class TestRemoveDatabaseTask:
 
         # Assert - still removed from tracking
         assert 1 not in scheduler._db_task_jobs
+
+
+@pytest.mark.unit
+class TestInjectDispatchTimestamps:
+    """
+    Test that _inject_dispatch_timestamps pins the correct time-window key into
+    task_data at dispatch time so retries always collect the originally intended window.
+    """
+
+    def test_injects_hour_timestamp_for_hourly_collector(self):
+        """collect_hourly_metrics tasks get hour_timestamp set to the previous full hour."""
+        fixed_now = timezone.now().replace(minute=30, second=0, microsecond=0)
+        expected = (fixed_now.replace(minute=0) - timedelta(hours=1)).isoformat()
+
+        with patch("apps.tasks.cron_scheduler.timezone") as mock_tz:
+            mock_tz.now.return_value = fixed_now
+            result = _inject_dispatch_timestamps("collect_hourly_metrics", {"collector_type": "unified_jobs"})
+
+        assert result["hour_timestamp"] == expected
+
+    def test_injects_collection_timestamp_for_snapshot_collector(self):
+        """collect_snapshot_metrics tasks get collection_timestamp set to yesterday at 23:00."""
+        fixed_now = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        expected = (fixed_now.replace(hour=23) - timedelta(days=1)).isoformat()
+
+        with patch("apps.tasks.cron_scheduler.timezone") as mock_tz:
+            mock_tz.now.return_value = fixed_now
+            result = _inject_dispatch_timestamps("collect_snapshot_metrics", {"collector_type": "config"})
+
+        assert result["collection_timestamp"] == expected
+
+    def test_does_not_overwrite_existing_hour_timestamp(self):
+        """An explicit hour_timestamp already in task_data must not be replaced."""
+        fixed_ts = "2024-01-15T10:00:00+00:00"
+        result = _inject_dispatch_timestamps(
+            "collect_hourly_metrics", {"collector_type": "unified_jobs", "hour_timestamp": fixed_ts}
+        )
+        assert result["hour_timestamp"] == fixed_ts
+
+    def test_does_not_modify_unrelated_functions(self):
+        """Functions not in the injection map are returned unchanged."""
+        original = {"some_key": "some_value"}
+        result = _inject_dispatch_timestamps("hello_world", original)
+        assert result == original
+
+    def test_returns_a_copy_not_the_original_dict(self):
+        """The original task_data dict must not be mutated."""
+        original = {"collector_type": "unified_jobs"}
+        result = _inject_dispatch_timestamps("collect_hourly_metrics", original)
+        assert "hour_timestamp" not in original
+        assert "hour_timestamp" in result
+
+    def test_injects_hour_timestamp_for_daily_collector(self):
+        """collect_daily_metrics tasks get hour_timestamp set to today's midnight (UTC)."""
+        fixed_now = timezone.now().replace(hour=14, minute=30, second=0, microsecond=0)
+        expected = fixed_now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+        with patch("apps.tasks.cron_scheduler.timezone") as mock_tz:
+            mock_tz.now.return_value = fixed_now
+            result = _inject_dispatch_timestamps("collect_daily_metrics", {"collector_type": "task_executions_service"})
+
+        assert result["hour_timestamp"] == expected
+
+    def test_does_not_overwrite_existing_hour_timestamp_for_daily_collector(self):
+        """An explicit hour_timestamp already in daily task_data must not be replaced."""
+        fixed_ts = "2024-01-15T00:00:00+00:00"
+        result = _inject_dispatch_timestamps(
+            "collect_daily_metrics",
+            {"collector_type": "task_executions_service", "hour_timestamp": fixed_ts},
+        )
+        assert result["hour_timestamp"] == fixed_ts
