@@ -123,22 +123,20 @@ class TestDailyRollupTask(TestCase):
     """Test daily metrics rollup task."""
 
     def test_daily_metrics_rollup_no_collections(self):
-        """Test daily rollup with no hourly collections."""
+        """Test daily rollup skips when no hourly collections exist."""
 
         summary_date = date(2024, 1, 15)
         result = daily_metrics_rollup(summary_date=summary_date.isoformat())
 
-        assert result["status"] == "success"
-        assert "summary_id" in result
-        assert result["hourly_collections_count"] == 0
+        assert result["status"] == "error"
+        assert "upstream dependency not met" in result["error"]
 
     def test_daily_metrics_rollup_default_date(self):
-        """Test daily rollup with default date (yesterday)."""
+        """Test daily rollup skips when no collections for yesterday."""
         result = daily_metrics_rollup()
 
-        assert result["status"] == "success"
-        # Should use yesterday's date
-        assert "summary_date" in result
+        assert result["status"] == "error"
+        assert "upstream dependency not met" in result["error"]
 
 
 @pytest.mark.unit

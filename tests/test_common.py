@@ -17,7 +17,6 @@ class BaseTaskFunctionsTest(unittest.TestCase):
         from apps.tasks.tasks import TASK_FUNCTIONS
 
         expected_functions = [
-            "execute_db_task",
             "hello_world",
             "cleanup_old_tasks",
         ]
@@ -32,33 +31,18 @@ class BaseTaskSchedulerTest(unittest.TestCase):
 
     def test_task_scheduler_init(self):
         """Test UnifiedTaskScheduler initialization."""
-        from unittest.mock import Mock
-
         from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
-        with patch("apps.tasks.models.Task") as mock_task_model:
-            # Mock empty database
-            mock_queryset = Mock()
-            mock_queryset.exclude.return_value = []
-            mock_task_model.objects.filter.return_value = mock_queryset
-
-            scheduler = UnifiedTaskScheduler(check_interval=30)
+        scheduler = UnifiedTaskScheduler(check_interval=30)
         self.assertEqual(scheduler.check_interval, 30)
         self.assertFalse(scheduler.running)
 
     def test_task_scheduler_stop(self):
         """Test UnifiedTaskScheduler stop method."""
-        from unittest.mock import Mock, patch
 
         from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
-        with patch("apps.tasks.models.Task") as mock_task_model:
-            # Mock empty database
-            mock_queryset = Mock()
-            mock_queryset.exclude.return_value = []
-            mock_task_model.objects.filter.return_value = mock_queryset
-
-            scheduler = UnifiedTaskScheduler()
+        scheduler = UnifiedTaskScheduler()
         scheduler.running = True
         with patch.object(scheduler.scheduler, "shutdown"):
             scheduler.stop()

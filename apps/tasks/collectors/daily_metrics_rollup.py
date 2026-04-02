@@ -15,8 +15,6 @@ from django.utils import timezone
 from ..utils import (
     create_task_result,
     log_task_execution,
-    task,
-    task_execution_wrapper,
 )
 
 logger = logging.getLogger(__name__)
@@ -152,6 +150,7 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
             daily_rollup[collector_type] = _merge_collects(collections, processor)
         else:
             logger.warning(f"No {collector_type} collection found for summary date")
+            missing_hours.append(f"{collector_type}:daily")
             daily_rollup[collector_type] = _merge_collects([], processor)
 
     return daily_rollup, missing_hours
@@ -214,28 +213,15 @@ def _save_daily_summary(
     return daily_summary, created, hourly_collections_count
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("daily_metrics_rollup")
 def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
     """
     Create daily summary from hourly rollups
 
     This task:
-    1. Queries all hourly rollup collections for the previous day
-    2. Merges hourly rollups into daily rollups using rollup processor merge logic
-    3. Extracts daily snapshot data (execution_environments, config)
-    4. Creates DailyMetricsSummary record with complete daily rollup
-
-    Collectors:
-        - Hourly merged (from HourlyMetricsCollection):
-            - job_host_summary_service
-            - unified_jobs
-            - credentials_service
-        - Daily snapshots (from HourlyMetricsCollection):
-            - execution_environments
-            - controller_version_service
-            - table_metadata
-            - config
+    - pulls hourly, daily, and snapshot collections for the target data
+    - fails if no hourlies exist
+    - merges them into a daily rollup
+    - saves to DailyMetricsSummary
 
     Args:
         **kwargs: Task data containing:
@@ -254,6 +240,20 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         summary_date = timezone.now().date() - timedelta(days=1)
 
     log_task_execution("daily_metrics_rollup", "processing", f"Creating daily rollup for: {summary_date}")
+
+    # Check upstream dependency: at least some hourly collections must exist
+    from ..models import HourlyMetricsCollection
+
+    start_dt = timezone.make_aware(datetime.combine(summary_date, datetime.min.time()))
+    end_dt = start_dt + timedelta(days=1)
+    has_collections = HourlyMetricsCollection.objects.filter(
+        collection_timestamp__gte=start_dt, collection_timestamp__lt=end_dt, status="collected"
+    ).exists()
+
+    if not has_collections:
+        msg = f"No collected hourly metrics found for {summary_date} — upstream dependency not met"
+        log_task_execution("daily_metrics_rollup", "skipped", msg)
+        return create_task_result("error", error=msg)
 
     try:
         # Query and group hourly collections by type

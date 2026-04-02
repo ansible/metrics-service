@@ -18,22 +18,22 @@ from ..utils import (
     create_task_result,
     generate_salt,
     log_task_execution,
-    task,
-    task_execution_wrapper,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("daily_anonymize_and_prepare")
 def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     """
     Anonymize daily metrics summary and prepare payload for Segment
 
-    - Fetches DailyMetricsSummary non-anyonymized daily rollup
-    - anonymizes using anonymize_rollups() from metrics-utility
+    Acquires an advisory lock to prevent concurrent execution, then:
+    - Fetches DailyMetricsSummary with status=aggregated (upstream dependency)
+    - Anonymizes using anonymize_rollups() from metrics-utility
     - Creates AnonymizedMetricsPayload record
+
+    If the upstream dependency (aggregated summary) is not met or the lock
+    cannot be acquired, the task fails and will be retried automatically.
 
     Args:
         **kwargs: Task data containing:

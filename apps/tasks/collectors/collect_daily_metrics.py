@@ -16,7 +16,7 @@ from typing import Any
 
 from django.utils import timezone
 
-from ..utils import generic_collect_metrics, get_db_connection, parse_datetime_string, task, task_execution_wrapper
+from ..utils import create_task_result, generic_collect_metrics, get_db_connection, parse_datetime_string
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +42,6 @@ def _get_daily_collectors():
     }
 
 
-@task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_daily_metrics")
 def collect_daily_metrics(**kwargs) -> dict[str, Any]:
     """
     Collect daily metrics for a specific collector type using a since/until time window.
@@ -64,13 +62,10 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
 
     Returns:
         dict: Task result with collection status and record ID
-
-    Raises:
-        ValueError: If collector_type is missing or invalid
     """
     collector_type = kwargs.pop("collector_type", None)
     if not collector_type:
-        raise ValueError("collector_type parameter is required")
+        return create_task_result("error", error="collector_type parameter is required")
 
     execution_id = kwargs.get("execution_id")
 
@@ -82,7 +77,7 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
     if hour_timestamp_str:
         today_midnight = parse_datetime_string(hour_timestamp_str)
         if today_midnight is None:
-            raise ValueError(f"Invalid hour_timestamp format: {hour_timestamp_str}")
+            return create_task_result("error", error=f"Invalid hour_timestamp format: {hour_timestamp_str}")
     else:
         now = timezone.now()
         today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -91,7 +86,7 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
     if since_str:
         since = parse_datetime_string(since_str)
         if since is None:
-            raise ValueError(f"Invalid since format: {since_str}")
+            return create_task_result("error", error=f"Invalid since format: {since_str}")
     else:
         since = today_midnight - timedelta(days=1)
 
@@ -99,7 +94,7 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
     if until_str:
         until = parse_datetime_string(until_str)
         if until is None:
-            raise ValueError(f"Invalid until format: {until_str}")
+            return create_task_result("error", error=f"Invalid until format: {until_str}")
     else:
         until = today_midnight
 

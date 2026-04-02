@@ -211,7 +211,6 @@ def get_queue_for_function(function_name: str) -> str:
     queue_mapping = {
         # System/general tasks
         "hello_world": "metrics_tasks",
-        "execute_db_task": "metrics_tasks",
         # Cleanup tasks
         "cleanup_old_tasks": "metrics_cleanup",
         "cleanup_metrics_data": "metrics_cleanup",

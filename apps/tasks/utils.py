@@ -2,7 +2,6 @@
 Utility functions for task management and execution.
 """
 
-import functools
 import logging
 from datetime import UTC
 from typing import Any
@@ -29,54 +28,6 @@ def ensure_django_setup():
 
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings")
         django.setup()
-
-
-def task_execution_wrapper(task_name: str):
-    """
-    Decorator to handle common task execution patterns.
-
-    This decorator:
-    - Ensures Django setup
-    - Logs task start and completion
-    - Handles exceptions with proper error responses
-    - Returns standardized task results
-
-    Args:
-        task_name: Name of the task for logging
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(**kwargs):
-            ensure_django_setup()
-            log_task_execution(task_name, "start", f"Starting {task_name} task")
-
-            try:
-                result = func(**kwargs)
-                log_task_execution(task_name, "complete", f"Task {task_name} completed successfully")
-                return result
-            except Exception as e:
-                error_msg = f"{task_name} task failed: {str(e)}"
-                log_task_execution(task_name, "error", error_msg, level="error")
-                return create_task_result("error", error=error_msg)
-
-        return wrapper
-
-    return decorator
-
-
-def get_task_and_execution(task_id: int, execution_id: int | None) -> tuple[Any, Any]:
-    """Get task and execution objects with proper locking."""
-    from .models import Task, TaskExecution
-
-    with transaction.atomic():
-        task = Task.objects.get(id=task_id)
-        execution = None
-
-        if execution_id:
-            execution = TaskExecution.objects.get(id=execution_id)
-
-    return task, execution
 
 
 def handle_task_error(
@@ -158,7 +109,7 @@ def handle_task_error(
     except Exception as save_error:
         logger.error(f"Failed to update task status after error: {save_error}")
 
-    return {"status": "error", "error": error_message}
+    return create_task_result("error", error=error_message)
 
 
 def update_task_status(
@@ -278,28 +229,6 @@ def log_task_execution(task_name: str, operation: str, details: str = "", level:
     log_func(message)
 
 
-# =============================================================================
-# Dispatcherd Task Decorator
-# =============================================================================
-
-try:
-    from dispatcherd.publish import task
-except ImportError:
-
-    def task():
-        """Fallback task decorator when dispatcherd is not available."""
-
-        def decorator(func):
-            return func
-
-        return decorator
-
-
-# =============================================================================
-# Database and Data Utilities
-# =============================================================================
-
-
 def parse_datetime_string(date_str: str | None) -> Any:
     """
     Parse an ISO datetime string, return None if invalid.
@@ -356,6 +285,31 @@ def get_db_connection(db_name: str = "awx"):
     return django_connection.connection
 
 
+def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):
+    """
+    Execute a task function under a PostgreSQL advisory lock.
+
+    If the lock cannot be acquired (another instance of the same task is running),
+    returns an error result which triggers auto-retry.
+
+    Args:
+        lock_key: Unique key for the advisory lock
+        task_name: Task name for logging
+        fn: Task function to execute
+        **kwargs: Arguments to pass to fn
+    """
+    from django.db import connection
+    from metrics_utility.library.lock import lock
+
+    with lock(lock_key, wait=False, db=connection) as acquired:
+        if not acquired:
+            msg = f"Could not acquire lock '{lock_key}' — another {task_name} instance is running"
+            logger.warning(msg)
+            log_task_execution(task_name, "skipped", msg)
+            return create_task_result("error", error=msg)
+        return fn(**kwargs)
+
+
 def generate_salt() -> str:
     """
     Generate a unique UUID4 salt for anonymization.
@@ -398,7 +352,7 @@ def generic_collect_metrics(
 
     if collector_type not in collector_registry:
         valid = ", ".join(sorted(collector_registry.keys()))
-        raise ValueError(f"Unknown collector_type: {collector_type}. Valid types: {valid}")
+        return create_task_result("error", error=f"Unknown collector_type: {collector_type}. Valid types: {valid}")
 
     config = collector_registry[collector_type]
     log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")

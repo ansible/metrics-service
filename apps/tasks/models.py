@@ -6,7 +6,7 @@ and FIXME: split out - also models for collects, rollups and anonymized
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.db import models
@@ -132,7 +132,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         if self.status != "pending":
             return False
 
-        # Check if scheduled time has passed
+        # Check if immediate or scheduled time has passed
         return not (self.scheduled_time and self.scheduled_time > timezone.now())
 
     def can_retry(self) -> bool:
@@ -144,13 +144,18 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         """
         return self.attempts < self.max_attempts and self.status == "failed"
 
-    def retry(self) -> bool:
+    def retry(self, delay_seconds: int = 0) -> bool:
         """
         Retry a failed task by resetting its status to pending.
 
         The attempts counter is NOT reset to properly enforce max_attempts limit.
         This ensures that the total number of execution attempts (automatic + manual retries)
         respects the max_attempts setting and prevents indefinite retries.
+
+        Args:
+            delay_seconds: Optional delay before the task becomes eligible for execution.
+                When set, scheduled_time is set to now + delay so the periodic sync
+                won't pick it up until the delay has elapsed.
 
         Returns:
             bool: True if task was successfully reset for retry, False otherwise
@@ -163,9 +168,12 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         self.started_at = None
         self.completed_at = None
         # NOTE: Do NOT reset attempts to 0 here. The attempts counter must persist
-        # across retries to properly enforce the max_attempts limit. Without this,
-        # users could bypass max_attempts by repeatedly calling retry().
-        # FIXME: users SHOULD be able to ignore max_attempts when manually retrying???
+        # across retries to properly enforce the max_attempts limit.
+
+        if delay_seconds > 0:
+            self.scheduled_time = timezone.now() + timedelta(seconds=delay_seconds)
+        else:
+            self.scheduled_time = None
 
         self.save()
 
@@ -227,6 +235,14 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
             return "croniter not available"
         except Exception:
             return "Invalid cron_expression"
+
+    @classmethod
+    def ready_to_run(cls):
+        """Queryset equivalent of is_ready_to_run() — pending non-recurring tasks whose scheduled_time has passed or is null."""
+        return cls.objects.filter(
+            status="pending",
+            cron_expression__isnull=True,
+        ).filter(models.Q(scheduled_time__isnull=True) | models.Q(scheduled_time__lte=timezone.now()))
 
     @classmethod
     def immediate_tasks(cls):

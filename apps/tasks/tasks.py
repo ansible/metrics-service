@@ -29,7 +29,6 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 from .simple.hello_world import hello_world
 from .tasks_system import (
     create_system_tasks,
-    execute_db_task,
     get_system_task_info,
     submit_task_to_dispatcher,
 )
@@ -43,7 +42,6 @@ TASK_FUNCTIONS = {
     "cleanup_old_tasks": cleanup_old_tasks,
     "cleanup_activitystream": cleanup_activitystream,
     "cleanup_metrics_data": cleanup_metrics_data,
-    "execute_db_task": execute_db_task,
     # Metrics Collection (hourly time-series, daily snapshots, and daily time-range)
     "collect_hourly_metrics": collect_hourly_metrics,
     "collect_snapshot_metrics": collect_snapshot_metrics,
@@ -52,6 +50,17 @@ TASK_FUNCTIONS = {
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
+}
+
+# Tasks that require a PostgreSQL advisory lock during scheduled execution.
+# The lock key is the function name. Locking is applied in execute_db_task,
+# so direct invocations (e.g. run_task.py) run without contention.
+TASK_LOCKS = {
+    "collect_hourly_metrics",
+    "collect_snapshot_metrics",
+    "daily_metrics_rollup",
+    "daily_anonymize_and_prepare",
+    "send_anonymized_to_segment",
 }
 
 # Enhanced task metadata for dashboard display
@@ -119,16 +128,6 @@ TASK_METADATA = {
             {"name": "Dry run", "data": {"dry_run": True}},
             {"name": "Extended retention (30 days)", "data": {"days_old": 30}},
         ],
-    },
-    # System
-    "execute_db_task": {
-        "category": "System",
-        "description": "Execute a database-defined task with comprehensive lifecycle management",
-        "parameters": {
-            "task_id": {"type": "integer", "required": True, "description": "ID of the task to execute"},
-            "execution_id": {"type": "integer", "description": "ID of the execution record (optional)"},
-        },
-        "examples": [{"name": "Execute task by ID", "data": {"task_id": 123}}],
     },
     "cleanup_metrics_data": {
         "category": "Maintenance",
@@ -314,7 +313,6 @@ __all__ = [
     "cleanup_old_tasks",
     "cleanup_activitystream",
     "cleanup_metrics_data",
-    "execute_db_task",
     "submit_task_to_dispatcher",
     "create_system_tasks",
     "get_system_task_info",
@@ -328,5 +326,6 @@ __all__ = [
     "send_anonymized_to_segment",
     # Configuration
     "TASK_FUNCTIONS",
+    "TASK_LOCKS",
     "TASK_METADATA",
 ]

@@ -320,33 +320,29 @@ class TestCollectDailyMetrics:
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_returns_error_dict_when_generic_raises(self, mock_registry, mock_get_db, mock_generic):
-        """When generic_collect_metrics raises, the wrapper returns an error dict."""
+    def test_raises_when_generic_raises(self, mock_registry, mock_get_db, mock_generic):
+        """When generic_collect_metrics raises, the exception propagates."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.return_value = MagicMock()
         mock_generic.side_effect = RuntimeError("upstream failure")
 
         from apps.tasks.collectors.collect_daily_metrics import collect_daily_metrics
 
-        result = collect_daily_metrics(collector_type="task_executions_service")
-
-        assert result["status"] == "error"
-        assert "upstream failure" in result["error"]
+        with pytest.raises(RuntimeError, match="upstream failure"):
+            collect_daily_metrics(collector_type="task_executions_service")
 
     @patch("apps.tasks.collectors.collect_daily_metrics.generic_collect_metrics")
     @patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection")
     @patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors")
-    def test_returns_error_dict_when_db_connection_raises(self, mock_registry, mock_get_db, mock_generic):
-        """When get_db_connection raises, the wrapper returns an error dict."""
+    def test_raises_when_db_connection_raises(self, mock_registry, mock_get_db, mock_generic):
+        """When get_db_connection raises, the exception propagates."""
         mock_registry.return_value = {"task_executions_service": {}}
         mock_get_db.side_effect = Exception("DB unavailable")
 
         from apps.tasks.collectors.collect_daily_metrics import collect_daily_metrics
 
-        result = collect_daily_metrics(collector_type="task_executions_service")
-
-        assert result["status"] == "error"
-        assert "DB unavailable" in result["error"]
+        with pytest.raises(Exception, match="DB unavailable"):
+            collect_daily_metrics(collector_type="task_executions_service")
         mock_generic.assert_not_called()
 
     # ------------------------------------------------------------------
