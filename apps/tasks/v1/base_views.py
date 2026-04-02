@@ -3,7 +3,6 @@ Base views to reduce code duplication in API views.
 """
 
 from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
-from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
 from rest_framework import viewsets
 from rest_framework.response import Response
 
@@ -17,8 +16,6 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
     This base class provides common ViewSet functionality that can be
     inherited by all model ViewSets to reduce code duplication.
     """
-
-    permission_classes = [AnsibleBaseObjectPermissions]
 
     # Common ordering and filtering configurations
     ordering_fields = ["id", "created", "modified"]

@@ -53,6 +53,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
+        "ansible_base.rbac.api.permissions.AnsibleBaseObjectPermissions",
     ],
     "UNAUTHENTICATED_USER": None,
     "UNAUTHENTICATED_TOKEN": None,
