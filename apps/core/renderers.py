@@ -27,11 +27,14 @@ class ServiceBrowsableAPIRenderer(BrowsableAPIRenderer):
             # 2. Fix up URLs to include the service prefix
             breadcrumbs = get_breadcrumbs(request.path, request)
 
-            # Replace /api/ with /api/<service>/ in all breadcrumb URLs
+            # Replace /api/ with /api/<service>/ in all breadcrumb URLs,
+            # and rewrite the root breadcrumb "/" to the service API root.
             fixed_breadcrumbs = []
             for name, url in breadcrumbs:
                 if url.startswith("/api/"):
                     url = api_service_prefix + url[4:]
+                elif url == "/":
+                    url = api_service_prefix + "/"
                 fixed_breadcrumbs.append((name, url))
             return fixed_breadcrumbs
 
