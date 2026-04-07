@@ -26,6 +26,18 @@ class HealthView(AnsibleBaseView):
             health_status["status"] = "unhealthy"
             health_status["checks"]["database"] = f"error: {str(e)}"
 
+        # Segment send check
+        try:
+            from apps.tasks.models import AnonymizedMetricsPayload
+            recent_failed = AnonymizedMetricsPayload.objects.filter(status="failed").exists()
+            if recent_failed:
+                health_status["status"] = "unhealthy"
+                health_status["checks"]["segment_send"] = "failed"
+            else:
+                health_status["checks"]["segment_send"] = "ok"
+        except Exception as e:
+            health_status["checks"]["segment_send"] = f"error: {str(e)}"
+
         http_status = (
             status.HTTP_200_OK if health_status["status"] == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
         )

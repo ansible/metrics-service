@@ -38,6 +38,24 @@ class TestHealthEndpoint:
         assert json_response["status"] == "healthy"
         assert response.status_code == status.HTTP_200_OK
 
+    def test_health_check_includes_segment_send_status_when_no_failures(self, client, db):
+        """Test that health endpoint includes segment_send check when no failed payloads."""
+        response = client.get("/health/")
+        json_response = response.json()
+        assert json_response["status"] == "healthy"
+        assert json_response["checks"]["segment_send"] == "ok"
+
+    def test_health_check_fails_when_segment_payloads_failed(self, client, anonymized_payload_factory):
+        """Test that health endpoint reports unhealthy when failed segment payloads exist."""
+        # Create a failed payload
+        anonymized_payload_factory(status="failed", retry_count=3)
+
+        response = client.get("/health/")
+        json_response = response.json()
+        assert json_response["status"] == "unhealthy"
+        assert json_response["checks"]["segment_send"] == "failed"
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
 
 @pytest.mark.unit
 class TestMetricsEndpoint:

@@ -67,18 +67,36 @@ def _handle_successful_send(payload, results: dict) -> None:
         logger.warning(f"Failed to update daily_summary for payload {payload.id}: {summary_error}")
 
 
-def _handle_failed_send(payload, segment_status: str, results: dict) -> None:
+def _handle_failed_send(payload, segment_result: dict, results: dict) -> None:
     """
     Handle failed payload send to Segment.
 
     Args:
         payload: AnonymizedMetricsPayload object
-        segment_status: Status returned from send_to_segment
+        segment_result: Result dict from send_to_segment
         results: Results dictionary to update
     """
-    payload.status = "retry"
+    error_category = segment_result.get("data", {}).get("error_category", "unknown_error")
+    error_detail = segment_result.get("data", {}).get("error_detail", "Unknown error")
+
     payload.retry_count += 1
-    payload.error_message = f"Send failed: {segment_status}"
+    payload.error_message = f"Send failed: {error_detail}"
+
+    details = f"payload_id: {payload.id}, summary_date: {payload.summary_date}, " + \
+        f"retry_count: {payload.retry_count}, error_category: {error_category}, error_detail: {error_detail}"
+
+    if payload.retry_count >= payload.max_retries:
+        # Log an error if we are past the maximum retry limit, else, log a warning about the retry
+        payload.status = "failed"
+        logger.error(
+            f"Segment send failed, not retrying, details:\n {details}"
+        )
+    else:
+        payload.status = "retry"
+        logger.warning(
+            f"Segment send failed, retrying, details:\n {details}"
+        )
+
     payload.save()
     results["failed"] += 1
 
@@ -118,7 +136,7 @@ def _process_single_payload(payload, results: dict) -> None:
         # hashed on the other side, with chunk index
         message_id = str(payload.created)
 
-        segment_status = send_to_segment(
+        segment_result = send_to_segment(
             user_id=payload.segment_user_id,
             event_name=event_name,
             segment_data=payload.anonymized_data,
@@ -128,21 +146,21 @@ def _process_single_payload(payload, results: dict) -> None:
             },
         )
 
-        if segment_status == "success":
+        if segment_result["status"] == "success":
             _handle_successful_send(payload, results)
         else:
-            _handle_failed_send(payload, segment_status, results)
+            _handle_failed_send(payload, segment_result, results)
 
     except Exception as e:
         logger.error(f"Error sending payload {payload.id}: {str(e)}")
-        payload.status = "retry"
-        payload.retry_count += 1
-        payload.error_message = str(e)
-        payload.save()
-        results["failed"] += 1
+        error_result = create_task_result(
+            "error",
+            data={"error_category": "unknown_error", "error_detail": str(e)}
+        )
+        _handle_failed_send(payload, error_result, results)
 
 
-def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_meta: dict = None) -> str:
+def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_meta: dict = None) -> dict:
     """
     Send data to Segment.com using metrics-utility StorageSegment.
 
@@ -152,17 +170,22 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
         segment_data: Dictionary of data to send
 
     Returns:
-        str: "success" if sent, "segment_not_available" if Segment is not configured,
-             or "error: <message>" if sending failed.
+        dict: Task result with status, error_category, and error_detail
     """
     try:
         from metrics_utility.library.storage.segment import SEGMENT_AVAILABLE, StorageSegment
     except ImportError:
         logger.warning("metrics-utility segment integration not available")
-        return "segment_not_available"
+        return create_task_result(
+            "error",
+            data={"error_category": "segment_unavailable", "error_detail": "segment_not_available"}
+        )
 
     if not SEGMENT_AVAILABLE or StorageSegment is None:
-        return "segment_not_available"
+        return create_task_result(
+            "error",
+            data={"error_category": "segment_unavailable", "error_detail": "segment_not_available"}
+        )
 
     try:
         import json
@@ -173,7 +196,10 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
         write_key = getattr(settings, "SEGMENT_WRITE_KEY", None)
         if not write_key:
             logger.warning("SEGMENT_WRITE_KEY not configured in settings")
-            return "segment_not_available"
+            return create_task_result(
+                "error",
+                data={"error_category": "auth_error", "error_detail": "SEGMENT_WRITE_KEY not configured in settings"}
+            )
 
         # Calculate data size for logging
         data_size = len(json.dumps(segment_data).encode("utf-8"))
@@ -201,11 +227,15 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
         # Log success with chunk information
         chunk_count = len(chunks) if chunks else 1
         logger.info(f"Successfully sent metrics to Segment.com (Size: {data_size} bytes, Chunks: {chunk_count})")
-        return "success"
+        return create_task_result("success", data={"chunks_sent": chunk_count, "data_size_bytes": data_size})
 
     except Exception as e:
         logger.error(f"Error sending data to Segment.com: {str(e)}")
-        return f"error: {str(e)}"
+        error_category = "network_error" if any(term in str(e).lower() for term in ["network", "timeout", "connection"]) else "unknown_error"
+        return create_task_result(
+            "error",
+            data={"error_category": error_category, "error_detail": str(e)}
+        )
 
 
 def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:

@@ -17,6 +17,7 @@ from apps.tasks.collectors.send_anonymized_to_segment import (
     _handle_successful_send,
     _process_single_payload,
     send_anonymized_to_segment,
+    send_to_segment,
 )
 
 # ---------------------------------------------------------------------------
@@ -45,7 +46,7 @@ class TestSegmentTestMode:
     def test_test_mode_enabled_appends_test_suffix(self, mock_send_to_segment, settings):
         """When SEGMENT_TEST_MODE=True, '_Test' is appended to the event name."""
         settings.SEGMENT_TEST_MODE = True
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         payload = self._make_payload("Controller Metrics Daily Rollup")
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
@@ -61,7 +62,7 @@ class TestSegmentTestMode:
     def test_test_mode_disabled_keeps_original_event_name(self, mock_send_to_segment, settings):
         """When SEGMENT_TEST_MODE=False, the event name is sent unchanged."""
         settings.SEGMENT_TEST_MODE = False
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         payload = self._make_payload("Controller Metrics Daily Rollup")
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
@@ -79,7 +80,7 @@ class TestSegmentTestMode:
         # Remove the attribute if it exists so getattr falls back to the default
         if hasattr(settings, "SEGMENT_TEST_MODE"):
             delattr(settings, "SEGMENT_TEST_MODE")
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         payload = self._make_payload("My Event")
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
@@ -143,13 +144,15 @@ class TestHandleFailedSend:
 
     def test_sets_retry_status_and_increments_retry_count(self):
         payload = MagicMock()
-        payload.retry_count = 2
+        payload.retry_count = 1
+        payload.max_retries = 3
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
 
-        _handle_failed_send(payload, "timeout", results)
+        segment_result = {"status": "error", "data": {"error_category": "network_error", "error_detail": "timeout"}}
+        _handle_failed_send(payload, segment_result, results)
 
         assert payload.status == "retry"
-        assert payload.retry_count == 3
+        assert payload.retry_count == 2
         assert "timeout" in payload.error_message
         payload.save.assert_called_once()
         assert results["failed"] == 1
@@ -190,7 +193,7 @@ class TestSendAnonymizedToSegmentTask:
     def test_processes_each_payload(self, mock_get_payloads, mock_send_to_segment, settings):
         """All payloads in the list are processed and sent."""
         settings.SEGMENT_TEST_MODE = False
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         def make_payload(pid: int) -> MagicMock:
             p = MagicMock()
@@ -211,3 +214,58 @@ class TestSendAnonymizedToSegmentTask:
         assert result["status"] == "success"
         assert result["results"]["sent"] == 2
         assert result["total_processed"] == 2
+
+
+# ---------------------------------------------------------------------------
+# send_to_segment structured results
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSendToSegmentStructured:
+    """Tests for send_to_segment structured error handling."""
+
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.settings")
+    def test_missing_write_key_returns_auth_error(self, mock_settings):
+        """When SEGMENT_WRITE_KEY is missing, returns auth error."""
+        mock_settings.SEGMENT_WRITE_KEY = None
+
+        result = send_to_segment("user-123", "test_event", {"data": "test"})
+
+        assert result["status"] == "error"
+        assert result["error_category"] == "auth_error"
+        assert "SEGMENT_WRITE_KEY not configured" in result["error_detail"]
+
+    @patch("metrics_utility.library.storage.segment.StorageSegment")
+    def test_network_error_categorized_correctly(self, mock_storage_class, settings):
+        """When network error occurs, categorizes as network_error."""
+        settings.SEGMENT_WRITE_KEY = "test-key"
+        mock_storage_instance = MagicMock()
+        mock_storage_class.return_value = mock_storage_instance
+        mock_storage_instance.put.side_effect = Exception("timeout occurred")
+
+        result = send_to_segment("user-123", "test_event", {"data": "test"})
+
+        assert result["status"] == "error"
+        assert result["error_category"] == "network_error"
+        assert "timeout occurred" in result["error_detail"]
+    
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
+    def test_logs_error_when_retries_exhausted(self, mock_logger):
+        """Logs ERROR with structured fields when max retries reached."""
+        # In an above test, we already test what happens when max retries hasn't been reached
+        payload = MagicMock()
+        payload.id = 123
+        payload.summary_date = "2024-01-01"
+        payload.retry_count = 2
+        payload.max_retries = 3
+        results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
+
+        segment_result = {"status": "error", "data": {"error_category": "auth_error", "error_detail": "Invalid key"}}
+        _handle_failed_send(payload, segment_result, results)
+
+        mock_logger.error.assert_called_once()
+        log_call = mock_logger.error.call_args[0][0]
+        assert "not retrying" in log_call
+        assert "payload_id: 123" in log_call
+        assert "error_category: auth_error" in log_call
