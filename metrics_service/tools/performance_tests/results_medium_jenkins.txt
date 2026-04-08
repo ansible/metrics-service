@@ -1,0 +1,136 @@
+28 objects imported automatically (use -v 2 for details).
+
+======================================================================
+Metrics Service Pipeline Benchmark (manage.py)
+======================================================================
+  Test date : 2024-01-25
+
+======================================================================
+Phase 1: Snapshot collectors (run once each)
+======================================================================
+  Collector                             Duration
+  ---------                             --------
+  execution_environments                  0.61s
+  config                                  0.01s
+  controller_version_service              0.00s
+  table_metadata                          0.27s
+
+  Total: 0.9s
+
+======================================================================
+Phase 2: Hourly collectors (24 hours x 4 collectors)
+======================================================================
+  Hour   Collector                             Duration
+  ----   ---------                             --------
+  0      job_host_summary_service                0.05s
+  0      unified_jobs                            0.11s
+  0      credentials_service                     0.01s
+  0      main_jobevent_service                   0.04s
+  1      job_host_summary_service                0.06s
+  1      unified_jobs                            0.23s
+  1      credentials_service                     0.01s
+  1      main_jobevent_service                   0.05s
+  2      job_host_summary_service                0.08s
+  2      unified_jobs                            0.25s
+  2      credentials_service                     0.01s
+  2      main_jobevent_service                   0.04s
+  3      job_host_summary_service                0.09s
+  3      unified_jobs                            0.31s
+  3      credentials_service                     0.01s
+  3      main_jobevent_service                   0.04s
+  4      job_host_summary_service                0.08s
+  4      unified_jobs                            0.22s
+  4      credentials_service                     0.01s
+  4      main_jobevent_service                   0.04s
+  5      job_host_summary_service                0.06s
+  5      unified_jobs                            0.24s
+  5      credentials_service                     0.01s
+  5      main_jobevent_service                   0.04s
+  6      job_host_summary_service                0.08s
+  6      unified_jobs                            0.24s
+  6      credentials_service                     0.01s
+  6      main_jobevent_service                   0.04s
+  7      job_host_summary_service                0.07s
+  7      unified_jobs                            0.26s
+  7      credentials_service                     0.01s
+  7      main_jobevent_service                   0.04s
+  8      job_host_summary_service                0.07s
+  8      unified_jobs                            0.23s
+  8      credentials_service                     0.01s
+  8      main_jobevent_service                   0.04s
+  9      job_host_summary_service                0.07s
+  9      unified_jobs                            0.24s
+  9      credentials_service                     0.01s
+  9      main_jobevent_service                   0.04s
+  10     job_host_summary_service                0.07s
+  10     unified_jobs                            0.23s
+  10     credentials_service                     0.01s
+  10     main_jobevent_service                   0.04s
+  11     job_host_summary_service                0.07s
+  11     unified_jobs                            0.24s
+  11     credentials_service                     0.01s
+  11     main_jobevent_service                   0.04s
+  12     job_host_summary_service                0.07s
+  12     unified_jobs                            0.22s
+  12     credentials_service                     0.01s
+  12     main_jobevent_service                   0.04s
+  13     job_host_summary_service                0.06s
+  13     unified_jobs                            0.23s
+  13     credentials_service                     0.01s
+  13     main_jobevent_service                   0.04s
+  14     job_host_summary_service                0.08s
+  14     unified_jobs                            0.23s
+  14     credentials_service                     0.01s
+  14     main_jobevent_service                   0.04s
+  15     job_host_summary_service                0.08s
+  15     unified_jobs                            0.30s
+  15     credentials_service                     0.01s
+  15     main_jobevent_service                   0.04s
+  16     job_host_summary_service                0.07s
+  16     unified_jobs                            0.19s
+  16     credentials_service                     0.01s
+  16     main_jobevent_service                   0.04s
+  17     job_host_summary_service                0.07s
+  17     unified_jobs                            0.26s
+  17     credentials_service                     0.01s
+  17     main_jobevent_service                   0.04s
+  18     job_host_summary_service                0.08s
+  18     unified_jobs                            0.23s
+  18     credentials_service                     0.01s
+  18     main_jobevent_service                   0.04s
+  19     job_host_summary_service                0.09s
+  19     unified_jobs                            0.31s
+  19     credentials_service                     0.01s
+  19     main_jobevent_service                   0.04s
+  20     job_host_summary_service                0.08s
+  20     unified_jobs                            0.28s
+  20     credentials_service                     0.01s
+  20     main_jobevent_service                   0.04s
+  21     job_host_summary_service                0.07s
+  21     unified_jobs                            0.19s
+  21     credentials_service                     0.01s
+  21     main_jobevent_service                   0.04s
+  22     job_host_summary_service                0.06s
+  22     unified_jobs                            0.19s
+  22     credentials_service                     0.01s
+  22     main_jobevent_service                   0.04s
+  23     job_host_summary_service                0.08s
+  23     unified_jobs                            0.08s
+  23     credentials_service                     0.01s
+  23     main_jobevent_service                   0.04s
+
+  Total: 8.3s (0.1 min)
+
+======================================================================
+Phase 3: Daily rollup
+======================================================================
+  Duration: 2.83s
+
+======================================================================
+Summary
+======================================================================
+  Snapshot collectors:     0.89s
+  Hourly collection  :      8.3s (0.1 min)
+  Daily rollup       :     2.83s
+  Total              :     12.1s (0.2 min)
+
