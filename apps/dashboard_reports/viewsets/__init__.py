@@ -1,6 +1,8 @@
 """ViewSets for the dashboard reports API."""
 
 from .dashboard_report import DashboardReportViewSet
+from .filter_options import FilterOptionsViewSet
+from .filter_sets import FilterSetsViewSet
 from .job_templates import JobTemplatesViewSet
 from .labels import LabelsViewSet
 from .organizations import OrganizationsViewSet
@@ -16,4 +18,6 @@ __all__ = [
     "DashboardReportViewSet",
     "SubscriptionCostViewSet",
     "TemplateMetadataViewSet",
+    "FilterOptionsViewSet",
+    "FilterSetsViewSet",
 ]

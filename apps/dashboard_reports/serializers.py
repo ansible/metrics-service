@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from rest_framework import serializers
 
-from apps.dashboard_reports.models import JobData, SubscriptionCost, TemplateMetadata
+from apps.dashboard_reports.models import FilterSet, JobData, SubscriptionCost, TemplateMetadata
 
 if TYPE_CHECKING:
     _ReportSerializerBase = serializers.ModelSerializer[JobData]
@@ -303,3 +303,24 @@ class TemplateMetadataSerializer(serializers.ModelSerializer):
             "time_taken_manually_execute_minutes",
             "time_taken_create_automation_minutes",
         ]
+
+
+class FilterSetSerializer(serializers.ModelSerializer):
+    class Meta:
+        """Serializer meta configuration for FilterSetSerializer."""
+
+        model = FilterSet
+        fields = [
+            "id",
+            "name",
+            "filters",
+            "is_default",
+        ]
+        extra_kwargs = {
+            "id": {"read_only": True, "help_text": "ID of the filter set entry"},
+            "name": {"help_text": "Name of the filter set"},
+            "filters": {"help_text": "JSON object containing the filter criteria"},
+            "is_default": {
+                "help_text": "Indicates whether this filter set is the default for the user (only one default per user allowed)"
+            },
+        }
