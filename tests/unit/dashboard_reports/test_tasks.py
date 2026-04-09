@@ -130,7 +130,8 @@ class TestDashboardReportsTasks:
         )
         result = _collect_data("test_task")
         assert result["error"] is True
-        assert "Creating/updating JobData for job 3 failed" in result["message"]
+        assert "Failed to sync 1 job(s)" in result["message"]
+        assert "3" in result["message"]
 
     # --- collect_dashboard_reports_initial_data tests ---
     def setup_initial_task(

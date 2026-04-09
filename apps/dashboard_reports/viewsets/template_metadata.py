@@ -1,12 +1,13 @@
 from django.db.models import QuerySet
 from rest_framework.mixins import DestroyModelMixin, RetrieveModelMixin, UpdateModelMixin
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import GenericViewSet
 
 from apps.dashboard_reports.models import TemplateMetadata
 from apps.dashboard_reports.serializers import TemplateMetadataSerializer
-from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 
 
-class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, GenericAdminViewSet):
+class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, GenericViewSet):
     """
     ViewSet for retrieving template metadata from metrics service database.
 
@@ -17,6 +18,7 @@ class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, DestroyModel
         DELETE api/v1/dashboard_reports/templates/{id}/metadata/ - Template reverts to system defaults
     """
 
+    permission_classes = [IsAuthenticated]
     versioning_class = None
     pagination_class = None
     serializer_class = TemplateMetadataSerializer
