@@ -8,7 +8,17 @@ from metrics_utility.library.collectors.dashboard import DashboardJobsResultType
 from apps.dashboard_reports.models import JobData
 from apps.tasks.models import Task
 from apps.tasks.task_groups import DASHBOARD_COLLECTION_GROUP
-from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution, task, task_execution_wrapper
+from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
+
+try:
+    from dispatcherd.publish import task
+except ImportError:
+
+    def task(*args, **kwargs):
+        def decorator(func):
+            return func
+
+        return decorator
 
 DEFAULT_DB_NAME = "awx"
 
@@ -96,7 +106,6 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
 
 
 @task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_dashboard_reports_initial_data")
 def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     task_name = "collect_dashboard_reports_initial_data"
     result = _collect_data(task_name=task_name, **kwargs)
@@ -152,7 +161,6 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
 
 
 @task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("collect_dashboard_reports_data")
 def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
     task_name = "collect_dashboard_reports_data"
     result = _collect_data(task_name=task_name, **kwargs)
@@ -166,7 +174,6 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
 
 
 @task(queue="metrics_collectors", decorate=False)
-@task_execution_wrapper("cleanup_dashboard_reports_old_data")
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     retention_period_days = kwargs.get("retention_period_days", 90)
     cutoff_date = datetime.now().astimezone(tz=pytz.UTC) - timedelta(days=retention_period_days)
