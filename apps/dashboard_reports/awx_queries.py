@@ -1,6 +1,8 @@
 import logging
 from typing import Any
 
+from django.db import DatabaseError
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,6 +49,8 @@ def format_id_name_rows(rows: list[Any]) -> list[dict[str, Any]]:
 def fetch_id_name(query: str, join_alias: str = "", error_msg: str = "", **kwargs) -> list[dict[str, Any]]:
     try:
         _, rows = fetch_data_from_db(query, join_alias=join_alias, **kwargs)
+    except DatabaseError:
+        raise
     except Exception as exc:
         logger.error(f"{error_msg}: {str(exc)}")
         return []

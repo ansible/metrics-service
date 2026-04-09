@@ -121,8 +121,8 @@ class SubscriptionCost(CommonModel):
         instance, created = cls.objects.get_or_create(
             pk=1,
             defaults={
-                "monthly_subscription_cost": decimal.Decimal(5000.00),
-                "engineer_avg_hourly_rate": decimal.Decimal(60.00),
+                "monthly_subscription_cost": decimal.Decimal("5000.00"),
+                "engineer_avg_hourly_rate": decimal.Decimal("60.00"),
                 "include_template_creation_time_in_costs": True,
             },
         )
@@ -326,7 +326,7 @@ class TemplateMetadata(CommonModel):
                 f"Set default automation creation time for TemplateMetadata '{instance}' to {DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES} minutes."
             )
 
-        if len(update_fields) > 0:
+        if update_fields:
             instance.save(update_fields=update_fields)
 
         return instance
@@ -355,22 +355,22 @@ class JobDataFilterMethods:
         return self
 
     def organizations(self, ids: list[int] | None) -> Self:
-        if ids is not None and len(ids) > 0:
+        if ids:
             return self.filter(organization_id__in=ids)
         return self
 
     def templates(self, ids: list[int] | None) -> Self:
-        if ids is not None and len(ids) > 0:
+        if ids:
             return self.filter(template_id__in=ids)
         return self
 
     def projects(self, ids: list[int] | None) -> Self:
-        if ids is not None and len(ids) > 0:
+        if ids:
             return self.filter(project_id__in=ids)
         return self
 
     def labels(self, ids: list[int] | None) -> Self:
-        if ids is not None and len(ids) > 0:
+        if ids:
             labels_qs = JobLabel.objects.filter(label_id__in=ids).values_list("job_data_id", flat=True)
             return self.filter(id__in=labels_qs)
         return self
@@ -540,32 +540,29 @@ class JobData(CommonModel):
             }
             logger.info(f"Updated JobData {model.__str__()}")
 
-        if len(labels) > 0:
-            """
-            Update JobLabel records for this job:
-            - If a label from AWX is not in the existing JobLabel records, create it
-            - If a label from AWX matches an existing JobLabel record, keep it and update
-            - If an existing JobLabel record is not in the AWX labels, delete it
-            """
+        # Update JobLabel records for this job:
+        # - Labels from AWX not in existing records are created
+        # - Labels from AWX matching existing records are kept
+        # - Existing records no longer in AWX labels are deleted
+        if labels:
             labels_for_create = []
             for label_id in labels:
                 label_obj = labels_dict.pop(label_id, None)
                 if label_obj is None:
                     labels_for_create.append(JobLabel(job_data=model, label_id=label_id))
-            if len(labels_for_create) > 0:
+            if labels_for_create:
                 JobLabel.objects.bulk_create(labels_for_create)
                 logger.info(f"Created {len(labels_for_create)} new JobLabel records for JobData {model.__str__()}")
-        for label_obj in labels_dict.values():
-            label_obj.delete()
-            logger.info(f"Deleted JobLabel with label_id {label_obj.label_id} for JobData {model.__str__()}")
+        if labels_dict:
+            stale_label_pks = [o.pk for o in labels_dict.values()]
+            deleted_count, _ = JobLabel.objects.filter(pk__in=stale_label_pks).delete()
+            logger.info(f"Deleted {deleted_count} stale JobLabel records for JobData {model.__str__()}")
 
-        if len(host_summaries) > 0:
-            """
-            Update JobHostSummary records for this job:
-            - If a host summary from AWX is not in the existing JobHostSummary records, create it
-            - If a host summary from AWX matches an existing JobHostSummary record, update it
-            - If an existing JobHostSummary record is not in the AWX host summaries, delete it
-            """
+        # Update JobHostSummary records for this job:
+        # - Host summaries from AWX not in existing records are created
+        # - Host summaries from AWX matching existing records are updated
+        # - Existing records no longer in AWX host summaries are deleted
+        if host_summaries:
             host_summaries_for_create = []
             for awx_host_summary in host_summaries:
                 host_summary_model = host_summaries_dict.pop(awx_host_summary["id"], None)
@@ -585,16 +582,15 @@ class JobData(CommonModel):
                             host_summary_id=awx_host_summary["id"],
                         )
                     )
-            if len(host_summaries_for_create) > 0:
+            if host_summaries_for_create:
                 JobHostSummary.objects.bulk_create(host_summaries_for_create)
                 logger.info(
                     f"Created {len(host_summaries_for_create)} new JobHostSummary records for JobData {model.__str__()}"
                 )
-        for host_summary in host_summaries_dict.values():
-            host_summary.delete()
-            logger.info(
-                f"Deleted JobHostSummary with host_summary_id {host_summary.host_summary_id} for JobData {model.__str__()}"
-            )
+        if host_summaries_dict:
+            stale_summary_pks = [o.pk for o in host_summaries_dict.values()]
+            deleted_count, _ = JobHostSummary.objects.filter(pk__in=stale_summary_pks).delete()
+            logger.info(f"Deleted {deleted_count} stale JobHostSummary records for JobData {model.__str__()}")
 
 
 class JobLabel(CommonModel):

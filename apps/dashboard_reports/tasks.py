@@ -50,7 +50,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
 
     if until is None:
         # Default to now if not provided
-        until = datetime.now().astimezone(tz=pytz.UTC)
+        until = datetime.now(tz=pytz.UTC)
     if since is None:
         # For incremental collection, we want to start from the last timestamp in the JobData table
         since = JobData.last_timestamp()
@@ -83,14 +83,18 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         result["message"] = f"Collecting jobs failed: {str(e)}"
         return result
 
+    failed_jobs = []
     for job in jobs["results"]:
         try:
             JobData.create_or_update_from_awx(job)
         except Exception as e:
             logger.error(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
-            result["error"] = True
-            result["message"] = f"Creating/updating JobData for job {job['id']} failed: {str(e)}"
-            return result
+            failed_jobs.append(job["id"])
+
+    if failed_jobs:
+        result["error"] = True
+        result["message"] = f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}"
+        return result
 
     job_count = jobs["count"]
     log_task_execution(
@@ -133,19 +137,19 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
         error_msg = "No task with task_id 'daily_dashboard_collection' found in DASHBOARD_COLLECTION_GROUP"
         logger.error(error_msg)
         return create_task_result("error", error=error_msg)
-    task_name = dashboard_tasks[0].get("task_id")
-    existing_tasks_count = Task.objects.filter(name=task_name, is_system_task=True).count()
+    follow_up_task_id = dashboard_tasks[0].get("task_id")
+    existing_tasks_count = Task.objects.filter(name=follow_up_task_id, is_system_task=True).count()
     if existing_tasks_count > 0:
         logger.info("Task 'collect_dashboard_reports_data' already exists. Skipping creation of follow-up task.")
         data["Follow-up task creation"] = "skipped"
     else:
         daily_dashboard_collection_task = dashboard_tasks[0]
         task_data = dashboard_tasks[0].get("args", {}).copy()
-        if hasattr(DASHBOARD_COLLECTION_GROUP, "feature_flag"):
+        if DASHBOARD_COLLECTION_GROUP.feature_flag:
             task_data["_feature_flag"] = DASHBOARD_COLLECTION_GROUP.feature_flag
         try:
             Task.objects.create(
-                name=task_name,
+                name=follow_up_task_id,
                 description=daily_dashboard_collection_task.get("description", ""),
                 function_name=daily_dashboard_collection_task["function"],
                 task_data=task_data,
