@@ -3,7 +3,7 @@ from typing import Any
 from dateutil.relativedelta import relativedelta
 from rest_framework import serializers
 
-from apps.dashboard_reports.models import JobData
+from apps.dashboard_reports.models import JobData, TemplateMetadata
 
 
 def sec2time(sec: int) -> str:
@@ -210,3 +210,21 @@ class ReportDetailSerializer(serializers.Serializer):
 
     def get_total_time_saving(self, obj: dict[str, Any]) -> float:
         return self._get_rounded_value(obj, "total_time_savings", divisor=3600)
+
+
+class TemplateMetadataSerializer(serializers.ModelSerializer):
+    template_id = serializers.IntegerField(read_only=True, help_text="ID of the associated job template")
+    time_taken_manually_execute_minutes = serializers.IntegerField(
+        allow_null=True, min_value=0, help_text="User override: Estimated time to perform this task manually (minutes)"
+    )
+    time_taken_create_automation_minutes = serializers.IntegerField(
+        allow_null=True, min_value=0, help_text="User override: Estimated time spent creating this automation (minutes)"
+    )
+
+    class Meta:
+        model = TemplateMetadata
+        fields = [
+            "template_id",
+            "time_taken_manually_execute_minutes",
+            "time_taken_create_automation_minutes",
+        ]
