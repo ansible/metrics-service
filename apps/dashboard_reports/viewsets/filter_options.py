@@ -9,20 +9,18 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-# TODO: DeveloperModeRequired was just for some internal dashboards
-#       these endpoints will need a new permissions to be created.
-from apps.core.permissions import DeveloperModeRequired
 from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.serializers import (
     FilterOptionWithIdSerializer,
 )
+from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 from apps.tasks.api_utils import build_error_response
 from apps.tasks.utils import get_db_connection
 
 logger = logging.getLogger(__name__)
 
 
-class FilterOptionsViewSet(ReadOnlyModelViewSet):
+class FilterOptionsViewSet(ReadOnlyModelViewSet, GenericAdminViewSet):
     """
     Base ViewSet for AWX filter dropdowns (labels, organizations, projects, job templates).
     Handles pagination, search, error handling, and response formatting.
@@ -30,7 +28,6 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
 
     awx_query_function: Callable[..., list[dict[str, Any]]] | None = None  # To be defined in subclasses
     versioning_class = None  # Disable versioning for this viewset
-    permission_classes = [DeveloperModeRequired]
     pagination_class = DefaultPaginator
 
     list_error_msg = "Failed to fetch records"

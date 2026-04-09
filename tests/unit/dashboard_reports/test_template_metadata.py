@@ -6,7 +6,7 @@ All DB interaction is mocked — no real writes occur.
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.urls import resolve, reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
@@ -123,7 +123,6 @@ class TestTemplateMetadataSerializer(TestCase):
 
 
 @pytest.mark.unit
-@override_settings(MODE="development")
 class TestTemplateMetadataViewSetConfig(TestCase):
     def test_uses_correct_serializer_class(self):
         assert TemplateMetadataViewSet.serializer_class is TemplateMetadataSerializer
@@ -134,10 +133,10 @@ class TestTemplateMetadataViewSetConfig(TestCase):
     def test_pagination_class_is_none(self):
         assert TemplateMetadataViewSet.pagination_class is None
 
-    def test_has_developer_mode_permission(self):
-        from apps.core.permissions import DeveloperModeRequired
+    def test_has_is_authenticated_permission(self):
+        from rest_framework.permissions import IsAuthenticated
 
-        assert DeveloperModeRequired in TemplateMetadataViewSet.permission_classes
+        assert IsAuthenticated in TemplateMetadataViewSet.permission_classes
 
     def test_has_retrieve_mixin(self):
         from rest_framework.mixins import RetrieveModelMixin
@@ -182,7 +181,6 @@ class TestTemplateMetadataViewSetConfig(TestCase):
 
 
 @pytest.mark.unit
-@override_settings(MODE="development")
 class TestTemplateMetadataViewSetActions(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
@@ -311,10 +309,11 @@ class TestTemplateMetadataViewSetActions(TestCase):
         self._call(self._view({"delete": "destroy"}), request)
         self.instance.delete.assert_not_called()
 
-    # ---- developer mode gate ----
+    # ---- permission gate ----
 
-    @override_settings(MODE="production")
-    def test_all_methods_return_403_when_not_in_development_mode(self):
+    def test_all_methods_return_403_for_unauthenticated_user(self):
+        """Unauthenticated requests must be denied with 403 (IsAuthenticated)."""
+        unauthenticated_user = _make_request_user(is_authenticated=False)
         for method, factory_fn, map_ in [
             ("GET", self.factory.get, {"get": "retrieve"}),
             ("PUT", lambda u, **k: self.factory.put(u, data={}, format="json", **k), {"put": "update"}),
@@ -322,7 +321,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
         ]:
             with self.subTest(method=method):
                 request = factory_fn("/fake/")
-                request.user = _make_request_user()
+                request.user = unauthenticated_user
                 response = self._call(self._view(map_), request)
                 assert response.status_code == status.HTTP_403_FORBIDDEN
 

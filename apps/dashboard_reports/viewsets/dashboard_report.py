@@ -17,13 +17,13 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from apps.core.permissions import DeveloperModeRequired
 from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, get_filter_options
 from apps.dashboard_reports.models import JobData, JobHostSummary, JobStatusChoices, SubscriptionCost
 from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
     ReportSerializer,
 )
+from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 from apps.tasks.api_utils import build_error_response
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ def require_date_range(view_func):
     return wrapper
 
 
-class DashboardReportViewSet(ReadOnlyModelViewSet):
+class DashboardReportViewSet(ReadOnlyModelViewSet, GenericAdminViewSet):
     """
     ViewSet for dashboard reporting and chart data aggregation.
     Provides endpoints for report data, summary, chart, and top users/projects.
@@ -211,7 +211,6 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     ]
 
     versioning_class = None  # Disable versioning for this viewset
-    permission_classes = [DeveloperModeRequired]
     serializer_class = ReportSerializer
 
     filter_backends = [CustomReportFilter, filters.OrderingFilter]
