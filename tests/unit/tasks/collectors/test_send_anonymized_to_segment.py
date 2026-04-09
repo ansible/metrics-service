@@ -15,8 +15,10 @@ import pytest
 from apps.tasks.collectors.send_anonymized_to_segment import (
     _handle_failed_send,
     _handle_successful_send,
+    _handle_unavailable_send,
     _process_single_payload,
     send_anonymized_to_segment,
+    send_to_segment,
 )
 
 # ---------------------------------------------------------------------------
@@ -45,7 +47,7 @@ class TestSegmentTestMode:
     def test_test_mode_enabled_appends_test_suffix(self, mock_send_to_segment, settings):
         """When SEGMENT_TEST_MODE=True, '_Test' is appended to the event name."""
         settings.SEGMENT_TEST_MODE = True
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         payload = self._make_payload("Controller Metrics Daily Rollup")
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
@@ -61,7 +63,7 @@ class TestSegmentTestMode:
     def test_test_mode_disabled_keeps_original_event_name(self, mock_send_to_segment, settings):
         """When SEGMENT_TEST_MODE=False, the event name is sent unchanged."""
         settings.SEGMENT_TEST_MODE = False
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         payload = self._make_payload("Controller Metrics Daily Rollup")
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
@@ -79,7 +81,7 @@ class TestSegmentTestMode:
         # Remove the attribute if it exists so getattr falls back to the default
         if hasattr(settings, "SEGMENT_TEST_MODE"):
             delattr(settings, "SEGMENT_TEST_MODE")
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         payload = self._make_payload("My Event")
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
@@ -143,16 +145,41 @@ class TestHandleFailedSend:
 
     def test_sets_retry_status_and_increments_retry_count(self):
         payload = MagicMock()
-        payload.retry_count = 2
+        payload.retry_count = 1
+        payload.max_retries = 3
         results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
 
-        _handle_failed_send(payload, "timeout", results)
+        segment_result = {"status": "error", "error": "timeout"}
+        _handle_failed_send(payload, segment_result, results)
 
         assert payload.status == "retry"
-        assert payload.retry_count == 3
+        assert payload.retry_count == 2
         assert "timeout" in payload.error_message
         payload.save.assert_called_once()
         assert results["failed"] == 1
+
+
+# ---------------------------------------------------------------------------
+# _handle_unavailable_send
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestHandleUnavailableSend:
+    """Test the _handle_unavailable_send function."""
+
+    def test_sets_unavailable_status_and_increments_skipped(self):
+        payload = MagicMock()
+        results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
+
+        segment_result = {"status": "unavailable", "error": "segment_not_available"}
+        _handle_unavailable_send(payload, segment_result, results)
+
+        assert payload.status == "unavailable"
+        assert "segment_not_available" in payload.error_message
+        payload.save.assert_called_once()
+        assert results["skipped"] == 1
+        assert results["failed"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +217,7 @@ class TestSendAnonymizedToSegmentTask:
     def test_processes_each_payload(self, mock_get_payloads, mock_send_to_segment, settings):
         """All payloads in the list are processed and sent."""
         settings.SEGMENT_TEST_MODE = False
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success", "data": {}}
 
         def make_payload(pid: int) -> MagicMock:
             p = MagicMock()
@@ -211,3 +238,131 @@ class TestSendAnonymizedToSegmentTask:
         assert result["status"] == "success"
         assert result["results"]["sent"] == 2
         assert result["total_processed"] == 2
+
+
+# ---------------------------------------------------------------------------
+# send_to_segment structured results
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSendToSegmentStructured:
+    """Tests for send_to_segment structured error handling."""
+
+    def test_missing_write_key_returns_auth_error(self, settings):
+        """When SEGMENT_WRITE_KEY is missing, returns auth error."""
+        settings.SEGMENT_WRITE_KEY = None
+
+        result = send_to_segment("user-123", "test_event", {"data": "test"})
+
+        assert result["status"] == "unavailable"
+        assert "SEGMENT_WRITE_KEY not configured" in result["error"]
+
+    @patch("metrics_utility.library.storage.segment.StorageSegment")
+    def test_network_error_categorized_correctly(self, mock_storage_class, settings):
+        """When network error occurs, categorizes as network_error."""
+        settings.SEGMENT_WRITE_KEY = "test-key"
+        mock_storage_instance = MagicMock()
+        mock_storage_class.return_value = mock_storage_instance
+        mock_storage_instance.put.side_effect = Exception("timeout occurred")
+
+        result = send_to_segment("user-123", "test_event", {"data": "test"})
+
+        assert result["status"] == "error"
+        assert "timeout occurred" in result["error"]
+
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
+    def test_logs_error_when_retries_exhausted(self, mock_logger):
+        """Logs ERROR with structured fields when max retries reached."""
+        # In an above test, we already test what happens when max retries hasn't been reached
+        payload = MagicMock()
+        payload.id = 123
+        payload.summary_date = "2024-01-01"
+        payload.retry_count = 2
+        payload.max_retries = 3
+        results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
+
+        segment_result = {"status": "error", "error": "Invalid key"}
+        _handle_failed_send(payload, segment_result, results)
+
+        mock_logger.error.assert_called_once()
+        log_call = mock_logger.error.call_args[0][0]
+        assert "Segment send failed, not retrying" in log_call
+
+    def test_import_error_returns_unavailable(self, settings):
+        """When metrics_utility import fails, returns unavailable status."""
+        settings.SEGMENT_WRITE_KEY = "test-key"
+
+        with patch("builtins.__import__", side_effect=ImportError("No module named 'metrics_utility'")):
+            result = send_to_segment("user-123", "test_event", {"data": "test"})
+
+        assert result["status"] == "unavailable"
+        assert "segment_not_available" in result["error"]
+
+    @patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", False)
+    def test_segment_not_available_returns_unavailable(self, settings):
+        """When SEGMENT_AVAILABLE is False, returns unavailable status."""
+        settings.SEGMENT_WRITE_KEY = "test-key"
+
+        result = send_to_segment("user-123", "test_event", {"data": "test"})
+
+        assert result["status"] == "unavailable"
+        assert "segment_not_available" in result["error"]
+
+    @patch("metrics_utility.library.storage.segment.StorageSegment")
+    @patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", True)
+    def test_successful_send_logs_and_returns_success(self, mock_storage_class, settings):
+        """When send is successful, logs success and returns chunks info."""
+        settings.SEGMENT_WRITE_KEY = "test-key"
+        mock_storage_instance = MagicMock()
+        mock_storage_class.return_value = mock_storage_instance
+        mock_storage_instance.put.return_value = [{"chunk": 1}, {"chunk": 2}]
+
+        result = send_to_segment("user-123", "test_event", {"data": "test"})
+
+        assert result["status"] == "success"
+        assert result["chunks_sent"] == 2
+        assert "data_size_bytes" in result
+
+    @patch("apps.tasks.models.AnonymizedMetricsPayload")
+    def test_get_payloads_includes_unavailable_status(self, mock_model):
+        """Test that _get_payloads_to_send includes 'unavailable' status payloads."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.tasks.collectors.send_anonymized_to_segment import _get_payloads_to_send
+
+        stale_threshold = timezone.now() - timedelta(minutes=10)
+
+        # Call without payload_id to test the general query path
+        _get_payloads_to_send(payload_id=None, max_payloads=5, stale_threshold=stale_threshold)
+
+        mock_model.objects.filter.assert_called_once()
+        filter_call_args = mock_model.objects.filter.call_args[0]
+        # Check that the Q object includes unavailable in the status list
+        assert any("unavailable" in str(arg) for arg in filter_call_args)
+
+    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
+    def test_handle_failed_send_structured_logging(self, mock_logger):
+        """Test enhanced structured logging for failed sends."""
+        from apps.tasks.collectors.send_anonymized_to_segment import _handle_failed_send
+
+        payload = MagicMock()
+        payload.id = 123
+        payload.summary_date = "2024-01-01"
+        payload.retry_count = 1
+        payload.max_retries = 5
+        results = {"sent": 0, "failed": 0, "skipped": 0, "recovered": 0}
+
+        segment_result = {"status": "error", "error": "Network timeout"}
+        _handle_failed_send(payload, segment_result, results)
+
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args
+        assert "extra" in call_args[1]
+        extra_data = call_args[1]["extra"]
+        assert extra_data["payload_id"] == 123
+        assert extra_data["summary_date"] == "2024-01-01"
+        assert extra_data["retry_count"] == 2
+        assert extra_data["error"] == "Network timeout"

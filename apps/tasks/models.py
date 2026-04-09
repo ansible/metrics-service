@@ -525,7 +525,7 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["daily_summary"],
-                condition=models.Q(status__in=["pending", "sending", "sent"]),
+                condition=models.Q(status__in=["pending", "sending", "sent", "unavailable"]),
                 name="unique_active_payload_per_summary",
             )
         ]
@@ -534,6 +534,7 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
+        ("unavailable", "Unavailable"),
         ("sending", "Sending"),
         ("sent", "Sent"),
         ("failed", "Failed"),

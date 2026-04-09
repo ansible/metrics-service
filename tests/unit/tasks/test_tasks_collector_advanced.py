@@ -179,7 +179,7 @@ class TestSegmentSendingTask(TestCase):
             daily_summary=summary,
         )
 
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success"}
 
         result = send_anonymized_to_segment()
 
@@ -204,7 +204,7 @@ class TestSegmentSendingTask(TestCase):
             summary_date=date(2024, 1, 23), anonymized_data={}, status="pending", daily_summary=summary
         )
 
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success"}
 
         result = send_anonymized_to_segment(payload_id=payload.id)
 
@@ -231,7 +231,7 @@ class TestSegmentSendingTask(TestCase):
             max_retries=5,  # Still can retry
         )
 
-        mock_send_to_segment.return_value = "success"
+        mock_send_to_segment.return_value = {"status": "success"}
 
         result = send_anonymized_to_segment()
 
@@ -272,7 +272,7 @@ class TestSegmentSendingTask(TestCase):
         from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
         # Mock send_to_segment to return segment_not_available
-        mock_send_to_segment.return_value = "segment_not_available"
+        mock_send_to_segment.return_value = {"status": "unavailable", "error": "segment_not_available"}
 
         summary = DailyMetricsSummary.objects.create(
             summary_date=date(2024, 1, 26), aggregated_metrics={}, config_data={}, status="anonymized"
@@ -284,10 +284,10 @@ class TestSegmentSendingTask(TestCase):
 
         result = send_anonymized_to_segment()
 
-        # When segment not available, it counts as failed (retry status)
-        assert result["results"]["failed"] == 1
+        assert result["results"]["skipped"] == 1
+        assert result["results"]["failed"] == 0
         payload.refresh_from_db()
-        assert payload.status == "retry"
+        assert payload.status == "unavailable"
         assert "segment_not_available" in payload.error_message
 
 
