@@ -20,6 +20,7 @@ except ImportError:
 
         return decorator
 
+
 DEFAULT_DB_NAME = "awx"
 
 logger = logging.getLogger(__name__)
