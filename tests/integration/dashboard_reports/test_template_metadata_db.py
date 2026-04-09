@@ -6,13 +6,14 @@ and reverts to system defaults correctly. No mocking of ORM calls.
 """
 
 import pytest
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.core.models import User
 from apps.dashboard_reports.models import TemplateMetadata
+from tests.test_utils import get_test_password
 
 
 def _create_metadata(
@@ -35,13 +36,12 @@ def _url(pk: int) -> str:
 
 @pytest.mark.integration
 @pytest.mark.django_db
-@override_settings(MODE="development")
 class TestTemplateMetadataPutPatchDb(TestCase):
     """Verify PUT actually persists updated values to the DB."""
 
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="pass")
+        self.user = User.objects.create_user(username="admin", email="admin@example.com", password=get_test_password())
         self.client.force_authenticate(user=self.user)
         self.instance = _create_metadata()
 
@@ -137,7 +137,6 @@ class TestTemplateMetadataPutPatchDb(TestCase):
 
 @pytest.mark.integration
 @pytest.mark.django_db
-@override_settings(MODE="development")
 class TestTemplateMetadataDeleteDb(TestCase):
     """Verify DELETE reverts overrides to NULL (system defaults) without deleting the record."""
 

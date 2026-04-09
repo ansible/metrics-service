@@ -11,7 +11,7 @@ Covers:
 import decimal
 
 import pytest
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -28,7 +28,6 @@ from tests.test_utils import get_test_password
 
 
 @pytest.mark.unit
-@override_settings(MODE="development")
 class TestSubscriptionCostViewSet(APITestCase):
     """Test SubscriptionCostViewSet list and update endpoints."""
 
@@ -37,6 +36,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
+        self.client.force_authenticate(user=self.user)
         self.subscription_cost = SubscriptionCost.get()
         # Snapshot original values so tearDown can restore them
         self._original_monthly = self.subscription_cost.monthly_subscription_cost
@@ -305,8 +305,11 @@ class TestSubscriptionCostPermissions(APITestCase):
     """Test permission enforcement on the SubscriptionCost endpoints."""
 
     def setUp(self) -> None:
-        self.user = User.objects.create_superuser(
+        self.admin = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
+        )
+        self.regular_user = User.objects.create_user(
+            username="regular", email="regular@example.com", password=get_test_password()
         )
         self.subscription_cost = SubscriptionCost.get()
         self._original_monthly = self.subscription_cost.monthly_subscription_cost
@@ -319,20 +322,46 @@ class TestSubscriptionCostPermissions(APITestCase):
         self.subscription_cost.include_template_creation_time_in_costs = self._original_include
         self.subscription_cost.save()
 
-    @override_settings(MODE="production")
-    def test_list_denied_in_production_mode(self) -> None:
-        """Test list is forbidden when MODE is not development."""
-        self.client.force_authenticate(user=self.user)
+    def test_list_denied_for_unauthenticated_user(self) -> None:
+        """Test list is forbidden for unauthenticated requests."""
+        url = reverse("dashboard_reports:subscription_costs-list")
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_list_denied_for_non_admin_user(self) -> None:
+        """Test list is forbidden for a regular authenticated (non-superuser) user."""
+        self.client.force_authenticate(user=self.regular_user)
 
         url = reverse("dashboard_reports:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @override_settings(MODE="production")
-    def test_update_denied_in_production_mode(self) -> None:
-        """Test update is forbidden when MODE is not development."""
-        self.client.force_authenticate(user=self.user)
+    def test_list_accessible_for_superuser(self) -> None:
+        """Test list is accessible for a superuser."""
+        self.client.force_authenticate(user=self.admin)
+
+        url = reverse("dashboard_reports:subscription_costs-list")
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_update_denied_for_unauthenticated_user(self) -> None:
+        """Test update is forbidden for unauthenticated requests."""
+        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        data = {
+            "monthly_subscription_cost": "100.00",
+            "engineer_avg_hourly_rate": "50.00",
+            "include_template_creation_time_in_costs": True,
+        }
+        response = self.client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_update_denied_for_non_admin_user(self) -> None:
+        """Test update is forbidden for a regular authenticated (non-superuser) user."""
+        self.client.force_authenticate(user=self.regular_user)
 
         url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
@@ -344,13 +373,17 @@ class TestSubscriptionCostPermissions(APITestCase):
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @override_settings(MODE="development")
-    def test_list_accessible_in_development_mode(self) -> None:
-        """Test list is accessible when MODE=development."""
-        self.client.force_authenticate(user=self.user)
+    def test_update_accessible_for_superuser(self) -> None:
+        """Test update is accessible for a superuser."""
+        self.client.force_authenticate(user=self.admin)
 
-        url = reverse("dashboard_reports:subscription_costs-list")
-        response = self.client.get(url)
+        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        data = {
+            "monthly_subscription_cost": "100.00",
+            "engineer_avg_hourly_rate": "50.00",
+            "include_template_creation_time_in_costs": True,
+        }
+        response = self.client.put(url, data, format="json")
 
         assert response.status_code == status.HTTP_200_OK
 

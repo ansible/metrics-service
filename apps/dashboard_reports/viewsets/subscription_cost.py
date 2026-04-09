@@ -6,16 +6,15 @@ from rest_framework import status
 from rest_framework.mixins import ListModelMixin, UpdateModelMixin
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet
 
-from apps.core.permissions import DeveloperModeRequired
 from apps.dashboard_reports.models import SubscriptionCost
 from apps.dashboard_reports.serializers import SubscriptionCostSerializer
+from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 
 logger = logging.getLogger(__name__)
 
 
-class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericViewSet):
+class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericAdminViewSet):
     """
     ViewSet for retrieving subscription cost from metrics service database.
 
@@ -30,7 +29,6 @@ class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericViewSet):
     """
 
     versioning_class = None  # Disable versioning for this viewset
-    permission_classes = [DeveloperModeRequired]
     serializer_class = SubscriptionCostSerializer
     pagination_class = None  # Disable pagination for this viewset
 

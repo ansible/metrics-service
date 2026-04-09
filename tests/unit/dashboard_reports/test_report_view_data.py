@@ -1,9 +1,10 @@
 import datetime
+import decimal
+from unittest.mock import patch
 
 import pytest
 import pytz
 from django.urls import reverse
-from rest_framework.test import APIClient
 
 from apps.dashboard_reports.models import (
     JobData,
@@ -19,6 +20,12 @@ from apps.dashboard_reports.models import (
 # =============================================================================
 
 _VALID_PERIOD_DAYS = frozenset({7, 14, 30, 60, 90})
+
+# Fixed daily cost to ensure cost calculations are deterministic regardless of the current month.
+# The per_second_subscription_cost() method uses the actual current month's day count,
+# which causes test failures in months with fewer days (e.g. April=30, February=28).
+# 161.29 = 5000 (default monthly_subscription_cost) / 31 days — matches the expected cost constants.
+FIXED_DAILY_SUBSCRIPTION_COST = decimal.Decimal("161.29")
 
 
 def get_now() -> datetime.datetime:
@@ -464,13 +471,21 @@ def assert_chart_data(
 @pytest.mark.unit
 @pytest.mark.django_db(transaction=True, reset_sequences=True)
 class TestReportViewData:
+    @pytest.fixture(autouse=True)
+    def fixed_subscription_cost(self):
+        with patch(
+            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
+            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+        ):
+            yield
+
     """Tests for report view with default SubscriptionCost settings."""
 
     @pytest.mark.parametrize("query, expected_count, expected_data", TEST_REPORT_VIEW_CASES)
-    def test_report_view(self, job_data, query, expected_count, expected_data):
+    def test_report_view(self, job_data, query, expected_count, expected_data, admin_client):
         """Test report list endpoint with various filters."""
         url = reverse("dashboard_reports:report-list")
-        response = APIClient().get(url, data=query)
+        response = admin_client.get(url, data=query)
 
         assert response.status_code == 200
         data = response.data
@@ -485,10 +500,10 @@ class TestReportViewData:
                 )
 
     @pytest.mark.parametrize("query, expected_data", TEST_REPORT_VIEW_DETAIL_CASES)
-    def test_report_view_details(self, job_data, query, expected_data):
+    def test_report_view_details(self, job_data, query, expected_data, admin_client):
         """Test report details endpoint with various filters."""
         url = reverse("dashboard_reports:report-details")
-        response = APIClient().get(url, data=query)
+        response = admin_client.get(url, data=query)
 
         assert response.status_code == 200
         data = response.data
@@ -501,10 +516,10 @@ class TestReportViewData:
         # Verify chart structure
         assert_chart_structure(data)
 
-    def test_report_view_details_charts_data(self, job_data):
+    def test_report_view_details_charts_data(self, job_data, admin_client):
         """Test that job_chart and host_chart contain correct data values for recent jobs."""
         url = reverse("dashboard_reports:report-details")
-        response = APIClient().get(url, data=build_recent_query())
+        response = admin_client.get(url, data=build_recent_query())
 
         assert response.status_code == 200
         data = response.data
@@ -530,10 +545,10 @@ class TestReportViewData:
         host_labels = {item["label"] for item in host_non_zero}
         assert job_labels == host_labels, f"Job and host chart labels should match: {job_labels} vs {host_labels}"
 
-    def test_report_view_details_charts_unfiltered(self, job_data):
+    def test_report_view_details_charts_unfiltered(self, job_data, admin_client):
         """Test job_chart and host_chart data for unfiltered (all jobs) query."""
         url = reverse("dashboard_reports:report-details")
-        response = APIClient().get(url, data=build_filtered_query())
+        response = admin_client.get(url, data=build_filtered_query())
 
         assert response.status_code == 200
         data = response.data
@@ -567,33 +582,41 @@ class TestReportViewData:
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestDashboardReportViewSetEndpoints:
+    @pytest.fixture(autouse=True)
+    def fixed_subscription_cost(self):
+        with patch(
+            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
+            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+        ):
+            yield
+
     """Unit tests for DashboardReportViewSet list and details endpoints."""
 
-    def test_list_missing_period_returns_400(self):
-        response = APIClient().get(reverse("dashboard_reports:report-list"))
+    def test_list_missing_period_returns_400(self, admin_client):
+        response = admin_client.get(reverse("dashboard_reports:report-list"))
         assert response.status_code == 400
 
-    def test_details_missing_period_returns_400(self):
-        response = APIClient().get(reverse("dashboard_reports:report-details"))
+    def test_details_missing_period_returns_400(self, admin_client):
+        response = admin_client.get(reverse("dashboard_reports:report-details"))
         assert response.status_code == 400
 
-    def test_details_invalid_period_returns_400(self):
-        response = APIClient().get(
+    def test_details_invalid_period_returns_400(self, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-details"),
             data={"period": "invalid_period", "tz": "UTC"},
         )
         assert response.status_code == 400
 
-    def test_list_invalid_timezone_falls_back_to_utc(self, job_data):
-        response = APIClient().get(
+    def test_list_invalid_timezone_falls_back_to_utc(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-list"),
             data={"period": "last_7_days", "tz": ""},
         )
         assert response.status_code == 200
 
     # List Endpoint
-    def test_list_valid_period_returns_200(self, job_data):
-        response = APIClient().get(
+    def test_list_valid_period_returns_200(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-list"),
             data=build_filtered_query(),
         )
@@ -601,8 +624,8 @@ class TestDashboardReportViewSetEndpoints:
         assert "count" in response.data
         assert "results" in response.data
 
-    def test_list_response_contains_required_fields(self, job_data):
-        response = APIClient().get(
+    def test_list_response_contains_required_fields(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-list"),
             data=build_filtered_query(),
         )
@@ -626,17 +649,17 @@ class TestDashboardReportViewSetEndpoints:
         }
         assert expected_fields <= result.keys()
 
-    def test_list_empty_when_no_data_in_range(self):
-        response = APIClient().get(
+    def test_list_empty_when_no_data_in_range(self, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-list"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
         assert response.data["count"] == 0
 
-    def test_list_cost_annotation_with_creation_time(self, job_data):
+    def test_list_cost_annotation_with_creation_time(self, job_data, admin_client):
         """automated_costs includes template creation time when setting is True."""
-        response = APIClient().get(
+        response = admin_client.get(
             reverse("dashboard_reports:report-list"),
             data=build_recent_query(),
         )
@@ -645,14 +668,14 @@ class TestDashboardReportViewSetEndpoints:
         # With creation time: (40 * 1.0) + (65 * ~0.00187) = 40.12
         assert result["automated_costs"] == "40.12"
 
-    def test_list_cost_annotation_without_creation_time(self, job_data):
+    def test_list_cost_annotation_without_creation_time(self, job_data, admin_client):
         """automated_costs excludes template creation time when setting is False."""
         subscription_cost = SubscriptionCost.get()
         subscription_cost.include_template_creation_time_in_costs = False
         subscription_cost.save()
 
         try:
-            response = APIClient().get(
+            response = admin_client.get(
                 reverse("dashboard_reports:report-list"),
                 data=build_recent_query(),
             )
@@ -665,15 +688,15 @@ class TestDashboardReportViewSetEndpoints:
             subscription_cost.save()
 
     # Details Endpoint
-    def test_details_valid_period_returns_200(self, job_data):
-        response = APIClient().get(
+    def test_details_valid_period_returns_200(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-details"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
 
-    def test_details_response_contains_required_fields(self, job_data):
-        response = APIClient().get(
+    def test_details_response_contains_required_fields(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-details"),
             data=build_recent_query(),
         )
@@ -696,8 +719,8 @@ class TestDashboardReportViewSetEndpoints:
         }
         assert sorted(expected_fields) <= sorted(response.data.keys())
 
-    def test_details_aggregation_correct(self, job_data):
-        response = APIClient().get(
+    def test_details_aggregation_correct(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-details"),
             data=build_recent_query(),
         )
@@ -708,16 +731,16 @@ class TestDashboardReportViewSetEndpoints:
         assert data["total_number_of_failed_jobs"] == 1
         assert data["total_number_of_host_job_runs"] == 20
 
-    def test_details_chart_structure(self, job_data):
-        response = APIClient().get(
+    def test_details_chart_structure(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-details"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
         assert_chart_structure(response.data)
 
-    def test_details_top_users_ordered_by_execution_count(self, job_data):
-        response = APIClient().get(
+    def test_details_top_users_ordered_by_execution_count(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-details"),
             data=build_filtered_query(),
         )
@@ -726,8 +749,8 @@ class TestDashboardReportViewSetEndpoints:
         counts = [u["execution_count"] for u in users]
         assert counts == sorted(counts, reverse=True)
 
-    def test_details_top_projects_ordered_by_execution_count(self, job_data):
-        response = APIClient().get(
+    def test_details_top_projects_ordered_by_execution_count(self, job_data, admin_client):
+        response = admin_client.get(
             reverse("dashboard_reports:report-details"),
             data=build_filtered_query(),
         )
@@ -798,6 +821,14 @@ class TestReportViewDataNoCreationTime:
     """
 
     @pytest.fixture(autouse=True)
+    def fixed_subscription_cost(self):
+        with patch(
+            "apps.dashboard_reports.models.SubscriptionCost.daily_subscription_cost",
+            return_value=FIXED_DAILY_SUBSCRIPTION_COST,
+        ):
+            yield
+
+    @pytest.fixture(autouse=True)
     def setup_subscription_cost(self):
         """Set include_template_creation_time_in_costs=False for all tests in this class."""
         subscription_cost = SubscriptionCost.get()
@@ -809,10 +840,10 @@ class TestReportViewDataNoCreationTime:
         subscription_cost.include_template_creation_time_in_costs = original_value
         subscription_cost.save()
 
-    def test_report_view_no_creation_time(self, job_data):
+    def test_report_view_no_creation_time(self, job_data, admin_client):
         """Test report view calculations when include_template_creation_time_in_costs=False."""
         url = reverse("dashboard_reports:report-list")
-        response = APIClient().get(url, data=build_recent_query())
+        response = admin_client.get(url, data=build_recent_query())
 
         assert response.status_code == 200
         data = response.data
@@ -824,10 +855,10 @@ class TestReportViewDataNoCreationTime:
             assert key in result, f"Missing key '{key}' in result"
             assert result[key] == value, f"Expected {key}='{value}', got '{result[key]}'"
 
-    def test_report_view_details_no_creation_time(self, job_data):
+    def test_report_view_details_no_creation_time(self, job_data, admin_client):
         """Test report details calculations when include_template_creation_time_in_costs=False."""
         url = reverse("dashboard_reports:report-details")
-        response = APIClient().get(url, data=build_recent_query())
+        response = admin_client.get(url, data=build_recent_query())
 
         assert response.status_code == 200
         data = response.data

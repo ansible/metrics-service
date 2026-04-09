@@ -5,7 +5,6 @@ import pytest
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient
 
 
 @pytest.mark.unit
@@ -209,7 +208,9 @@ class TestCommonViewSets:
             ),
         ],
     )
-    def test_views_response(self, _, endpoint, viewset_name, kwargs, mocked_data, expected_status, expected_data):
+    def test_views_response(
+        self, _, endpoint, viewset_name, kwargs, mocked_data, expected_status, expected_data, admin_client
+    ):
         # _ is the mock from @patch decorator; unused because we patch awx_query_function directly in the test
         with (
             override_settings(DEBUG=True),
@@ -225,7 +226,7 @@ class TestCommonViewSets:
                 url = reverse(endpoint) + "?" + urlencode({"search": search})
             else:
                 url = reverse(endpoint)
-            client = APIClient()
+            client = admin_client
             response = client.get(url)
             assert response.status_code == expected_status
             if expected_data is not None:
@@ -265,11 +266,11 @@ class TestCommonViewSets:
             pytest.param("dashboard_reports:labels-detail", "delete", 1, id="labels_detail_delete"),
         ],
     )
-    def test_http_method_not_allowed(self, _, endpoint, method, pk):
+    def test_http_method_not_allowed(self, _, endpoint, method, pk, admin_client):
         """Test that POST, PUT, PATCH, DELETE requests are not allowed on respective endpoints."""
         # _ is the mock from @patch decorator; unused as we only test HTTP method rejection
         url = reverse(endpoint, kwargs={"pk": pk}) if pk else reverse(endpoint)
-        client = APIClient()
+        client = admin_client
         request_method = getattr(client, method)
         response = request_method(url, data={}) if method != "delete" else request_method(url)
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED

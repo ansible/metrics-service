@@ -247,7 +247,8 @@ class SubscriptionCostSerializer(serializers.Serializer):
         instance.save()
 
         return instance
-      
+
+
 class TemplateMetadataSerializer(serializers.ModelSerializer):
     template_id = serializers.IntegerField(read_only=True, help_text="ID of the associated job template")
     time_taken_manually_execute_minutes = serializers.IntegerField(

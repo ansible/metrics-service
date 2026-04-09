@@ -1,25 +1,24 @@
 from django.db.models import QuerySet
 from rest_framework.mixins import DestroyModelMixin, RetrieveModelMixin, UpdateModelMixin
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.viewsets import GenericViewSet
 
-from apps.core.permissions import DeveloperModeRequired
 from apps.dashboard_reports.models import TemplateMetadata
 from apps.dashboard_reports.serializers import TemplateMetadataSerializer
+from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 
 
-class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, GenericViewSet):
+class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, GenericAdminViewSet):
     """
     ViewSet for retrieving template metadata from metrics service database.
 
     Endpoints:
-        GET    api/metrics/v1/automation-dashboard/templates/{id}/metadata/ - Get template metadata
-        PUT    api/metrics/v1/automation-dashboard/templates/{id}/metadata/ - Update template metadata
-        PATCH    api/metrics/v1/automation-dashboard/templates/{id}/metadata/ - Partially update template metadata
-        DELETE api/metrics/v1/automation-dashboard/templates/{id}/metadata/ - Template reverts to system defaults
+        GET    api/v1/dashboard_reports/templates/{id}/metadata/ - Get template metadata
+        PUT    api/v1/dashboard_reports/templates/{id}/metadata/ - Update template metadata
+        PATCH  api/v1/dashboard_reports/templates/{id}/metadata/ - Partially update template metadata
+        DELETE api/v1/dashboard_reports/templates/{id}/metadata/ - Template reverts to system defaults
     """
 
-    permission_classes = [IsAuthenticated, DeveloperModeRequired]
+    permission_classes = [IsAuthenticated]
     versioning_class = None
     pagination_class = None
     serializer_class = TemplateMetadataSerializer
