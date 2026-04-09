@@ -333,7 +333,8 @@ class TestSendToSegment(TestCase):
             result = send_to_segment("user1", "test_event", {"data": "test"})
 
             # Result should indicate segment not available if metrics-utility is not installed
-            self.assertIn(result, ["success", "segment_not_available", "error"])
+            self.assertEqual(result["status"], "unavailable")
+            self.assertEqual(result["error"], "segment_not_available")
 
     def test_send_to_segment_no_write_key(self):
         """Test send_to_segment when SEGMENT_WRITE_KEY not configured."""
@@ -346,7 +347,8 @@ class TestSendToSegment(TestCase):
 
             result = send_to_segment("user1", "test_event", {"data": "test"})
 
-            self.assertEqual(result, "segment_not_available")
+            self.assertEqual(result["status"], "unavailable")
+            self.assertIn("SEGMENT_WRITE_KEY not configured", result["error"])
 
     @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
     def test_send_to_segment_success(self, mock_logger):
@@ -366,7 +368,7 @@ class TestSendToSegment(TestCase):
 
             result = send_to_segment("user1", "test_event", {"data": "test"})
 
-            self.assertEqual(result, "success")
+            self.assertEqual(result["status"], "success")
             mock_storage_class.assert_called_once_with(
                 write_key="test-write-key",
                 user_id="user1",
@@ -395,7 +397,7 @@ class TestSendToSegment(TestCase):
 
             result = send_to_segment("user1", "test_event", large_data)
 
-            self.assertEqual(result, "success")
+            self.assertEqual(result["status"], "success")
             # Should use bulk mode for large data
             call_kwargs = mock_storage_class.call_args[1]
             self.assertTrue(call_kwargs["use_bulk"])
@@ -413,5 +415,5 @@ class TestSendToSegment(TestCase):
 
             result = send_to_segment("user1", "test_event", {"data": "test"})
 
-            self.assertTrue(result.startswith("error:"))
-            self.assertIn("Connection error", result)
+            self.assertEqual(result["status"], "error")
+            self.assertIn("Connection error", result["error"])

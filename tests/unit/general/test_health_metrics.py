@@ -38,6 +38,98 @@ class TestHealthEndpoint:
         assert json_response["status"] == "healthy"
         assert response.status_code == status.HTTP_200_OK
 
+    @pytest.mark.django_db
+    def test_health_check_fails_when_segment_payloads_failed(self, client):
+        """Test that health endpoint reports segment check failed when single failed segment payload exist."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.tasks.models import AnonymizedMetricsPayload
+
+        now = timezone.now()
+        summary_date = now.date() - timedelta(days=1)
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date, anonymized_data={"test": "data"}, status="failed", retry_count=3
+        )
+
+        response = client.get("/health/")
+        json_response = response.json()
+        assert json_response["status"] == "healthy"
+        assert json_response["checks"]["segment_send"]["status"] == "failed"
+        assert "last_failure_at" in json_response["checks"]["segment_send"]
+        assert response.status_code == status.HTTP_200_OK
+
+    @pytest.mark.django_db
+    def test_health_check_fails_when_multiple_segment_payloads_failed(self, client):
+        """Test that health endpoint reports segment check failed status when many failed segment payloads exist."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.tasks.models import AnonymizedMetricsPayload
+
+        now = timezone.now()
+        summary_date = now.date() - timedelta(days=1)
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date - timedelta(days=3),
+            anonymized_data={"test": "data"},
+            status="sent",
+            retry_count=3,
+        )
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date - timedelta(days=2),
+            anonymized_data={"test": "data"},
+            status="sent",
+            retry_count=3,
+        )
+        # Last to be 'modified' so it should be the one involved in the health check
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date, anonymized_data={"test": "data"}, status="failed", retry_count=3
+        )
+
+        response = client.get("/health/")
+        json_response = response.json()
+        assert json_response["status"] == "healthy"
+        assert json_response["checks"]["segment_send"]["status"] == "failed"
+        assert "last_failure_at" in json_response["checks"]["segment_send"]
+        assert response.status_code == status.HTTP_200_OK
+
+    @pytest.mark.django_db
+    def test_health_check_passes_when_multiple_segment_payloads_send(self, client):
+        """Test that health endpoint reports segment ok when many failed segment payloads exist."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.tasks.models import AnonymizedMetricsPayload
+
+        now = timezone.now()
+        summary_date = now.date() - timedelta(days=1)
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date - timedelta(days=3),
+            anonymized_data={"test": "data"},
+            status="failed",
+            retry_count=3,
+        )
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date - timedelta(days=2),
+            anonymized_data={"test": "data"},
+            status="failed",
+            retry_count=3,
+        )
+        # Last to be 'modified' so it should be the one involved in the health check
+        AnonymizedMetricsPayload.objects.create(
+            summary_date=summary_date, anonymized_data={"test": "data"}, status="sent", retry_count=3
+        )
+
+        response = client.get("/health/")
+        json_response = response.json()
+        assert json_response["status"] == "healthy"
+        assert json_response["checks"]["segment_send"]["status"] == "ok"
+        assert "last_success_at" in json_response["checks"]["segment_send"]
+        assert response.status_code == status.HTTP_200_OK
+
 
 @pytest.mark.unit
 class TestMetricsEndpoint:

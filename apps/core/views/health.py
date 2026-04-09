@@ -26,6 +26,24 @@ class HealthView(AnsibleBaseView):
             health_status["status"] = "unhealthy"
             health_status["checks"]["database"] = f"error: {str(e)}"
 
+        # Segment send check (no data is shown if there's no payloads to check)
+        try:
+            from apps.tasks.models import AnonymizedMetricsPayload
+
+            most_recent = AnonymizedMetricsPayload.objects.all().order_by("-modified").first()
+            if most_recent is not None:
+                health_status["checks"]["segment_send"] = {}
+
+                if most_recent.status == "failed":
+                    health_status["checks"]["segment_send"]["status"] = "failed"
+                    health_status["checks"]["segment_send"]["last_failure_at"] = str(most_recent.modified.isoformat())
+                else:
+                    health_status["checks"]["segment_send"]["status"] = "ok"
+                    health_status["checks"]["segment_send"]["last_success_at"] = str(most_recent.modified.isoformat())
+        except Exception as e:
+            health_status["checks"]["segment_send"] = {}
+            health_status["checks"]["segment_send"]["error"] = str(e)
+
         http_status = (
             status.HTTP_200_OK if health_status["status"] == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
         )
