@@ -323,7 +323,7 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "function": "cleanup_dashboard_reports_old_data",
             "cron": "0 5 * * *",  # Daily at 5:00 AM
             "args": {
-                "retention_days": 90,
+                "retention_period_days": 90,
             },
             "enabled": True,
             "description": "Clean up old dashboard report data based on retention policy",
