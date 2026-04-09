@@ -5,6 +5,7 @@ from .labels import LabelsViewSet
 from .organizations import OrganizationsViewSet
 from .projects import ProjectsViewSet
 from .subscription_cost import SubscriptionCostViewSet
+from .template_metadata import TemplateMetadataViewSet
 
 __all__ = [
     "FilterOptionsViewSet",
@@ -14,4 +15,5 @@ __all__ = [
     "LabelsViewSet",
     "DashboardReportViewSet",
     "SubscriptionCostViewSet",
+    "TemplateMetadataViewSet",
 ]

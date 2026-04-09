@@ -4,7 +4,7 @@ from typing import Any
 from dateutil.relativedelta import relativedelta
 from rest_framework import serializers
 
-from apps.dashboard_reports.models import JobData, SubscriptionCost
+from apps.dashboard_reports.models import JobData, SubscriptionCost, TemplateMetadata
 
 
 def sec2time(sec: int) -> str:
@@ -247,3 +247,20 @@ class SubscriptionCostSerializer(serializers.Serializer):
         instance.save()
 
         return instance
+      
+class TemplateMetadataSerializer(serializers.ModelSerializer):
+    template_id = serializers.IntegerField(read_only=True, help_text="ID of the associated job template")
+    time_taken_manually_execute_minutes = serializers.IntegerField(
+        allow_null=True, min_value=0, help_text="User override: Estimated time to perform this task manually (minutes)"
+    )
+    time_taken_create_automation_minutes = serializers.IntegerField(
+        allow_null=True, min_value=0, help_text="User override: Estimated time spent creating this automation (minutes)"
+    )
+
+    class Meta:
+        model = TemplateMetadata
+        fields = [
+            "template_id",
+            "time_taken_manually_execute_minutes",
+            "time_taken_create_automation_minutes",
+        ]

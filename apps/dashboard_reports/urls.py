@@ -8,6 +8,7 @@ from apps.dashboard_reports.viewsets import (
     OrganizationsViewSet,
     ProjectsViewSet,
     SubscriptionCostViewSet,
+    TemplateMetadataViewSet,
 )
 
 app_name = "dashboard_reports"
@@ -20,7 +21,20 @@ router.register(r"labels", LabelsViewSet, basename="labels")
 router.register(r"report", DashboardReportViewSet, basename="report")
 router.register(r"subscription_costs", SubscriptionCostViewSet, basename="subscription_costs")
 
+# TemplateMetadataViewSet doesn't fit the standard router pattern, so we define its URL separately
+#   * standard router pattern example: /api/v1/dashboard_reports/templates/metadata/{id}/
+#   * what we want is: /api/v1/dashboard_reports/templates/{id}/metadata/
+metadata_view = TemplateMetadataViewSet.as_view(
+    {
+        "get": "retrieve",
+        "put": "update",
+        "patch": "partial_update",
+        "delete": "destroy",
+    }
+)
+
 urlpatterns = [
     # Dashboard report endpoints at /api/v1/
+    path("api/v1/dashboard_reports/templates/<int:pk>/metadata/", metadata_view, name="template-metadata"),
     path("api/v1/dashboard_reports/", include(router.urls)),
 ]

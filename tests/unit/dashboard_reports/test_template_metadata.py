@@ -1,0 +1,363 @@
+"""
+Unit tests for TemplateMetadata viewset, serializer, and URL routing.
+All DB interaction is mocked — no real writes occur.
+"""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+from django.test import TestCase, override_settings
+from django.urls import resolve, reverse
+from rest_framework import status
+from rest_framework.test import APIRequestFactory
+
+from apps.dashboard_reports.models import TemplateMetadata
+from apps.dashboard_reports.serializers import TemplateMetadataSerializer
+from apps.dashboard_reports.viewsets.template_metadata import TemplateMetadataViewSet
+
+# =============================================================================
+# Helpers
+# =============================================================================
+
+
+def _make_mock_instance(
+    pk: int = 1,
+    template_id: int = 42,
+    time_taken_manually_execute_minutes: int | None = 30,
+    time_taken_create_automation_minutes: int | None = 60,
+) -> MagicMock:
+    instance = MagicMock(spec=TemplateMetadata)
+    instance.pk = pk
+    instance.template_id = template_id
+    instance.time_taken_manually_execute_minutes = time_taken_manually_execute_minutes
+    instance.time_taken_create_automation_minutes = time_taken_create_automation_minutes
+    return instance
+
+
+def _make_request_user(is_authenticated: bool = True) -> MagicMock:
+    user = MagicMock()
+    user.is_authenticated = is_authenticated
+    return user
+
+
+# =============================================================================
+# Serializer tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestTemplateMetadataSerializer(TestCase):
+    def _serializer_data(self, **kwargs) -> dict:
+        return TemplateMetadataSerializer(_make_mock_instance(**kwargs)).data
+
+    def test_contains_expected_fields(self):
+        assert set(self._serializer_data().keys()) == {
+            "template_id",
+            "time_taken_manually_execute_minutes",
+            "time_taken_create_automation_minutes",
+        }
+
+    def test_maps_values_correctly(self):
+        data = self._serializer_data(
+            template_id=99,
+            time_taken_manually_execute_minutes=15,
+            time_taken_create_automation_minutes=45,
+        )
+        assert data["template_id"] == 99
+        assert data["time_taken_manually_execute_minutes"] == 15
+        assert data["time_taken_create_automation_minutes"] == 45
+
+    def test_allows_null_time_fields(self):
+        data = self._serializer_data(
+            time_taken_manually_execute_minutes=None,
+            time_taken_create_automation_minutes=None,
+        )
+        assert data["time_taken_manually_execute_minutes"] is None
+        assert data["time_taken_create_automation_minutes"] is None
+
+    def test_template_id_is_read_only(self):
+        assert TemplateMetadataSerializer().fields["template_id"].read_only is True
+
+    def test_put_payload_cannot_change_template_id(self):
+        payload = {
+            "template_id": 999,
+            "time_taken_manually_execute_minutes": 20,
+            "time_taken_create_automation_minutes": 40,
+        }
+        serializer = TemplateMetadataSerializer(data=payload)
+        assert serializer.is_valid(), serializer.errors
+        assert "template_id" not in serializer.validated_data
+
+    def test_valid_with_complete_payload(self):
+        serializer = TemplateMetadataSerializer(
+            data={
+                "time_taken_manually_execute_minutes": 30,
+                "time_taken_create_automation_minutes": 60,
+            }
+        )
+        assert serializer.is_valid(), serializer.errors
+
+    def test_valid_with_null_time_fields(self):
+        serializer = TemplateMetadataSerializer(
+            data={
+                "time_taken_manually_execute_minutes": None,
+                "time_taken_create_automation_minutes": None,
+            }
+        )
+        assert serializer.is_valid(), serializer.errors
+
+    def test_meta_model(self):
+        assert TemplateMetadataSerializer.Meta.model is TemplateMetadata
+
+    def test_meta_fields(self):
+        assert set(TemplateMetadataSerializer.Meta.fields) == {
+            "template_id",
+            "time_taken_manually_execute_minutes",
+            "time_taken_create_automation_minutes",
+        }
+
+
+# =============================================================================
+# ViewSet configuration tests
+# =============================================================================
+
+
+@pytest.mark.unit
+@override_settings(MODE="development")
+class TestTemplateMetadataViewSetConfig(TestCase):
+    def test_uses_correct_serializer_class(self):
+        assert TemplateMetadataViewSet.serializer_class is TemplateMetadataSerializer
+
+    def test_versioning_class_is_none(self):
+        assert TemplateMetadataViewSet.versioning_class is None
+
+    def test_pagination_class_is_none(self):
+        assert TemplateMetadataViewSet.pagination_class is None
+
+    def test_has_developer_mode_permission(self):
+        from apps.core.permissions import DeveloperModeRequired
+
+        assert DeveloperModeRequired in TemplateMetadataViewSet.permission_classes
+
+    def test_has_retrieve_mixin(self):
+        from rest_framework.mixins import RetrieveModelMixin
+
+        assert issubclass(TemplateMetadataViewSet, RetrieveModelMixin)
+
+    def test_has_update_mixin(self):
+        from rest_framework.mixins import UpdateModelMixin
+
+        assert issubclass(TemplateMetadataViewSet, UpdateModelMixin)
+
+    def test_has_destroy_mixin(self):
+        from rest_framework.mixins import DestroyModelMixin
+
+        assert issubclass(TemplateMetadataViewSet, DestroyModelMixin)
+
+    def test_does_not_have_list_mixin(self):
+        from rest_framework.mixins import ListModelMixin
+
+        assert not issubclass(TemplateMetadataViewSet, ListModelMixin)
+
+    def test_does_not_have_create_mixin(self):
+        from rest_framework.mixins import CreateModelMixin
+
+        assert not issubclass(TemplateMetadataViewSet, CreateModelMixin)
+
+    @patch("apps.dashboard_reports.viewsets.template_metadata.TemplateMetadata")
+    def test_get_queryset_calls_objects_all(self, mock_model):
+        mock_qs = MagicMock()
+        mock_model.objects.all.return_value = mock_qs
+        viewset = TemplateMetadataViewSet()
+        viewset.request = MagicMock()
+        viewset.kwargs = {}
+        viewset.format_kwarg = None
+        assert viewset.get_queryset() is mock_qs
+        mock_model.objects.all.assert_called_once()
+
+
+# =============================================================================
+# ViewSet action tests  (get_object + perform_* mocked — no DB)
+# =============================================================================
+
+
+@pytest.mark.unit
+@override_settings(MODE="development")
+class TestTemplateMetadataViewSetActions(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.instance = _make_mock_instance()
+        self.none_qs = TemplateMetadata.objects.none()
+
+    def _view(self, method_map: dict):
+        return TemplateMetadataViewSet.as_view(method_map)
+
+    def _call(self, view, request, pk: int = 1):
+        with patch.object(TemplateMetadataViewSet, "get_queryset", return_value=self.none_qs):
+            return view(request, pk=pk)
+
+    # ---- GET (retrieve) ----
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    def test_retrieve_returns_200(self, mock_get_object):
+        mock_get_object.return_value = self.instance
+        request = self.factory.get("/fake/")
+        request.user = _make_request_user()
+        response = self._call(self._view({"get": "retrieve"}), request)
+        assert response.status_code == status.HTTP_200_OK
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    def test_retrieve_calls_get_object_once(self, mock_get_object):
+        mock_get_object.return_value = self.instance
+        request = self.factory.get("/fake/")
+        request.user = _make_request_user()
+        self._call(self._view({"get": "retrieve"}), request)
+        mock_get_object.assert_called_once()
+
+    # ---- PUT (update) ----
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    @patch.object(TemplateMetadataViewSet, "perform_update")
+    def test_update_returns_200(self, mock_perform_update, mock_get_object):
+        mock_get_object.return_value = self.instance
+        self.instance.template_id = 42
+        request = self.factory.put(
+            "/fake/",
+            data={
+                "time_taken_manually_execute_minutes": 20,
+                "time_taken_create_automation_minutes": 50,
+            },
+            format="json",
+        )
+        request.user = _make_request_user()
+        response = self._call(self._view({"put": "update"}), request)
+        assert response.status_code == status.HTTP_200_OK
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    @patch.object(TemplateMetadataViewSet, "perform_update")
+    def test_update_calls_perform_update_once(self, mock_perform_update, mock_get_object):
+        mock_get_object.return_value = self.instance
+        self.instance.template_id = 42
+        request = self.factory.put(
+            "/fake/",
+            data={
+                "time_taken_manually_execute_minutes": 20,
+                "time_taken_create_automation_minutes": 50,
+            },
+            format="json",
+        )
+        request.user = _make_request_user()
+        self._call(self._view({"put": "update"}), request)
+        mock_perform_update.assert_called_once()
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    @patch.object(TemplateMetadataViewSet, "perform_update")
+    def test_update_with_null_time_fields(self, mock_perform_update, mock_get_object):
+        mock_get_object.return_value = self.instance
+        self.instance.template_id = 42
+        request = self.factory.put(
+            "/fake/",
+            data={
+                "time_taken_manually_execute_minutes": None,
+                "time_taken_create_automation_minutes": None,
+            },
+            format="json",
+        )
+        request.user = _make_request_user()
+        response = self._call(self._view({"put": "update"}), request)
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_patch_mapped_to_partial_update(self):
+        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        assert match.func.actions.get("patch") == "partial_update"
+
+    # ---- DELETE (destroy) ----
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    def test_destroy_returns_204(self, mock_get_object):
+        mock_get_object.return_value = self.instance
+        request = self.factory.delete("/fake/")
+        request.user = _make_request_user()
+        response = self._call(self._view({"delete": "destroy"}), request)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    def test_destroy_clears_override_fields(self, mock_get_object):
+        mock_get_object.return_value = self.instance
+        request = self.factory.delete("/fake/")
+        request.user = _make_request_user()
+        self._call(self._view({"delete": "destroy"}), request)
+        assert self.instance.time_taken_manually_execute_minutes is None
+        assert self.instance.time_taken_create_automation_minutes is None
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    def test_destroy_saves_with_correct_update_fields(self, mock_get_object):
+        mock_get_object.return_value = self.instance
+        request = self.factory.delete("/fake/")
+        request.user = _make_request_user()
+        self._call(self._view({"delete": "destroy"}), request)
+        self.instance.save.assert_called_once_with(
+            update_fields=[
+                "time_taken_manually_execute_minutes",
+                "time_taken_create_automation_minutes",
+            ]
+        )
+
+    @patch.object(TemplateMetadataViewSet, "get_object")
+    def test_destroy_does_not_delete_the_record(self, mock_get_object):
+        mock_get_object.return_value = self.instance
+        request = self.factory.delete("/fake/")
+        request.user = _make_request_user()
+        self._call(self._view({"delete": "destroy"}), request)
+        self.instance.delete.assert_not_called()
+
+    # ---- developer mode gate ----
+
+    @override_settings(MODE="production")
+    def test_all_methods_return_403_when_not_in_development_mode(self):
+        for method, factory_fn, map_ in [
+            ("GET", self.factory.get, {"get": "retrieve"}),
+            ("PUT", lambda u, **k: self.factory.put(u, data={}, format="json", **k), {"put": "update"}),
+            ("DELETE", self.factory.delete, {"delete": "destroy"}),
+        ]:
+            with self.subTest(method=method):
+                request = factory_fn("/fake/")
+                request.user = _make_request_user()
+                response = self._call(self._view(map_), request)
+                assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+# =============================================================================
+# URL routing tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestTemplateMetadataUrls(TestCase):
+    def test_url_resolves_to_metadata_viewset(self):
+        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        assert match.func.cls is TemplateMetadataViewSet
+
+    def test_url_captures_pk(self):
+        match = resolve("/api/v1/dashboard_reports/templates/99/metadata/")
+        assert match.kwargs["pk"] == 99
+
+    def test_named_url_reverse(self):
+        url = reverse("dashboard_reports:template-metadata", kwargs={"pk": 1})
+        assert url == "/api/v1/dashboard_reports/templates/1/metadata/"
+
+    def test_get_mapped_to_retrieve(self):
+        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        assert match.func.actions.get("get") == "retrieve"
+
+    def test_put_mapped_to_update(self):
+        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        assert match.func.actions.get("put") == "update"
+
+    def test_delete_mapped_to_destroy(self):
+        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        assert match.func.actions.get("delete") == "destroy"
+
+    def test_post_not_mapped(self):
+        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        assert "post" not in match.func.actions
