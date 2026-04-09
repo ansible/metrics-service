@@ -51,8 +51,8 @@ class DateFilter(Enum):
 
         try:
             tz = pytz.timezone(tz_string)
-        except pytz.UnknownTimeZoneError as _:
-            logger.exception("Error: Unknown timezone: %s, using default timezone 'UTC'", tz_string)
+        except pytz.UnknownTimeZoneError:
+            logger.warning("Unknown timezone provided, falling back to UTC")
             tz = pytz.timezone("UTC")
 
         end_date = datetime.datetime.now(tz)  # current date
