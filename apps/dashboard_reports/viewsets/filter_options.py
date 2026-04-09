@@ -13,14 +13,13 @@ from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.serializers import (
     FilterOptionWithIdSerializer,
 )
-from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 from apps.tasks.api_utils import build_error_response
 from apps.tasks.utils import get_db_connection
 
 logger = logging.getLogger(__name__)
 
 
-class FilterOptionsViewSet(ReadOnlyModelViewSet, GenericAdminViewSet):
+class FilterOptionsViewSet(ReadOnlyModelViewSet):
     """
     Base ViewSet for AWX filter dropdowns (labels, organizations, projects, job templates).
     Handles pagination, search, error handling, and response formatting.

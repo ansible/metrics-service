@@ -23,7 +23,6 @@ from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
     ReportSerializer,
 )
-from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 from apps.tasks.api_utils import build_error_response
 
 logger = logging.getLogger(__name__)
@@ -82,7 +81,7 @@ def require_date_range(view_func):
     return wrapper
 
 
-class DashboardReportViewSet(ReadOnlyModelViewSet, GenericAdminViewSet):
+class DashboardReportViewSet(ReadOnlyModelViewSet):
     """
     ViewSet for dashboard reporting and chart data aggregation.
     Provides endpoints for report data, summary, chart, and top users/projects.
