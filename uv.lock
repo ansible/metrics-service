@@ -405,6 +405,18 @@ wheels = [
 ]
 
 [[package]]
+name = "django-generate-series"
+version = "2026.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4a/26/5c87218e0ba903c2115f13b3dc38dd8fe41bedef9ad827429a004834d2d9/django_generate_series-2026.2.1.tar.gz", hash = "sha256:9e0a12fa13ed706529b4a13f8766c822a6c67b40db50ee5ad43e14d7777bf967", size = 15476, upload-time = "2026-02-13T06:01:49.863Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/36/87/5a4d50167af83b325ab778b8f35b8934dac7d8547ae9e3c7eced8d8ee873/django_generate_series-2026.2.1-py3-none-any.whl", hash = "sha256:900b26b46f501f4388763f3ee4a2fed6c2a3a66836e988224d0a9948180ffd2c", size = 13522, upload-time = "2026-02-13T06:01:48.709Z" },
+]
+
+[[package]]
 name = "django-prometheus"
 version = "2.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -757,6 +769,7 @@ dependencies = [
     { name = "django" },
     { name = "django-ansible-base", extra = ["api-documentation", "feature-flags", "jwt-consumer", "resource-registry"] },
     { name = "django-extensions" },
+    { name = "django-generate-series" },
     { name = "django-prometheus" },
     { name = "djangorestframework" },
     { name = "dynaconf" },
@@ -819,6 +832,7 @@ requires-dist = [
     { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-extensions", specifier = ">=3.2" },
+    { name = "django-generate-series", specifier = ">=2026.2.1" },
     { name = "django-prometheus", specifier = ">=2.3.1" },
     { name = "djangorestframework", specifier = ">=3.15" },
     { name = "dynaconf", specifier = ">=3.1.0" },
