@@ -312,7 +312,9 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_dashboard_collection",
             "function": "collect_dashboard_reports_data",
-            "cron": settings.DASHBOARD_COLLECTION["COLLECTION_SCHEDULE_CRON"],
+            "cron": (getattr(settings, "DASHBOARD_COLLECTION", {}) or {}).get(
+                "COLLECTION_SCHEDULE_CRON", "0 */6 * * *"
+            ),
             "args": {"incremental": True},  # Uses incremental collection by default to minimize load
             "enabled": False,
             "description": "Dashboard report collection (default every 6 hours)",
