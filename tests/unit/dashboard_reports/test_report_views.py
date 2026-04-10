@@ -281,7 +281,7 @@ class TestDashboardReportViewSet:
         mock_subcost.return_value.cost_employee_per_minute = 1
         mock_subcost.return_value.per_second_subscription_cost.return_value = 0.01
         mock_subcost.return_value.include_template_creation_time_in_costs = True
-        # get_queryset chains three .annotate() calls
+        # get_queryset chains three .annotate() calls on the base queryset
         mock_jobdata.values.return_value.annotate.return_value.annotate.return_value.annotate.return_value = ["mocked"]
         now = datetime.now(tz=UTC)
         viewset.kwargs = {
@@ -290,7 +290,10 @@ class TestDashboardReportViewSet:
             "start_date": now - timedelta(days=7),
             "end_date": now,
         }
-        result = viewset.get_queryset()
+        # Patch _filter_raw_jobdata_queryset to return mock_jobdata so that
+        # _build_aggregated_queryset receives it and the mock chain above resolves.
+        with patch.object(viewset, "_filter_raw_jobdata_queryset", return_value=mock_jobdata):
+            result = viewset.get_queryset()
         assert result == ["mocked"]
 
     # Test _get_date_range_and_kind with None
