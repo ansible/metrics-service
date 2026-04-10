@@ -161,7 +161,13 @@ class TestDashboardReportsTasks:
         "since,until,jobs_result,error,message",
         [
             (None, None, {"results": [{"id": 1}], "count": 1}, False, None),
-            (datetime(2024, 1, 1, tzinfo=UTC), datetime(2024, 2, 1, tzinfo=UTC), {"results": [{"id": 2}], "count": 1}, False, None),
+            (
+                datetime(2024, 1, 1, tzinfo=UTC),
+                datetime(2024, 2, 1, tzinfo=UTC),
+                {"results": [{"id": 2}], "count": 1},
+                False,
+                None,
+            ),
             (datetime(2024, 2, 1, tzinfo=UTC), datetime(2024, 1, 1, tzinfo=UTC), None, True, "Invalid date range"),
         ],
     )

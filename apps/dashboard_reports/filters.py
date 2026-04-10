@@ -19,7 +19,6 @@ from rest_framework.views import APIView
 
 from apps.dashboard_reports.models import JobData, label_ids_to_job_data_ids
 
-
 FILTER_FIELDS: frozenset[str] = frozenset({"organization", "template", "label", "project"})
 
 
@@ -62,8 +61,8 @@ class DateFilter(Enum):
 
         try:
             tz = ZoneInfo(tz_string)
-        except ZoneInfoNotFoundError:
-            raise ValueError(f"Invalid timezone: {tz_string!r}")
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"Invalid timezone: {tz_string!r}") from exc
 
         end_date = datetime.datetime.now(tz)  # current date
         start_date = end_date - datetime.timedelta(num_of_last_days)  # current date - last_n_days
