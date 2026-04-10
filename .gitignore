@@ -146,3 +146,4 @@ metrics_service/tools/performance_tests/data_generation/creds.yml
 metrics_service/tools/performance_tests/data_generation/creds.yml.example
 metrics_service/tools/performance_tests/data_generation/ansible.cfg
 metrics_service/tools/performance_tests/data_generation/benchmark_cron_observer.py
+metrics_service/tools/performance_tests/data_generation/requirements.yml
