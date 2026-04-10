@@ -44,7 +44,6 @@ class TestFilterOptionWithIdSerializer:
         assert "id" in serializer.errors
 
 
-
 @pytest.mark.unit
 class TestReportSerializer:
     """
