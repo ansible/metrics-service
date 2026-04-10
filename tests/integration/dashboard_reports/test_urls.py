@@ -2,8 +2,6 @@
 Test dashboard_reports API endpoints and URL routing.
 """
 
-import contextlib
-
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -45,9 +43,8 @@ class TestDashboardReportsURLs(TestCase):
         ]
 
         for endpoint in endpoints:
-            with contextlib.suppress(Exception):
-                resolver_match = resolve(endpoint)
-                assert resolver_match is not None, f"Failed to resolve {endpoint}"
+            resolver_match = resolve(endpoint)
+            assert resolver_match is not None, f"Failed to resolve {endpoint}"
 
     def test_dashboard_reports_organizations_endpoint(self):
         """Test organizations endpoint."""
@@ -93,8 +90,7 @@ class TestDashboardReportsURLs(TestCase):
 
         for endpoint in endpoints:
             response = self.api_client.get(endpoint)
-            # Authenticated requests should not get 401
-            assert response.status_code != 401, f"Unauthenticated error for {endpoint}"
+            assert response.status_code == 200, f"Expected 200 for authenticated access to {endpoint}, got {response.status_code}"
 
     def test_dashboard_reports_post_endpoints(self):
         """Test POST requests to dashboard_reports endpoints."""

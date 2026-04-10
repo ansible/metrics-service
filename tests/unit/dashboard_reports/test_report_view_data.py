@@ -108,19 +108,20 @@ def job_data(template_metadata):
     """
     now = get_now()
 
-    # Job data configuration: (job_id, template_idx, org, project, status, time_offset, elapsed, num_hosts, user_id, username)
+    # Job data configuration: (job_id, template_idx, org_id, proj_id, proj_name, status, time_offset, elapsed, num_hosts, user_id, username)
     job_configs = [
-        # job_id 1: Template A, org=1, project=1, successful, now
-        (1, 0, 1, "Project A", JobStatusChoices.SUCCESSFUL, datetime.timedelta(minutes=5), 60, 10, 1, "test_user"),
-        # job_id 2: Template A, org=1, project=1, failed, now
-        (2, 0, 1, "Project A", JobStatusChoices.FAILED, datetime.timedelta(minutes=1), 5, 10, 1, "test_user"),
-        # job_id 3: Template B, org=2, project=2, failed, 5 days ago
-        (3, 1, 2, "Project B", JobStatusChoices.FAILED, datetime.timedelta(days=7, hours=1), 50, 1, 2, "other_user"),
-        # job_id 4: Template B, org=2, project=2, successful, 5 days ago
+        # job_id 1: Template A, org=1, proj=10, successful, now
+        (1, 0, 1, 10, "Project A", JobStatusChoices.SUCCESSFUL, datetime.timedelta(minutes=5), 60, 10, 1, "test_user"),
+        # job_id 2: Template A, org=1, proj=10, failed, now
+        (2, 0, 1, 10, "Project A", JobStatusChoices.FAILED, datetime.timedelta(minutes=1), 5, 10, 1, "test_user"),
+        # job_id 3: Template B, org=2, proj=20, failed, 7 days ago
+        (3, 1, 2, 20, "Project B", JobStatusChoices.FAILED, datetime.timedelta(days=7, hours=1), 50, 1, 2, "other_user"),
+        # job_id 4: Template B, org=2, proj=20, successful, 7 days ago
         (
             4,
             1,
             2,
+            20,
             "Project B",
             JobStatusChoices.SUCCESSFUL,
             datetime.timedelta(days=7, hours=2),
@@ -132,14 +133,14 @@ def job_data(template_metadata):
     ]
 
     jobs = []
-    for job_id, tmpl_idx, org_id, proj_name, status, offset, elapsed, hosts, user_id, username in job_configs:
+    for job_id, tmpl_idx, org_id, proj_id, proj_name, status, offset, elapsed, hosts, user_id, username in job_configs:
         tmpl = template_metadata[tmpl_idx]
         jobs.append(
             JobData(
                 job_id=job_id,
                 template_name=tmpl.template_name,
                 template_id=tmpl.template_id,
-                project_id=org_id,  # Using org_id as project_id for simplicity
+                project_id=proj_id,
                 project_name=proj_name,
                 organization_id=org_id,
                 status=status,
@@ -702,22 +703,22 @@ class TestDashboardReportViewSetEndpoints:
         )
         assert response.status_code == 200
         expected_fields = {
-            "template_name",
-            "id",
-            "runs",
-            "successful_runs",
-            "failed_runs",
-            "elapsed",
-            "elapsed_str",
-            "automated_costs",
-            "manual_costs",
-            "time_savings",
-            "time_savings_str",
-            "savings",
-            "time_taken_manually_execute_minutes",
-            "time_taken_create_automation_minutes",
+            "total_number_of_job_runs",
+            "total_number_of_successful_jobs",
+            "total_number_of_failed_jobs",
+            "total_number_of_host_job_runs",
+            "total_hours_of_automation",
+            "cost_of_automated_execution",
+            "cost_of_manual_automation",
+            "total_saving",
+            "total_time_saving",
+            "total_number_of_unique_hosts",
+            "top_users",
+            "top_projects",
+            "job_chart",
+            "host_chart",
         }
-        assert sorted(expected_fields) <= sorted(response.data.keys())
+        assert expected_fields <= set(response.data.keys())
 
     def test_details_aggregation_correct(self, job_data, admin_client):
         response = admin_client.get(

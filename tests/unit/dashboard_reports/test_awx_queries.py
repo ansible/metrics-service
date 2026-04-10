@@ -52,8 +52,8 @@ class TestAWXQueries:
     @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
     def test_fetch_id_name_error(self, mock_fetch):
         mock_fetch.side_effect = Exception("fail")
-        result = awx_queries.fetch_id_name("SELECT id, name FROM t", error_msg="err", db_connection=MagicMock())
-        assert result == []
+        with pytest.raises(Exception, match="fail"):
+            awx_queries.fetch_id_name("SELECT id, name FROM t", error_msg="err", db_connection=MagicMock())
 
     @patch("apps.dashboard_reports.awx_queries.fetch_id_name")
     def test_fetch_organizations(self, mock_fetch):

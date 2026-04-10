@@ -3,7 +3,6 @@ from collections.abc import Callable
 from typing import Any
 
 from ansible_base.rest_pagination import DefaultPaginator
-from django.db import DatabaseError
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -67,7 +66,7 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
             data = self.awx_query_function(db_connection=db_connection, search_str=FilterOptionsViewSet.search(request))
             page = self.paginate_queryset(data)
             return self.get_paginated_response(page)
-        except DatabaseError:
+        except Exception:
             logger.exception(self.list_error_msg)
             error_response = build_error_response(self.list_error_msg, status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -96,7 +95,7 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
             db_connection = get_db_connection("awx")
             data = self.awx_query_function(db_connection=db_connection, pk=pk)
             return self.retrieve_response(data, error_msg=self.not_found_msg(pk))
-        except DatabaseError:
+        except Exception:
             logger.exception(self.retrieve_error_msg)
             error_response = build_error_response(self.retrieve_error_msg, status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

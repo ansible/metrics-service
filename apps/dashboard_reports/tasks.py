@@ -44,7 +44,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         "data": {"task_type": task_name, "date_range": {"start": None, "end": None}, "job_count": 0},
     }
     db_name = kwargs.get("database", DEFAULT_DB_NAME)
-    db_connection = get_db_connection(db_name)
+    db_connection = None
     until = kwargs.get("until")
     since = kwargs.get("since")
 
@@ -75,6 +75,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     )
 
     try:
+        db_connection = get_db_connection(db_name)
         collector = _collect_jobs(db_connection, since=since, until=until)
         jobs = collector.gather()
     except Exception as e:
@@ -82,6 +83,12 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         result["error"] = True
         result["message"] = f"Collecting jobs failed: {str(e)}"
         return result
+    finally:
+        if db_connection is not None:
+            try:
+                db_connection.close()
+            except Exception:
+                logger.warning("Failed to close AWX DB connection in _collect_data()")
 
     failed_jobs = []
     for job in jobs["results"]:
@@ -181,7 +188,7 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
 @task(queue="metrics_collectors", decorate=False)
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     retention_period_days = kwargs.get("retention_period_days", 90)
-    cutoff_date = datetime.now().astimezone(tz=pytz.UTC) - timedelta(days=retention_period_days)
+    cutoff_date = datetime.now(tz=pytz.UTC) - timedelta(days=retention_period_days)
     cutoff_date = cutoff_date.replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff_date_str = cutoff_date.isoformat()
 

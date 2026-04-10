@@ -105,9 +105,14 @@ def _collect_int_params(request: Request, key: str) -> list[int]:
 
 class CustomReportFilter(filters.BaseFilterBackend):
     def filter_queryset(self, request: Request, queryset: QuerySet[JobData], view: APIView) -> QuerySet[JobData]:
-        period = view.kwargs.get("period", None)
-        tz = view.kwargs.get("tz", "UTC") or "UTC"
-        start_date, end_date = DateFilter.to_start_date_end_date(value=period, tz_string=tz)
+        # Reuse the already-parsed window injected by @require_date_range to avoid
+        # calling now() a second time and potentially shifting the window mid-request.
+        start_date = view.kwargs.get("start_date")
+        end_date = view.kwargs.get("end_date")
+        if start_date is None or end_date is None:
+            period = view.kwargs.get("period", None)
+            tz = view.kwargs.get("tz", "UTC") or "UTC"
+            start_date, end_date = DateFilter.to_start_date_end_date(value=period, tz_string=tz)
 
         queryset = queryset.after_date(start_date)
         queryset = queryset.before_date(end_date)

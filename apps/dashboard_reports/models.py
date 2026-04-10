@@ -295,6 +295,11 @@ class TemplateMetadata(CommonModel):
         if instance is None:
             try:
                 instance = cls.objects.get(template_name=name)
+                # If the record was created with a synthetic placeholder ID and we now
+                # have the real AWX ID, promote it so later ID-based lookups work correctly.
+                if awx_id is not None and instance.template_id != awx_id:
+                    instance.template_id = awx_id
+                    instance.save(update_fields=["template_id"])
             except cls.DoesNotExist:
                 instance = cls.objects.create(
                     template_name=name,
@@ -496,6 +501,7 @@ class JobData(CommonModel):
         return latest_awx_modified
 
     @classmethod
+    @transaction.atomic
     def create_or_update_from_awx(cls, awx_job: AWXJobType):
         """
         Creates or updates a JobData instance from AWX job, label, and host summary data.

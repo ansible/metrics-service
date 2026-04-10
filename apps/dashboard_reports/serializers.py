@@ -1,23 +1,22 @@
 import decimal
 from typing import Any
 
-from dateutil.relativedelta import relativedelta
 from rest_framework import serializers
 
 from apps.dashboard_reports.models import JobData, SubscriptionCost, TemplateMetadata
 
 
-def sec2time(sec: int) -> str:
+def sec2time(sec: decimal.Decimal | int | float) -> str:
     """
-    This function converts a number of seconds into a human-readable string format,
-    displaying hours, minutes, and seconds.
-    It uses `relativedelta` to break down the total seconds and combines days into hours for the output.
-    If the total time is less than one hour, it omits the hours part for brevity.
+    Convert a number of seconds into a human-readable string (e.g. "2h 5min 30sec").
+    Rounds to whole seconds before splitting to avoid rollover like "59min 60sec".
     """
-    rd = relativedelta(seconds=sec)
-    hours = rd.hours + (24 * rd.days)
-    secs = round(rd.seconds)
-    return f"{hours}h {rd.minutes}min {secs}sec" if hours > 0 else f"{rd.minutes}min {secs}sec"
+    total_seconds = int(
+        decimal.Decimal(str(sec)).quantize(decimal.Decimal("1"), rounding=decimal.ROUND_HALF_UP)
+    )
+    hours, remainder = divmod(abs(total_seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}h {minutes}min {seconds}sec" if hours > 0 else f"{minutes}min {seconds}sec"
 
 
 class FilterOptionWithIdSerializer(serializers.Serializer):
@@ -56,7 +55,7 @@ class ReportSerializer(serializers.ModelSerializer[JobData]):
     successful_runs = serializers.IntegerField(read_only=True, help_text="Number of successful runs")
     failed_runs = serializers.IntegerField(read_only=True, help_text="Number of failed runs")
     elapsed = serializers.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Total elapsed time for all runs (seconds)"
+        max_digits=20, decimal_places=2, help_text="Total elapsed time for all runs (seconds)"
     )
     elapsed_str = serializers.SerializerMethodField(help_text="Total elapsed time for all runs (human-readable string)")
     automated_costs = serializers.DecimalField(
@@ -230,7 +229,7 @@ class SubscriptionCostSerializer(serializers.Serializer):
     )
 
     include_template_creation_time_in_costs = serializers.BooleanField(
-        default=True,
+        required=False,
         help_text="Include template creation time in cost calculations. If false, costs related to template creation time will be excluded.",
     )
 

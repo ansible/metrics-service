@@ -319,14 +319,14 @@ TASK_METADATA = {
         "category": "Dashboard Reports",
         "description": "Collect data for automation-reports dashboard (job templates, top projects/users) with configurable date range",
         "parameters": {
-            "start_date": {
+            "since": {
                 "type": "string",
-                "description": "Start date for collection (ISO format, defaults to 30 days ago)",
+                "description": "Start datetime for collection (ISO format, defaults to last collected timestamp or 90 days ago)",
                 "pattern": "datetime",
             },
-            "end_date": {
+            "until": {
                 "type": "string",
-                "description": "End date for collection (ISO format, defaults to now)",
+                "description": "End datetime for collection (ISO format, defaults to now)",
                 "pattern": "datetime",
             },
         },
@@ -334,9 +334,9 @@ TASK_METADATA = {
             {"name": "Default collection (last 90 days)", "data": {}},
             {
                 "name": "Custom date range",
-                "data": {"start_date": "2024-01-30T00:00:00Z", "end_date": "2024-01-31T23:59:59Z"},
+                "data": {"since": "2024-01-30T00:00:00Z", "until": "2024-01-31T23:59:59Z"},
             },
-            {"name": "Last 7 days", "data": {"start_date": "2024-01-24T00:00:00Z", "end_date": "2024-01-31T00:00:00Z"}},
+            {"name": "Last 7 days", "data": {"since": "2024-01-24T00:00:00Z", "until": "2024-01-31T00:00:00Z"}},
         ],
     },
 }
