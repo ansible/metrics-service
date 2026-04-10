@@ -281,7 +281,8 @@ class TestDashboardReportViewSet:
         mock_subcost.return_value.cost_employee_per_minute = 1
         mock_subcost.return_value.per_second_subscription_cost.return_value = 0.01
         mock_subcost.return_value.include_template_creation_time_in_costs = True
-        mock_jobdata.values.return_value.annotate.return_value = ["mocked"]
+        # get_queryset chains three .annotate() calls
+        mock_jobdata.values.return_value.annotate.return_value.annotate.return_value.annotate.return_value = ["mocked"]
         now = datetime.now(tz=UTC)
         viewset.kwargs = {
             "period": "last_7_days",
@@ -299,43 +300,32 @@ class TestDashboardReportViewSet:
         assert start is None and end is None and kind is None
 
     # Test _get_date_range_and_kind for day (14 days <= 45, same year)
-    @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")
-    def test__get_date_range_and_kind_day(self, mock_to_dates, viewset):
+    def test__get_date_range_and_kind_day(self, viewset):
+        # _get_date_range_and_kind reads start_date/end_date directly from kwargs
         viewset.kwargs = {
             "period": "last_14_days",
+            "start_date": datetime(2026, 3, 1, 0, 0, tzinfo=UTC),
+            "end_date": datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
         }
-        mock_to_dates.return_value = (
-            datetime(2026, 3, 1, 0, 0, tzinfo=UTC),
-            datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
-        )
         start, end, kind = viewset._get_date_range_and_kind()
         assert kind == "day"
 
     # Test _get_date_range_and_kind for month (60 days > 45 threshold -> else branch)
-    @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")
-    def test__get_date_range_and_kind_month(self, mock_to_dates, viewset):
+    def test__get_date_range_and_kind_month(self, viewset):
         viewset.kwargs = {
             "period": "last_60_days",
+            "start_date": datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
+            "end_date": datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
         }
-        mock_to_dates.return_value = (
-            datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
-            datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
-        )
-
         start, end, kind = viewset._get_date_range_and_kind()
         assert kind == "month"
 
     # Test _get_date_range_and_kind for year
-    @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")
-    def test__get_date_range_and_kind_year(self, mock_to_dates, viewset):
-        # Pin dates that cross a year boundary regardless of when the test runs
-        mock_to_dates.return_value = (
-            datetime(2024, 12, 1, 0, 0, tzinfo=UTC),
-            datetime(2026, 1, 31, 0, 0, tzinfo=UTC),
-        )
-        # Use dates that span different years and months
+    def test__get_date_range_and_kind_year(self, viewset):
         viewset.kwargs = {
             "period": "last_90_days",
+            "start_date": datetime(2024, 12, 1, 0, 0, tzinfo=UTC),
+            "end_date": datetime(2026, 1, 31, 0, 0, tzinfo=UTC),
         }
         start, end, kind = viewset._get_date_range_and_kind()
         assert kind == "year"
@@ -413,14 +403,12 @@ class TestDashboardReportViewSet:
         assert result["job_chart"]["items"][0]["value"] == 5
 
     # Test details endpoint logic with mocks
-    @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")
     @patch("apps.dashboard_reports.viewsets.dashboard_report.JobData.objects")
-    @patch("apps.dashboard_reports.viewsets.dashboard_report.JobHostSummary.unique_count")
-    @patch("apps.dashboard_reports.viewsets.dashboard_report.get_filter_options")
+    @patch("apps.dashboard_reports.viewsets.dashboard_report.JobHostSummary.objects")
     @patch.object(DashboardReportViewSet, "get_chart_data")
     @patch.object(DashboardReportViewSet, "get_serializer")
     def test_details(
-        self, mock_serializer, mock_chart, mock_filter, mock_unique, mock_jobdata, mock_to_dates, viewset, factory
+        self, mock_serializer, mock_chart, mock_host_objects, mock_jobdata, viewset, factory
     ):
         class TestViewSet(DashboardReportViewSet):
             def details(self, request, *args, **kwargs):
@@ -428,8 +416,8 @@ class TestDashboardReportViewSet:
 
         test_viewset = TestViewSet()
         mock_jobdata.all.return_value = MagicMock()
-        mock_filter.return_value = {}
-        mock_unique.return_value = 2
+        # unique hosts: JobHostSummary.objects.filter(...).values(...).distinct().count()
+        mock_host_objects.filter.return_value.values.return_value.distinct.return_value.count.return_value = 2
         mock_chart.return_value = {
             "job_chart": {"kind": "day", "items": []},
             "host_chart": {"kind": "day", "items": []},
@@ -443,7 +431,6 @@ class TestDashboardReportViewSet:
 
         dt_start = datetime(2026, 3, 11, 0, 0, tzinfo=UTC)
         dt_end = datetime(2026, 3, 12, 0, 0, tzinfo=UTC)
-        mock_to_dates.return_value = dt_start, dt_end
         test_viewset.kwargs = {
             "period": "last_7_days",
             "tz": "UTC",

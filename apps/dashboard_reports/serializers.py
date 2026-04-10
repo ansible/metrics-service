@@ -215,6 +215,7 @@ class SubscriptionCostSerializer(serializers.Serializer):
     monthly_subscription_cost = serializers.DecimalField(
         max_digits=15,
         decimal_places=2,
+        required=False,
         help_text="Monthly subscription cost for AAP subscription",
         min_value=decimal.Decimal("0.00"),
     )
@@ -222,6 +223,7 @@ class SubscriptionCostSerializer(serializers.Serializer):
     engineer_avg_hourly_rate = serializers.DecimalField(
         max_digits=15,
         decimal_places=2,
+        required=False,
         help_text="Average hourly rate for engineers performing manual work",
         min_value=decimal.Decimal("0.00"),
     )
