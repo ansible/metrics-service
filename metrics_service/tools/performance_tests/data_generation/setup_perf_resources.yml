@@ -45,6 +45,10 @@
         validate_certs: "{{ aap_validate_certs }}"
         method: GET
       register: org_result
+    - name: Fail if Default organization not found
+      ansible.builtin.fail:
+        msg: "Default organization not found. Ensure the AAP instance is configured correctly."
+      when: org_result.json.count == 0
     - ansible.builtin.set_fact:
         default_org_id: "{{ org_result.json.results[0].id }}"
 
@@ -84,6 +88,10 @@
         validate_certs: "{{ aap_validate_certs }}"
         method: GET
       register: project_result
+    - name: Fail if Perf Test Project not found
+      ansible.builtin.fail:
+        msg: "Perf Test Project not found after creation. Check AWX API connectivity."
+      when: project_result.json.count == 0
     - ansible.builtin.set_fact:
         project_id: "{{ project_result.json.results[0].id }}"
 
@@ -107,6 +115,11 @@
       retries: 20
       delay: 10
       when: project_check.json.count == 0
+
+    - name: Fail if project sync did not succeed
+      ansible.builtin.fail:
+        msg: "Project sync ended with status '{{ project_status.json.status }}'. Check AWX for details."
+      when: project_check.json.count == 0 and project_status.json.status != 'successful'
 
     # -------------------------------------------------------------------------
     # Inventory
@@ -140,6 +153,10 @@
         validate_certs: "{{ aap_validate_certs }}"
         method: GET
       register: inv_result
+    - name: Fail if inventory not found
+      ansible.builtin.fail:
+        msg: "Inventory 'integrity_tests-inventory_aws' not found after creation. Check AWX API connectivity."
+      when: inv_result.json.count == 0
     - ansible.builtin.set_fact:
         inventory_id: "{{ inv_result.json.results[0].id }}"
 

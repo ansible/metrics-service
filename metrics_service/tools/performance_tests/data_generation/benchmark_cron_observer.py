@@ -69,7 +69,8 @@ Environment variables
 import json
 import os
 import time
-from datetime import datetime, timedelta, timezone
+import datetime as dt
+from datetime import timedelta
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -80,7 +81,7 @@ from requests.auth import HTTPBasicAuth
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8006/api").rstrip("/")
 USERNAME = os.environ.get("BENCHMARK_USER", "admin")
-PASSWORD = os.environ.get("PASSWORD", "Admin!Password!Metrics")
+PASSWORD = os.environ.get("PASSWORD", "")
 METRICS_URL = os.environ.get("METRICS_URL", "")
 DATA_SCALE = os.environ.get("DATA_SCALE", "")
 RESULTS_DIR = os.environ.get("RESULTS_DIR", os.path.join(os.path.dirname(__file__), "..", "results"))
@@ -103,16 +104,16 @@ CRON_SCHEDULE = {
 # Time helpers
 # ---------------------------------------------------------------------------
 
-def next_cron_time(minute: int) -> datetime:
+def next_cron_time(minute: int) -> dt.datetime:
     """Return the next UTC datetime when the clock hits HH:<minute>:00."""
-    now = datetime.now(timezone.utc)
+    now = dt.datetime.now(dt.timezone.utc)
     candidate = now.replace(minute=minute, second=0, microsecond=0)
     if candidate <= now:
         candidate += timedelta(hours=1)
     return candidate
 
 
-def collection_window_for_cron(cron_at: datetime) -> tuple[datetime, datetime]:
+def collection_window_for_cron(cron_at: dt.datetime) -> tuple[dt.datetime, dt.datetime]:
     """
     Return the (since, until) window that the cron run at `cron_at` will collect.
 
@@ -126,15 +127,15 @@ def collection_window_for_cron(cron_at: datetime) -> tuple[datetime, datetime]:
     return since, until
 
 
-def fmt(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+def fmt(d: dt.datetime) -> str:
+    return d.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ---------------------------------------------------------------------------
 # API helpers
 # ---------------------------------------------------------------------------
 
-def latest_task_execution(collector_type: str, since: datetime):
+def latest_task_execution(collector_type: str, since: dt.datetime):
     """
     Return the most recent Task for `collector_type` whose `created`
     timestamp is >= `since`. Returns None if not found yet.
@@ -163,14 +164,14 @@ def latest_task_execution(collector_type: str, since: datetime):
         created_raw = task.get("created")
         if not created_raw:
             continue
-        created_at = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+        created_at = dt.datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
         if created_at >= since:
             return task
 
     return None
 
 
-def wait_for_cron_task(collector_type: str, cron_fired_at: datetime) -> dict:
+def wait_for_cron_task(collector_type: str, cron_fired_at: dt.datetime) -> dict:
     """
     Wait until a TaskExecution for `collector_type` appears that was started
     after `cron_fired_at`, then wait until it reaches a terminal state.
@@ -225,8 +226,8 @@ def task_duration_seconds(task: dict) -> float:
     result_data = task.get("result_data") or {}
     if "elapsed_seconds" in result_data:
         return float(result_data["elapsed_seconds"])
-    created_at = datetime.fromisoformat(task["created"].replace("Z", "+00:00"))
-    completed_at = datetime.fromisoformat(task["completed_at"].replace("Z", "+00:00"))
+    created_at = dt.datetime.fromisoformat(task["created"].replace("Z", "+00:00"))
+    completed_at = dt.datetime.fromisoformat(task["completed_at"].replace("Z", "+00:00"))
     return (completed_at - created_at).total_seconds()
 
 
@@ -258,7 +259,7 @@ def read_prometheus_metrics(url: str) -> dict:
 
 def save_results(results: dict) -> str:
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+    date_str = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d_%H%M%S")
     label = f"_{DATA_SCALE}" if DATA_SCALE else ""
     filename = f"cron_{date_str}{label}.json"
     path = os.path.join(RESULTS_DIR, filename)
@@ -279,10 +280,10 @@ def verify_connectivity():
     print("  OK")
 
 
-def countdown_to(target: datetime):
+def countdown_to(target: dt.datetime):
     """Print a live countdown until target time is reached."""
     while True:
-        remaining = (target - datetime.now(timezone.utc)).total_seconds()
+        remaining = (target - dt.datetime.now(dt.timezone.utc)).total_seconds()
         if remaining <= 0:
             print("\r  Cron window reached!                          ")
             return
@@ -306,7 +307,7 @@ def observe_one_run(run_number: int, total_runs: int) -> dict:
     print(f"  Collection window  : {fmt(since)}  →  {fmt(until)}")
     print()
     print("  *** DATA GENERATION WINDOW ***")
-    print(f"  Run testathon now so that AWX jobs FINISH between:")
+    print("  Run testathon now so that AWX jobs FINISH between:")
     print(f"    {fmt(since)}  and  {fmt(until)}")
     print(f"  You have until {fmt(next_cron)} before the cron fires.")
     print()
@@ -381,7 +382,7 @@ def main():
     print("\nVerifying connectivity...")
     verify_connectivity()
 
-    run_timestamp = datetime.now(timezone.utc).isoformat()
+    run_timestamp = dt.datetime.now(dt.timezone.utc).isoformat()
     all_runs = []
 
     for i in range(1, OBSERVE_RUNS + 1):

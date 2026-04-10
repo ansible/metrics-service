@@ -3,24 +3,29 @@
 Ansible playbooks for generating realistic AWX data at scale to support
 `metrics-service` performance testing.
 
-The playbooks live in this directory alongside a `creds.yml` (not committed)
-and an `ansible.cfg` that points to the shared Ansible collections in
-`emerging-services-test-suite/testathon/collections/`.
+The playbooks live in this directory alongside a `creds.yml` (gitignored)
+and a local `ansible.cfg` (gitignored) that points to the shared Ansible
+collections in `emerging-services-test-suite/testathon/collections/`.
 
 > **Prerequisites**:
 > 1. Clone `emerging-services-test-suite` so the collections are available at:
 >    `emerging-services-test-suite/testathon/collections/`
 > 2. Copy `creds.yml.example` to `creds.yml` and fill in your AAP credentials.
+> 3. Create a local `ansible.cfg` pointing to your collections path:
 >
 > ```bash
 > cd metrics-service/metrics_service/tools/performance_tests/data_generation/
 > cp creds.yml.example creds.yml   # fill in your credentials
-> ansible-playbook perf_data_generator.yml -e @creds.yml -e aap_validate_certs=false \
+> cat > ansible.cfg <<EOF
+> [defaults]
+> collections_path = /path/to/emerging-services-test-suite/testathon/collections
+> EOF
+> ansible-playbook perf_data_generator.yml -e @creds.yml \
 >   -e perf_host_count=<N> -e perf_job_runs=<R>
 > ```
 >
-> If the collections path in `ansible.cfg` doesn't match your local clone,
-> update it to the absolute path of your `testathon/collections/` directory.
+> Both `creds.yml` and `ansible.cfg` are gitignored to avoid committing
+> environment-specific or sensitive configuration.
 
 ---
 
@@ -33,26 +38,25 @@ Here is a complete end-to-end example for running a **Large scale (20,000 record
 cd metrics-service/metrics_service/tools/performance_tests/data_generation/
 
 # 1. First time only — set up AWX inventory and job template
-ansible-playbook setup_perf_resources.yml -e @creds.yml -e aap_validate_certs=false
+ansible-playbook setup_perf_resources.yml -e @creds.yml
 
 # 2. Clean the inventory (required when changing scale or starting fresh)
-ansible-playbook perf_cleanup_inventory.yml -e @creds.yml -e aap_validate_certs=false
+ansible-playbook perf_cleanup_inventory.yml -e @creds.yml
 
 # 3. Generate data — 1000 hosts × 20 runs = ~20,000 JobHostSummary records
 ansible-playbook perf_data_generator.yml \
   -e @creds.yml \
-  -e aap_validate_certs=false \
   -e perf_host_count=1000 \
   -e perf_job_runs=20
 
 # 4. Wait for the metrics-service cron to fire (runs at :05 past each hour)
 #    Then observe and capture results:
-cd metrics-service/metrics_service/tools/performance_tests/
+cd metrics-service/metrics_service/tools/performance_tests/data_generation/
 python3 benchmark_cron_observer.py
-
-# 5. Fetch TaskExecution metrics for documentation
-python3 fetch_taskexecution_metrics.py --save
 ```
+
+> **Note:** If your AAP instance uses a self-signed certificate (e.g. lab/dev environments),
+> add `-e aap_validate_certs=false` to the playbook commands above. Do not use this in production.
 
 ---
 
@@ -66,7 +70,7 @@ Creates the AWX inventory (`integrity_tests-inventory_aws`) and job template
 when provisioning a fresh AAP environment.
 
 ```bash
-ansible-playbook setup_perf_resources.yml -e @creds.yml -e aap_validate_certs=false
+ansible-playbook setup_perf_resources.yml -e @creds.yml
 ```
 
 ---
@@ -79,7 +83,7 @@ inventory state before generating data at a new scale. Only strictly necessary
 when reducing the number of hosts (e.g. going from 1,000 hosts back to 100).
 
 ```bash
-ansible-playbook perf_cleanup_inventory.yml -e @creds.yml -e aap_validate_certs=false
+ansible-playbook perf_cleanup_inventory.yml -e @creds.yml
 ```
 
 ---
@@ -96,19 +100,19 @@ prevent overloading the AWX controller uWSGI workers.
 
 ```bash
 # Baseline  (~500 records):  100 hosts × 5 runs
-ansible-playbook perf_data_generator.yml -e @creds.yml -e aap_validate_certs=false \
+ansible-playbook perf_data_generator.yml -e @creds.yml \
   -e perf_host_count=100 -e perf_job_runs=5
 
 # Medium  (~4,000 records):  400 hosts × 10 runs
-ansible-playbook perf_data_generator.yml -e @creds.yml -e aap_validate_certs=false \
+ansible-playbook perf_data_generator.yml -e @creds.yml \
   -e perf_host_count=400 -e perf_job_runs=10
 
 # Large  (~20,000 records):  1000 hosts × 20 runs
-ansible-playbook perf_data_generator.yml -e @creds.yml -e aap_validate_certs=false \
+ansible-playbook perf_data_generator.yml -e @creds.yml \
   -e perf_host_count=1000 -e perf_job_runs=20
 
 # X-Large (~40,000 records): 1000 hosts × 40 runs
-ansible-playbook perf_data_generator.yml -e @creds.yml -e aap_validate_certs=false \
+ansible-playbook perf_data_generator.yml -e @creds.yml \
   -e perf_host_count=1000 -e perf_job_runs=40
 ```
 
