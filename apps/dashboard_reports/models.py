@@ -311,50 +311,64 @@ class TemplateMetadata(CommonModel):
         Retrieves TemplateMetadata by AWX ID or name. If not found, creates a new instance.
         Sets default manual and automation time estimates if not present.
         """
-        instance = None
-
-        if awx_id is not None:
-            try:
-                instance = cls.objects.get(template_id=awx_id)
-            except cls.DoesNotExist:
-                instance = None
-
-        if instance is None:
-            try:
-                instance = cls.objects.get(template_name=name)
-                # If the record was created with a synthetic negative placeholder ID and we
-                # now have the real AWX ID, promote it so later ID-based lookups work correctly.
-                if awx_id is not None and instance.template_id < 0:
-                    instance.template_id = awx_id
-                    instance.save(update_fields=["template_id"])
-            except cls.DoesNotExist:
-                try:
-                    instance = cls.objects.create(
-                        template_name=name,
-                        template_id=awx_id if awx_id is not None else cls.get_min_awx_id(),
-                    )
-                    logger.info(f"Created new TemplateMetadata '{instance}' from AWX data.")
-                except IntegrityError:
-                    # A concurrent transaction created the same record between our get() and
-                    # create() calls. Fetch whichever row won the race.
-                    logger.warning(f"Race condition creating TemplateMetadata for '{name}'; fetching existing record.")
-                    instance = cls.objects.filter(template_name=name).order_by("-template_id").first()
-                    if instance is None:
-                        raise
-            except cls.MultipleObjectsReturned:
-                # template_name is not unique; pick the best candidate — prefer records with a
-                # real (positive) AWX ID so that subsequent ID-based lookups will match.
-                logger.warning(
-                    f"Multiple TemplateMetadata records found for name '{name}'; "
-                    "selecting the one with the highest template_id."
-                )
-                instance = cls.objects.filter(template_name=name).order_by("-template_id").first()
+        instance = cls._lookup_by_id(awx_id) or cls._lookup_or_create_by_name(name, awx_id)
 
         update_fields = cls._apply_time_estimate_defaults(instance, elapsed)
         if update_fields:
             instance.save(update_fields=update_fields)
 
         return instance
+
+    @classmethod
+    def _lookup_by_id(cls, awx_id: int | None) -> "TemplateMetadata | None":
+        """Return the TemplateMetadata row matching ``awx_id``, or ``None`` if not found."""
+        if awx_id is None:
+            return None
+        try:
+            return cls.objects.get(template_id=awx_id)
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def _lookup_or_create_by_name(cls, name: str, awx_id: int | None) -> "TemplateMetadata":
+        """Return the TemplateMetadata row matching ``name``, creating one if needed."""
+        try:
+            instance = cls.objects.get(template_name=name)
+            # If the record was created with a synthetic negative placeholder ID and we
+            # now have the real AWX ID, promote it so later ID-based lookups work correctly.
+            if awx_id is not None and instance.template_id < 0:
+                instance.template_id = awx_id
+                instance.save(update_fields=["template_id"])
+            return instance
+        except cls.DoesNotExist:
+            return cls._create_with_race_handling(name, awx_id)
+        except cls.MultipleObjectsReturned:
+            # template_name is not unique; pick the best candidate — prefer records with a
+            # real (positive) AWX ID so that subsequent ID-based lookups will match.
+            logger.warning(
+                f"Multiple TemplateMetadata records found for name '{name}'; "
+                "selecting the one with the highest template_id."
+            )
+            return cls.objects.filter(template_name=name).order_by("-template_id").first()
+
+    @classmethod
+    def _create_with_race_handling(cls, name: str, awx_id: int | None) -> "TemplateMetadata":
+        """Create a TemplateMetadata row, recovering gracefully from concurrent-insert races."""
+        try:
+            instance = cls.objects.create(
+                template_name=name,
+                template_id=awx_id if awx_id is not None else cls.get_min_awx_id(),
+            )
+            logger.info(f"Created new TemplateMetadata '{instance}' from AWX data.")
+            return instance
+        except IntegrityError:
+            # A concurrent transaction created the same record between our get() and
+            # create() calls. Fetch whichever row won the race.
+            logger.warning(f"Race condition creating TemplateMetadata for '{name}'; fetching existing record.")
+            instance = cls.objects.filter(template_name=name).order_by("-template_id").first()
+            if instance is None:
+                raise
+            return instance
 
     @classmethod
     def _apply_time_estimate_defaults(cls, instance: "TemplateMetadata", elapsed: decimal.Decimal | None) -> list[str]:

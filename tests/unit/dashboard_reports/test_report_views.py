@@ -310,20 +310,26 @@ class TestDashboardReportViewSet:
         viewset.kwargs = {
             "period": "last_14_days",
             "start_date": datetime(2026, 3, 1, 0, 0, tzinfo=UTC),
-            "end_date": datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
+            "end_date": datetime(2026, 3, 11, 15, 30, tzinfo=UTC),
         }
         start, end, kind = viewset._get_date_range_and_kind()
         assert kind == "day"
+        assert start == datetime(2026, 3, 1, 0, 0, tzinfo=UTC)
+        # end_date is advanced to midnight of the *next* day (Mar 12) so Mar 11's bucket is included.
+        assert end == datetime(2026, 3, 12, 0, 0, tzinfo=UTC)
 
     # Test _get_date_range_and_kind for month (60 days > 45 threshold -> else branch)
     def test__get_date_range_and_kind_month(self, viewset):
         viewset.kwargs = {
             "period": "last_60_days",
             "start_date": datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
-            "end_date": datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
+            "end_date": datetime(2026, 3, 11, 15, 30, tzinfo=UTC),
         }
         start, end, kind = viewset._get_date_range_and_kind()
         assert kind == "month"
+        assert start == datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
+        # end_date advances to the 1st of the *next* month (Apr 1) so the March bucket is included.
+        assert end == datetime(2026, 4, 1, 0, 0, tzinfo=UTC)
 
     # Test _get_date_range_and_kind for year
     def test__get_date_range_and_kind_year(self, viewset):
@@ -334,6 +340,23 @@ class TestDashboardReportViewSet:
         }
         start, end, kind = viewset._get_date_range_and_kind()
         assert kind == "year"
+        assert start == datetime(2024, 1, 1, 0, 0, tzinfo=UTC)
+        # end_date advances to Jan 1 of the *next* year (2027) so the 2026 bucket is included.
+        assert end == datetime(2027, 1, 1, 0, 0, tzinfo=UTC)
+
+    # Test that the 'year' kind end_date no longer truncates to Jan 1 of the *same* year,
+    # which would cause the last year's data to have no chart bucket.
+    def test__get_date_range_and_kind_year_end_date_advanced_not_truncated(self, viewset):
+        """Regression: end_date Dec 2025 must NOT become Jan 1 2025 (same year)."""
+        viewset.kwargs = {
+            "period": "last_90_days",
+            "start_date": datetime(2023, 11, 1, 0, 0, tzinfo=UTC),
+            "end_date": datetime(2025, 12, 31, 23, 59, tzinfo=UTC),
+        }
+        start, end, kind = viewset._get_date_range_and_kind()
+        assert kind == "year"
+        # end_date must be Jan 1 2026 (next year), NOT Jan 1 2025 (same year as input).
+        assert end == datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
 
     # Test _prepare_chart_querysets with mocks
     @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")

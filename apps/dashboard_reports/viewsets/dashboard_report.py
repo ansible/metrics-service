@@ -8,8 +8,8 @@ from typing import Any
 
 from dateutil.relativedelta import relativedelta
 from django.db import models
-from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value
-from django.db.models.functions import Coalesce, Trunc
+from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
+from django.db.models.functions import Cast, Coalesce, Trunc
 from django_generate_series.models import generate_series
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -332,8 +332,12 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         """
         Determine the chart time granularity (hour/day/month/year) from the injected date range.
 
-        Normalizes start_date and end_date to UTC and snaps them to the appropriate boundary
-        (e.g. hour=0 for day-level, day=1 for month-level). Returns (start_date, end_date, kind).
+        Normalizes start_date and end_date to UTC and snaps start_date to the appropriate boundary
+        (e.g. hour=0 for day-level, day=1 for month-level). end_date is advanced to the start of
+        the *next* period boundary so that generate_series always emits a bucket for the final
+        period — truncating end_date backward would omit data that falls after the truncated
+        boundary (e.g. a "year" end of Dec 2025 truncated to Jan 1 2025 could lose the 2025 bucket
+        when generate_series stops exactly there). Returns (start_date, end_date, kind).
         """
         start_date = self.kwargs.get("start_date")
         end_date = self.kwargs.get("end_date")
@@ -351,19 +355,25 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         if total_months > 12:
             kind = "year"
             start_date = start_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-            end_date = end_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            # Advance to Jan 1 of the *next* year so the current year's bucket is included.
+            end_date = end_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0) + relativedelta(
+                years=1
+            )
         elif diff.days <= 1:
             kind = "hour"
             start_date = start_date.replace(minute=0, second=0, microsecond=0)
-            end_date = end_date.replace(minute=0, second=0, microsecond=0)
+            # Advance to the start of the *next* hour so the current hour's bucket is included.
+            end_date = end_date.replace(minute=0, second=0, microsecond=0) + relativedelta(hours=1)
         elif diff.days <= 45:
             kind = "day"
             start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            # Advance to midnight of the *next* day so today's bucket is included.
+            end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0) + relativedelta(days=1)
         else:
             kind = "month"
             start_date = start_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            end_date = end_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            # Advance to the 1st of the *next* month so the current month's bucket is included.
+            end_date = end_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0) + relativedelta(months=1)
         return start_date, end_date, kind
 
     def _filter_raw_jobdata_queryset(self, queryset: QuerySet[JobData]) -> QuerySet[JobData]:
@@ -476,8 +486,21 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         )
 
         ### Unique hosts count ###
+        # Use a stable surrogate key that prefers host_id (cast to text) when present and
+        # falls back to host_name — matching JobHostSummary.unique_count() — so that two
+        # hosts sharing a name aren't collapsed into one, and a renamed host isn't double-counted.
         unique_hosts_count = (
-            JobHostSummary.objects.filter(job_data__in=filtered_qs).values("host_name").distinct().count()
+            JobHostSummary.objects.filter(job_data__in=filtered_qs)
+            .annotate(
+                stable_host=Case(
+                    When(host_id__isnull=False, then=Cast(F("host_id"), output_field=models.TextField())),
+                    default=F("host_name"),
+                    output_field=models.TextField(),
+                )
+            )
+            .values("stable_host")
+            .distinct()
+            .count()
         )
 
         ### CHART DATA ###
