@@ -2,31 +2,10 @@
 Dashboard views for task management and monitoring.
 """
 
-from functools import wraps
-
 from django.conf import settings
-from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_safe
-
-
-def require_development_mode(view_func):
-    """
-    Decorator that restricts access to views when development mode is disabled.
-
-    Returns 403 Forbidden with a descriptive message when METRICS_SERVICE_MODE=development
-    """
-
-    @wraps(view_func)
-    def wrapper(request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        if settings.MODE != "development":
-            return HttpResponseForbidden(
-                "The dashboard is only available when development mode is enabled. "
-                "Set METRICS_SERVICE_MODE=development to enable."
-            )
-        return view_func(request, *args, **kwargs)
-
-    return wrapper
 
 
 def url_for(path):
@@ -45,7 +24,6 @@ def url_for(path):
 
 
 @require_safe
-@require_development_mode
 def dashboard_view(request: HttpRequest) -> HttpResponse:
     """
     Main dashboard view for task management.
