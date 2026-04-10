@@ -267,7 +267,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         qs = (
             JobData.objects.values(
                 "template_name",
-                "template_id",
+                "template_metadata_id",
                 time_taken_manually_execute_minutes=F("template_metadata__time_taken_manually_execute_minutes"),
                 time_taken_create_automation_minutes=F("template_metadata__time_taken_create_automation_minutes"),
             )

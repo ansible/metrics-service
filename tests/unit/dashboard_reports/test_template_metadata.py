@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.test import TestCase
-from django.urls import resolve, reverse
+from django.urls import resolve
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
 
@@ -148,11 +148,6 @@ class TestTemplateMetadataViewSetConfig(TestCase):
 
         assert issubclass(TemplateMetadataViewSet, UpdateModelMixin)
 
-    def test_has_destroy_mixin(self):
-        from rest_framework.mixins import DestroyModelMixin
-
-        assert issubclass(TemplateMetadataViewSet, DestroyModelMixin)
-
     def test_does_not_have_list_mixin(self):
         from rest_framework.mixins import ListModelMixin
 
@@ -266,48 +261,8 @@ class TestTemplateMetadataViewSetActions(TestCase):
         assert response.status_code == status.HTTP_200_OK
 
     def test_patch_mapped_to_partial_update(self):
-        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        match = resolve("/api/v1/dashboard_reports/template_metadata/1/")
         assert match.func.actions.get("patch") == "partial_update"
-
-    # ---- DELETE (destroy) ----
-
-    @patch.object(TemplateMetadataViewSet, "get_object")
-    def test_destroy_returns_204(self, mock_get_object):
-        mock_get_object.return_value = self.instance
-        request = self.factory.delete("/fake/")
-        request.user = _make_request_user()
-        response = self._call(self._view({"delete": "destroy"}), request)
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-
-    @patch.object(TemplateMetadataViewSet, "get_object")
-    def test_destroy_clears_override_fields(self, mock_get_object):
-        mock_get_object.return_value = self.instance
-        request = self.factory.delete("/fake/")
-        request.user = _make_request_user()
-        self._call(self._view({"delete": "destroy"}), request)
-        assert self.instance.time_taken_manually_execute_minutes is None
-        assert self.instance.time_taken_create_automation_minutes is None
-
-    @patch.object(TemplateMetadataViewSet, "get_object")
-    def test_destroy_saves_with_correct_update_fields(self, mock_get_object):
-        mock_get_object.return_value = self.instance
-        request = self.factory.delete("/fake/")
-        request.user = _make_request_user()
-        self._call(self._view({"delete": "destroy"}), request)
-        self.instance.save.assert_called_once_with(
-            update_fields=[
-                "time_taken_manually_execute_minutes",
-                "time_taken_create_automation_minutes",
-            ]
-        )
-
-    @patch.object(TemplateMetadataViewSet, "get_object")
-    def test_destroy_does_not_delete_the_record(self, mock_get_object):
-        mock_get_object.return_value = self.instance
-        request = self.factory.delete("/fake/")
-        request.user = _make_request_user()
-        self._call(self._view({"delete": "destroy"}), request)
-        self.instance.delete.assert_not_called()
 
     # ---- permission gate ----
 
@@ -317,7 +272,6 @@ class TestTemplateMetadataViewSetActions(TestCase):
         for method, factory_fn, map_ in [
             ("GET", self.factory.get, {"get": "retrieve"}),
             ("PUT", lambda u, **k: self.factory.put(u, data={}, format="json", **k), {"put": "update"}),
-            ("DELETE", self.factory.delete, {"delete": "destroy"}),
         ]:
             with self.subTest(method=method):
                 request = factory_fn("/fake/")
@@ -334,29 +288,21 @@ class TestTemplateMetadataViewSetActions(TestCase):
 @pytest.mark.unit
 class TestTemplateMetadataUrls(TestCase):
     def test_url_resolves_to_metadata_viewset(self):
-        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        match = resolve("/api/v1/dashboard_reports/template_metadata/1/")
         assert match.func.cls is TemplateMetadataViewSet
 
-    def test_url_captures_pk(self):
-        match = resolve("/api/v1/dashboard_reports/templates/99/metadata/")
-        assert match.kwargs["pk"] == 99
-
-    def test_named_url_reverse(self):
-        url = reverse("dashboard_reports:template-metadata", kwargs={"pk": 1})
-        assert url == "/api/v1/dashboard_reports/templates/1/metadata/"
-
     def test_get_mapped_to_retrieve(self):
-        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        match = resolve("/api/v1/dashboard_reports/template_metadata/1/")
         assert match.func.actions.get("get") == "retrieve"
 
     def test_put_mapped_to_update(self):
-        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        match = resolve("/api/v1/dashboard_reports/template_metadata/1/")
         assert match.func.actions.get("put") == "update"
 
-    def test_delete_mapped_to_destroy(self):
-        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
-        assert match.func.actions.get("delete") == "destroy"
+    def test_delete_not_mapped(self):
+        match = resolve("/api/v1/dashboard_reports/template_metadata/1/")
+        assert "delete" not in match.func.actions
 
     def test_post_not_mapped(self):
-        match = resolve("/api/v1/dashboard_reports/templates/1/metadata/")
+        match = resolve("/api/v1/dashboard_reports/template_metadata/1/")
         assert "post" not in match.func.actions

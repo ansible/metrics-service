@@ -7,7 +7,6 @@ and reverts to system defaults correctly. No mocking of ORM calls.
 
 import pytest
 from django.test import TestCase
-from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -31,7 +30,7 @@ def _create_metadata(
 
 
 def _url(pk: int) -> str:
-    return reverse("dashboard_reports:template-metadata", kwargs={"pk": pk})
+    return f"/api/v1/dashboard_reports/template_metadata/{pk}/"
 
 
 @pytest.mark.integration
@@ -41,13 +40,15 @@ class TestTemplateMetadataPutPatchDb(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username="admin", email="admin@example.com", password=get_test_password())
+        self.user = User.objects.create_user(
+            username="admin", email="admin@example.com", password=get_test_password(), is_superuser=True
+        )
         self.client.force_authenticate(user=self.user)
         self.instance = _create_metadata()
 
     def test_put_updates_time_fields_in_db(self):
         response = self.client.put(
-            _url(self.instance.template_id),
+            _url(self.instance.pk),
             data={
                 "time_taken_manually_execute_minutes": 99,
                 "time_taken_create_automation_minutes": 199,
@@ -63,7 +64,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
 
     def test_put_response_reflects_updated_values(self):
         response = self.client.put(
-            _url(self.instance.template_id),
+            _url(self.instance.pk),
             data={
                 "time_taken_manually_execute_minutes": 55,
                 "time_taken_create_automation_minutes": 110,
@@ -77,7 +78,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
 
     def test_put_with_null_sets_fields_to_null_in_db(self):
         response = self.client.put(
-            _url(self.instance.template_id),
+            _url(self.instance.pk),
             data={
                 "time_taken_manually_execute_minutes": None,
                 "time_taken_create_automation_minutes": None,
@@ -92,10 +93,10 @@ class TestTemplateMetadataPutPatchDb(TestCase):
         assert self.instance.time_taken_create_automation_minutes is None
 
     def test_put_does_not_change_template_id(self):
-        original_template_id = self.instance.template_id
+        original_template_id = self.instance.pk
 
         self.client.put(
-            _url(self.instance.template_id),
+            _url(self.instance.pk),
             data={
                 "template_id": 999,
                 "time_taken_manually_execute_minutes": 10,
@@ -105,7 +106,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
         )
 
         self.instance.refresh_from_db()
-        assert self.instance.template_id == original_template_id
+        assert self.instance.pk == original_template_id
 
     def test_put_returns_404_for_nonexistent_pk(self):
         response = self.client.put(
@@ -121,7 +122,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
 
     def test_patch_updates_only_provided_field(self):
         response = self.client.patch(
-            _url(self.instance.template_id),
+            _url(self.instance.pk),
             data={
                 "time_taken_manually_execute_minutes": 77,
             },
@@ -133,57 +134,3 @@ class TestTemplateMetadataPutPatchDb(TestCase):
         self.instance.refresh_from_db()
         assert self.instance.time_taken_manually_execute_minutes == 77
         assert self.instance.time_taken_create_automation_minutes == 60  # unchanged
-
-
-@pytest.mark.integration
-@pytest.mark.django_db
-class TestTemplateMetadataDeleteDb(TestCase):
-    """Verify DELETE reverts overrides to NULL (system defaults) without deleting the record."""
-
-    def setUp(self):
-        self.client = APIClient()
-        self.user = User.objects.create_user(username="testuser", password="pass")
-        self.client.force_authenticate(user=self.user)
-        self.instance = _create_metadata(
-            time_taken_manually_execute_minutes=30,
-            time_taken_create_automation_minutes=60,
-        )
-
-    def test_delete_sets_time_fields_to_null_in_db(self):
-        response = self.client.delete(_url(self.instance.template_id))
-
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-
-        self.instance.refresh_from_db()
-        assert self.instance.time_taken_manually_execute_minutes is None
-        assert self.instance.time_taken_create_automation_minutes is None
-
-    def test_delete_does_not_remove_the_record(self):
-        pk = self.instance.pk
-        self.client.delete(_url(pk))
-
-        assert TemplateMetadata.objects.filter(pk=pk).exists()
-
-    def test_delete_preserves_template_id_and_name(self):
-        original_template_id = self.instance.template_id
-        original_template_name = self.instance.template_name
-
-        self.client.delete(_url(self.instance.template_id))
-
-        self.instance.refresh_from_db()
-        assert self.instance.template_id == original_template_id
-        assert self.instance.template_name == original_template_name
-
-    def test_get_after_delete_reflects_null_overrides(self):
-        self.client.delete(_url(self.instance.template_id))
-
-        response = self.client.get(_url(self.instance.template_id))
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["time_taken_manually_execute_minutes"] is None
-        assert response.data["time_taken_create_automation_minutes"] is None
-
-    def test_delete_returns_404_for_nonexistent_pk(self):
-        response = self.client.delete(_url(99999))
-
-        assert response.status_code == status.HTTP_404_NOT_FOUND

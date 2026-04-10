@@ -407,9 +407,7 @@ class TestDashboardReportViewSet:
     @patch("apps.dashboard_reports.viewsets.dashboard_report.JobHostSummary.objects")
     @patch.object(DashboardReportViewSet, "get_chart_data")
     @patch.object(DashboardReportViewSet, "get_serializer")
-    def test_details(
-        self, mock_serializer, mock_chart, mock_host_objects, mock_jobdata, viewset, factory
-    ):
+    def test_details(self, mock_serializer, mock_chart, mock_host_objects, mock_jobdata, viewset, factory):
         class TestViewSet(DashboardReportViewSet):
             def details(self, request, *args, **kwargs):
                 return super().details.__wrapped__(self, request, *args, **kwargs)

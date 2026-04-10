@@ -96,7 +96,7 @@ class TestReportSerializer:
         # Mock JobData-like dict for serializer
         return {
             "template_name": "Test Template",
-            "template_id": 123,
+            "template_metadata_id": 123,
             "time_taken_manually_execute_minutes": 30,
             "time_taken_create_automation_minutes": 60,
             "runs": 10,

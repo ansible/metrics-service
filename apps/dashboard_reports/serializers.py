@@ -42,7 +42,10 @@ class PaginatedFilterOptionsSerializer(serializers.Serializer):
 
 
 class ReportSerializer(serializers.ModelSerializer[JobData]):
-    id = serializers.IntegerField(source="template_id", read_only=True)
+    # NOTE: id must be sourced from template_metadata_id (which cannot be null), because we
+    # link the logic of changing times for manually execute and time taken to create
+    # automation, and if template_id can be null then the GUI also gives an error.
+    id = serializers.IntegerField(source="template_metadata_id", read_only=True)
     time_taken_manually_execute_minutes = serializers.IntegerField(
         read_only=True, help_text="Estimated time to perform this task manually (minutes)"
     )
