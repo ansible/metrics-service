@@ -1,10 +1,9 @@
 import calendar
 import decimal
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Self
 
-import pytz
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models, transaction
@@ -116,8 +115,6 @@ class SubscriptionCost(CommonModel):
         Returns the single SubscriptionCost instance, or creates a default one if it doesn't exist.
         """
 
-        # TODO - In the future,
-        #  we may want to pull these default values from settings
         instance, created = cls.objects.get_or_create(
             pk=1,
             defaults={
@@ -143,7 +140,7 @@ class SubscriptionCost(CommonModel):
         Calculate and return the daily subscription cost based on the monthly subscription cost.
         Assumes 30 days in a month for calculation.
         """
-        now = datetime.now(pytz.utc)
+        now = datetime.now(UTC)
         default_days_in_month = calendar.monthrange(now.year, now.month)[1]
         monthly_cost = decimal.Decimal(str(self.monthly_subscription_cost))
         default_daily_cost = monthly_cost / decimal.Decimal(default_days_in_month)
@@ -306,35 +303,39 @@ class TemplateMetadata(CommonModel):
                     template_id=awx_id if awx_id is not None else cls.get_min_awx_id(),
                 )
                 logger.info(f"Created new TemplateMetadata '{instance}' from AWX data.")
+            except cls.MultipleObjectsReturned:
+                # template_name is not unique; pick the best candidate — prefer records with a
+                # real (positive) AWX ID so that subsequent ID-based lookups will match.
+                logger.warning(
+                    f"Multiple TemplateMetadata records found for name '{name}'; "
+                    "selecting the one with the highest template_id."
+                )
+                instance = cls.objects.filter(template_name=name).order_by("-template_id").first()
 
-        update_fields = []
-
-        if elapsed is not None and instance.time_taken_manually_execute_minutes is None:
-            # If we have elapsed time from AWX and no manual override, set a default estimate based on elapsed time
-            # Default: 2x the elapsed time, with a minimum of 30 minutes
-            estimated_manual_time = max(
-                int(decimal.Decimal(elapsed / 60 * 2).quantize(decimal.Decimal(1), rounding=decimal.ROUND_UP)), 30
-            )
-            estimated_manual_time = min(
-                estimated_manual_time, 1000000
-            )  # Cap at a reasonable maximum to avoid overflow issues
-            instance.time_taken_manually_execute_minutes = estimated_manual_time
-            update_fields.append("time_taken_manually_execute_minutes")
-            logger.debug(
-                f"Set default manual execution time for TemplateMetadata '{instance}' to {estimated_manual_time} minutes based on elapsed time."
-            )
-
-        if instance.time_taken_create_automation_minutes is None:
-            instance.time_taken_create_automation_minutes = DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES
-            update_fields.append("time_taken_create_automation_minutes")
-            logger.debug(
-                f"Set default automation creation time for TemplateMetadata '{instance}' to {DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES} minutes."
-            )
-
+        update_fields = cls._apply_time_estimate_defaults(instance, elapsed)
         if update_fields:
             instance.save(update_fields=update_fields)
 
         return instance
+
+    @classmethod
+    def _apply_time_estimate_defaults(cls, instance: "TemplateMetadata", elapsed: decimal.Decimal | None) -> list[str]:
+        """
+        Set default time estimates on instance if they are not already present.
+        Returns the list of field names that were changed (for use with save(update_fields=...)).
+        """
+        update_fields = []
+        if elapsed is not None and instance.time_taken_manually_execute_minutes is None:
+            # Default: 2× the elapsed time, capped between 30 and 1,000,000 minutes.
+            estimated = max(
+                int(decimal.Decimal(elapsed / 60 * 2).quantize(decimal.Decimal(1), rounding=decimal.ROUND_UP)), 30
+            )
+            instance.time_taken_manually_execute_minutes = min(estimated, 1_000_000)
+            update_fields.append("time_taken_manually_execute_minutes")
+        if instance.time_taken_create_automation_minutes is None:
+            instance.time_taken_create_automation_minutes = DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES
+            update_fields.append("time_taken_create_automation_minutes")
+        return update_fields
 
 
 class JobStatusChoices(models.TextChoices):
@@ -505,7 +506,7 @@ class JobData(CommonModel):
     def create_or_update_from_awx(cls, awx_job: AWXJobType):
         """
         Creates or updates a JobData instance from AWX job, label, and host summary data.
-        Updates related JobLabel and JobHostSummary records.
+        Updates related JobLabel and JobHostSummary records atomically.
         """
         template_metadata = TemplateMetadata.get_by_awx_id_or_name(
             name=awx_job["name"], awx_id=awx_job["unified_job_template_id"], elapsed=awx_job["elapsed"]
@@ -513,7 +514,7 @@ class JobData(CommonModel):
         labels = awx_job.get("labels", [])
         host_summaries = awx_job.get("host_summaries", [])
 
-        model, created = cls.objects.update_or_create(
+        job_data, created = cls.objects.update_or_create(
             job_id=awx_job["id"],
             defaults={
                 "template_name": awx_job["name"],
@@ -533,70 +534,53 @@ class JobData(CommonModel):
                 "num_hosts": awx_job["num_hosts"],
             },
         )
+        logger.info(f"{'Created' if created else 'Updated'} JobData {job_data}")
 
-        if created:
-            logger.info(f"Created new JobData {model.__str__()}")
-            labels_dict = {}
-            host_summaries_dict = {}
-        else:
-            labels_dict = {label_obj.label_id: label_obj for label_obj in JobLabel.objects.filter(job_data=model).all()}
-            host_summaries_dict = {
-                host_summary_obj.host_summary_id: host_summary_obj
-                for host_summary_obj in JobHostSummary.objects.filter(job_data=model).all()
-            }
-            logger.info(f"Updated JobData {model.__str__()}")
+        existing_labels = {} if created else {o.label_id: o for o in JobLabel.objects.filter(job_data=job_data)}
+        existing_summaries = (
+            {} if created else {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}
+        )
+        cls._sync_labels(job_data, labels, existing_labels)
+        cls._sync_host_summaries(job_data, host_summaries, existing_summaries)
 
-        # Update JobLabel records for this job:
-        # - Labels from AWX not in existing records are created
-        # - Labels from AWX matching existing records are kept
-        # - Existing records no longer in AWX labels are deleted
-        if labels:
-            labels_for_create = []
-            for label_id in labels:
-                label_obj = labels_dict.pop(label_id, None)
-                if label_obj is None:
-                    labels_for_create.append(JobLabel(job_data=model, label_id=label_id))
-            if labels_for_create:
-                JobLabel.objects.bulk_create(labels_for_create)
-                logger.info(f"Created {len(labels_for_create)} new JobLabel records for JobData {model.__str__()}")
-        if labels_dict:
-            stale_label_pks = [o.pk for o in labels_dict.values()]
-            deleted_count, _ = JobLabel.objects.filter(pk__in=stale_label_pks).delete()
-            logger.info(f"Deleted {deleted_count} stale JobLabel records for JobData {model.__str__()}")
+    @classmethod
+    def _sync_labels(cls, job_data: "JobData", awx_label_ids: list, existing: dict) -> None:
+        """Sync JobLabel records: create new, delete stale."""
+        to_create = [
+            JobLabel(job_data=job_data, label_id=lid) for lid in awx_label_ids if existing.pop(lid, None) is None
+        ]
+        if to_create:
+            JobLabel.objects.bulk_create(to_create)
+            logger.info(f"Created {len(to_create)} new JobLabel records for JobData {job_data}")
+        if existing:
+            JobLabel.objects.filter(pk__in=[o.pk for o in existing.values()]).delete()
+            logger.info(f"Deleted {len(existing)} stale JobLabel records for JobData {job_data}")
 
-        # Update JobHostSummary records for this job:
-        # - Host summaries from AWX not in existing records are created
-        # - Host summaries from AWX matching existing records are updated
-        # - Existing records no longer in AWX host summaries are deleted
-        if host_summaries:
-            host_summaries_for_create = []
-            for awx_host_summary in host_summaries:
-                host_summary_model = host_summaries_dict.pop(awx_host_summary["id"], None)
-                if host_summary_model is not None:
-                    host_summary_model.host_id = awx_host_summary["host_id"]
-                    host_summary_model.host_name = awx_host_summary["host_name"]
-                    host_summary_model.save()
-                    logger.info(
-                        f"Updated JobHostSummary for host '{host_summary_model.host_name}' (ID: {host_summary_model.host_id}) in JobData {model.__str__()}"
+    @classmethod
+    def _sync_host_summaries(cls, job_data: "JobData", awx_host_summaries: list, existing: dict) -> None:
+        """Sync JobHostSummary records: update existing, create new, delete stale."""
+        to_create = []
+        for awx_hs in awx_host_summaries:
+            existing_hs = existing.pop(awx_hs["id"], None)
+            if existing_hs is not None:
+                existing_hs.host_id = awx_hs["host_id"]
+                existing_hs.host_name = awx_hs["host_name"]
+                existing_hs.save()
+            else:
+                to_create.append(
+                    JobHostSummary(
+                        job_data=job_data,
+                        host_id=awx_hs["host_id"],
+                        host_name=awx_hs["host_name"],
+                        host_summary_id=awx_hs["id"],
                     )
-                else:
-                    host_summaries_for_create.append(
-                        JobHostSummary(
-                            job_data=model,
-                            host_id=awx_host_summary["host_id"],
-                            host_name=awx_host_summary["host_name"],
-                            host_summary_id=awx_host_summary["id"],
-                        )
-                    )
-            if host_summaries_for_create:
-                JobHostSummary.objects.bulk_create(host_summaries_for_create)
-                logger.info(
-                    f"Created {len(host_summaries_for_create)} new JobHostSummary records for JobData {model.__str__()}"
                 )
-        if host_summaries_dict:
-            stale_summary_pks = [o.pk for o in host_summaries_dict.values()]
-            deleted_count, _ = JobHostSummary.objects.filter(pk__in=stale_summary_pks).delete()
-            logger.info(f"Deleted {deleted_count} stale JobHostSummary records for JobData {model.__str__()}")
+        if to_create:
+            JobHostSummary.objects.bulk_create(to_create)
+            logger.info(f"Created {len(to_create)} new JobHostSummary records for JobData {job_data}")
+        if existing:
+            JobHostSummary.objects.filter(pk__in=[o.pk for o in existing.values()]).delete()
+            logger.info(f"Deleted {len(existing)} stale JobHostSummary records for JobData {job_data}")
 
 
 class JobLabel(CommonModel):

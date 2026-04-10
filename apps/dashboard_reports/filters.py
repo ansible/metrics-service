@@ -2,8 +2,8 @@ import datetime
 import logging
 from collections.abc import Sequence
 from enum import Enum
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import pytz
 from django.db import models
 from django.db.models import QuerySet
 from rest_framework import filters
@@ -50,10 +50,10 @@ class DateFilter(Enum):
         # return start_date, end_date
 
         try:
-            tz = pytz.timezone(tz_string)
-        except pytz.UnknownTimeZoneError:
+            tz = ZoneInfo(tz_string)
+        except (ZoneInfoNotFoundError, KeyError):
             logger.warning("Unknown timezone provided, falling back to UTC")
-            tz = pytz.timezone("UTC")
+            tz = ZoneInfo("UTC")
 
         end_date = datetime.datetime.now(tz)  # current date
         start_date = end_date - datetime.timedelta(num_of_last_days)  # current date - last_n_days

@@ -11,7 +11,7 @@ def _build_where_clause(join_alias: str, search_str: str | None, pk: Any) -> tup
     if search_str:
         where_clauses.append(f"{join_alias}name ilike %s")
         params.append("%" + search_str + "%")
-    if pk:
+    if pk is not None:
         where_clauses.append(f"{join_alias}id = %s")
         params.append(pk)
     clause = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""

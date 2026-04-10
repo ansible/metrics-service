@@ -45,8 +45,9 @@ class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericAdminView
         """
         Updates the cost of a subscription.
         """
+        partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 

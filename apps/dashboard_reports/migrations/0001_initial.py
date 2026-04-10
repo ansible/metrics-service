@@ -15,24 +15,24 @@ _CREATED_BY_HELP = "The user who created this resource."
 _MODIFIED_BY_HELP = "The user who last modified this resource."
 
 # Reusable FK kwargs for the audit trail fields added by CommonModel
-_CREATED_BY_FK = dict(
-    default=None,
-    editable=False,
-    help_text=_CREATED_BY_HELP,
-    null=True,
-    on_delete=django.db.models.deletion.SET_NULL,
-    related_name="%(app_label)s_%(class)s_created+",
-    to=settings.AUTH_USER_MODEL,
-)
-_MODIFIED_BY_FK = dict(
-    default=None,
-    editable=False,
-    help_text=_MODIFIED_BY_HELP,
-    null=True,
-    on_delete=django.db.models.deletion.SET_NULL,
-    related_name="%(app_label)s_%(class)s_modified+",
-    to=settings.AUTH_USER_MODEL,
-)
+_CREATED_BY_FK = {
+    "default": None,
+    "editable": False,
+    "help_text": _CREATED_BY_HELP,
+    "null": True,
+    "on_delete": django.db.models.deletion.SET_NULL,
+    "related_name": "%(app_label)s_%(class)s_created+",
+    "to": settings.AUTH_USER_MODEL,
+}
+_MODIFIED_BY_FK = {
+    "default": None,
+    "editable": False,
+    "help_text": _MODIFIED_BY_HELP,
+    "null": True,
+    "on_delete": django.db.models.deletion.SET_NULL,
+    "related_name": "%(app_label)s_%(class)s_modified+",
+    "to": settings.AUTH_USER_MODEL,
+}
 
 
 class Migration(migrations.Migration):

@@ -17,7 +17,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, get_filter_options
+from apps.dashboard_reports.filters import CustomReportFilter, DateFilter
 from apps.dashboard_reports.models import JobData, JobHostSummary, JobStatusChoices, SubscriptionCost
 from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
@@ -244,15 +244,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
         subscription_cost = SubscriptionCost.get()
         average_cost_employee_minute = subscription_cost.cost_employee_per_minute
-        period = self.kwargs.get("period", None)
-        tz = self.kwargs.get("tz", "UTC")
-
-        if not period:
-            start_date, end_date = None, None
-        else:
-            start_date, end_date = DateFilter.to_start_date_end_date(
-                value=DateFilter[period.upper()].value, tz_string=tz
-            )
+        start_date = self.kwargs.get("start_date")
+        end_date = self.kwargs.get("end_date")
 
         aap_subscription_per_second = subscription_cost.per_second_subscription_cost(start_date, end_date)
         enable_template_creation_time = subscription_cost.include_template_creation_time_in_costs
@@ -271,22 +264,29 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         manual_costs = F("num_hosts") * F("time_taken_manually_execute_minutes") * average_cost_employee_minute
         manual_time = F("num_hosts") * (F("time_taken_manually_execute_minutes") * 60)
 
-        qs = JobData.objects.values(
-            "template_name",
-            "template_id",
-            time_taken_manually_execute_minutes=F("template_metadata__time_taken_manually_execute_minutes"),
-            time_taken_create_automation_minutes=F("template_metadata__time_taken_create_automation_minutes"),
-        ).annotate(
-            runs=Count("id"),
-            successful_runs=Count("id", filter=Q(status=JobStatusChoices.SUCCESSFUL)),
-            failed_runs=Count("id", filter=Q(status=JobStatusChoices.FAILED)),
-            elapsed=Sum("elapsed"),
-            num_hosts=Sum("num_hosts"),
-            automated_costs=automated_costs,
-            manual_costs=manual_costs,
-            manual_time=manual_time,
-            time_savings=time_savings,
-            savings=(F("manual_costs") - F("automated_costs")),
+        qs = (
+            JobData.objects.values(
+                "template_name",
+                "template_id",
+                time_taken_manually_execute_minutes=F("template_metadata__time_taken_manually_execute_minutes"),
+                time_taken_create_automation_minutes=F("template_metadata__time_taken_create_automation_minutes"),
+            )
+            .annotate(
+                runs=Count("id"),
+                successful_runs=Count("id", filter=Q(status=JobStatusChoices.SUCCESSFUL)),
+                failed_runs=Count("id", filter=Q(status=JobStatusChoices.FAILED)),
+                elapsed=Sum("elapsed"),
+                num_hosts=Sum("num_hosts"),
+            )
+            .annotate(
+                automated_costs=automated_costs,
+                manual_costs=manual_costs,
+                manual_time=manual_time,
+            )
+            .annotate(
+                time_savings=time_savings,
+                savings=(F("manual_costs") - F("automated_costs")),
+            )
         )
         return qs
 
@@ -298,12 +298,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def _get_date_range_and_kind(self) -> tuple[datetime | None, datetime | None, str | None]:
-        period = self.kwargs.get("period", None)
-        tz = self.kwargs.get("tz", "UTC")
-        if not period:
-            return None, None, None
-
-        start_date, end_date = DateFilter.to_start_date_end_date(value=DateFilter[period.upper()].value, tz_string=tz)
+        start_date = self.kwargs.get("start_date")
+        end_date = self.kwargs.get("end_date")
         if start_date is None or end_date is None:
             return None, None, None
 
@@ -440,14 +436,10 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             total_time_savings=Coalesce(Sum("time_savings"), Value(decimal.Decimal("0"))),
         )
 
-        options = get_filter_options(request=request)
-
-        period = self.kwargs.get("period")
-        tz = self.kwargs.get("tz", "UTC")
-        start_date, end_date = DateFilter.to_start_date_end_date(value=DateFilter[period.upper()].value, tz_string=tz)
-
         ### Unique hosts count ###
-        unique_hosts_count = JobHostSummary.unique_count(start_date, end_date, options)
+        unique_hosts_count = (
+            JobHostSummary.objects.filter(job_data__in=filtered_qs).values("host_name").distinct().count()
+        )
 
         ### CHART DATA ###
         chart_data = self.get_chart_data()

@@ -1,8 +1,7 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import pytz
 from metrics_utility.library.collectors.dashboard import DashboardJobsResultType, dashboard_jobs
 
 from apps.dashboard_reports.models import JobData
@@ -50,7 +49,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
 
     if until is None:
         # Default to now if not provided
-        until = datetime.now(tz=pytz.UTC)
+        until = datetime.now(tz=UTC)
     if since is None:
         # For incremental collection, we want to start from the last timestamp in the JobData table
         since = JobData.last_timestamp()
@@ -58,7 +57,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
             # Default to 90 days ago if no previous timestamp is found
             since = until - timedelta(days=90)
             since = since.replace(hour=0, minute=0, second=0, microsecond=0)
-            since = since.astimezone(tz=pytz.UTC)
+            since = since.astimezone(tz=UTC)
 
     if since >= until:
         msg = f"Invalid date range: since ({since.isoformat()}) must be before until ({until.isoformat()})"
@@ -188,7 +187,7 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
 @task(queue="metrics_collectors", decorate=False)
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     retention_period_days = kwargs.get("retention_period_days", 90)
-    cutoff_date = datetime.now(tz=pytz.UTC) - timedelta(days=retention_period_days)
+    cutoff_date = datetime.now(tz=UTC) - timedelta(days=retention_period_days)
     cutoff_date = cutoff_date.replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff_date_str = cutoff_date.isoformat()
 
