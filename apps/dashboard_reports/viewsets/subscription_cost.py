@@ -1,3 +1,5 @@
+"""ViewSet for viewing and updating the AAP subscription cost configuration."""
+
 import logging
 from typing import Any
 
@@ -36,9 +38,11 @@ class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericAdminView
     retrieve_error_msg = "Failed to fetch subscription cost details"
 
     def not_found_msg(self, pk: int) -> str:
+        """Return a formatted not-found error message for a missing subscription cost entry."""
         return f"Subscription cost with id {pk} not found"
 
     def get_queryset(self) -> QuerySet[SubscriptionCost]:
+        """Return all SubscriptionCost records."""
         return SubscriptionCost.objects.all()
 
     def update(self, request: Request, *args: Any, **kwargs: Any) -> Response:

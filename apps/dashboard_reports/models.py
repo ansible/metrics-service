@@ -1,3 +1,11 @@
+"""
+Models for the dashboard reports module.
+
+Includes SubscriptionCost for cost calculations, FilterSet for saved user filter
+configurations, TemplateMetadata for AWX job template time estimates, and JobData
+with related JobLabel and JobHostSummary for storing AWX job execution records.
+"""
+
 import calendar
 import decimal
 import logging
@@ -19,10 +27,14 @@ except ImportError:
     DAB_AVAILABLE = False
 
     class CommonModel(models.Model):
+        """Minimal fallback base model providing created/modified timestamps when DAB is unavailable."""
+
         created = models.DateTimeField(auto_now_add=True)
         modified = models.DateTimeField(auto_now=True)
 
         class Meta:
+            """Mark CommonModel as abstract so it is not created as a DB table."""
+
             abstract = True
 
 
@@ -56,6 +68,8 @@ def _get_month_overlap_days(current_year, current_month, start_date, end_date):
 
 
 class SubscriptionCostObjectManager(models.Manager):
+    """Custom manager that enforces the singleton constraint on SubscriptionCost."""
+
     @transaction.atomic
     def create(self, **kwargs):
         """
@@ -94,6 +108,8 @@ class SubscriptionCost(CommonModel):
     )
 
     class Meta:
+        """Database and display configuration for SubscriptionCost."""
+
         db_table = "dashboard_subscription_cost"
         verbose_name = "Subscription Cost"
         verbose_name_plural = "Subscription Costs"
@@ -107,6 +123,7 @@ class SubscriptionCost(CommonModel):
     objects = SubscriptionCostObjectManager()
 
     def __str__(self) -> str:
+        """Return a string representation showing monthly cost and engineer hourly rate."""
         return f"SubscriptionCost: Monthly={self.monthly_subscription_cost}, Engineer Hourly Rate={self.engineer_avg_hourly_rate}"
 
     @classmethod
@@ -213,6 +230,8 @@ class FilterSet(CommonModel):
     )
 
     class Meta:
+        """Database and display configuration for FilterSet."""
+
         db_table = "dashboard_filter_set"
         verbose_name = "Filter Set"
         verbose_name_plural = "Filter Sets"
@@ -231,6 +250,7 @@ class FilterSet(CommonModel):
         ]
 
     def __str__(self) -> str:
+        """Return the filter set name."""
         return self.name
 
 
@@ -257,6 +277,8 @@ class TemplateMetadata(CommonModel):
     )
 
     class Meta:
+        """Database and display configuration for TemplateMetadata."""
+
         db_table = "dashboard_template_metadata"
         ordering = ["template_name"]
         verbose_name = "Template Metadata"
@@ -339,6 +361,8 @@ class TemplateMetadata(CommonModel):
 
 
 class JobStatusChoices(models.TextChoices):
+    """Text choices for AWX job execution status values."""
+
     NEW = "new", "New"
     PENDING = "pending", "Pending"
     WAITING = "waiting", "Waiting"
@@ -350,32 +374,45 @@ class JobStatusChoices(models.TextChoices):
 
 
 class JobDataFilterMethods:
+    """
+    Mixin providing chainable filter methods for JobData querysets.
+
+    Shared between JobDataQuerySet and JobDataManager so that custom filtering
+    (date ranges, org/template/project/label) is available on both.
+    """
+
     def before_date(self, dt: datetime | None) -> Self:
+        """Filter jobs finished on or before dt (no-op if dt is None)."""
         if dt is not None:
             return self.filter(finished__lte=dt)
         return self
 
     def after_date(self, dt: datetime | None) -> Self:
+        """Filter jobs finished on or after dt (no-op if dt is None)."""
         if dt is not None:
             return self.filter(finished__gte=dt)
         return self
 
     def organizations(self, ids: list[int] | None) -> Self:
+        """Filter jobs belonging to the given organization IDs (no-op if ids is empty)."""
         if ids:
             return self.filter(organization_id__in=ids)
         return self
 
     def templates(self, ids: list[int] | None) -> Self:
+        """Filter jobs for the given template IDs (no-op if ids is empty)."""
         if ids:
             return self.filter(template_id__in=ids)
         return self
 
     def projects(self, ids: list[int] | None) -> Self:
+        """Filter jobs for the given project IDs (no-op if ids is empty)."""
         if ids:
             return self.filter(project_id__in=ids)
         return self
 
     def labels(self, ids: list[int] | None) -> Self:
+        """Filter jobs that have any of the given label IDs (no-op if ids is empty)."""
         if ids:
             labels_qs = JobLabel.objects.filter(label_id__in=ids).values_list("job_data_id", flat=True)
             return self.filter(id__in=labels_qs)
@@ -383,11 +420,14 @@ class JobDataFilterMethods:
 
 
 class JobDataQuerySet(JobDataFilterMethods, models.QuerySet):
-    pass
+    """QuerySet for JobData with custom chainable filter methods."""
 
 
 class JobDataManager(JobDataFilterMethods, models.Manager):
+    """Manager for JobData that returns a JobDataQuerySet with custom filter methods."""
+
     def get_queryset(self) -> JobDataQuerySet:
+        """Return the custom JobDataQuerySet."""
         return JobDataQuerySet(self.model, using=self._db)
 
 
@@ -478,6 +518,8 @@ class JobData(CommonModel):
     awx_modified = models.DateTimeField(help_text="Modification timestamp from AWX", null=True, blank=True)
 
     class Meta:
+        """Database and display configuration for JobData."""
+
         db_table = "dashboard_job_data"
         ordering = ["-started"]
         verbose_name = "Job Data"
@@ -491,6 +533,7 @@ class JobData(CommonModel):
     objects = JobDataManager()
 
     def __str__(self) -> str:
+        """Return a string representation showing job ID, template name, and status."""
         return f"Job {self.job_id} - Template: {self.template_name} - Status: {self.status}"
 
     @classmethod
@@ -598,6 +641,8 @@ class JobLabel(CommonModel):
     )
 
     class Meta:
+        """Database and display configuration for JobLabel."""
+
         db_table = "dashboard_job_data_label"
         verbose_name = "Job Data Label"
         verbose_name_plural = "Job Data Labels"
@@ -606,6 +651,7 @@ class JobLabel(CommonModel):
         ]
 
     def __str__(self) -> str:
+        """Return a string showing the parent job template name and label ID."""
         return f"{self.job_data.template_name}: {self.label_id}"
 
 
@@ -632,6 +678,8 @@ class JobHostSummary(CommonModel):
     host_name = models.CharField(max_length=512, db_index=True, help_text="Host name for display (from AWX)")
 
     class Meta:
+        """Database and display configuration for JobHostSummary."""
+
         db_table = "dashboard_job_data_host_summary"
         verbose_name = "Job Data Host Summary"
         verbose_name_plural = "Job Data Host Summaries"
@@ -640,6 +688,7 @@ class JobHostSummary(CommonModel):
         ]
 
     def __str__(self) -> str:
+        """Return a string showing the host name and parent job template name."""
         return f"{self.host_name}: {self.job_data.template_name}"
 
     @classmethod

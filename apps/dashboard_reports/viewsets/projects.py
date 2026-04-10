@@ -1,3 +1,5 @@
+"""ViewSet for listing AWX projects as filter dropdown options."""
+
 from apps.dashboard_reports.awx_queries import fetch_projects
 from apps.dashboard_reports.viewsets import FilterOptionsViewSet
 
@@ -23,4 +25,5 @@ class ProjectsViewSet(FilterOptionsViewSet):
     retrieve_error_msg = "Failed to fetch project"
 
     def not_found_msg(self, pk: int) -> str:
+        """Return a formatted not-found error message for a missing project."""
         return f"Project with id {pk} not found"

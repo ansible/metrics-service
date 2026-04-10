@@ -1,3 +1,5 @@
+"""URL configuration for dashboard reports API endpoints."""
+
 from ansible_base.lib.routers import AssociationResourceRouter
 from django.urls import include, path
 

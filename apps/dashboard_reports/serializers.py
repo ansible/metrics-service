@@ -1,3 +1,10 @@
+"""
+Serializers for the dashboard reports module.
+
+Provides serializers for filter options, report data, subscription cost, and
+template metadata used by the dashboard reporting API endpoints.
+"""
+
 import decimal
 from typing import Any
 
@@ -18,6 +25,8 @@ def sec2time(sec: decimal.Decimal | int | float) -> str:
 
 
 class FilterOptionWithIdSerializer(serializers.Serializer):
+    """Serializer for a single filter dropdown option with an integer ID and display name."""
+
     id = serializers.IntegerField(help_text="Option ID")
     name = serializers.CharField(help_text="Option display name")
 
@@ -42,6 +51,13 @@ class PaginatedFilterOptionsSerializer(serializers.Serializer):
 
 
 class ReportSerializer(serializers.ModelSerializer[JobData]):
+    """
+    Serializer for per-template aggregated report rows.
+
+    Each row represents a single job template with aggregated run counts, elapsed
+    time, cost estimates, and savings calculations across the selected date range.
+    """
+
     # NOTE: id must be sourced from template_metadata_id (which cannot be null), because we
     # link the logic of changing times for manually execute and time taken to create
     # automation, and if template_id can be null then the GUI also gives an error.
@@ -82,6 +98,8 @@ class ReportSerializer(serializers.ModelSerializer[JobData]):
     )
 
     class Meta:
+        """Serializer meta configuration for ReportSerializer."""
+
         model = JobData
         fields = (
             "template_name",
@@ -110,13 +128,17 @@ class ReportSerializer(serializers.ModelSerializer[JobData]):
         return sec2time(value)
 
     def get_elapsed_str(self, obj: dict[str, Any]) -> str:
+        """Return total elapsed time as a human-readable string."""
         return self._get_time_str(obj, "elapsed")
 
     def get_time_savings_str(self, obj: dict[str, Any]) -> str:
+        """Return estimated time savings as a human-readable string."""
         return self._get_time_str(obj, "time_savings")
 
 
 class TopUserSerializer(serializers.Serializer):
+    """Serializer for top user entries (user ID, username, and execution count)."""
+
     id = serializers.IntegerField(
         read_only=True, source="launched_by_id", help_text="ID of the user who executed the job"
     )
@@ -131,6 +153,8 @@ class TopUserSerializer(serializers.Serializer):
 
 
 class TopProjectSerializer(serializers.Serializer):
+    """Serializer for top project entries (project ID, name, and execution count)."""
+
     id = serializers.IntegerField(
         read_only=True, source="project_id", help_text="ID of the project associated with the job"
     )
@@ -145,11 +169,15 @@ class TopProjectSerializer(serializers.Serializer):
 
 
 class ChartDataItemSerializer(serializers.Serializer):
+    """Serializer for a single time-series data point (timestamp label and integer value)."""
+
     label = serializers.DateTimeField(read_only=True, help_text="Label for the data point (e.g. timestamp)")
     value = serializers.IntegerField(read_only=True, help_text="Value for the data point (e.g. number of job runs)")
 
 
 class ReportChartSerializer(serializers.Serializer):
+    """Serializer for a chart series including the time granularity kind and data items."""
+
     kind = serializers.CharField(
         read_only=True, help_text="Type of date range for the series (e.g. hour, day, month, year)"
     )
@@ -157,6 +185,13 @@ class ReportChartSerializer(serializers.Serializer):
 
 
 class ReportDetailSerializer(serializers.Serializer):
+    """
+    Serializer for the dashboard detail endpoint response.
+
+    Aggregates total run counts, cost figures, time savings, unique host count,
+    top users, top projects, and chart series data for the selected date range.
+    """
+
     total_number_of_job_runs = serializers.IntegerField(
         read_only=True, source="total_runs", help_text="Total number of job runs"
     )
@@ -198,22 +233,29 @@ class ReportDetailSerializer(serializers.Serializer):
         return round(value / divisor, 2) if value is not None else 0
 
     def get_total_hours_of_automation(self, obj: dict[str, Any]) -> float:
+        """Return total elapsed automation time converted from seconds to hours."""
         return self._get_rounded_value(obj, "total_elapsed", divisor=3600)
 
     def get_cost_of_automated_execution(self, obj: dict[str, Any]) -> float:
+        """Return total cost of running jobs on AAP (automated execution cost)."""
         return self._get_rounded_value(obj, "total_automated_costs")
 
     def get_cost_of_manual_automation(self, obj: dict[str, Any]) -> float:
+        """Return total estimated cost if all jobs were executed manually."""
         return self._get_rounded_value(obj, "total_manual_costs")
 
     def get_total_saving(self, obj: dict[str, Any]) -> float:
+        """Return total cost savings from automation (manual costs minus automated costs)."""
         return self._get_rounded_value(obj, "total_savings")
 
     def get_total_time_saving(self, obj: dict[str, Any]) -> float:
+        """Return total time savings from automation converted from seconds to hours."""
         return self._get_rounded_value(obj, "total_time_savings", divisor=3600)
 
 
 class SubscriptionCostSerializer(serializers.Serializer):
+    """Serializer for viewing and updating the SubscriptionCost singleton record."""
+
     id = serializers.IntegerField(read_only=True, help_text="ID of the subscription cost entry")
     monthly_subscription_cost = serializers.DecimalField(
         max_digits=15,
@@ -237,6 +279,7 @@ class SubscriptionCostSerializer(serializers.Serializer):
     )
 
     def update(self, instance: SubscriptionCost, validated_data: dict[str, Any]) -> SubscriptionCost:
+        """Update and save the SubscriptionCost instance with validated data."""
         instance.monthly_subscription_cost = validated_data.get(
             "monthly_subscription_cost", instance.monthly_subscription_cost
         )
@@ -252,6 +295,8 @@ class SubscriptionCostSerializer(serializers.Serializer):
 
 
 class TemplateMetadataSerializer(serializers.ModelSerializer):
+    """Serializer for TemplateMetadata, exposing user-overridable time estimate fields."""
+
     template_id = serializers.IntegerField(read_only=True, help_text="ID of the associated job template")
     time_taken_manually_execute_minutes = serializers.IntegerField(
         allow_null=True, min_value=0, help_text="User override: Estimated time to perform this task manually (minutes)"
@@ -261,6 +306,8 @@ class TemplateMetadataSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
+        """Serializer meta configuration for TemplateMetadataSerializer."""
+
         model = TemplateMetadata
         fields = [
             "template_id",

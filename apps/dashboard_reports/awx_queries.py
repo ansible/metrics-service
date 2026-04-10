@@ -1,3 +1,10 @@
+"""
+AWX database query helpers for dashboard reports filter dropdowns.
+
+Provides low-level SQL helpers and higher-level fetch functions for retrieving
+organizations, job templates, projects, and labels directly from the AWX database.
+"""
+
 import logging
 from typing import Any
 
@@ -28,6 +35,11 @@ def _execute_db_query(db_connection, query: str, params: list[Any]) -> tuple[lis
 
 
 def fetch_data_from_db(base_query: str, join_alias: str = "", **kwargs: Any) -> tuple[list[Any], Any]:
+    """
+    Execute a parameterized SQL query against the AWX database with optional search and pk filters.
+
+    Returns (columns, rows) from the query result.
+    """
     db_connection = kwargs.get("db_connection")
     search_str = kwargs.get("search_str")
     pk = kwargs.get("pk")
@@ -45,6 +57,11 @@ def format_id_name_rows(rows: list[Any]) -> list[dict[str, Any]]:
 
 
 def fetch_id_name(query: str, join_alias: str = "", error_msg: str = "", **kwargs) -> list[dict[str, Any]]:
+    """
+    Fetch id/name pairs from the AWX database and return them as a list of dicts.
+
+    Raises the underlying exception after logging error_msg on failure.
+    """
     try:
         _, rows = fetch_data_from_db(query, join_alias=join_alias, **kwargs)
     except Exception:

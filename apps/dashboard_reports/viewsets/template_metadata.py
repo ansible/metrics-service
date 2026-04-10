@@ -1,3 +1,5 @@
+"""ViewSet for retrieving and updating AWX job template metadata (time estimates)."""
+
 from django.db.models import QuerySet
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.permissions import IsAuthenticated
@@ -23,4 +25,5 @@ class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewS
     serializer_class = TemplateMetadataSerializer
 
     def get_queryset(self) -> QuerySet[TemplateMetadata]:
+        """Return all TemplateMetadata records."""
         return TemplateMetadata.objects.all()

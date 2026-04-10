@@ -1,3 +1,5 @@
+"""Base ViewSet for AWX filter dropdown endpoints used by the dashboard reports UI."""
+
 import logging
 from collections.abc import Callable
 from typing import Any

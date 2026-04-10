@@ -1,3 +1,5 @@
+"""ViewSet for listing AWX job templates as filter dropdown options."""
+
 from apps.dashboard_reports.awx_queries import fetch_templates
 from apps.dashboard_reports.viewsets import FilterOptionsViewSet
 
@@ -23,4 +25,5 @@ class JobTemplatesViewSet(FilterOptionsViewSet):
     retrieve_error_msg = "Failed to fetch job template"
 
     def not_found_msg(self, pk: int) -> str:
+        """Return a formatted not-found error message for a missing job template."""
         return f"Job template with id {pk} not found"

@@ -1,3 +1,5 @@
+"""ViewSet for the main dashboard report endpoint, providing job run metrics and cost analytics."""
+
 import decimal
 import logging
 from datetime import UTC, datetime
@@ -51,8 +53,11 @@ def parse_period_param(
 
 
 def require_date_range(view_func):
+    """Decorator that validates and injects start_date/end_date into view kwargs from the period query parameter."""
+
     @wraps(view_func)
     def wrapper(view, *args, **kwargs) -> Response:
+        """Validate date range and delegate to the wrapped view function."""
         # Use request.GET for query parameters (works for DRF and Django)
         period = view.request.GET.get("period", None)
         timezone_str = view.request.GET.get("tz", "UTC") or "UTC"
@@ -233,15 +238,18 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     ordering = ["template_name"]
 
     def get_serializer_class(self) -> type:
+        """Return ReportDetailSerializer for the details action, otherwise the default serializer."""
         if self.action == "details":
             return ReportDetailSerializer
         return super().get_serializer_class()
 
-    def get_queryset(self) -> QuerySet[JobData]:
+    def _build_aggregated_queryset(self, base_qs: QuerySet[JobData]) -> QuerySet:
         """
-        Builds annotated queryset for dashboard reporting, including cost and time calculations.
+        Applies grouping, cost, and time annotations to a pre-filtered JobData queryset.
+        Must be called after all CustomReportFilter filtering has been applied to base_qs,
+        because the custom filter methods (after_date, organizations, etc.) are only available
+        on JobDataQuerySet, not on the ValuesQuerySet this method returns.
         """
-
         subscription_cost = SubscriptionCost.get()
         average_cost_employee_minute = subscription_cost.cost_employee_per_minute
         start_date = self.kwargs.get("start_date")
@@ -264,8 +272,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         manual_costs = F("num_hosts") * F("time_taken_manually_execute_minutes") * average_cost_employee_minute
         manual_time = F("num_hosts") * (F("time_taken_manually_execute_minutes") * 60)
 
-        qs = (
-            JobData.objects.values(
+        return (
+            base_qs.values(
                 "template_name",
                 "template_metadata_id",
                 time_taken_manually_execute_minutes=F("template_metadata__time_taken_manually_execute_minutes"),
@@ -288,7 +296,29 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 savings=(F("manual_costs") - F("automated_costs")),
             )
         )
-        return qs
+
+    def get_queryset(self) -> QuerySet:
+        """
+        Returns the filtered, grouped, and annotated queryset for dashboard reporting.
+        CustomReportFilter is applied here on the raw JobDataQuerySet (before .values()),
+        so its custom manager methods (after_date, organizations, etc.) are available.
+        filter_queryset() then only applies OrderingFilter to the resulting ValuesQuerySet.
+        """
+        base_qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
+        return self._build_aggregated_queryset(base_qs)
+
+    def filter_queryset(self, queryset: QuerySet) -> QuerySet:
+        """
+        Applies only OrderingFilter to the aggregated queryset.
+        CustomReportFilter is intentionally excluded here because it has already been applied
+        to the raw JobDataQuerySet inside get_queryset(), before grouping and aggregation.
+        Calling it again on the ValuesQuerySet would cause an AttributeError since the custom
+        manager methods (after_date, organizations, etc.) are not available post-.values().
+        """
+        for backend in self.filter_backends:
+            if backend is filters.OrderingFilter:
+                queryset = backend().filter_queryset(self.request, queryset, self)
+        return queryset
 
     @require_date_range
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -298,6 +328,12 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def _get_date_range_and_kind(self) -> tuple[datetime | None, datetime | None, str | None]:
+        """
+        Determine the chart time granularity (hour/day/month/year) from the injected date range.
+
+        Normalizes start_date and end_date to UTC and snaps them to the appropriate boundary
+        (e.g. hour=0 for day-level, day=1 for month-level). Returns (start_date, end_date, kind).
+        """
         start_date = self.kwargs.get("start_date")
         end_date = self.kwargs.get("end_date")
         if start_date is None or end_date is None:
@@ -330,6 +366,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         return start_date, end_date, kind
 
     def _filter_raw_jobdata_queryset(self, queryset: QuerySet[JobData]) -> QuerySet[JobData]:
+        """Apply all filter backends except OrderingFilter to the raw JobDataQuerySet."""
         for backend in self.filter_backends:
             if backend is filters.OrderingFilter:
                 continue
@@ -421,8 +458,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         )
 
         ### AGGREGATED DATA ###
-        query_set = self.get_queryset()
-        qs = self.filter_queryset(query_set)
+        # Build the aggregated queryset from the already-filtered raw queryset so that
+        # CustomReportFilter's custom manager methods are not called on a ValuesQuerySet.
+        qs = self._build_aggregated_queryset(filtered_qs)
         report_data_qs = qs.aggregate(
             total_runs=Coalesce(Sum("runs"), Value(0)),
             total_successful_runs=Coalesce(Sum("successful_runs"), Value(0)),

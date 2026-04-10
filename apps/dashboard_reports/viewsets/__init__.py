@@ -1,3 +1,5 @@
+"""ViewSets for the dashboard reports API."""
+
 from .dashboard_report import DashboardReportViewSet
 from .filter_options import FilterOptionsViewSet
 from .job_templates import JobTemplatesViewSet

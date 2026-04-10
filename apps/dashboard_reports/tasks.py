@@ -1,3 +1,12 @@
+"""
+Background tasks for dashboard reports data collection and cleanup.
+
+Provides three dispatcherd tasks:
+- collect_dashboard_reports_initial_data: full 90-day historical backfill
+- collect_dashboard_reports_data: incremental sync from last known timestamp
+- cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
+"""
+
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -14,7 +23,10 @@ try:
 except ImportError:
 
     def task(*args, **kwargs):
+        """No-op fallback for the dispatcherd @task decorator when dispatcherd is not installed."""
+
         def decorator(func):
+            """Return the original function unchanged."""
             return func
 
         return decorator
@@ -118,6 +130,12 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
 
 @task(queue="metrics_collectors", decorate=False)
 def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
+    """
+    Collect up to 90 days of historical AWX job data and schedule the recurring incremental task.
+
+    On success, creates the follow-up daily_dashboard_collection system task if it does not exist.
+    Returns a task result dict with status, data, and any error details.
+    """
     task_name = "collect_dashboard_reports_initial_data"
     result = _collect_data(task_name=task_name, **kwargs)
 
@@ -173,6 +191,12 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
 
 @task(queue="metrics_collectors", decorate=False)
 def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
+    """
+    Incrementally collect AWX job data since the last known JobData timestamp.
+
+    Falls back to 90 days ago if no previous records exist.
+    Returns a task result dict with status, date range, job count, and any error details.
+    """
     task_name = "collect_dashboard_reports_data"
     result = _collect_data(task_name=task_name, **kwargs)
     error = result.get("error", False)
@@ -186,6 +210,11 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
 
 @task(queue="metrics_collectors", decorate=False)
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
+    """
+    Delete JobData records with a finished date older than retention_period_days (default: 90).
+
+    Returns a task result dict with the number of deleted records, cutoff date, and any error details.
+    """
     retention_period_days = kwargs.get("retention_period_days", 90)
     cutoff_date = datetime.now(tz=UTC) - timedelta(days=retention_period_days)
     cutoff_date = cutoff_date.replace(hour=0, minute=0, second=0, microsecond=0)
