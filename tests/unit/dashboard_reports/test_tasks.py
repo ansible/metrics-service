@@ -77,14 +77,15 @@ class TestDashboardReportsTasks:
     # --- _collect_jobs tests ---
     @patch("apps.dashboard_reports.tasks.dashboard_jobs")
     def test__collect_jobs(self, mock_dashboard_jobs):
-        """Test that _collect_jobs calls dashboard_jobs with correct args and returns result."""
+        """Test that _collect_jobs calls dashboard_jobs with correct args, calls .gather(), and returns result."""
         db_connection = MagicMock()
         since = datetime(2024, 1, 1)
         until = datetime(2024, 2, 1)
         expected_result = MagicMock()
-        mock_dashboard_jobs.return_value = expected_result
+        mock_dashboard_jobs.return_value.gather.return_value = expected_result
         result = _collect_jobs(db_connection, since, until)
         mock_dashboard_jobs.assert_called_once_with(db=db_connection, since=since, until=until)
+        mock_dashboard_jobs.return_value.gather.assert_called_once()
         assert result == expected_result
 
     # --- _collect_data tests ---

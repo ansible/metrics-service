@@ -273,7 +273,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         manual_time = F("num_hosts") * (F("time_taken_manually_execute_minutes") * 60)
 
         return (
-            base_qs.values(
+            base_qs.filter(template_metadata_id__isnull=False)
+            .values(
                 "template_name",
                 "template_metadata_id",
                 time_taken_manually_execute_minutes=F("template_metadata__time_taken_manually_execute_minutes"),

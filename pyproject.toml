@@ -255,6 +255,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 source = ["metrics_service", "apps"]
+relative_files = true
 omit = [
     "*/migrations/*",
     "*/tests/*",

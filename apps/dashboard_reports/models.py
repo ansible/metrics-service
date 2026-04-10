@@ -14,7 +14,7 @@ from typing import Any, Self
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from metrics_utility.library.collectors.dashboard import AWXJobType
 
 # Import base classes, handling both DAB and simple fallbacks
@@ -320,11 +320,19 @@ class TemplateMetadata(CommonModel):
                     instance.template_id = awx_id
                     instance.save(update_fields=["template_id"])
             except cls.DoesNotExist:
-                instance = cls.objects.create(
-                    template_name=name,
-                    template_id=awx_id if awx_id is not None else cls.get_min_awx_id(),
-                )
-                logger.info(f"Created new TemplateMetadata '{instance}' from AWX data.")
+                try:
+                    instance = cls.objects.create(
+                        template_name=name,
+                        template_id=awx_id if awx_id is not None else cls.get_min_awx_id(),
+                    )
+                    logger.info(f"Created new TemplateMetadata '{instance}' from AWX data.")
+                except IntegrityError:
+                    # A concurrent transaction created the same record between our get() and
+                    # create() calls. Fetch whichever row won the race.
+                    logger.warning(f"Race condition creating TemplateMetadata for '{name}'; fetching existing record.")
+                    instance = cls.objects.filter(template_name=name).order_by("-template_id").first()
+                    if instance is None:
+                        raise
             except cls.MultipleObjectsReturned:
                 # template_name is not unique; pick the best candidate — prefer records with a
                 # real (positive) AWX ID so that subsequent ID-based lookups will match.

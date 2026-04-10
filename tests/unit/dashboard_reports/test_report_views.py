@@ -281,8 +281,8 @@ class TestDashboardReportViewSet:
         mock_subcost.return_value.cost_employee_per_minute = 1
         mock_subcost.return_value.per_second_subscription_cost.return_value = 0.01
         mock_subcost.return_value.include_template_creation_time_in_costs = True
-        # get_queryset chains three .annotate() calls on the base queryset
-        mock_jobdata.values.return_value.annotate.return_value.annotate.return_value.annotate.return_value = ["mocked"]
+        # get_queryset calls .filter() then chains three .annotate() calls on the base queryset
+        mock_jobdata.filter.return_value.values.return_value.annotate.return_value.annotate.return_value.annotate.return_value = ["mocked"]
         now = datetime.now(tz=UTC)
         viewset.kwargs = {
             "period": "last_7_days",

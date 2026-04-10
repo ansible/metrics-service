@@ -23,12 +23,7 @@ from apps.dashboard_reports.models import JobData, JobLabel
 logger = logging.getLogger(__name__)
 
 
-FILTER_FIELDS: dict[str, str] = {
-    "organization": "organizations",
-    "template": "templates",
-    "label": "labels",
-    "project": "projects",
-}
+FILTER_FIELDS: frozenset[str] = frozenset({"organization", "template", "label", "project"})
 
 
 class DateFilter(Enum):

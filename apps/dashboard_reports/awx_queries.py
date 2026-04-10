@@ -16,8 +16,10 @@ def _build_where_clause(join_alias: str, search_str: str | None, pk: Any) -> tup
     where_clauses = []
     params = []
     if search_str:
-        where_clauses.append(f"{join_alias}name ilike %s")
-        params.append("%" + search_str + "%")
+        # Escape backslash first, then ILIKE wildcards, so user-supplied % and _ are treated literally.
+        escaped = search_str.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        where_clauses.append(f"{join_alias}name ilike %s ESCAPE '\\\\'")
+        params.append("%" + escaped + "%")
     if pk is not None:
         where_clauses.append(f"{join_alias}id = %s")
         params.append(pk)

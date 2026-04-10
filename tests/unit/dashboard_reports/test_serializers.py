@@ -5,7 +5,6 @@ import pytest
 from apps.dashboard_reports.serializers import (
     ChartDataItemSerializer,
     FilterOptionWithIdSerializer,
-    PaginatedFilterOptionsSerializer,
     ReportChartSerializer,
     ReportDetailSerializer,
     ReportSerializer,
@@ -44,44 +43,6 @@ class TestFilterOptionWithIdSerializer:
         assert not serializer.is_valid()
         assert "id" in serializer.errors
 
-
-@pytest.mark.unit
-class TestPaginatedFilterOptionsSerializer:
-    """
-    Unit tests for PaginatedFilterOptionsSerializer.
-    Tests validation for correct, missing, and invalid 'results' field and nested validation.
-    """
-
-    def test_valid_data(self):
-        # Test serializer with valid paginated data
-        data = {"count": 2, "next": None, "previous": None, "results": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}]}
-        serializer = PaginatedFilterOptionsSerializer(data=data)
-        assert serializer.is_valid()
-        assert serializer.validated_data["count"] == 2
-        assert serializer.validated_data["next"] is None
-        assert serializer.validated_data["previous"] is None
-        assert len(serializer.validated_data["results"]) == 2
-
-    def test_invalid_missing_results(self):
-        # Test serializer with missing 'results' field
-        data = {"count": 1, "next": None, "previous": None}
-        serializer = PaginatedFilterOptionsSerializer(data=data)
-        assert not serializer.is_valid()
-        assert "results" in serializer.errors
-
-    def test_invalid_results_type(self):
-        # Test serializer with 'results' field of wrong type
-        data = {"count": 1, "next": None, "previous": None, "results": "not-a-list"}
-        serializer = PaginatedFilterOptionsSerializer(data=data)
-        assert not serializer.is_valid()
-        assert "results" in serializer.errors
-
-    def test_invalid_nested_result(self):
-        # Test serializer with invalid nested result (bad 'id' type)
-        data = {"count": 1, "next": None, "previous": None, "results": [{"id": "bad", "name": "A"}]}
-        serializer = PaginatedFilterOptionsSerializer(data=data)
-        assert not serializer.is_valid()
-        assert "results" in serializer.errors
 
 
 @pytest.mark.unit

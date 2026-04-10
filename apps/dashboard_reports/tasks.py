@@ -37,11 +37,18 @@ DEFAULT_DB_NAME = "awx"
 logger = logging.getLogger(__name__)
 
 
+def _parse_dt(value: Any) -> datetime | None:
+    """Coerce an ISO-format string to a datetime; return datetime or None unchanged."""
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return value
+
+
 def _collect_jobs(db_connection, since: datetime, until: datetime) -> DashboardJobsResultType:
     """
     Collect dashboard jobs data from the database for the specified date range.
     """
-    return dashboard_jobs(db=db_connection, since=since, until=until)
+    return dashboard_jobs(db=db_connection, since=since, until=until).gather()
 
 
 def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
@@ -56,8 +63,8 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     }
     db_name = kwargs.get("database", DEFAULT_DB_NAME)
     db_connection = None
-    until = kwargs.get("until")
-    since = kwargs.get("since")
+    until = _parse_dt(kwargs.get("until"))
+    since = _parse_dt(kwargs.get("since"))
 
     if until is None:
         # Default to now if not provided
@@ -87,8 +94,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
 
     try:
         db_connection = get_db_connection(db_name)
-        collector = _collect_jobs(db_connection, since=since, until=until)
-        jobs = collector.gather()
+        jobs = _collect_jobs(db_connection, since=since, until=until)
     except Exception as e:
         logger.error(f"Error collecting jobs: {str(e)}")
         result["error"] = True
@@ -164,7 +170,7 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     follow_up_task_id = dashboard_tasks[0].get("task_id")
     existing_tasks_count = Task.objects.filter(name=follow_up_task_id, is_system_task=True).count()
     if existing_tasks_count > 0:
-        logger.info("Task 'collect_dashboard_reports_data' already exists. Skipping creation of follow-up task.")
+        logger.info(f"Task '{follow_up_task_id}' already exists. Skipping creation of follow-up task.")
         data["Follow-up task creation"] = "skipped"
     else:
         daily_dashboard_collection_task = dashboard_tasks[0]

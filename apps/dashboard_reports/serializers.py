@@ -31,25 +31,6 @@ class FilterOptionWithIdSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="Option display name")
 
 
-class PaginatedFilterOptionsSerializer(serializers.Serializer):
-    """
-    Paginated response serializer for filter options.
-
-    Matches the OptionsResponse TypeScript interface from automation-reports:
-        interface OptionsResponse {
-            count: number;
-            next: string | null;
-            previous: string | null;
-            results: FilterOptionWithId[];
-        }
-    """
-
-    count = serializers.IntegerField(help_text="Total number of options available")
-    next = serializers.CharField(allow_null=True, help_text="URL to next page (null if last page)")
-    previous = serializers.CharField(allow_null=True, help_text="URL to previous page (null if first page)")
-    results = FilterOptionWithIdSerializer(many=True, help_text="Array of filter options in {id, name} format")
-
-
 class ReportSerializer(serializers.ModelSerializer[JobData]):
     """
     Serializer for per-template aggregated report rows.
