@@ -262,19 +262,20 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         aap_subscription_per_second = subscription_cost.per_second_subscription_cost(start_date, end_date)
         enable_template_creation_time = subscription_cost.include_template_creation_time_in_costs
 
+        coalesced_manual_minutes = Coalesce(F("time_taken_manually_execute_minutes"), Value(0))
+        coalesced_create_minutes = Coalesce(F("time_taken_create_automation_minutes"), Value(0))
+
         if enable_template_creation_time:
-            automated_costs = (F("time_taken_create_automation_minutes") * average_cost_employee_minute) + (
+            automated_costs = (coalesced_create_minutes * average_cost_employee_minute) + (
                 F("elapsed") * aap_subscription_per_second
             )
-            time_savings = (
-                F("manual_time") - F("elapsed") - (F("time_taken_create_automation_minutes") * decimal.Decimal(60))
-            )
+            time_savings = F("manual_time") - F("elapsed") - (coalesced_create_minutes * decimal.Decimal(60))
         else:
             automated_costs = F("elapsed") * aap_subscription_per_second
             time_savings = F("manual_time") - F("elapsed")
 
-        manual_costs = F("num_hosts") * F("time_taken_manually_execute_minutes") * average_cost_employee_minute
-        manual_time = F("num_hosts") * (F("time_taken_manually_execute_minutes") * 60)
+        manual_costs = F("num_hosts") * coalesced_manual_minutes * average_cost_employee_minute
+        manual_time = F("num_hosts") * (coalesced_manual_minutes * 60)
 
         return (
             # Exclude rows without template_metadata: ReportSerializer.id sources from
