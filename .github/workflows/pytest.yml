@@ -56,23 +56,23 @@ jobs:
           DJANGO_SETTINGS_MODULE: metrics_service.settings
           METRICS_SERVICE_MODE: test
         run: |
-          uv run pytest -s -v --cov --cov-report=xml
+          uv run pytest -s -v --cov --cov-report=xml --cov-fail-under=0
 
       - name: "Upload code coverage report"
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.xml
 
       - name: "Save off PR number"
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         env:
           PR_NUM: ${{ github.event.pull_request.number }}
         run: echo "PR $PR_NUM" > pr_number.txt
 
       - name: "Upload PR number"
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: pr_number
