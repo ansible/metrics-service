@@ -989,13 +989,13 @@ class TestTaskPermissions(APITestCase):
 
     @override_settings(MODE="development")
     def test_authenticated_user_can_list_tasks(self):
-        """Test authenticated users can list tasks."""
+        """Test non-sysadmin users are denied access to task list."""
         self.client.force_authenticate(user=self.regular_user)
 
         url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     @override_settings(MODE="development")
     def test_admin_user_full_access(self):
