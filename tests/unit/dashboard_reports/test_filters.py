@@ -10,8 +10,69 @@ from django.db import DatabaseError, models
 from django.http import QueryDict
 from rest_framework.request import Request
 
-from apps.dashboard_reports.filters import CustomReportFilter, _safe_int, apply_or_filters, get_filter_options
+from apps.dashboard_reports.filters import (
+    CustomReportFilter,
+    DateFilter,
+    _safe_int,
+    apply_or_filters,
+    get_filter_options,
+    get_or_filter_options,
+)
 from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
+
+
+@pytest.mark.unit
+class TestDateFilter:
+    """Tests for DateFilter enum methods."""
+
+    def test_to_list_returns_all_values(self):
+        """to_list returns all five period strings."""
+        result = DateFilter.to_list()
+        assert result == ["last_7_days", "last_14_days", "last_30_days", "last_60_days", "last_90_days"]
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ("last_7_days", 7),
+            ("last_14_days", 14),
+            ("last_30_days", 30),
+            ("last_60_days", 60),
+            ("last_90_days", 90),
+        ],
+    )
+    def test_get_num_last_days_valid(self, value, expected):
+        """get_num_last_days extracts the integer correctly."""
+        assert DateFilter.get_num_last_days(value) == expected
+
+    def test_get_num_last_days_none(self):
+        """get_num_last_days returns None when value is None."""
+        assert DateFilter.get_num_last_days(None) is None
+
+    def test_to_start_date_end_date_returns_datetimes(self):
+        """to_start_date_end_date returns (start, end) datetimes for a valid value."""
+        start, end = DateFilter.to_start_date_end_date("last_7_days", "UTC")
+        assert start is not None
+        assert end is not None
+        diff = end - start
+        assert 6 <= diff.days <= 7
+
+    def test_to_start_date_end_date_valid_timezone(self):
+        """to_start_date_end_date respects a valid timezone."""
+        start, end = DateFilter.to_start_date_end_date("last_30_days", "US/Eastern")
+        assert start.tzinfo is not None
+        assert end.tzinfo is not None
+
+    def test_to_start_date_end_date_invalid_timezone_falls_back_to_utc(self):
+        """to_start_date_end_date falls back to UTC for an invalid timezone."""
+        start, end = DateFilter.to_start_date_end_date("last_7_days", "Not/AReal_Zone")
+        assert start is not None
+        assert end is not None
+
+    def test_to_start_date_end_date_none_value_returns_none_pair(self):
+        """to_start_date_end_date returns (None, None) when value is None."""
+        start, end = DateFilter.to_start_date_end_date(None, "UTC")
+        assert start is None
+        assert end is None
 
 
 @pytest.mark.unit
@@ -171,6 +232,106 @@ class TestFilterOptionsViewSet:
         assert mock_db.close.called, "close() was never called — db_connection may be falsy"
         assert response.status_code == 200
 
+    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
+    def test_list_success(self, mock_conn, viewset):
+        """list() returns paginated data when AWX query succeeds."""
+        mock_db = MagicMock()
+        mock_conn.return_value = mock_db
+        viewset.awx_query_function.return_value = ([{"id": 1, "name": "org1"}, {"id": 2, "name": "org2"}], 2)
+
+        request = MagicMock()
+        request.query_params = QueryDict()
+        viewset.request = request
+        response = viewset.list(request)
+
+        assert response.status_code == 200
+        assert mock_db.close.called
+
+    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
+    def test_list_db_connection_close_failure_on_success(self, mock_conn, viewset):
+        """list() completes even if close() raises after a successful query."""
+        mock_db = MagicMock()
+        mock_db.close.side_effect = Exception("close failed")
+        mock_conn.return_value = mock_db
+        viewset.awx_query_function.return_value = ([{"id": 1, "name": "test"}], 1)
+
+        request = MagicMock()
+        request.query_params = QueryDict()
+        viewset.request = request
+        response = viewset.list(request)
+        assert response.status_code == 200
+
+    def test_search_returns_none_for_empty_string(self, viewset):
+        """search() returns None for empty query string."""
+        request = MagicMock()
+        request.query_params = QueryDict("search=")
+        assert FilterOptionsViewSet.search(request) is None
+
+    def test_search_returns_stripped_value(self, viewset):
+        """search() strips whitespace and returns the term."""
+        request = MagicMock()
+        request.query_params = QueryDict("search=  org  ")
+        assert FilterOptionsViewSet.search(request) == "org"
+
+    def test_retrieve_response_found(self, viewset):
+        """retrieve_response returns 200 with serialized data when item found."""
+        response = FilterOptionsViewSet.retrieve_response([{"id": 1, "name": "test"}], "not found")
+        assert response.status_code == 200
+
+    def test_retrieve_response_not_found(self, viewset):
+        """retrieve_response returns 404 when data list is empty."""
+        response = FilterOptionsViewSet.retrieve_response([], "Record with id 99 not found")
+        assert response.status_code == 404
+
+    def test_not_found_msg(self, viewset):
+        """not_found_msg formats the pk correctly."""
+        assert "42" in viewset.not_found_msg(42)
+
+
+@pytest.mark.unit
+class TestGetOrFilterOptions:
+    """Tests for get_or_filter_options function."""
+
+    def _mock_request(self, query_params: dict[str, list[str]]) -> MagicMock:
+        mock_request = MagicMock()
+        mock_request.query_params.getlist = lambda key: query_params.get(key, [])
+        return mock_request
+
+    def test_empty_params_returns_empty_dict(self):
+        request = self._mock_request({})
+        assert get_or_filter_options(request) == {}
+
+    def test_single_or_organization(self):
+        request = self._mock_request({"or__organization": ["1", "2"]})
+        result = get_or_filter_options(request)
+        assert result == {"organization": [1, 2]}
+
+    def test_or_label_filter(self):
+        request = self._mock_request({"or__label": ["5", "6"]})
+        result = get_or_filter_options(request)
+        assert result == {"label": [5, 6]}
+
+    def test_or_template_filter(self):
+        request = self._mock_request({"or__template": ["10"]})
+        result = get_or_filter_options(request)
+        assert result == {"template": [10]}
+
+    def test_or_project_filter(self):
+        request = self._mock_request({"or__project": ["100"]})
+        result = get_or_filter_options(request)
+        assert result == {"project": [100]}
+
+    def test_invalid_or_values_skipped(self):
+        request = self._mock_request({"or__organization": ["1", "abc", "2"]})
+        result = get_or_filter_options(request)
+        assert result == {"organization": [1, 2]}
+
+    def test_and_fields_not_included(self):
+        request = self._mock_request({"organization": ["1"], "or__organization": ["2"]})
+        result = get_or_filter_options(request)
+        assert "organization" in result
+        assert result["organization"] == [2]
+
 
 @pytest.mark.unit
 class TestApplyOrFilters:
@@ -203,6 +364,33 @@ class TestApplyOrFilters:
                 "or__project": [2],
             }
         )
+        mock_qs = MagicMock()
+        filtered_qs = MagicMock()
+        mock_qs.filter.return_value = filtered_qs
+
+        result = apply_or_filters(request, mock_qs)
+
+        mock_qs.filter.assert_called_once()
+        assert result is filtered_qs
+
+    @patch("apps.dashboard_reports.filters.label_ids_to_job_data_ids")
+    def test_or_label_filter_applied(self, mock_label_ids):
+        """Label OR filter uses label_ids_to_job_data_ids to resolve job IDs."""
+        mock_label_ids.return_value = [10, 20]
+        request = self._make_request({"or__label": [5, 6]})
+        mock_qs = MagicMock()
+        filtered_qs = MagicMock()
+        mock_qs.filter.return_value = filtered_qs
+
+        result = apply_or_filters(request, mock_qs)
+
+        mock_label_ids.assert_called_once_with([5, 6])
+        mock_qs.filter.assert_called_once()
+        assert result is filtered_qs
+
+    def test_or_template_filter_applied(self):
+        """Template OR filter sets template_id__in condition."""
+        request = self._make_request({"or__template": [10, 20]})
         mock_qs = MagicMock()
         filtered_qs = MagicMock()
         mock_qs.filter.return_value = filtered_qs

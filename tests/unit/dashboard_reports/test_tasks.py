@@ -11,10 +11,71 @@ from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.tasks import (
     _collect_data,
     _collect_jobs,
+    _parse_dt,
+    _sync_jobs_atomically,
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
 )
+
+
+@pytest.mark.unit
+class TestParseDt:
+    """Tests for _parse_dt helper function."""
+
+    def test_returns_datetime_unchanged(self):
+        """_parse_dt passes through a datetime object without modification."""
+        dt = datetime(2024, 1, 15, 12, 0)
+        assert _parse_dt(dt) is dt
+
+    def test_parses_iso_string(self):
+        """_parse_dt converts an ISO-format string to a datetime."""
+        result = _parse_dt("2024-01-15T12:00:00")
+        assert isinstance(result, datetime)
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_returns_none_unchanged(self):
+        """_parse_dt returns None when given None."""
+        assert _parse_dt(None) is None
+
+    def test_returns_non_string_non_datetime_unchanged(self):
+        """_parse_dt returns non-string, non-datetime values unchanged (e.g. int)."""
+        assert _parse_dt(42) == 42
+
+
+@pytest.mark.unit
+class TestSyncJobsAtomically:
+    """Tests for _sync_jobs_atomically helper (DB-free via mocking)."""
+
+    @patch("apps.dashboard_reports.tasks.transaction.atomic")
+    @patch("apps.dashboard_reports.tasks.JobData.create_or_update_from_awx")
+    def test_all_jobs_succeed(self, mock_create, mock_atomic):
+        """_sync_jobs_atomically returns empty list when all jobs sync successfully."""
+        mock_atomic.return_value.__enter__ = MagicMock(return_value=None)
+        mock_atomic.return_value.__exit__ = MagicMock(return_value=False)
+        mock_create.return_value = None
+        failed = _sync_jobs_atomically([{"id": 1}, {"id": 2}])
+        assert failed == []
+
+    @patch("apps.dashboard_reports.tasks.transaction.atomic")
+    @patch("apps.dashboard_reports.tasks.JobData.create_or_update_from_awx")
+    def test_partial_failure_returns_failed_ids(self, mock_create, mock_atomic):
+        """_sync_jobs_atomically collects failed job IDs and rolls back."""
+        mock_atomic.return_value.__enter__ = MagicMock(return_value=None)
+        mock_atomic.return_value.__exit__ = MagicMock(return_value=False)
+        mock_create.side_effect = Exception("db error")
+        failed = _sync_jobs_atomically([{"id": 10}, {"id": 11}])
+        assert set(failed) == {10, 11}
+
+    @patch("apps.dashboard_reports.tasks.transaction.atomic")
+    def test_empty_jobs_list_returns_empty(self, mock_atomic):
+        """_sync_jobs_atomically returns empty list with no jobs."""
+        mock_atomic.return_value.__enter__ = MagicMock(return_value=None)
+        mock_atomic.return_value.__exit__ = MagicMock(return_value=False)
+        failed = _sync_jobs_atomically([])
+        assert failed == []
 
 
 # --- Fixtures for dependency mocking ---
@@ -309,6 +370,25 @@ class TestDashboardReportsTasks:
         result = cleanup_dashboard_reports_old_data(retention_period_days=1)
         cutoff_date = result["data"]["cutoff_date"]
         assert cutoff_date.startswith(str(datetime.now().year))
+
+    def test_cleanup_invalid_retention_string(
+        self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """Non-integer retention_period_days returns an error result."""
+        cleanup_dashboard_reports_old_data(retention_period_days="not-a-number")
+        args, kwargs = mock_create_task_result_cleanup.call_args
+        assert args[0] == "error"
+        assert "Invalid retention_period_days" in kwargs["error"]
+
+    def test_cleanup_negative_retention_clamped(
+        self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """Negative retention_period_days is clamped to 0 (deletes everything)."""
+        mock_jobdata_objects.objects.filter.return_value.delete.return_value = (10, {})
+        cleanup_dashboard_reports_old_data(retention_period_days=-5)
+        args, kwargs = mock_create_task_result_cleanup.call_args
+        assert args[0] == "success"
+        assert kwargs["data"]["retention_period_days"] == 0
 
     def test_cleanup_with_db_data(self, db):
         """Test cleanup_dashboard_reports_old_data with real JobData records in the database."""
