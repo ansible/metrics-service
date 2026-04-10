@@ -1,13 +1,13 @@
 from ansible_base.lib.utils.views.ansible_base import AnsibleBaseView
 from ansible_base.rbac import permission_registry
-from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from rest_framework.viewsets import ModelViewSet
 
 
 class BaseViewSet(ModelViewSet, AnsibleBaseView):
     """Base viewset with RBAC filtering."""
 
-    permission_classes = [AnsibleBaseObjectPermissions]
+    permission_classes = [IsSystemAdminOrAuditor]
 
     def filter_queryset(self, queryset):
         cls = queryset.model

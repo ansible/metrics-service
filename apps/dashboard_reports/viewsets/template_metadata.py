@@ -1,8 +1,8 @@
 """ViewSet for retrieving and updating AWX job template metadata (time estimates)."""
 
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from django.db.models import QuerySet
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import GenericViewSet
 
 from apps.dashboard_reports.models import TemplateMetadata
@@ -19,7 +19,7 @@ class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewS
         PATCH  api/v1/dashboard_reports/template_metadata/{id}/ - Partially update template metadata
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsSystemAdminOrAuditor]
     versioning_class = None
     pagination_class = None
     serializer_class = TemplateMetadataSerializer

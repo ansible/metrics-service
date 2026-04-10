@@ -1,4 +1,4 @@
-from ansible_base.rbac.api.permissions import AnsibleBaseUserPermissions
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rbac.policies import visible_users
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,7 +12,7 @@ from .base import BaseViewSet
 class UserViewSet(BaseViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [AnsibleBaseUserPermissions]
+    permission_classes = [IsSystemAdminOrAuditor]
 
     def filter_queryset(self, queryset):
         queryset = visible_users(self.request.user, queryset=queryset)
