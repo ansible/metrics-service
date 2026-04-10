@@ -3,7 +3,70 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from apps.dashboard_reports import awx_queries
-from apps.dashboard_reports.awx_queries import AWXQuery
+from apps.dashboard_reports.awx_queries import AWXQuery, _execute_count_query, _execute_db_query
+
+
+@pytest.mark.unit
+class TestExecuteDbQuery:
+    """Unit tests for _execute_db_query helper."""
+
+    def test_returns_columns_and_rows(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_cursor.description = [("id",), ("name",)]
+        mock_cursor.fetchall.return_value = [(1, "Org")]
+        mock_conn.cursor.return_value = mock_cursor
+
+        columns, data = _execute_db_query(mock_conn, "SELECT id, name FROM t", [])
+
+        assert columns == ["id", "name"]
+        assert data == [(1, "Org")]
+        mock_cursor.execute.assert_called_once_with("SELECT id, name FROM t", [])
+
+    def test_passes_params_to_execute(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_cursor.description = []
+        mock_cursor.fetchall.return_value = []
+        mock_conn.cursor.return_value = mock_cursor
+
+        _execute_db_query(mock_conn, "SELECT 1 WHERE id = %s", [42])
+
+        mock_cursor.execute.assert_called_once_with("SELECT 1 WHERE id = %s", [42])
+
+
+@pytest.mark.unit
+class TestExecuteCountQuery:
+    """Unit tests for _execute_count_query helper."""
+
+    def test_returns_integer_count(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = (7,)
+        mock_conn.cursor.return_value = mock_cursor
+
+        result = _execute_count_query(mock_conn, "SELECT COUNT(*) FROM t", [])
+
+        assert result == 7
+        assert isinstance(result, int)
+
+    def test_returns_zero_for_empty_table(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = (0,)
+        mock_conn.cursor.return_value = mock_cursor
+
+        result = _execute_count_query(mock_conn, "SELECT COUNT(*) FROM t", [])
+
+        assert result == 0
 
 
 @pytest.mark.unit
