@@ -1,6 +1,5 @@
 """ViewSet for viewing and updating the AAP subscription cost configuration."""
 
-import logging
 from typing import Any
 
 from django.db.models import QuerySet
@@ -12,8 +11,6 @@ from rest_framework.response import Response
 from apps.dashboard_reports.models import SubscriptionCost
 from apps.dashboard_reports.serializers import SubscriptionCostSerializer
 from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
-
-logger = logging.getLogger(__name__)
 
 
 class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericAdminViewSet):
@@ -34,15 +31,11 @@ class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericAdminView
     serializer_class = SubscriptionCostSerializer
     pagination_class = None  # Disable pagination for this viewset
 
-    list_error_msg = "Failed to fetch subscription costs"
-    retrieve_error_msg = "Failed to fetch subscription cost details"
-
-    def not_found_msg(self, pk: int) -> str:
-        """Return a formatted not-found error message for a missing subscription cost entry."""
-        return f"Subscription cost with id {pk} not found"
-
     def get_queryset(self) -> QuerySet[SubscriptionCost]:
         """Return all SubscriptionCost records, ensuring the singleton exists."""
+        # TODO (Tech Preview): Creating the singleton here is a hidden write side-effect
+        # on a read path — it fires on every GET, schema generation, and permission check.
+        # At GA, guarantee the singleton via a management command or data migration instead.
         SubscriptionCost.get()
         return SubscriptionCost.objects.all()
 

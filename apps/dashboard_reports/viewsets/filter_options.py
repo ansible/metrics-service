@@ -9,7 +9,7 @@ from ansible_base.rest_pagination import DefaultPaginator
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.viewsets import ReadOnlyModelViewSet
+from rest_framework.viewsets import GenericViewSet
 
 from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.serializers import (
@@ -21,7 +21,7 @@ from apps.tasks.utils import get_db_connection
 logger = logging.getLogger(__name__)
 
 
-class FilterOptionsViewSet(ReadOnlyModelViewSet):
+class FilterOptionsViewSet(GenericViewSet):
     """
     Base ViewSet for AWX filter dropdowns (labels, organizations, projects, job templates).
     Handles pagination, search, error handling, and response formatting.
@@ -73,7 +73,10 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
         try:
             db_connection = get_db_connection("awx")
             page_size = self.paginator.get_page_size(request)
-            page_num = int(request.query_params.get(self.paginator.page_query_param, 1))
+            try:
+                page_num = int(request.query_params.get(self.paginator.page_query_param, 1))
+            except (ValueError, TypeError):
+                page_num = 1
             offset = (page_num - 1) * (page_size or 0)
             items, total = self.awx_query_function(
                 db_connection=db_connection,
