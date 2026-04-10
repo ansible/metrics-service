@@ -42,7 +42,8 @@ class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericAdminView
         return f"Subscription cost with id {pk} not found"
 
     def get_queryset(self) -> QuerySet[SubscriptionCost]:
-        """Return all SubscriptionCost records."""
+        """Return all SubscriptionCost records, ensuring the singleton exists."""
+        SubscriptionCost.get()
         return SubscriptionCost.objects.all()
 
     def update(self, request: Request, *args: Any, **kwargs: Any) -> Response:

@@ -101,6 +101,24 @@ class TestSubscriptionCostViewSet(APITestCase):
         # Pagination would wrap results in a dict with a 'results' key
         assert isinstance(response.data, list)
 
+    def test_list_auto_creates_singleton_on_empty_db(self) -> None:
+        """Test GET /subscription_costs/ returns a record even when the DB table is empty.
+
+        Regression test: get_queryset() must trigger singleton creation so admins
+        see a record to configure before the report endpoint has been called.
+        """
+        SubscriptionCost.objects.all().delete()
+        assert SubscriptionCost.objects.count() == 0
+
+        url = reverse("dashboard_reports:subscription_costs-list")
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.data, list)
+        assert len(response.data) == 1
+        assert decimal.Decimal(response.data[0]["monthly_subscription_cost"]) == decimal.Decimal("5000.00")
+        assert decimal.Decimal(response.data[0]["engineer_avg_hourly_rate"]) == decimal.Decimal("60.00")
+
     # ------------------------------------------------------------------
     # Update Tests
     # ------------------------------------------------------------------

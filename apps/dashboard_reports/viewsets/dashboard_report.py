@@ -334,6 +334,15 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         """
         return super().list(request, *args, **kwargs)
 
+    def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """
+        Not supported: this viewset returns aggregated-per-template data, not individual JobData records.
+        Inheriting retrieve from ReadOnlyModelViewSet would cause a PostgreSQL error because get_object()
+        appends .filter(pk=...) to a ValuesQuerySet grouped by template_metadata_id, and the job id
+        column is absent from the GROUP BY clause.
+        """
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
     def _get_date_range_and_kind(self) -> tuple[datetime | None, datetime | None, str | None]:
         """
         Determine the chart time granularity (hour/day/month/year) from the injected date range.
