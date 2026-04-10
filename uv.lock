@@ -779,6 +779,7 @@ dependencies = [
     { name = "pip" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg2-binary" },
+    { name = "pytz" },
     { name = "whitenoise" },
 ]
 
@@ -849,6 +850,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.1" },
     { name = "pytest-django", marker = "extra == 'test'", specifier = ">=4.5" },
     { name = "python-ldap", marker = "extra == 'ldap'", specifier = ">=3.4.0" },
+    { name = "pytz" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.1" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.24" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.3" },
