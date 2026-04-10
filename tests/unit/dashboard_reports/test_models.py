@@ -616,7 +616,7 @@ class TestJobHostSummaryUniqueCount:
         JobHostSummary.objects.create(job_data=job1, host_summary_id=1, host_id=10, host_name="hostA")
         JobHostSummary.objects.create(job_data=job1, host_summary_id=2, host_id=11, host_name="hostB")
         JobHostSummary.objects.create(job_data=job2, host_summary_id=3, host_id=12, host_name="hostC")
-        JobHostSummary.objects.create(job_data=job2, host_summary_id=4, host_id=13, host_name="hostA")  # hostA reused
+        JobHostSummary.objects.create(job_data=job2, host_summary_id=4, host_id=10, host_name="hostA")  # hostA reused
         return [job1, job2]
 
     def test_unique_count_no_filters(self, host_summary_batch):

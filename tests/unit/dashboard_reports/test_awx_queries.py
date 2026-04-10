@@ -36,18 +36,34 @@ class TestAWXQueries:
     def test_fetch_data_from_db(self, mock_exec):
         mock_exec.return_value = (["id", "name"], [(1, "X")])
         db_conn = MagicMock()
-        columns, data = awx_queries.fetch_data_from_db(
+        rows, total = awx_queries.fetch_data_from_db(
             "SELECT id, name FROM table", join_alias="", db_connection=db_conn, search_str=None, pk=None
         )
-        assert columns == ["id", "name"]
-        assert data == [(1, "X")]
+        assert rows == [(1, "X")]
+        assert total == 1  # len(rows) when no limit
         mock_exec.assert_called()
+
+    @patch("apps.dashboard_reports.awx_queries._execute_db_query")
+    @patch("apps.dashboard_reports.awx_queries._execute_count_query")
+    def test_fetch_data_from_db_with_limit(self, mock_count, mock_exec):
+        mock_count.return_value = 42
+        mock_exec.return_value = (["id", "name"], [(1, "X"), (2, "Y")])
+        db_conn = MagicMock()
+        rows, total = awx_queries.fetch_data_from_db(
+            "SELECT id, name FROM table", join_alias="", db_connection=db_conn, search_str=None, pk=None,
+            limit=10, offset=0,
+        )
+        assert rows == [(1, "X"), (2, "Y")]
+        assert total == 42
+        mock_count.assert_called_once()
+        mock_exec.assert_called_once()
 
     @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
     def test_fetch_id_name_success(self, mock_fetch):
-        mock_fetch.return_value = (["id", "name"], [(3, "C")])
-        result = awx_queries.fetch_id_name("SELECT id, name FROM t", error_msg="err", db_connection=MagicMock())
-        assert result == [{"id": 3, "name": "C"}]
+        mock_fetch.return_value = ([(3, "C")], 1)
+        items, total = awx_queries.fetch_id_name("SELECT id, name FROM t", error_msg="err", db_connection=MagicMock())
+        assert items == [{"id": 3, "name": "C"}]
+        assert total == 1
 
     @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
     def test_fetch_id_name_error(self, mock_fetch):
@@ -57,24 +73,28 @@ class TestAWXQueries:
 
     @patch("apps.dashboard_reports.awx_queries.fetch_id_name")
     def test_fetch_organizations(self, mock_fetch):
-        mock_fetch.return_value = [{"id": 1, "name": "Org"}]
-        result = awx_queries.fetch_organizations(db_connection=MagicMock())
-        assert result == [{"id": 1, "name": "Org"}]
+        mock_fetch.return_value = ([{"id": 1, "name": "Org"}], 1)
+        items, total = awx_queries.fetch_organizations(db_connection=MagicMock())
+        assert items == [{"id": 1, "name": "Org"}]
+        assert total == 1
 
     @patch("apps.dashboard_reports.awx_queries.fetch_id_name")
     def test_fetch_templates(self, mock_fetch):
-        mock_fetch.return_value = [{"id": 2, "name": "Tpl"}]
-        result = awx_queries.fetch_templates(db_connection=MagicMock())
-        assert result == [{"id": 2, "name": "Tpl"}]
+        mock_fetch.return_value = ([{"id": 2, "name": "Tpl"}], 1)
+        items, total = awx_queries.fetch_templates(db_connection=MagicMock())
+        assert items == [{"id": 2, "name": "Tpl"}]
+        assert total == 1
 
     @patch("apps.dashboard_reports.awx_queries.fetch_id_name")
     def test_fetch_projects(self, mock_fetch):
-        mock_fetch.return_value = [{"id": 3, "name": "Prj"}]
-        result = awx_queries.fetch_projects(db_connection=MagicMock())
-        assert result == [{"id": 3, "name": "Prj"}]
+        mock_fetch.return_value = ([{"id": 3, "name": "Prj"}], 1)
+        items, total = awx_queries.fetch_projects(db_connection=MagicMock())
+        assert items == [{"id": 3, "name": "Prj"}]
+        assert total == 1
 
     @patch("apps.dashboard_reports.awx_queries.fetch_id_name")
     def test_fetch_labels(self, mock_fetch):
-        mock_fetch.return_value = [{"id": 4, "name": "Lbl"}]
-        result = awx_queries.fetch_labels(db_connection=MagicMock())
-        assert result == [{"id": 4, "name": "Lbl"}]
+        mock_fetch.return_value = ([{"id": 4, "name": "Lbl"}], 1)
+        items, total = awx_queries.fetch_labels(db_connection=MagicMock())
+        assert items == [{"id": 4, "name": "Lbl"}]
+        assert total == 1

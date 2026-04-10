@@ -26,7 +26,7 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
     Handles pagination, search, error handling, and response formatting.
     """
 
-    awx_query_function: Callable[..., list[dict[str, Any]]] | None = None  # To be defined in subclasses
+    awx_query_function: Callable[..., tuple[list[dict[str, Any]], int]] | None = None  # To be defined in subclasses
     versioning_class = None  # Disable versioning for this viewset
     pagination_class = DefaultPaginator
 
@@ -60,14 +60,30 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         Returns paginated filter dropdown data from AWX database.
+
+        Pagination happens at the DB layer: limit and offset are computed from the paginator
+        and forwarded to awx_query_function, which applies them via SQL LIMIT/OFFSET and also
+        runs a COUNT(*) query.  The paginator is then initialised with a range() of the total
+        count so that next/previous links are built correctly without slicing an in-memory list.
         Ensures DB connection is closed after use.
         """
         db_connection = None
         try:
             db_connection = get_db_connection("awx")
-            data = self.awx_query_function(db_connection=db_connection, search_str=FilterOptionsViewSet.search(request))
-            page = self.paginate_queryset(data)
-            return self.get_paginated_response(page)
+            page_size = self.paginator.get_page_size(request)
+            page_num = int(request.query_params.get(self.paginator.page_query_param, 1))
+            offset = (page_num - 1) * (page_size or 0)
+            items, total = self.awx_query_function(
+                db_connection=db_connection,
+                search_str=FilterOptionsViewSet.search(request),
+                limit=page_size,
+                offset=offset,
+            )
+            # Initialise paginator state (count, page, request) using a zero-cost range so
+            # that get_paginated_response can build correct next/previous links and the count
+            # field — without slicing the full result set in Python.
+            self.paginate_queryset(range(total))
+            return self.get_paginated_response(items)
         except Exception:
             logger.exception(self.list_error_msg)
             error_response = build_error_response(self.list_error_msg, status_code=500)
@@ -95,7 +111,7 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
         db_connection = None
         try:
             db_connection = get_db_connection("awx")
-            data = self.awx_query_function(db_connection=db_connection, pk=pk)
+            data, _ = self.awx_query_function(db_connection=db_connection, pk=pk)
             return self.retrieve_response(data, error_msg=self.not_found_msg(pk))
         except Exception:
             logger.exception(self.retrieve_error_msg)

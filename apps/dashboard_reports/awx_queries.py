@@ -36,21 +36,44 @@ def _execute_db_query(db_connection, query: str, params: list[Any]) -> tuple[lis
     return columns, data
 
 
-def fetch_data_from_db(base_query: str, join_alias: str = "", **kwargs: Any) -> tuple[list[Any], Any]:
-    """
-    Execute a parameterized SQL query against the AWX database with optional search and pk filters.
+def _execute_count_query(db_connection, count_query: str, params: list[Any]) -> int:
+    """Execute a COUNT query and return the integer result."""
+    with db_connection.cursor() as cursor:
+        cursor.execute(count_query, params)
+        return cursor.fetchone()[0]
 
-    Returns (columns, rows) from the query result.
+
+def fetch_data_from_db(base_query: str, join_alias: str = "", **kwargs: Any) -> tuple[list[Any], int]:
+    """
+    Execute a parameterized SQL query against the AWX database with optional search, pk, limit, and offset filters.
+
+    When ``limit`` is provided, runs a COUNT(*) subquery first to obtain the total matching row count,
+    then fetches only the requested page via LIMIT/OFFSET — keeping full table scans out of Python memory.
+    When ``limit`` is omitted (e.g. single-row retrieve by pk), returns all matching rows and derives
+    the total from the result length.
+
+    Returns ``(rows, total_count)``.
     """
     db_connection = kwargs.get("db_connection")
     search_str = kwargs.get("search_str")
     pk = kwargs.get("pk")
-    # Build WHERE clause and params
+    limit = kwargs.get("limit")
+    offset = kwargs.get("offset", 0)
+
     where_clause, params = _build_where_clause(join_alias, search_str, pk)
-    query = base_query + where_clause + f" ORDER BY {join_alias}name"
-    # Execute query and return results
-    columns, data = _execute_db_query(db_connection, query, params)
-    return columns, data
+    order_clause = f" ORDER BY {join_alias}name"
+
+    if limit is not None:
+        count_query = f"SELECT COUNT(*) FROM ({base_query}{where_clause}) AS _count_subq"
+        total = _execute_count_query(db_connection, count_query, params)
+        query = base_query + where_clause + order_clause + " LIMIT %s OFFSET %s"
+        _, data = _execute_db_query(db_connection, query, params + [limit, offset])
+    else:
+        query = base_query + where_clause + order_clause
+        _, data = _execute_db_query(db_connection, query, params)
+        total = len(data)
+
+    return data, total
 
 
 def format_id_name_rows(rows: list[Any]) -> list[dict[str, Any]]:
@@ -58,28 +81,29 @@ def format_id_name_rows(rows: list[Any]) -> list[dict[str, Any]]:
     return [{"id": row[0], "name": row[1]} for row in rows]
 
 
-def fetch_id_name(query: str, join_alias: str = "", error_msg: str = "", **kwargs) -> list[dict[str, Any]]:
+def fetch_id_name(query: str, join_alias: str = "", error_msg: str = "", **kwargs) -> tuple[list[dict[str, Any]], int]:
     """
-    Fetch id/name pairs from the AWX database and return them as a list of dicts.
+    Fetch id/name pairs from the AWX database and return ``(items, total_count)``.
 
-    Raises the underlying exception after logging error_msg on failure.
+    ``total_count`` is the DB-level COUNT when pagination params (``limit``/``offset``) are supplied,
+    or the length of the result set otherwise.  Raises the underlying exception after logging on failure.
     """
     try:
-        _, rows = fetch_data_from_db(query, join_alias=join_alias, **kwargs)
+        rows, total = fetch_data_from_db(query, join_alias=join_alias, **kwargs)
     except Exception:
         logger.exception(error_msg)
         raise
-    return format_id_name_rows(rows)
+    return format_id_name_rows(rows), total
 
 
-def fetch_organizations(*args, **kwargs) -> list[dict[str, Any]]:
-    """Fetch organizations from DB."""
+def fetch_organizations(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+    """Fetch organizations from DB, returning ``(items, total_count)``."""
     query = "SELECT id, name FROM main_organization"
     return fetch_id_name(query, error_msg="Error fetching organizations from AWX database", **kwargs)
 
 
-def fetch_templates(*args, **kwargs) -> list[dict[str, Any]]:
-    """Fetch job templates from DB."""
+def fetch_templates(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+    """Fetch job templates from DB, returning ``(items, total_count)``."""
     query = (
         "SELECT ujt.id, ujt.name "
         "FROM main_unifiedjobtemplate ujt "
@@ -88,8 +112,8 @@ def fetch_templates(*args, **kwargs) -> list[dict[str, Any]]:
     return fetch_id_name(query, join_alias="ujt.", error_msg="Error fetching job templates from AWX database", **kwargs)
 
 
-def fetch_projects(*args, **kwargs) -> list[dict[str, Any]]:
-    """Fetch projects from DB."""
+def fetch_projects(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+    """Fetch projects from DB, returning ``(items, total_count)``."""
     query = (
         "SELECT ujt.id, "
         "ujt.name FROM main_unifiedjobtemplate ujt "
@@ -98,7 +122,7 @@ def fetch_projects(*args, **kwargs) -> list[dict[str, Any]]:
     return fetch_id_name(query, join_alias="ujt.", error_msg="Error fetching projects from AWX database", **kwargs)
 
 
-def fetch_labels(*args, **kwargs) -> list[dict[str, Any]]:
-    """Fetch labels from DB."""
+def fetch_labels(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+    """Fetch labels from DB, returning ``(items, total_count)``."""
     query = "SELECT id, name FROM main_label"
     return fetch_id_name(query, error_msg="Error fetching labels from AWX database", **kwargs)

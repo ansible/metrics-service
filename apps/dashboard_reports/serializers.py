@@ -6,11 +6,16 @@ template metadata used by the dashboard reporting API endpoints.
 """
 
 import decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rest_framework import serializers
 
 from apps.dashboard_reports.models import JobData, SubscriptionCost, TemplateMetadata
+
+if TYPE_CHECKING:
+    _ReportSerializerBase = serializers.ModelSerializer[JobData]
+else:
+    _ReportSerializerBase = serializers.ModelSerializer
 
 
 def sec2time(sec: decimal.Decimal | int | float) -> str:
@@ -31,7 +36,7 @@ class FilterOptionWithIdSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="Option display name")
 
 
-class ReportSerializer(serializers.ModelSerializer[JobData]):
+class ReportSerializer(_ReportSerializerBase):
     """
     Serializer for per-template aggregated report rows.
 

@@ -82,7 +82,7 @@ class TestFilterOptionsViewSet:
     @pytest.fixture
     def viewset(self):
         vs = FilterOptionsViewSet()
-        vs.awx_query_function = MagicMock(return_value=[{"id": 1, "name": "test"}])
+        vs.awx_query_function = MagicMock(return_value=([{"id": 1, "name": "test"}], 1))
         vs.request = MagicMock
         vs.kwargs = {}
         vs.format_kwarg = None
@@ -139,7 +139,7 @@ class TestFilterOptionsViewSet:
     def test_retrieve_not_found(self, mock_conn, viewset):
         mock_db = MagicMock()
         mock_conn.return_value = mock_db
-        viewset.awx_query_function.return_value = []  # valid pk, but no data found
+        viewset.awx_query_function.return_value = ([], 0)  # valid pk, but no data found
 
         pk = 99
         request = MagicMock()
@@ -163,7 +163,7 @@ class TestFilterOptionsViewSet:
         mock_db = MagicMock()
         mock_db.close.side_effect = Exception("close failed")
         mock_conn.return_value = mock_db
-        viewset.awx_query_function.return_value = [{"id": 1, "name": "test"}]
+        viewset.awx_query_function.return_value = ([{"id": 1, "name": "test"}], 1)
 
         request = MagicMock()
         response = viewset.retrieve(request, pk=1)

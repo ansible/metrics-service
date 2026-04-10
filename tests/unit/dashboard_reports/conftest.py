@@ -22,5 +22,5 @@ class DummyView:
     def view(self, request, *args, **kwargs):
         self.called = True
         self.last_args = args
-        self.kwargs = kwargs
+        self.kwargs.update(kwargs)
         return Response({"success": True})

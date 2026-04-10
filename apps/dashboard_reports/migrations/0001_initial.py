@@ -68,6 +68,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         help_text="User override: Estimated time to perform this task manually (minutes)",
                         null=True,
+                        validators=[django.core.validators.MinValueValidator(0)],
                     ),
                 ),
                 (
@@ -76,6 +77,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         help_text="User override: Estimated time spent creating this automation (minutes)",
                         null=True,
+                        validators=[django.core.validators.MinValueValidator(0)],
                     ),
                 ),
                 ("created_by", models.ForeignKey(**_CREATED_BY_FK)),

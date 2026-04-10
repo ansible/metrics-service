@@ -141,11 +141,12 @@ class TestDashboardReportsTasks:
         """Configure mocks for initial data task creation scenarios."""
         mock_collect_data.return_value = collect_data_result
         mock_group.tasks = group_tasks
-        mock_task.objects.filter.return_value.count.return_value = task_count
         if create_exc:
-            mock_task.objects.create.side_effect = create_exc
-        elif task_count == 0 and group_tasks:
-            mock_task.objects.create.return_value = MagicMock()
+            mock_task.objects.get_or_create.side_effect = create_exc
+        elif group_tasks:
+            # task_count > 0 means the object already exists (created=False); 0 means it was just created.
+            created = task_count == 0
+            mock_task.objects.get_or_create.return_value = (MagicMock(), created)
 
     def test_initial_data_error(self, mock_task_dependencies):
         """Test error result from initial data collection."""

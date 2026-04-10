@@ -133,10 +133,10 @@ class TestTemplateMetadataViewSetConfig(TestCase):
     def test_pagination_class_is_none(self):
         assert TemplateMetadataViewSet.pagination_class is None
 
-    def test_has_is_authenticated_permission(self):
-        from rest_framework.permissions import IsAuthenticated
+    def test_has_is_system_admin_or_auditor_permission(self):
+        from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 
-        assert IsAuthenticated in TemplateMetadataViewSet.permission_classes
+        assert IsSystemAdminOrAuditor in TemplateMetadataViewSet.permission_classes
 
     def test_has_retrieve_mixin(self):
         from rest_framework.mixins import RetrieveModelMixin
@@ -191,16 +191,18 @@ class TestTemplateMetadataViewSetActions(TestCase):
 
     # ---- GET (retrieve) ----
 
+    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
-    def test_retrieve_returns_200(self, mock_get_object):
+    def test_retrieve_returns_200(self, mock_get_object, mock_super_perm):
         mock_get_object.return_value = self.instance
         request = self.factory.get("/fake/")
         request.user = _make_request_user()
         response = self._call(self._view({"get": "retrieve"}), request)
         assert response.status_code == status.HTTP_200_OK
 
+    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
-    def test_retrieve_calls_get_object_once(self, mock_get_object):
+    def test_retrieve_calls_get_object_once(self, mock_get_object, mock_super_perm):
         mock_get_object.return_value = self.instance
         request = self.factory.get("/fake/")
         request.user = _make_request_user()
@@ -209,9 +211,10 @@ class TestTemplateMetadataViewSetActions(TestCase):
 
     # ---- PUT (update) ----
 
+    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     @patch.object(TemplateMetadataViewSet, "perform_update")
-    def test_update_returns_200(self, mock_perform_update, mock_get_object):
+    def test_update_returns_200(self, mock_perform_update, mock_get_object, mock_super_perm):
         mock_get_object.return_value = self.instance
         self.instance.template_id = 42
         request = self.factory.put(
@@ -226,9 +229,10 @@ class TestTemplateMetadataViewSetActions(TestCase):
         response = self._call(self._view({"put": "update"}), request)
         assert response.status_code == status.HTTP_200_OK
 
+    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     @patch.object(TemplateMetadataViewSet, "perform_update")
-    def test_update_calls_perform_update_once(self, mock_perform_update, mock_get_object):
+    def test_update_calls_perform_update_once(self, mock_perform_update, mock_get_object, mock_super_perm):
         mock_get_object.return_value = self.instance
         self.instance.template_id = 42
         request = self.factory.put(
@@ -243,9 +247,10 @@ class TestTemplateMetadataViewSetActions(TestCase):
         self._call(self._view({"put": "update"}), request)
         mock_perform_update.assert_called_once()
 
+    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     @patch.object(TemplateMetadataViewSet, "perform_update")
-    def test_update_with_null_time_fields(self, mock_perform_update, mock_get_object):
+    def test_update_with_null_time_fields(self, mock_perform_update, mock_get_object, mock_super_perm):
         mock_get_object.return_value = self.instance
         self.instance.template_id = 42
         request = self.factory.put(
@@ -267,7 +272,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
     # ---- permission gate ----
 
     def test_all_methods_return_403_for_unauthenticated_user(self):
-        """Unauthenticated requests must be denied with 403 (IsAuthenticated)."""
+        """Unauthenticated requests must be denied with 403 (IsSystemAdminOrAuditor)."""
         unauthenticated_user = _make_request_user(is_authenticated=False)
         for method, factory_fn, map_ in [
             ("GET", self.factory.get, {"get": "retrieve"}),
@@ -278,6 +283,33 @@ class TestTemplateMetadataViewSetActions(TestCase):
                 request.user = unauthenticated_user
                 response = self._call(self._view(map_), request)
                 assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_non_admin_authenticated_user_receives_403_on_update(self):
+        """Authenticated non-admin users must receive 403 when attempting to update template metadata."""
+        request = self.factory.put(
+            "/fake/",
+            data={
+                "time_taken_manually_execute_minutes": 20,
+                "time_taken_create_automation_minutes": 50,
+            },
+            format="json",
+        )
+        request.user = _make_request_user(is_authenticated=True)
+        with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=False):
+            response = self._call(self._view({"put": "update"}), request)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_non_admin_authenticated_user_receives_403_on_partial_update(self):
+        """Authenticated non-admin users must receive 403 when attempting to partially update template metadata."""
+        request = self.factory.patch(
+            "/fake/",
+            data={"time_taken_manually_execute_minutes": None},
+            format="json",
+        )
+        request.user = _make_request_user(is_authenticated=True)
+        with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=False):
+            response = self._call(self._view({"patch": "partial_update"}), request)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 # =============================================================================

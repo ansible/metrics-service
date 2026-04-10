@@ -15,6 +15,8 @@ from typing import Any, Self
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import IntegrityError, models, transaction
+from django.db.models import Case, F, When
+from django.db.models.functions import Cast
 from metrics_utility.library.collectors.dashboard import AWXJobType
 
 # Import base classes, handling both DAB and simple fallbacks
@@ -269,11 +271,17 @@ class TemplateMetadata(CommonModel):
     template_name = models.CharField(max_length=512, db_index=True, help_text="Template name for display (from AWX)")
 
     time_taken_manually_execute_minutes = models.BigIntegerField(
-        null=True, blank=True, help_text="User override: Estimated time to perform this task manually (minutes)"
+        null=True,
+        blank=True,
+        help_text="User override: Estimated time to perform this task manually (minutes)",
+        validators=[MinValueValidator(0)],
     )
 
     time_taken_create_automation_minutes = models.BigIntegerField(
-        null=True, blank=True, help_text="User override: Estimated time spent creating this automation (minutes)"
+        null=True,
+        blank=True,
+        help_text="User override: Estimated time spent creating this automation (minutes)",
+        validators=[MinValueValidator(0)],
     )
 
     class Meta:
@@ -736,4 +744,13 @@ class JobHostSummary(CommonModel):
             labels_qs = JobLabel.objects.filter(label_id__in=labels).values_list("job_data_id", flat=True)
             queryset = queryset.filter(job_data_id__in=labels_qs)
 
-        return queryset.values("host_name").distinct().count()
+        # Annotate a stable surrogate identifier: prefer host_id (cast to text) when
+        # present, fall back to host_name for hosts without a stable AWX ID.
+        queryset = queryset.annotate(
+            stable_host=Case(
+                When(host_id__isnull=False, then=Cast(F("host_id"), output_field=models.TextField())),
+                default=F("host_name"),
+                output_field=models.TextField(),
+            )
+        )
+        return queryset.values("stable_host").distinct().count()

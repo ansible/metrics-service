@@ -212,10 +212,12 @@ class TestCommonViewSets:
         self, _, endpoint, viewset_name, kwargs, mocked_data, expected_status, expected_data, admin_client
     ):
         # _ is the mock from @patch decorator; unused because we patch awx_query_function directly in the test
+        # awx_query_function now returns (items, total_count) — wrap mocked_data accordingly.
+        mocked_return = (mocked_data, len(mocked_data))
         with (
             override_settings(DEBUG=True),
             patch(
-                f"apps.dashboard_reports.viewsets.{viewset_name}.awx_query_function", return_value=mocked_data
+                f"apps.dashboard_reports.viewsets.{viewset_name}.awx_query_function", return_value=mocked_return
             ) as mock_awx_query_function,
         ):
             pk = kwargs.get("pk") if kwargs else None
@@ -236,10 +238,16 @@ class TestCommonViewSets:
                     assert data[key] == value, f"Expected '{key}' to be {value}, got {data[key]}"
             if search is not None:
                 assert mock_awx_query_function.call_args[1]["search_str"] == search
+                # List path must forward pagination params to the query function
+                assert "limit" in mock_awx_query_function.call_args[1]
+                assert "offset" in mock_awx_query_function.call_args[1]
             elif pk is not None:
                 assert mock_awx_query_function.call_args[1]["pk"] == pk
             else:
                 assert mock_awx_query_function.call_count == 1
+                # List path must forward pagination params to the query function
+                assert "limit" in mock_awx_query_function.call_args[1]
+                assert "offset" in mock_awx_query_function.call_args[1]
 
     @pytest.mark.parametrize(
         "endpoint, method, pk",

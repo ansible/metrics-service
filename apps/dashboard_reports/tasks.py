@@ -168,29 +168,30 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
         logger.error(error_msg)
         return create_task_result("error", error=error_msg)
     follow_up_task_id = dashboard_tasks[0].get("task_id")
-    existing_tasks_count = Task.objects.filter(name=follow_up_task_id, is_system_task=True).count()
-    if existing_tasks_count > 0:
-        logger.info(f"Task '{follow_up_task_id}' already exists. Skipping creation of follow-up task.")
-        data["Follow-up task creation"] = "skipped"
-    else:
-        daily_dashboard_collection_task = dashboard_tasks[0]
-        task_data = dashboard_tasks[0].get("args", {}).copy()
-        if DASHBOARD_COLLECTION_GROUP.feature_flag:
-            task_data["_feature_flag"] = DASHBOARD_COLLECTION_GROUP.feature_flag
-        try:
-            Task.objects.create(
-                name=follow_up_task_id,
-                description=daily_dashboard_collection_task.get("description", ""),
-                function_name=daily_dashboard_collection_task["function"],
-                task_data=task_data,
-                cron_expression=daily_dashboard_collection_task.get("cron"),
-                is_system_task=True,
-                status="pending",
-            )
+    daily_dashboard_collection_task = dashboard_tasks[0]
+    task_data = dashboard_tasks[0].get("args", {}).copy()
+    if DASHBOARD_COLLECTION_GROUP.feature_flag:
+        task_data["_feature_flag"] = DASHBOARD_COLLECTION_GROUP.feature_flag
+    try:
+        _, created = Task.objects.get_or_create(
+            name=follow_up_task_id,
+            is_system_task=True,
+            defaults={
+                "description": daily_dashboard_collection_task.get("description", ""),
+                "function_name": daily_dashboard_collection_task["function"],
+                "task_data": task_data,
+                "cron_expression": daily_dashboard_collection_task.get("cron"),
+                "status": "pending",
+            },
+        )
+        if created:
             data["Follow-up task creation"] = "success"
-        except Exception as e:
-            logger.error(f"Error creating follow-up task for collecting dashboard reports data: {str(e)}")
-            return create_task_result("error", error=f"Creating follow-up task failed: {str(e)}")
+        else:
+            logger.info(f"Task '{follow_up_task_id}' already exists. Skipping creation of follow-up task.")
+            data["Follow-up task creation"] = "skipped"
+    except Exception as e:
+        logger.error(f"Error creating follow-up task for collecting dashboard reports data: {str(e)}")
+        return create_task_result("error", error=f"Creating follow-up task failed: {str(e)}")
 
     return create_task_result("success", data=data)
 
@@ -222,6 +223,21 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     Returns a task result dict with the number of deleted records, cutoff date, and any error details.
     """
     retention_period_days = kwargs.get("retention_period_days", 90)
+    try:
+        retention_period_days = int(retention_period_days)
+    except (TypeError, ValueError):
+        logger.error(
+            "cleanup_dashboard_reports_old_data: retention_period_days=%r is not a valid integer; aborting cleanup",
+            retention_period_days,
+        )
+        return create_task_result("error", error=f"Invalid retention_period_days value: {retention_period_days!r}")
+    if retention_period_days < 0:
+        logger.warning(
+            "cleanup_dashboard_reports_old_data: retention_period_days=%d is negative which would produce a future "
+            "cutoff date and delete current records; clamping to 0",
+            retention_period_days,
+        )
+        retention_period_days = 0
     cutoff_date = datetime.now(tz=UTC) - timedelta(days=retention_period_days)
     cutoff_date = cutoff_date.replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff_date_str = cutoff_date.isoformat()

@@ -93,7 +93,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
         assert self.instance.time_taken_create_automation_minutes is None
 
     def test_put_does_not_change_template_id(self):
-        original_template_id = self.instance.pk
+        original_template_id = self.instance.template_id
 
         self.client.put(
             _url(self.instance.pk),
@@ -106,7 +106,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
         )
 
         self.instance.refresh_from_db()
-        assert self.instance.pk == original_template_id
+        assert self.instance.template_id == original_template_id
 
     def test_put_returns_404_for_nonexistent_pk(self):
         response = self.client.put(
