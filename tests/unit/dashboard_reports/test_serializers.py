@@ -53,9 +53,11 @@ class TestReportSerializer:
 
     @pytest.fixture
     def mock_job_data(self):
-        # Mock JobData-like dict for serializer
+        # Mock the ValuesQuerySet dict produced by _build_aggregated_queryset.
+        # template_name is sourced from the FK traversal key (template_metadata__template_name),
+        # not the denormalized JobData.template_name field.
         return {
-            "template_name": "Test Template",
+            "template_metadata__template_name": "Test Template",
             "template_metadata_id": 123,
             "time_taken_manually_execute_minutes": 30,
             "time_taken_create_automation_minutes": 60,
@@ -102,7 +104,12 @@ class TestReportSerializer:
     def test_missing_fields(self):
         # Test serializer with missing optional fields
 
-        job_data = {"template_name": "Missing Fields", "id": 1, "elapsed": 3600, "time_savings": 3600}
+        job_data = {
+            "template_metadata__template_name": "Missing Fields",
+            "id": 1,
+            "elapsed": 3600,
+            "time_savings": 3600,
+        }
         serializer = ReportSerializer(job_data)
         data = serializer.data
         assert data["template_name"] == "Missing Fields"

@@ -105,7 +105,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         template (int): Filter by job template ID (multiple allowed)
         label (int): Filter by label ID (multiple allowed)
         project (int): Filter by project ID (multiple allowed)
-        ordering (str): Field to order by (e.g. "template_name", "successful_runs", "savings", etc.)
+        ordering (str): Field to order by (e.g. "template_metadata__template_name", "successful_runs", "savings", etc.)
 
     """
 
@@ -213,7 +213,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             type=OpenApiTypes.STR,
             location=OpenApiParameter.QUERY,
             required=False,
-            description="Field to order by (e.g. 'template_name', 'successful_runs', 'savings', etc.)",
+            description="Field to order by (e.g. 'template_metadata__template_name', 'successful_runs', 'savings', etc.)",
         ),
     ]
 
@@ -227,7 +227,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     TOP_RESULTS_LIMIT = 5
 
     ordering_fields: list[str] = [
-        "template_name",
+        "template_metadata__template_name",
         "successful_runs",
         "failed_runs",
         "num_hosts",
@@ -239,7 +239,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         "runs",
     ]
 
-    ordering = ["template_name"]
+    ordering = ["template_metadata__template_name"]
 
     def get_serializer_class(self) -> type:
         """Return ReportDetailSerializer for the details action, otherwise the default serializer."""
@@ -282,7 +282,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             base_qs.filter(template_metadata_id__isnull=False)
             .values(
                 "template_metadata_id",
-                template_name=F("template_metadata__template_name"),
+                "template_metadata__template_name",
                 time_taken_manually_execute_minutes=F("template_metadata__time_taken_manually_execute_minutes"),
                 time_taken_create_automation_minutes=F("template_metadata__time_taken_create_automation_minutes"),
             )

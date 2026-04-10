@@ -48,6 +48,9 @@ class ReportSerializer(_ReportSerializerBase):
     # link the logic of changing times for manually execute and time taken to create
     # automation, and if template_id can be null then the GUI also gives an error.
     id = serializers.IntegerField(source="template_metadata_id", read_only=True)
+    # The queryset groups by template_metadata__template_name (FK traversal) rather than the
+    # denormalized JobData.template_name field, so we must source from the traversal key.
+    template_name = serializers.CharField(source="template_metadata__template_name", read_only=True)
     time_taken_manually_execute_minutes = serializers.IntegerField(
         read_only=True, help_text="Estimated time to perform this task manually (minutes)"
     )
