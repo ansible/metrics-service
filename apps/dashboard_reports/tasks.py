@@ -249,16 +249,18 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     )
 
     try:
-        deleted_count, _ = JobData.objects.filter(finished__lt=cutoff_date).delete()
+        qs = JobData.objects.filter(finished__lt=cutoff_date)
+        jobdata_count = qs.count()
+        qs.delete()
         log_task_execution(
             task_name="cleanup_dashboard_reports_old_data",
             operation="completed",
-            details=f"Deleted {deleted_count} JobData records finished before {cutoff_date_str}",
+            details=f"Deleted {jobdata_count} JobData records finished before {cutoff_date_str}",
         )
         return create_task_result(
             "success",
             data={
-                "deleted_records": deleted_count,
+                "deleted_records": jobdata_count,
                 "cutoff_date": cutoff_date_str,
                 "retention_period_days": retention_period_days,
             },
