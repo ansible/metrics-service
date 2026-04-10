@@ -5,10 +5,28 @@ Provides low-level SQL helpers and higher-level fetch functions for retrieving
 organizations, job templates, projects, and labels directly from the AWX database.
 """
 
+import enum
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+class AWXQuery(enum.Enum):
+    """Enumeration of allowed AWX read-only SELECT queries."""
+
+    ORGANIZATIONS = "SELECT id, name FROM main_organization"
+    TEMPLATES = (
+        "SELECT ujt.id, ujt.name "
+        "FROM main_unifiedjobtemplate ujt "
+        "JOIN main_jobtemplate jt on jt.unifiedjobtemplate_ptr_id = ujt.id"
+    )
+    PROJECTS = (
+        "SELECT ujt.id, ujt.name "
+        "FROM main_unifiedjobtemplate ujt "
+        "JOIN main_project pj on pj.unifiedjobtemplate_ptr_id = ujt.id"
+    )
+    LABELS = "SELECT id, name FROM main_label"
 
 
 def _build_where_clause(join_alias: str, search_str: str | None, pk: Any) -> tuple[str, list[Any]]:
@@ -43,7 +61,7 @@ def _execute_count_query(db_connection, count_query: str, params: list[Any]) -> 
         return cursor.fetchone()[0]
 
 
-def fetch_data_from_db(base_query: str, join_alias: str = "", **kwargs: Any) -> tuple[list[Any], int]:
+def fetch_data_from_db(awx_query: AWXQuery, join_alias: str = "", **kwargs: Any) -> tuple[list[Any], int]:
     """
     Execute a parameterized SQL query against the AWX database with optional search, pk, limit, and offset filters.
 
@@ -60,11 +78,12 @@ def fetch_data_from_db(base_query: str, join_alias: str = "", **kwargs: Any) -> 
     limit = kwargs.get("limit")
     offset = kwargs.get("offset", 0)
 
+    base_query = awx_query.value
     where_clause, params = _build_where_clause(join_alias, search_str, pk)
     order_clause = f" ORDER BY {join_alias}name"
 
     if limit is not None:
-        count_query = f"SELECT COUNT(*) FROM ({base_query}{where_clause}) AS _count_subq"
+        count_query = f"SELECT COUNT(*) FROM ({base_query}{where_clause}) AS _count_subq"  # noqa: S608 base_query is an AWXQuery enum value (hardcoded literal); where_clause uses %s placeholders
         total = _execute_count_query(db_connection, count_query, params)
         query = base_query + where_clause + order_clause + " LIMIT %s OFFSET %s"
         _, data = _execute_db_query(db_connection, query, params + [limit, offset])
@@ -81,7 +100,9 @@ def format_id_name_rows(rows: list[Any]) -> list[dict[str, Any]]:
     return [{"id": row[0], "name": row[1]} for row in rows]
 
 
-def fetch_id_name(query: str, join_alias: str = "", error_msg: str = "", **kwargs) -> tuple[list[dict[str, Any]], int]:
+def fetch_id_name(
+    awx_query: AWXQuery, join_alias: str = "", error_msg: str = "", **kwargs
+) -> tuple[list[dict[str, Any]], int]:
     """
     Fetch id/name pairs from the AWX database and return ``(items, total_count)``.
 
@@ -89,7 +110,7 @@ def fetch_id_name(query: str, join_alias: str = "", error_msg: str = "", **kwarg
     or the length of the result set otherwise.  Raises the underlying exception after logging on failure.
     """
     try:
-        rows, total = fetch_data_from_db(query, join_alias=join_alias, **kwargs)
+        rows, total = fetch_data_from_db(awx_query, join_alias=join_alias, **kwargs)
     except Exception:
         logger.exception(error_msg)
         raise
@@ -98,31 +119,23 @@ def fetch_id_name(query: str, join_alias: str = "", error_msg: str = "", **kwarg
 
 def fetch_organizations(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch organizations from DB, returning ``(items, total_count)``."""
-    query = "SELECT id, name FROM main_organization"
-    return fetch_id_name(query, error_msg="Error fetching organizations from AWX database", **kwargs)
+    return fetch_id_name(AWXQuery.ORGANIZATIONS, error_msg="Error fetching organizations from AWX database", **kwargs)
 
 
 def fetch_templates(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch job templates from DB, returning ``(items, total_count)``."""
-    query = (
-        "SELECT ujt.id, ujt.name "
-        "FROM main_unifiedjobtemplate ujt "
-        "JOIN main_jobtemplate jt on jt.unifiedjobtemplate_ptr_id = ujt.id"
+    return fetch_id_name(
+        AWXQuery.TEMPLATES, join_alias="ujt.", error_msg="Error fetching job templates from AWX database", **kwargs
     )
-    return fetch_id_name(query, join_alias="ujt.", error_msg="Error fetching job templates from AWX database", **kwargs)
 
 
 def fetch_projects(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch projects from DB, returning ``(items, total_count)``."""
-    query = (
-        "SELECT ujt.id, "
-        "ujt.name FROM main_unifiedjobtemplate ujt "
-        "JOIN main_project pj on pj.unifiedjobtemplate_ptr_id = ujt.id"
+    return fetch_id_name(
+        AWXQuery.PROJECTS, join_alias="ujt.", error_msg="Error fetching projects from AWX database", **kwargs
     )
-    return fetch_id_name(query, join_alias="ujt.", error_msg="Error fetching projects from AWX database", **kwargs)
 
 
 def fetch_labels(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch labels from DB, returning ``(items, total_count)``."""
-    query = "SELECT id, name FROM main_label"
-    return fetch_id_name(query, error_msg="Error fetching labels from AWX database", **kwargs)
+    return fetch_id_name(AWXQuery.LABELS, error_msg="Error fetching labels from AWX database", **kwargs)

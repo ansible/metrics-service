@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from apps.dashboard_reports import awx_queries
+from apps.dashboard_reports.awx_queries import AWXQuery
 
 
 @pytest.mark.unit
@@ -37,7 +38,7 @@ class TestAWXQueries:
         mock_exec.return_value = (["id", "name"], [(1, "X")])
         db_conn = MagicMock()
         rows, total = awx_queries.fetch_data_from_db(
-            "SELECT id, name FROM table", join_alias="", db_connection=db_conn, search_str=None, pk=None
+            AWXQuery.ORGANIZATIONS, join_alias="", db_connection=db_conn, search_str=None, pk=None
         )
         assert rows == [(1, "X")]
         assert total == 1  # len(rows) when no limit
@@ -50,8 +51,13 @@ class TestAWXQueries:
         mock_exec.return_value = (["id", "name"], [(1, "X"), (2, "Y")])
         db_conn = MagicMock()
         rows, total = awx_queries.fetch_data_from_db(
-            "SELECT id, name FROM table", join_alias="", db_connection=db_conn, search_str=None, pk=None,
-            limit=10, offset=0,
+            AWXQuery.ORGANIZATIONS,
+            join_alias="",
+            db_connection=db_conn,
+            search_str=None,
+            pk=None,
+            limit=10,
+            offset=0,
         )
         assert rows == [(1, "X"), (2, "Y")]
         assert total == 42
@@ -61,7 +67,7 @@ class TestAWXQueries:
     @patch("apps.dashboard_reports.awx_queries.fetch_data_from_db")
     def test_fetch_id_name_success(self, mock_fetch):
         mock_fetch.return_value = ([(3, "C")], 1)
-        items, total = awx_queries.fetch_id_name("SELECT id, name FROM t", error_msg="err", db_connection=MagicMock())
+        items, total = awx_queries.fetch_id_name(AWXQuery.ORGANIZATIONS, error_msg="err", db_connection=MagicMock())
         assert items == [{"id": 3, "name": "C"}]
         assert total == 1
 
@@ -69,7 +75,7 @@ class TestAWXQueries:
     def test_fetch_id_name_error(self, mock_fetch):
         mock_fetch.side_effect = Exception("fail")
         with pytest.raises(Exception, match="fail"):
-            awx_queries.fetch_id_name("SELECT id, name FROM t", error_msg="err", db_connection=MagicMock())
+            awx_queries.fetch_id_name(AWXQuery.ORGANIZATIONS, error_msg="err", db_connection=MagicMock())
 
     @patch("apps.dashboard_reports.awx_queries.fetch_id_name")
     def test_fetch_organizations(self, mock_fetch):
