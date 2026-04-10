@@ -1,0 +1,184 @@
+---
+# Simplified resource setup for perf testing on AAP 2.5
+# Uses direct REST API calls (uri module) to bypass awx.awx collection
+# incompatibility with AAP 2.5 gateway routing (/api/controller/v2/ vs /api/v2/).
+#
+# Usage:
+#   ansible-playbook setup_perf_resources.yml -e @creds.yml
+
+- name: Setup perf test resources on AAP 2.5
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    api_base: "https://{{ aap_hostname }}/api/controller/v2"
+    auth_header:
+      Authorization: "Bearer {{ aap_token }}"
+      Content-Type: "application/json"
+
+  tasks:
+    - name: Load credentials
+      ansible.builtin.include_vars: creds.yml
+
+    # -------------------------------------------------------------------------
+    # Verify API access
+    # -------------------------------------------------------------------------
+    - name: Verify API connectivity
+      ansible.builtin.uri:
+        url: "{{ api_base }}/ping/"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+        status_code: 200
+      register: ping
+    - ansible.builtin.debug:
+        msg: "Connected to AWX {{ ping.json.version }}"
+
+    # -------------------------------------------------------------------------
+    # Get Default org ID
+    # -------------------------------------------------------------------------
+    - name: Get Default organization ID
+      ansible.builtin.uri:
+        url: "{{ api_base }}/organizations/?name=Default"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+      register: org_result
+    - ansible.builtin.set_fact:
+        default_org_id: "{{ org_result.json.results[0].id }}"
+
+    # -------------------------------------------------------------------------
+    # Project
+    # -------------------------------------------------------------------------
+    - name: Check if Perf Test Project exists
+      ansible.builtin.uri:
+        url: "{{ api_base }}/projects/?name=Perf+Test+Project&organization={{ default_org_id }}"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+      register: project_check
+
+    - name: Create Perf Test Project
+      ansible.builtin.uri:
+        url: "{{ api_base }}/projects/"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: POST
+        body_format: json
+        body:
+          name: "Perf Test Project"
+          organization: "{{ default_org_id }}"
+          scm_type: git
+          scm_url: "https://github.com/ansible/ansible-examples.git"
+          scm_branch: master
+          scm_update_on_launch: false
+        status_code: [200, 201]
+      register: project_create
+      when: project_check.json.count == 0
+
+    - name: Get project ID
+      ansible.builtin.uri:
+        url: "{{ api_base }}/projects/?name=Perf+Test+Project&organization={{ default_org_id }}"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+      register: project_result
+    - ansible.builtin.set_fact:
+        project_id: "{{ project_result.json.results[0].id }}"
+
+    - name: Trigger project sync
+      ansible.builtin.uri:
+        url: "{{ api_base }}/projects/{{ project_id }}/update/"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: POST
+        status_code: [200, 202]
+      when: project_check.json.count == 0
+
+    - name: Wait for project sync
+      ansible.builtin.uri:
+        url: "{{ api_base }}/projects/{{ project_id }}/"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+      register: project_status
+      until: project_status.json.status in ['successful', 'failed', 'canceled']
+      retries: 20
+      delay: 10
+      when: project_check.json.count == 0
+
+    # -------------------------------------------------------------------------
+    # Inventory
+    # -------------------------------------------------------------------------
+    - name: Check if inventory exists
+      ansible.builtin.uri:
+        url: "{{ api_base }}/inventories/?name=integrity_tests-inventory_aws&organization={{ default_org_id }}"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+      register: inv_check
+
+    - name: Create perf test inventory
+      ansible.builtin.uri:
+        url: "{{ api_base }}/inventories/"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: POST
+        body_format: json
+        body:
+          name: "integrity_tests-inventory_aws"
+          organization: "{{ default_org_id }}"
+          description: "Perf test inventory for metrics-service benchmarking"
+        status_code: [200, 201]
+      when: inv_check.json.count == 0
+
+    - name: Get inventory ID
+      ansible.builtin.uri:
+        url: "{{ api_base }}/inventories/?name=integrity_tests-inventory_aws&organization={{ default_org_id }}"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+      register: inv_result
+    - ansible.builtin.set_fact:
+        inventory_id: "{{ inv_result.json.results[0].id }}"
+
+    # -------------------------------------------------------------------------
+    # Job Template
+    # -------------------------------------------------------------------------
+    - name: Check if job template exists
+      ansible.builtin.uri:
+        url: "{{ api_base }}/job_templates/?name=Perf+Test+-+AWS+Inventory+Run&organization={{ default_org_id }}"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+      register: jt_check
+
+    - name: Create perf test job template
+      ansible.builtin.uri:
+        url: "{{ api_base }}/job_templates/"
+        headers: "{{ auth_header }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: POST
+        body_format: json
+        body:
+          name: "Perf Test - AWS Inventory Run"
+          organization: "{{ default_org_id }}"
+          job_type: run
+          inventory: "{{ inventory_id }}"
+          project: "{{ project_id }}"
+          playbook: "lamp_simple/site.yml"
+          extra_vars: "ansible_connection: local\nansible_python_interpreter: /usr/bin/python3"
+        status_code: [200, 201]
+      when: jt_check.json.count == 0
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Perf test resources ready!"
+          - "  Project  : Perf Test Project (ID: {{ project_id }})"
+          - "  Inventory: integrity_tests-inventory_aws (ID: {{ inventory_id }})"
+          - "  Template : Perf Test - AWS Inventory Run"
+          - "=========================================="
+          - "Next: ansible-playbook perf_data_generator.yml -e @creds.yml"

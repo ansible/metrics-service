@@ -142,3 +142,4 @@ cachi2-output/
 # dev tooling outputs
 hourly_dumps/
 daily_dumps/
+metrics_service/tools/performance_tests/data_generation/creds.yml

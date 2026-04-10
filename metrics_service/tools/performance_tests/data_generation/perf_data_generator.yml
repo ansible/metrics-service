@@ -1,0 +1,82 @@
+---
+# Performance data generator for metrics-service perf testing.
+#
+# What this does:
+#   1. Bulk creates perf_host_count hosts into the inventory
+#   2. Launches perf_job_runs jobs against that inventory
+#   3. Each job run produces perf_host_count JobHostSummary records
+#
+# Total JobHostSummaries = perf_host_count * perf_job_runs
+#
+# IMPORTANT: Run perf_cleanup_inventory.yml BEFORE this playbook for each
+# new test case to ensure the inventory starts from zero. If the inventory
+# already has hosts, jobs will run against ALL of them (old + new), which
+# skews the record count.
+#
+# Workflow per test case:
+#   1. ansible-playbook perf_cleanup_inventory.yml -e @creds.yml -e aap_validate_certs=false
+#   2. ansible-playbook perf_data_generator.yml    -e @creds.yml -e aap_validate_certs=false \
+#        -e perf_host_count=<N> -e perf_job_runs=<R>
+#   3. Wait for the :05 cron and observe with benchmark_cron_observer.py
+#
+# Scale reference:
+#   Baseline : perf_host_count=100  perf_job_runs=5  → ~500   records
+#   Medium   : perf_host_count=400  perf_job_runs=10 → ~4000  records
+#   Large    : perf_host_count=1000 perf_job_runs=20 → ~20000 records
+#   X-Large  : perf_host_count=1000 perf_job_runs=40 → ~40000 records
+#
+# NOTE: Host creation is batched in groups of 100 with a 3s pause between
+# batches to avoid crashing the AWX controller uWSGI workers (HTTP 500).
+#
+- name: Generate performance test data for metrics-service
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    perf_host_count: 100        # Hosts to create (= records per job run)
+    perf_job_runs: 5            # Job runs → total = perf_host_count * perf_job_runs
+    perf_host_prefix: "perf-host"
+    perf_job_timeout: 3600
+
+    perf_targets:
+      - inventory: "integrity_tests-inventory_aws"
+        job_template: "Perf Test - AWS Inventory Run"
+        add_hosts: true
+
+  tasks:
+    - name: Load credentials
+      ansible.builtin.include_vars: creds.yml
+
+    - name: Show perf test configuration
+      ansible.builtin.debug:
+        msg:
+          - "Hosts to create   : {{ perf_host_count }}"
+          - "Job runs          : {{ perf_job_runs }}"
+          - "Expected records  : {{ perf_host_count | int * perf_job_runs | int }} JobHostSummaries"
+
+    # -------------------------------------------------------------------------
+    # Loop over each inventory target
+    # -------------------------------------------------------------------------
+    - name: Process inventory {{ target.inventory }}
+      include_tasks: perf_data_generator_inventory.yml
+      loop: "{{ perf_targets }}"
+      loop_control:
+        loop_var: target
+        label: "{{ target.inventory }}"
+
+    # -------------------------------------------------------------------------
+    # Final summary
+    # -------------------------------------------------------------------------
+    - name: Performance data generation complete
+      ansible.builtin.debug:
+        msg:
+          - "================================================"
+          - "Perf data generation complete!"
+          - "Hosts created     : {{ perf_host_count }}"
+          - "Job runs          : {{ perf_job_runs }}"
+          - "Expected records  : ~{{ perf_host_count | int * perf_job_runs | int }} JobHostSummaries"
+          - "================================================"
+          - "Next step: wait for the :05 cron then run:"
+          - "  benchmark_cron_observer.py"
+          - "================================================"

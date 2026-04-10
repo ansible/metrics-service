@@ -1,0 +1,14 @@
+# Copy this file to creds.yml and fill in your AAP instance credentials.
+# creds.yml is intentionally excluded from version control.
+
+aap_hostname: "<gateway-ip>"         # e.g. 3.92.176.0
+aap_username: "admin"
+aap_password: "<your-password>"
+aap_token: "<your-bearer-token>"
+aap_validate_certs: false
+
+# controller_* vars point directly at the controller node (not gateway)
+controller_hostname: "https://<controller-ip>"
+controller_username: "admin"
+controller_password: "<your-password>"
+controller_validate_certs: false

@@ -1,0 +1,46 @@
+{
+  "fetched_at": "2026-04-10T05:29:33.634334+00:00",
+  "data_scale": "4000_job_host_summaries",
+  "lookback_hours": 2,
+  "results": [
+    {
+      "task_id": 414,
+      "task_name": "hourly_job_host_summary (Execution 2026-04-10 05:05:00)",
+      "collector_type": "job_host_summary_service",
+      "collection_window": "2026-04-10T04:00:00+00:00",
+      "status": "completed",
+      "created": "2026-04-10T05:05:00.012450Z",
+      "completed_at": "2026-04-10T05:05:00.238160Z",
+      "records_processed": 4000,
+      "elapsed_seconds": 0.125,
+      "total_seconds": 0.2257,
+      "overhead_seconds": 0.1007
+    },
+    {
+      "task_id": 415,
+      "task_name": "hourly_unified_jobs (Execution 2026-04-10 05:10:00)",
+      "collector_type": "unified_jobs",
+      "collection_window": "2026-04-10T04:00:00+00:00",
+      "status": "completed",
+      "created": "2026-04-10T05:10:00.012119Z",
+      "completed_at": "2026-04-10T05:10:00.116416Z",
+      "records_processed": 5,
+      "elapsed_seconds": 0.005,
+      "total_seconds": 0.1043,
+      "overhead_seconds": 0.0993
+    },
+    {
+      "task_id": 416,
+      "task_name": "hourly_credentials (Execution 2026-04-10 05:15:00)",
+      "collector_type": "credentials_service",
+      "collection_window": "2026-04-10T04:00:00+00:00",
+      "status": "completed",
+      "created": "2026-04-10T05:15:00.012121Z",
+      "completed_at": "2026-04-10T05:15:00.058113Z",
+      "records_processed": 0,
+      "elapsed_seconds": 0.002,
+      "total_seconds": 0.046,
+      "overhead_seconds": 0.044
+    }
+  ]
+}

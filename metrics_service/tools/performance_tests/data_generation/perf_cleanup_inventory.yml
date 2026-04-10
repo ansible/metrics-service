@@ -1,0 +1,156 @@
+---
+# Cleans the perf test inventory before each benchmark test case.
+#
+# Deletes all hosts from the inventory so the next testathon run starts
+# from a known zero state. This is required when testing at different
+# scales (e.g. 500 → 5,000 → 50,000 JobHostSummaries) so that host counts
+# are exact and results are not skewed by accumulated hosts from prior runs.
+#
+# Usage:
+#   ansible-playbook perf_cleanup_inventory.yml -e @creds.yml \
+#     -e aap_validate_certs=false
+#
+#   # Override inventory name if needed:
+#   ansible-playbook perf_cleanup_inventory.yml -e @creds.yml \
+#     -e aap_validate_certs=false \
+#     -e perf_inventory_name="integrity_tests-inventory_aws"
+
+- name: Clean perf test inventory before benchmark run
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    perf_inventory_name: "integrity_tests-inventory_aws"
+    delete_batch_size: 100   # hosts to delete per API call
+
+  tasks:
+    - name: Load credentials
+      ansible.builtin.include_vars: creds.yml
+
+    # -------------------------------------------------------------------------
+    # Step 1: Get inventory ID
+    # -------------------------------------------------------------------------
+    - name: Get inventory ID for {{ perf_inventory_name }}
+      ansible.builtin.uri:
+        url: "https://{{ aap_hostname }}/api/controller/v2/inventories/?name={{ perf_inventory_name | replace(' ', '+') }}"
+        headers:
+          Authorization: "Bearer {{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+        status_code: [200]
+      register: inv_lookup
+      retries: 5
+      delay: 10
+      until: inv_lookup.status == 200
+
+    - name: Set inventory ID
+      ansible.builtin.set_fact:
+        inventory_id: "{{ inv_lookup.json.results[0].id }}"
+
+    # -------------------------------------------------------------------------
+    # Step 2: Count existing hosts
+    # -------------------------------------------------------------------------
+    - name: Count existing hosts in {{ perf_inventory_name }}
+      ansible.builtin.uri:
+        url: "https://{{ aap_hostname }}/api/controller/v2/inventories/{{ inventory_id }}/hosts/?page_size=1"
+        headers:
+          Authorization: "Bearer {{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+        status_code: [200]
+      register: host_count_result
+      retries: 5
+      delay: 10
+      until: host_count_result.status == 200
+
+    - name: Show current host count
+      ansible.builtin.debug:
+        msg: "Inventory '{{ perf_inventory_name }}' has {{ host_count_result.json.count }} hosts — deleting all..."
+
+    - name: Nothing to clean up
+      ansible.builtin.debug:
+        msg: "Inventory is already empty. Nothing to do."
+      when: host_count_result.json.count | int == 0
+
+    # -------------------------------------------------------------------------
+    # Step 3: Fetch and delete hosts page by page
+    # -------------------------------------------------------------------------
+    - name: Fetch all host IDs from {{ perf_inventory_name }}
+      ansible.builtin.uri:
+        url: "https://{{ aap_hostname }}/api/controller/v2/inventories/{{ inventory_id }}/hosts/?page_size={{ delete_batch_size }}&page={{ page_num }}"
+        headers:
+          Authorization: "Bearer {{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+        status_code: [200, 404]   # 404 = "Invalid page" means we've gone past the last page
+      register: hosts_page
+      retries: 5
+      delay: 10
+      until: hosts_page.status in [200, 404]
+      loop: "{{ range(1, ((host_count_result.json.count | int) // (delete_batch_size | int)) + 2) | list }}"
+      loop_control:
+        loop_var: page_num
+        label: "page {{ page_num }}"
+      when: host_count_result.json.count | int > 0
+
+    - name: Build flat list of all host IDs
+      ansible.builtin.set_fact:
+        all_host_ids: >-
+          {{
+            hosts_page.results
+            | selectattr('status', 'equalto', 200)
+            | selectattr('json.results', 'defined')
+            | map(attribute='json.results')
+            | flatten
+            | map(attribute='id')
+            | list
+          }}
+      when: host_count_result.json.count | int > 0
+
+    - name: Delete host {{ item }}
+      ansible.builtin.uri:
+        url: "https://{{ aap_hostname }}/api/controller/v2/hosts/{{ item }}/"
+        headers:
+          Authorization: "Bearer {{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: DELETE
+        status_code: [204, 404]   # 404 = already gone, treat as success
+      register: delete_result
+      retries: 3
+      delay: 5
+      until: delete_result.status in [204, 404]
+      ignore_errors: true          # transient 500s from gateway won't abort the run
+      loop: "{{ all_host_ids }}"
+      loop_control:
+        label: "host {{ item }}"
+      when: host_count_result.json.count | int > 0
+
+    # -------------------------------------------------------------------------
+    # Step 4: Verify empty
+    # -------------------------------------------------------------------------
+    - name: Verify inventory is now empty
+      ansible.builtin.uri:
+        url: "https://{{ aap_hostname }}/api/controller/v2/inventories/{{ inventory_id }}/hosts/?page_size=1"
+        headers:
+          Authorization: "Bearer {{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        method: GET
+        status_code: [200]
+      register: verify_result
+      retries: 3
+      delay: 5
+      until: verify_result.status == 200
+
+    - name: Cleanup complete
+      ansible.builtin.debug:
+        msg:
+          - "================================================"
+          - "Inventory cleanup complete!"
+          - "Inventory     : {{ perf_inventory_name }}"
+          - "Hosts before  : {{ host_count_result.json.count }}"
+          - "Hosts after   : {{ verify_result.json.count }}"
+          - "================================================"
+          - "You can now run perf_data_generator.yml with"
+          - "a clean slate at your desired scale."
+          - "================================================"

@@ -1,0 +1,163 @@
+---
+# Per-inventory tasks for perf_data_generator.yml
+# Called in a loop for each entry in perf_targets
+# Variables available: target.inventory, target.job_template, target.add_hosts
+#
+# Uses direct URI calls instead of awx.awx collection modules
+# because awx.awx 24.6.1 is incompatible with AAP 2.5 gateway routing.
+#
+# Host creation is chunked into batches of bulk_create_batch_size (default 100)
+# with a short pause between each batch to prevent uWSGI from crashing under
+# heavy bulk-create load (HTTP 500 / IncompleteRead).
+
+- name: "=== Processing {{ target.inventory }} (add_hosts={{ target.add_hosts | default(true) }}) ==="
+  ansible.builtin.debug:
+    msg:
+      - "Inventory   : {{ target.inventory }}"
+      - "Job template: {{ target.job_template }}"
+      - "Adding hosts: {{ perf_host_count if (target.add_hosts | default(true)) else 'skipped (re-run against existing hosts)' }}"
+      - "Job runs    : {{ perf_job_runs }}"
+
+# -------------------------------------------------------------------------
+# Step 0: Resolve inventory and job template IDs via API
+# -------------------------------------------------------------------------
+- name: Get inventory ID for {{ target.inventory }}
+  ansible.builtin.uri:
+    url: "https://{{ aap_hostname }}/api/controller/v2/inventories/?name={{ target.inventory | replace(' ', '+') }}"
+    headers:
+      Authorization: "Bearer {{ aap_token }}"
+    validate_certs: "{{ aap_validate_certs }}"
+    method: GET
+    status_code: [200]
+  register: inv_lookup
+  retries: 5
+  delay: 10
+  until: inv_lookup.status == 200
+
+- name: Set inventory ID
+  ansible.builtin.set_fact:
+    current_inventory_id: "{{ inv_lookup.json.results[0].id }}"
+
+- name: Get job template ID for {{ target.job_template }}
+  ansible.builtin.uri:
+    url: "https://{{ aap_hostname }}/api/controller/v2/job_templates/?name={{ target.job_template | replace(' ', '+') }}"
+    headers:
+      Authorization: "Bearer {{ aap_token }}"
+    validate_certs: "{{ aap_validate_certs }}"
+    method: GET
+    status_code: [200]
+  register: jt_lookup
+  retries: 5
+  delay: 10
+  until: jt_lookup.status == 200
+
+- name: Set job template ID
+  ansible.builtin.set_fact:
+    current_jt_id: "{{ jt_lookup.json.results[0].id }}"
+
+# -------------------------------------------------------------------------
+# Step 1: Bulk create hosts via direct API
+# -------------------------------------------------------------------------
+- name: Set unique host run prefix using epoch timestamp
+  ansible.builtin.set_fact:
+    host_run_id: "{{ lookup('pipe', 'date +%s') }}"
+    bulk_create_batch_size: 100
+  when: target.add_hosts | default(true)
+
+- name: Generate full host list for {{ target.inventory }}
+  ansible.builtin.set_fact:
+    current_hosts_list: >-
+      {{
+        (current_hosts_list | default([])) + [{
+          'name': perf_host_prefix + '-' + (target.inventory | regex_replace('.*-inventory_', '')) + '-' + host_run_id + '-' + '%04d' | format(item) + '.example.com',
+          'description': 'Perf test host for ' + target.inventory,
+          'enabled': true,
+          'variables': '{"ansible_connection": "local", "ansible_host": "localhost", "ansible_python_interpreter": "/usr/bin/python3"}'
+        }]
+      }}
+  loop: "{{ range(1, perf_host_count | int + 1) | list }}"
+  loop_control:
+    label: "host {{ item }}"
+  when: target.add_hosts | default(true)
+
+- name: Bulk create hosts in batches of {{ bulk_create_batch_size }} (prevents uWSGI overload)
+  ansible.builtin.uri:
+    url: "https://{{ aap_hostname }}/api/controller/v2/bulk/host_create/"
+    headers:
+      Authorization: "Bearer {{ aap_token }}"
+      Content-Type: "application/json"
+    validate_certs: "{{ aap_validate_certs }}"
+    method: POST
+    body_format: json
+    body:
+      inventory: "{{ current_inventory_id }}"
+      hosts: "{{ current_hosts_list[item * bulk_create_batch_size | int : (item + 1) * bulk_create_batch_size | int] }}"
+    status_code: [200, 201]
+    timeout: 60
+  register: bulk_batch_result
+  retries: 3
+  delay: 10
+  until: bulk_batch_result.status in [200, 201]
+  loop: "{{ range(0, ((perf_host_count | int) / (bulk_create_batch_size | int)) | round(0, 'ceil') | int) | list }}"
+  loop_control:
+    label: "Batch {{ item + 1 }} (hosts {{ item * bulk_create_batch_size | int + 1 }}–{{ [(item + 1) * bulk_create_batch_size | int, perf_host_count | int] | min }})"
+  when: target.add_hosts | default(true)
+
+- name: Pause 3s between batches to let uWSGI recover
+  ansible.builtin.pause:
+    seconds: 3
+  when: target.add_hosts | default(true)
+
+- name: Show bulk create summary for {{ target.inventory }}
+  ansible.builtin.debug:
+    msg: "Created {{ perf_host_count }} hosts in {{ target.inventory }} across {{ ((perf_host_count | int) / (bulk_create_batch_size | int)) | round(0, 'ceil') | int }} batch(es)"
+  when: target.add_hosts | default(true)
+
+- name: Reset host list for next round
+  ansible.builtin.set_fact:
+    current_hosts_list: []
+  when: target.add_hosts | default(true)
+
+# -------------------------------------------------------------------------
+# Step 2: Launch jobs and wait for completion
+# -------------------------------------------------------------------------
+- name: "Launch job run {{ item }} of {{ perf_job_runs }} against {{ target.inventory }}"
+  ansible.builtin.uri:
+    url: "https://{{ aap_hostname }}/api/controller/v2/job_templates/{{ current_jt_id }}/launch/"
+    headers:
+      Authorization: "Bearer {{ aap_token }}"
+      Content-Type: "application/json"
+    validate_certs: "{{ aap_validate_certs }}"
+    method: POST
+    body_format: json
+    body: {}
+    status_code: [200, 201]
+  register: job_launch
+  retries: 5
+  delay: 5
+  until: job_launch.status in [200, 201]
+  loop: "{{ range(1, perf_job_runs | int + 1) | list }}"
+  loop_control:
+    label: "Run {{ item }} of {{ perf_job_runs }}"
+    pause: 3
+
+- name: "Wait for all launched jobs to complete"
+  ansible.builtin.uri:
+    url: "https://{{ aap_hostname }}/api/controller/v2/jobs/{{ item.json.id }}/"
+    headers:
+      Authorization: "Bearer {{ aap_token }}"
+    validate_certs: "{{ aap_validate_certs }}"
+    method: GET
+    return_content: true
+  register: job_status
+  until: (job_status.json is defined) and (job_status.json.status in ['successful', 'failed', 'canceled', 'error'])
+  retries: 60
+  delay: 30
+  loop: "{{ job_launch.results }}"
+  loop_control:
+    label: "Job {{ item.json.id }}"
+  ignore_errors: true
+
+- name: "Done with {{ target.inventory }}"
+  ansible.builtin.debug:
+    msg: "Completed {{ perf_job_runs }} job runs against {{ target.inventory }} ({{ perf_host_count }} hosts)"
