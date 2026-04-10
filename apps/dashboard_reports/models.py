@@ -367,10 +367,15 @@ class TemplateMetadata(CommonModel):
         # TODO: Add an integration test covering this concurrent-insert path to verify that
         # a second worker correctly recovers from the IntegrityError and returns the winning row.
         try:
-            instance = cls.objects.create(
-                template_name=name,
-                template_id=awx_id if awx_id is not None else cls.get_min_awx_id(),
-            )
+            # Wrap in a nested savepoint so that a unique-constraint violation only aborts
+            # this inner block — not the outer transaction.atomic() on create_or_update_from_awx.
+            # Without this, PostgreSQL marks the outer transaction as aborted after the failed
+            # INSERT, causing the recovery filter() call below to also fail.
+            with transaction.atomic():
+                instance = cls.objects.create(
+                    template_name=name,
+                    template_id=awx_id if awx_id is not None else cls.get_min_awx_id(),
+                )
             logger.info(f"Created new TemplateMetadata '{instance}' from AWX data.")
             return instance
         except IntegrityError:

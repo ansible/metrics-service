@@ -46,9 +46,11 @@ class DateFilter(Enum):
         return int(value.replace("last_", "").replace("_days", "")) if value is not None else None
 
     @classmethod
-    def to_start_date_end_date(cls, value: str, tz_string: str) -> tuple[str, str]:
+    def to_start_date_end_date(
+        cls, value: str, tz_string: str
+    ) -> tuple[datetime.datetime, datetime.datetime] | tuple[None, None]:
         """
-        Convert a DateFilter string to a (start_date, end_date) tuple for the given timezone.
+        Convert a DateFilter string to a (start_date, end_date) tuple of timezone-aware datetimes.
 
         Returns (None, None) if the value cannot be parsed.
         """

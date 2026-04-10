@@ -45,8 +45,8 @@ def parse_period_param(
         return None, None, msg
 
     try:
-        start_date_str, end_date_str = DateFilter.to_start_date_end_date(value=period_str, tz_string=timezone_str)
-        return start_date_str, end_date_str, ""
+        start_date, end_date = DateFilter.to_start_date_end_date(value=period_str, tz_string=timezone_str)
+        return start_date, end_date, ""
     except ValueError as e:
         msg = f"Invalid {param_name} format: {period_str}. Error: {str(e)}"
         logger.error(msg)
@@ -281,8 +281,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             # template_metadata_id, so null rows would cause serialization to fail.
             base_qs.filter(template_metadata_id__isnull=False)
             .values(
-                "template_name",
                 "template_metadata_id",
+                template_name=F("template_metadata__template_name"),
                 time_taken_manually_execute_minutes=F("template_metadata__time_taken_manually_execute_minutes"),
                 time_taken_create_automation_minutes=F("template_metadata__time_taken_create_automation_minutes"),
             )
