@@ -62,11 +62,10 @@ class TestDateFilter:
         assert start.tzinfo is not None
         assert end.tzinfo is not None
 
-    def test_to_start_date_end_date_invalid_timezone_falls_back_to_utc(self):
-        """to_start_date_end_date falls back to UTC for an invalid timezone."""
-        start, end = DateFilter.to_start_date_end_date("last_7_days", "Not/AReal_Zone")
-        assert start is not None
-        assert end is not None
+    def test_to_start_date_end_date_invalid_timezone_raises(self):
+        """to_start_date_end_date raises ValueError for an unrecognised timezone."""
+        with pytest.raises(ValueError, match="Invalid timezone"):
+            DateFilter.to_start_date_end_date("last_7_days", "Not/AReal_Zone")
 
     def test_to_start_date_end_date_none_value_returns_none_pair(self):
         """to_start_date_end_date returns (None, None) when value is None."""
@@ -557,6 +556,12 @@ class TestCustomReportFilter:
         """Helper to create a mock request with query_params."""
         mock_request = MagicMock()
         mock_request.query_params.getlist = lambda field: query_params.get(field, [])
+        # Return the first value for scalar params; fall back to the given default.
+        # Required for the fallback branch in filter_queryset that reads period/tz via
+        # request.query_params.get() when @require_date_range hasn't run.
+        mock_request.query_params.get = lambda key, default=None: (
+            query_params[key][0] if key in query_params and query_params[key] else default
+        )
         return mock_request
 
     def test_filter_with_no_filters(self, filter_backend, mock_queryset, mock_view):

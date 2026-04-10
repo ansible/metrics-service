@@ -1,7 +1,7 @@
 # test_tasks.py - Unit tests for dashboard_reports tasks
 # Covers: _collect_jobs, _collect_data, collect_dashboard_reports_initial_data, collect_dashboard_reports_data
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,10 +23,16 @@ from apps.dashboard_reports.tasks import (
 class TestParseDt:
     """Tests for _parse_dt helper function."""
 
-    def test_returns_datetime_unchanged(self):
-        """_parse_dt passes through a datetime object without modification."""
-        dt = datetime(2024, 1, 15, 12, 0)
+    def test_returns_tz_aware_datetime_unchanged(self):
+        """_parse_dt returns a tz-aware datetime as the same object."""
+        dt = datetime(2024, 1, 15, 12, 0, tzinfo=UTC)
         assert _parse_dt(dt) is dt
+
+    def test_normalizes_naive_datetime_to_utc(self):
+        """_parse_dt attaches UTC to a naive datetime."""
+        dt = datetime(2024, 1, 15, 12, 0)
+        result = _parse_dt(dt)
+        assert result == datetime(2024, 1, 15, 12, 0, tzinfo=UTC)
 
     def test_parses_iso_string(self):
         """_parse_dt converts an ISO-format string to a datetime."""
@@ -40,9 +46,10 @@ class TestParseDt:
         """_parse_dt returns None when given None."""
         assert _parse_dt(None) is None
 
-    def test_returns_non_string_non_datetime_unchanged(self):
-        """_parse_dt returns non-string, non-datetime values unchanged (e.g. int)."""
-        assert _parse_dt(42) == 42
+    def test_raises_for_unsupported_types(self):
+        """_parse_dt raises TypeError for non-str, non-datetime, non-None values."""
+        with pytest.raises(TypeError, match="_parse_dt"):
+            _parse_dt(42)
 
 
 @pytest.mark.unit
@@ -154,8 +161,8 @@ class TestDashboardReportsTasks:
         "since,until,jobs_result,error,message",
         [
             (None, None, {"results": [{"id": 1}], "count": 1}, False, None),
-            (datetime(2024, 1, 1), datetime(2024, 2, 1), {"results": [{"id": 2}], "count": 1}, False, None),
-            (datetime(2024, 2, 1), datetime(2024, 1, 1), None, True, "Invalid date range"),
+            (datetime(2024, 1, 1, tzinfo=UTC), datetime(2024, 2, 1, tzinfo=UTC), {"results": [{"id": 2}], "count": 1}, False, None),
+            (datetime(2024, 2, 1, tzinfo=UTC), datetime(2024, 1, 1, tzinfo=UTC), None, True, "Invalid date range"),
         ],
     )
     def test_collect_data_ranges(self, mock_dependencies, since, until, jobs_result, error, message):
@@ -329,7 +336,7 @@ class TestDashboardReportsTasks:
 
     def test_cleanup_success(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
         # Simulate successful deletion of records
-        mock_jobdata_objects.objects.filter.return_value.delete.return_value = (5, {})
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 5
         mock_create_task_result_cleanup.return_value = {"result": "success"}
         result = cleanup_dashboard_reports_old_data()
         assert result["result"] == "success"
@@ -341,14 +348,15 @@ class TestDashboardReportsTasks:
 
     def test_cleanup_no_records(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
         # Simulate no records deleted
-        mock_jobdata_objects.objects.filter.return_value.delete.return_value = (0, {})
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
         cleanup_dashboard_reports_old_data()
         args, kwargs = mock_create_task_result_cleanup.call_args
         assert args[0] == "success"
         assert kwargs["data"]["deleted_records"] == 0
 
     def test_cleanup_exception(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
-        # Simulate exception during deletion
+        # Simulate exception during deletion — raised by delete(), count() succeeds first
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 3
         mock_jobdata_objects.objects.filter.return_value.delete.side_effect = Exception("db error")
         cleanup_dashboard_reports_old_data()
         args, kwargs = mock_create_task_result_cleanup.call_args
@@ -359,17 +367,19 @@ class TestDashboardReportsTasks:
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
         # Test custom retention_period_days
-        mock_jobdata_objects.objects.filter.return_value.delete.return_value = (2, {})
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 2
         cleanup_dashboard_reports_old_data(retention_period_days=30)
         args, kwargs = mock_create_task_result_cleanup.call_args
         assert kwargs["data"]["retention_period_days"] == 30
 
     def test_cleanup_cutoff_date(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
-        # Test cutoff_date calculation
-        mock_jobdata_objects.objects.filter.return_value.delete.return_value = (1, {})
-        result = cleanup_dashboard_reports_old_data(retention_period_days=1)
-        cutoff_date = result["data"]["cutoff_date"]
-        assert cutoff_date.startswith(str(datetime.now().year))
+        # Verify the cutoff date passed to create_task_result is midnight on the expected day.
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 1
+        cleanup_dashboard_reports_old_data(retention_period_days=1)
+        _, kwargs = mock_create_task_result_cleanup.call_args
+        actual_cutoff = kwargs["data"]["cutoff_date"]
+        expected_date = (datetime.now(tz=UTC) - timedelta(days=1)).date().isoformat()
+        assert actual_cutoff.startswith(expected_date)
 
     def test_cleanup_invalid_retention_string(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup

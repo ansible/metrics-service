@@ -95,7 +95,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
     def test_put_does_not_change_template_id(self):
         original_template_id = self.instance.template_id
 
-        self.client.put(
+        response = self.client.put(
             _url(self.instance.pk),
             data={
                 "template_id": 999,
@@ -104,6 +104,7 @@ class TestTemplateMetadataPutPatchDb(TestCase):
             },
             format="json",
         )
+        assert response.status_code == 200
 
         self.instance.refresh_from_db()
         assert self.instance.template_id == original_template_id

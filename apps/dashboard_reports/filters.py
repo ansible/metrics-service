@@ -7,7 +7,6 @@ CustomReportFilter backend used by DashboardReportViewSet.
 """
 
 import datetime
-import logging
 from collections.abc import Sequence
 from enum import Enum
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -19,8 +18,6 @@ from rest_framework.request import Request
 from rest_framework.views import APIView
 
 from apps.dashboard_reports.models import JobData, label_ids_to_job_data_ids
-
-logger = logging.getLogger(__name__)
 
 
 FILTER_FIELDS: frozenset[str] = frozenset({"organization", "template", "label", "project"})
@@ -66,8 +63,7 @@ class DateFilter(Enum):
         try:
             tz = ZoneInfo(tz_string)
         except ZoneInfoNotFoundError:
-            logger.warning("Unknown timezone provided, falling back to UTC")
-            tz = ZoneInfo("UTC")
+            raise ValueError(f"Invalid timezone: {tz_string!r}")
 
         end_date = datetime.datetime.now(tz)  # current date
         start_date = end_date - datetime.timedelta(num_of_last_days)  # current date - last_n_days
@@ -135,8 +131,8 @@ class CustomReportFilter(filters.BaseFilterBackend):
         start_date = view.kwargs.get("start_date")
         end_date = view.kwargs.get("end_date")
         if start_date is None or end_date is None:
-            period = view.kwargs.get("period", None)
-            tz = view.kwargs.get("tz", "UTC") or "UTC"
+            period = request.query_params.get("period", None)
+            tz = request.query_params.get("tz", "UTC") or "UTC"
             start_date, end_date = DateFilter.to_start_date_end_date(value=period, tz_string=tz)
 
         queryset = queryset.after_date(start_date)

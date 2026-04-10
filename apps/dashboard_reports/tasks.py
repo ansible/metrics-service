@@ -43,10 +43,21 @@ class _PartialSyncRollbackError(Exception):
 
 
 def _parse_dt(value: Any) -> datetime | None:
-    """Coerce an ISO-format string to a datetime; return datetime or None unchanged."""
+    """Coerce value to a timezone-aware datetime.
+
+    - None      → None
+    - str       → parsed via fromisoformat; naive result is assumed UTC
+    - datetime  → returned unchanged if tz-aware; naive datetime is localised to UTC
+    - other     → raises TypeError so callers receive a structured error
+    """
+    if value is None:
+        return None
     if isinstance(value, str):
-        return datetime.fromisoformat(value)
-    return value
+        dt = datetime.fromisoformat(value)
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    raise TypeError(f"_parse_dt: expected str, datetime, or None; got {type(value).__name__!r}")
 
 
 def _collect_jobs(db_connection, since: datetime, until: datetime) -> DashboardJobsResultType:
@@ -281,16 +292,20 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     )
 
     try:
-        deleted_count, _ = JobData.objects.filter(finished__lt=cutoff_date).delete()
+        queryset = JobData.objects.filter(finished__lt=cutoff_date)
+        # Count JobData rows before deletion — delete() returns the total across all
+        # cascaded models (JobLabel, JobHostSummary, etc.) which inflates the count.
+        jobdata_count = queryset.count()
+        queryset.delete()
         log_task_execution(
             task_name="cleanup_dashboard_reports_old_data",
             operation="completed",
-            details=f"Deleted {deleted_count} JobData records finished before {cutoff_date_str}",
+            details=f"Deleted {jobdata_count} JobData records finished before {cutoff_date_str}",
         )
         return create_task_result(
             "success",
             data={
-                "deleted_records": deleted_count,
+                "deleted_records": jobdata_count,
                 "cutoff_date": cutoff_date_str,
                 "retention_period_days": retention_period_days,
             },
