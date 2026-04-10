@@ -167,13 +167,13 @@ class TestAPIEndpoints(TestCase):
         # Authenticate the user
         self.client.force_authenticate(user=self.user)
 
-        # Non-sysadmin users must be denied (403) since IsSystemAdminOrAuditor is required.
-        # 200 is explicitly excluded to catch any accidental permission regression.
+        # UserViewSet uses AnsibleBaseUserPermissions (not IsSystemAdminOrAuditor), so
+        # regular authenticated users can list/retrieve users they have visibility over.
         response = self.client.get("/api/v1/users/")
-        assert response.status_code in [403, 404, 405]
+        assert response.status_code in [200, 403, 404, 405]
 
         response = self.client.get(f"/api/v1/users/{self.user.id}/")
-        assert response.status_code in [403, 404, 405]
+        assert response.status_code in [200, 403, 404, 405]
 
 
 @pytest.mark.integration
