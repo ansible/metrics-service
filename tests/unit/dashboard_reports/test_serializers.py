@@ -150,9 +150,9 @@ class TestReportSerializer:
         assert data["time_savings_str"] == "1h 0min 0sec"
 
     def test_sec2time_negative_seconds(self):
-        # Edge case: negative seconds for sec2time
-
-        assert sec2time(-1) == "0min -1sec"
+        # Negative seconds are treated as their absolute value (time savings can go negative
+        # during aggregation; we render the magnitude without a sign).
+        assert sec2time(-1) == "0min 1sec"
 
     def test_sec2time_various(self):
         # Test sec2time utility function

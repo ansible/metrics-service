@@ -101,8 +101,8 @@ def job_data(template_metadata):
     """
     Fixture for JobData test data.
 
-    job_id 1 and 2: Template A, organization_id=1, project_id=1, labels 1 and 2, finished=now
-    job_id 3 and 4: Template B, organization_id=2, project_id=2, no labels, finished=5 days ago
+    job_id 1 and 2: Template A, organization_id=1, project_id=10, labels 1 and 2, finished=now
+    job_id 3 and 4: Template B, organization_id=2, project_id=20, no labels, finished=5 days ago
 
     All filters (date, organization, template, project, labels) return job_id 1 and 2.
     """
@@ -260,7 +260,7 @@ EXPECTED_DETAILS_JOB_1_AND_2 = {
         {"id": 1, "name": "test_user", "execution_count": 2},
     ],
     "top_projects": [
-        {"id": 1, "name": "Project A", "execution_count": 2},
+        {"id": 10, "name": "Project A", "execution_count": 2},
     ],
 }
 
@@ -284,8 +284,8 @@ EXPECTED_DETAILS_ALL_JOBS = {
         {"id": 2, "name": "other_user", "execution_count": 2},
     ],
     "top_projects": [
-        {"id": 1, "name": "Project A", "execution_count": 2},
-        {"id": 2, "name": "Project B", "execution_count": 2},
+        {"id": 10, "name": "Project A", "execution_count": 2},
+        {"id": 20, "name": "Project B", "execution_count": 2},
     ],
 }
 
@@ -324,7 +324,7 @@ TEST_REPORT_VIEW_CASES = [
     ),
     # 5. Filtered by project
     pytest.param(
-        build_filtered_query(project=[1]),
+        build_filtered_query(project=[10]),
         1,
         [EXPECTED_TEMPLATE_A_DATA],
         id="filtered_by_project",
@@ -369,7 +369,7 @@ TEST_REPORT_VIEW_DETAIL_CASES = [
     ),
     # 5. Filtered by project
     pytest.param(
-        build_filtered_query(project=[1]),
+        build_filtered_query(project=[10]),
         EXPECTED_DETAILS_JOB_1_AND_2,
         id="filtered_by_project",
     ),
@@ -812,7 +812,7 @@ EXPECTED_DETAILS_NO_CREATION_TIME = {
         {"id": 1, "name": "test_user", "execution_count": 2},
     ],
     "top_projects": [
-        {"id": 1, "name": "Project A", "execution_count": 2},
+        {"id": 10, "name": "Project A", "execution_count": 2},
     ],
 }
 

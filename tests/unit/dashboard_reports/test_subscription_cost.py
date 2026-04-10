@@ -451,16 +451,18 @@ class TestSubscriptionCostSerializer(TestCase):
         serializer = SubscriptionCostSerializer(data=data)
         assert serializer.is_valid(), serializer.errors
 
-    def test_include_template_creation_time_defaults_to_true(self) -> None:
-        """Test include_template_creation_time_in_costs defaults to True when omitted."""
+    def test_include_template_creation_time_preserves_existing_when_omitted(self) -> None:
+        """When include_template_creation_time_in_costs is omitted from a PUT request,
+        validated_data should not contain the key so that update() falls back to the
+        existing instance value rather than silently overwriting False with True."""
         data = {
             "monthly_subscription_cost": "100.00",
             "engineer_avg_hourly_rate": "50.00",
-            # include_template_creation_time_in_costs omitted
+            # include_template_creation_time_in_costs intentionally omitted
         }
         serializer = SubscriptionCostSerializer(data=data)
         assert serializer.is_valid(), serializer.errors
-        assert serializer.validated_data["include_template_creation_time_in_costs"] is True
+        assert "include_template_creation_time_in_costs" not in serializer.validated_data
 
     def test_update_method_persists_changes(self) -> None:
         """Test serializer update() saves all fields to the instance."""

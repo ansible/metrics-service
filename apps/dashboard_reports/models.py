@@ -295,9 +295,9 @@ class TemplateMetadata(CommonModel):
         if instance is None:
             try:
                 instance = cls.objects.get(template_name=name)
-                # If the record was created with a synthetic placeholder ID and we now
-                # have the real AWX ID, promote it so later ID-based lookups work correctly.
-                if awx_id is not None and instance.template_id != awx_id:
+                # If the record was created with a synthetic negative placeholder ID and we
+                # now have the real AWX ID, promote it so later ID-based lookups work correctly.
+                if awx_id is not None and instance.template_id < 0:
                     instance.template_id = awx_id
                     instance.save(update_fields=["template_id"])
             except cls.DoesNotExist:
