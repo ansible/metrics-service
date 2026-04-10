@@ -90,7 +90,9 @@ class TestDashboardReportsURLs(TestCase):
 
         for endpoint in endpoints:
             response = self.api_client.get(endpoint)
-            assert response.status_code == 200, f"Expected 200 for authenticated access to {endpoint}, got {response.status_code}"
+            assert response.status_code == 200, (
+                f"Expected 200 for authenticated access to {endpoint}, got {response.status_code}"
+            )
 
     def test_dashboard_reports_post_endpoints(self):
         """Test POST requests to dashboard_reports endpoints."""

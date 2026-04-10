@@ -115,7 +115,19 @@ def job_data(template_metadata):
         # job_id 2: Template A, org=1, proj=10, failed, now
         (2, 0, 1, 10, "Project A", JobStatusChoices.FAILED, datetime.timedelta(minutes=1), 5, 10, 1, "test_user"),
         # job_id 3: Template B, org=2, proj=20, failed, 7 days ago
-        (3, 1, 2, 20, "Project B", JobStatusChoices.FAILED, datetime.timedelta(days=7, hours=1), 50, 1, 2, "other_user"),
+        (
+            3,
+            1,
+            2,
+            20,
+            "Project B",
+            JobStatusChoices.FAILED,
+            datetime.timedelta(days=7, hours=1),
+            50,
+            1,
+            2,
+            "other_user",
+        ),
         # job_id 4: Template B, org=2, proj=20, successful, 7 days ago
         (
             4,
