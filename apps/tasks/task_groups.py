@@ -295,6 +295,9 @@ ANONYMIZATION_GROUP = TaskGroup(
 )
 
 # Dashboard Collection Group - automation-reports integration
+# Feature flag: DASHBOARD_COLLECTION (default: False — customer opt-in)
+# Override via env var: METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
+# Or set in DB via: manage.py metrics_service init-default-settings (then update via settings API)
 DASHBOARD_COLLECTION_GROUP = TaskGroup(
     name="dashboard_collection",
     description="Automation-reports dashboard data collection (SQL-based, separate from anonymization)",

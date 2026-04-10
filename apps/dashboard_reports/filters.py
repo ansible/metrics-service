@@ -18,7 +18,7 @@ from rest_framework import filters
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
-from apps.dashboard_reports.models import JobData, JobLabel
+from apps.dashboard_reports.models import JobData, label_ids_to_job_data_ids
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +102,7 @@ def apply_or_filters(request: Request, queryset: QuerySet[JobData]) -> QuerySet[
     q = models.Q()
     for field, values in or_options.items():
         if field == "label":
-            labels_qs = JobLabel.objects.filter(label_id__in=values).values_list("job_data_id", flat=True)
-            q |= models.Q(id__in=labels_qs)
+            q |= models.Q(id__in=label_ids_to_job_data_ids(values))
         elif field == "organization":
             q |= models.Q(organization_id__in=values)
         elif field == "template":

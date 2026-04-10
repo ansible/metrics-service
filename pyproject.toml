@@ -254,15 +254,19 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["metrics_service", "apps"]
+source = ["."]
 relative_files = true
 omit = [
     "*/migrations/*",
     "*/tests/*",
+    "tests/*",
     "*/venv/*",
+    ".venv/*",
     "manage.py",
     "*/settings/*",
     "*/__pycache__/*",
+    "scripts/*",
+    "conftest.py",
 ]
 
 [tool.coverage.report]

@@ -63,6 +63,11 @@ def _sync_jobs_atomically(job_results: list) -> list:
     Returns the list of job IDs that failed to sync.  If any job fails every
     save made in this call is rolled back, keeping JobData.last_timestamp()
     unchanged so the next incremental run retries from the same watermark.
+
+    Note: retry behaviour for the outer Task is handled by the Task model's max_attempts
+    mechanism (default: 3 attempts). When this function signals failure the calling task
+    returns create_task_result("error"), which marks the Task as failed and allows the
+    scheduler to retry it automatically up to max_attempts times via Task.can_retry().
     """
     failed_jobs: list = []
     try:
@@ -176,6 +181,10 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
         )
     data = result.get("data", {})
 
+    # TODO: Tech Preview only — the daily_dashboard_collection task is created here rather than
+    # via init-system-tasks because it must only be activated after a successful initial backfill.
+    # At GA this should be refactored to align with the standard task group lifecycle so that
+    # init-system-tasks is the authoritative source for all system tasks (see task_groups.py).
     log_task_execution(
         task_name=task_name,
         operation="processing",

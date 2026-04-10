@@ -11,7 +11,7 @@ from dateutil.relativedelta import relativedelta
 from django.db import models
 from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
 from django.db.models.functions import Cast, Coalesce, Trunc
-from django_generate_series.models import generate_series
+from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import filters, status
@@ -69,7 +69,7 @@ def require_date_range(view_func):
             timezone_str=timezone_str,
         )
         if start_date is None or end_date is None:
-            error_response = build_error_response(f"{period_err_msg}: {kwargs}", status_code=400)
+            error_response = build_error_response(period_err_msg, status_code=400)
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
         if start_date > end_date:
@@ -223,6 +223,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     filter_backends = [CustomReportFilter, filters.OrderingFilter]
 
     # Maximum number of top users/projects to return in details endpoint
+    # TODO: Consider moving to a Django setting if UIs need to configure this value.
     TOP_RESULTS_LIMIT = 5
 
     ordering_fields: list[str] = [
@@ -276,6 +277,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         manual_time = F("num_hosts") * (F("time_taken_manually_execute_minutes") * 60)
 
         return (
+            # Exclude rows without template_metadata: ReportSerializer.id sources from
+            # template_metadata_id, so null rows would cause serialization to fail.
             base_qs.filter(template_metadata_id__isnull=False)
             .values(
                 "template_name",

@@ -132,6 +132,11 @@ class SubscriptionCost(CommonModel):
     def get(cls):
         """
         Returns the single SubscriptionCost instance, or creates a default one if it doesn't exist.
+
+        Default values ($5,000/month subscription cost, $60/hour engineer rate) are placeholder
+        estimates documented in the Automation Dashboard setup guide. Admins should update these
+        via the subscription-cost API endpoint to reflect actual costs before relying on report
+        cost calculations.
         """
 
         instance, created = cls.objects.get_or_create(
@@ -143,7 +148,10 @@ class SubscriptionCost(CommonModel):
             },
         )
         if created:
-            logger.info("Created default SubscriptionCost instance with default values.")
+            logger.info(
+                "Created SubscriptionCost with default placeholder values ($5,000/month, $60/hr). "
+                "Update via the subscription-cost API to reflect actual costs."
+            )
         return instance
 
     @property
@@ -225,6 +233,8 @@ class FilterSet(CommonModel):
 
     filters = models.JSONField(
         help_text="Filter configuration: {organizations: [], projects: [], labels: [], date_range: {}}"
+        # TODO: Add serializer-level schema validation to enforce allowed keys and value types,
+        # preventing bad filter configs from causing silent failures when the filter is applied.
     )
 
     is_default = models.BooleanField(
@@ -354,6 +364,8 @@ class TemplateMetadata(CommonModel):
     @classmethod
     def _create_with_race_handling(cls, name: str, awx_id: int | None) -> "TemplateMetadata":
         """Create a TemplateMetadata row, recovering gracefully from concurrent-insert races."""
+        # TODO: Add an integration test covering this concurrent-insert path to verify that
+        # a second worker correctly recovers from the IntegrityError and returns the winning row.
         try:
             instance = cls.objects.create(
                 template_name=name,
@@ -403,6 +415,15 @@ class JobStatusChoices(models.TextChoices):
     CANCELED = "canceled", "Canceled"
 
 
+def label_ids_to_job_data_ids(label_ids: list[int]):
+    """Return a queryset of JobData IDs that have any of the given AWX label IDs.
+
+    Shared by JobDataFilterMethods.labels() and filters.apply_or_filters() to avoid
+    duplicating the subquery pattern.
+    """
+    return JobLabel.objects.filter(label_id__in=label_ids).values_list("job_data_id", flat=True)
+
+
 class JobDataFilterMethods:
     """
     Mixin providing chainable filter methods for JobData querysets.
@@ -444,8 +465,7 @@ class JobDataFilterMethods:
     def labels(self, ids: list[int] | None) -> Self:
         """Filter jobs that have any of the given label IDs (no-op if ids is empty)."""
         if ids:
-            labels_qs = JobLabel.objects.filter(label_id__in=ids).values_list("job_data_id", flat=True)
-            return self.filter(id__in=labels_qs)
+            return self.filter(id__in=label_ids_to_job_data_ids(ids))
         return self
 
 
@@ -494,6 +514,10 @@ class JobData(CommonModel):
         null=True,
         blank=True,
         help_text="AWX organization ID",
+    )
+
+    organization_name = models.CharField(
+        max_length=512, null=True, blank=True, help_text="Organization name for display (from AWX)"
     )
 
     status = models.CharField(
@@ -595,6 +619,7 @@ class JobData(CommonModel):
                 "project_id": awx_job["project_id"],
                 "project_name": awx_job["project_name"],
                 "organization_id": awx_job["organization_id"],
+                "organization_name": awx_job.get("organization_name"),
                 "status": awx_job["status"],
                 "started": awx_job["started"],
                 "finished": awx_job["finished"],
@@ -631,14 +656,15 @@ class JobData(CommonModel):
 
     @classmethod
     def _sync_host_summaries(cls, job_data: "JobData", awx_host_summaries: list, existing: dict) -> None:
-        """Sync JobHostSummary records: update existing, create new, delete stale."""
+        """Sync JobHostSummary records: bulk-update existing, bulk-create new, delete stale."""
         to_create = []
+        to_update = []
         for awx_hs in awx_host_summaries:
             existing_hs = existing.pop(awx_hs["id"], None)
             if existing_hs is not None:
                 existing_hs.host_id = awx_hs["host_id"]
                 existing_hs.host_name = awx_hs["host_name"]
-                existing_hs.save()
+                to_update.append(existing_hs)
             else:
                 to_create.append(
                     JobHostSummary(
@@ -648,6 +674,10 @@ class JobData(CommonModel):
                         host_summary_id=awx_hs["id"],
                     )
                 )
+        if to_update:
+            # batch_size=500 prevents excessively large SQL statements for jobs with many hosts
+            JobHostSummary.objects.bulk_update(to_update, ["host_id", "host_name"], batch_size=500)
+            logger.info(f"Updated {len(to_update)} JobHostSummary records for JobData {job_data}")
         if to_create:
             JobHostSummary.objects.bulk_create(to_create)
             logger.info(f"Created {len(to_create)} new JobHostSummary records for JobData {job_data}")
