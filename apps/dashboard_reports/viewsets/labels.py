@@ -1,7 +1,7 @@
 """ViewSet for listing AWX labels as filter dropdown options."""
 
 from apps.dashboard_reports.awx_queries import fetch_labels
-from apps.dashboard_reports.viewsets import FilterOptionsViewSet
+from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
 
 
 class LabelsViewSet(FilterOptionsViewSet):

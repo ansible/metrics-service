@@ -11,6 +11,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from django.db import transaction
 from metrics_utility.library.collectors.dashboard import DashboardJobsResultType, dashboard_jobs
 
 from apps.dashboard_reports.models import JobData
@@ -37,6 +38,10 @@ DEFAULT_DB_NAME = "awx"
 logger = logging.getLogger(__name__)
 
 
+class _PartialSyncRollbackError(Exception):
+    """Sentinel raised inside a transaction.atomic() block to roll back all saves when any job fails to sync."""
+
+
 def _parse_dt(value: Any) -> datetime | None:
     """Coerce an ISO-format string to a datetime; return datetime or None unchanged."""
     if isinstance(value, str):
@@ -49,6 +54,30 @@ def _collect_jobs(db_connection, since: datetime, until: datetime) -> DashboardJ
     Collect dashboard jobs data from the database for the specified date range.
     """
     return dashboard_jobs(db=db_connection, since=since, until=until).gather()
+
+
+def _sync_jobs_atomically(job_results: list) -> list:
+    """
+    Persist all jobs in a single atomic transaction.
+
+    Returns the list of job IDs that failed to sync.  If any job fails every
+    save made in this call is rolled back, keeping JobData.last_timestamp()
+    unchanged so the next incremental run retries from the same watermark.
+    """
+    failed_jobs: list = []
+    try:
+        with transaction.atomic():
+            for job in job_results:
+                try:
+                    JobData.create_or_update_from_awx(job)
+                except Exception as e:
+                    logger.error(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
+                    failed_jobs.append(job["id"])
+            if failed_jobs:
+                raise _PartialSyncRollbackError()
+    except _PartialSyncRollbackError:
+        pass  # transaction rolled back; caller inspects failed_jobs
+    return failed_jobs
 
 
 def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
@@ -107,13 +136,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
             except Exception:
                 logger.warning("Failed to close AWX DB connection in _collect_data()")
 
-    failed_jobs = []
-    for job in jobs["results"]:
-        try:
-            JobData.create_or_update_from_awx(job)
-        except Exception as e:
-            logger.error(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
-            failed_jobs.append(job["id"])
+    failed_jobs = _sync_jobs_atomically(jobs["results"])
 
     if failed_jobs:
         result["error"] = True
