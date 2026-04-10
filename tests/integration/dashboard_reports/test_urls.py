@@ -33,6 +33,7 @@ class TestDashboardReportsURLs(TestCase):
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com", password=get_test_password()
         )
+        self.api_client.force_authenticate(user=self.user)
 
     def test_dashboard_reports_endpoint_resolution(self):
         """Test that all dashboard_reports endpoints resolve correctly."""
