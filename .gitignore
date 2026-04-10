@@ -143,4 +143,6 @@ cachi2-output/
 hourly_dumps/
 daily_dumps/
 metrics_service/tools/performance_tests/data_generation/creds.yml
+metrics_service/tools/performance_tests/data_generation/creds.yml.example
 metrics_service/tools/performance_tests/data_generation/ansible.cfg
+metrics_service/tools/performance_tests/data_generation/benchmark_cron_observer.py
