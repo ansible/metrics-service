@@ -78,7 +78,7 @@ class TestAWXQueries:
 
     def test_build_where_clause_search(self):
         clause, params = awx_queries._build_where_clause("x.", "foo", None)
-        assert clause == " WHERE x.name ilike %s ESCAPE '\\\\'"
+        assert clause == " WHERE x.name ilike %s ESCAPE E'\\\\'"
         assert params == ["%foo%"]
 
     def test_build_where_clause_pk(self):
@@ -88,7 +88,7 @@ class TestAWXQueries:
 
     def test_build_where_clause_both(self):
         clause, params = awx_queries._build_where_clause("z.", "bar", 7)
-        assert clause == " WHERE z.name ilike %s ESCAPE '\\\\' AND z.id = %s"
+        assert clause == " WHERE z.name ilike %s ESCAPE E'\\\\' AND z.id = %s"
         assert params == ["%bar%", 7]
 
     def test_format_id_name_rows(self):
