@@ -28,7 +28,7 @@ class TestDashboardReportsURLs(TestCase):
         """Set up test environment."""
         super().setUp()
         self.api_client = APIClient()
-        self.user = User.objects.create_user(
+        self.user = User.objects.create_superuser(
             username="testuser", email="test@example.com", password=get_test_password()
         )
         self.api_client.force_authenticate(user=self.user)

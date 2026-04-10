@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
 from rest_framework import status
 from rest_framework.request import Request
@@ -29,6 +30,7 @@ class FilterOptionsViewSet(ReadOnlyModelViewSet):
     awx_query_function: Callable[..., tuple[list[dict[str, Any]], int]] | None = None  # To be defined in subclasses
     versioning_class = None  # Disable versioning for this viewset
     pagination_class = DefaultPaginator
+    permission_classes = [IsSystemAdminOrAuditor]
 
     list_error_msg = "Failed to fetch records"
     retrieve_error_msg = "Failed to fetch record"

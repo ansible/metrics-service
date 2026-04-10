@@ -54,7 +54,7 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.BasicAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "ansible_base.rbac.api.permissions.IsSystemAdminOrAuditor",
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "UNAUTHENTICATED_USER": None,
     "UNAUTHENTICATED_TOKEN": None,

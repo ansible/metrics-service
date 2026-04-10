@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
 
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from dateutil.relativedelta import relativedelta
 from django.db import models
 from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
@@ -107,6 +108,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         ordering (str): Field to order by (e.g. "template_name", "successful_runs", "savings", etc.)
 
     """
+
+    permission_classes = [IsSystemAdminOrAuditor]
 
     detail_query_parameters = [
         OpenApiParameter(
