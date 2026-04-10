@@ -117,25 +117,25 @@ def fetch_id_name(
     return format_id_name_rows(rows), total
 
 
-def fetch_organizations(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+def fetch_organizations(**kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch organizations from DB, returning ``(items, total_count)``."""
     return fetch_id_name(AWXQuery.ORGANIZATIONS, error_msg="Error fetching organizations from AWX database", **kwargs)
 
 
-def fetch_templates(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+def fetch_templates(**kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch job templates from DB, returning ``(items, total_count)``."""
     return fetch_id_name(
         AWXQuery.TEMPLATES, join_alias="ujt.", error_msg="Error fetching job templates from AWX database", **kwargs
     )
 
 
-def fetch_projects(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+def fetch_projects(**kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch projects from DB, returning ``(items, total_count)``."""
     return fetch_id_name(
         AWXQuery.PROJECTS, join_alias="ujt.", error_msg="Error fetching projects from AWX database", **kwargs
     )
 
 
-def fetch_labels(*args, **kwargs) -> tuple[list[dict[str, Any]], int]:
+def fetch_labels(**kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch labels from DB, returning ``(items, total_count)``."""
     return fetch_id_name(AWXQuery.LABELS, error_msg="Error fetching labels from AWX database", **kwargs)

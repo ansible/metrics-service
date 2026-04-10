@@ -20,7 +20,7 @@ class JobTemplatesViewSet(FilterOptionsViewSet):
         search (str): Search by job template name
     """
 
-    awx_query_function = fetch_templates
+    awx_query_function = staticmethod(fetch_templates)
     list_error_msg = "Failed to fetch job templates"
     retrieve_error_msg = "Failed to fetch job template"
 

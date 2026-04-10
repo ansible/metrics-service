@@ -20,7 +20,7 @@ class ProjectsViewSet(FilterOptionsViewSet):
         search (str): Search by project name
     """
 
-    awx_query_function = fetch_projects
+    awx_query_function = staticmethod(fetch_projects)
     list_error_msg = "Failed to fetch projects"
     retrieve_error_msg = "Failed to fetch project"
 

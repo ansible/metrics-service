@@ -20,7 +20,7 @@ class LabelsViewSet(FilterOptionsViewSet):
         search (str): Search by label name
     """
 
-    awx_query_function = fetch_labels
+    awx_query_function = staticmethod(fetch_labels)
     list_error_msg = "Failed to fetch labels"
     retrieve_error_msg = "Failed to fetch label"
 

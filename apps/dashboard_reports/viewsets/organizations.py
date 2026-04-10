@@ -20,7 +20,7 @@ class OrganizationsViewSet(FilterOptionsViewSet):
         search (str): Search by organization name
     """
 
-    awx_query_function = fetch_organizations
+    awx_query_function = staticmethod(fetch_organizations)
     list_error_msg = "Failed to fetch organizations"
     retrieve_error_msg = "Failed to fetch organization"
 
