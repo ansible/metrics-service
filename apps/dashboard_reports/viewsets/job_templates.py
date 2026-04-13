@@ -1,0 +1,29 @@
+"""ViewSet for listing AWX job templates as filter dropdown options."""
+
+from apps.dashboard_reports.awx_queries import fetch_templates
+from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
+
+
+class JobTemplatesViewSet(FilterOptionsViewSet):
+    """
+    ViewSet for retrieving job templates from AWX database.
+
+    Provides real-time job template data for filter dropdowns with pagination support.
+
+    Endpoints:
+        GET /api/v1/dashboard_reports/templates/ - List all job templates (paginated)
+        GET /api/v1/dashboard_reports/templates/{id}/ - Get specific job template
+
+    Query Parameters:
+        page (int): Page number (default: 1)
+        page_size (int): Results per page (default: 10)
+        search (str): Search by job template name
+    """
+
+    awx_query_function = staticmethod(fetch_templates)
+    list_error_msg = "Failed to fetch job templates"
+    retrieve_error_msg = "Failed to fetch job template"
+
+    def not_found_msg(self, pk: int) -> str:
+        """Return a formatted not-found error message for a missing job template."""
+        return f"Job template with id {pk} not found"

@@ -294,11 +294,55 @@ ANONYMIZATION_GROUP = TaskGroup(
     ],
 )
 
+# Dashboard Collection Group - automation-reports integration
+# Feature flag: DASHBOARD_COLLECTION (default: False — customer opt-in)
+# Override via env var: METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
+# Or set in DB via: manage.py metrics_service init-default-settings (then update via settings API)
+DASHBOARD_COLLECTION_GROUP = TaskGroup(
+    name="dashboard_collection",
+    description="Automation-reports dashboard data collection (SQL-based, separate from anonymization)",
+    feature_flag="DASHBOARD_COLLECTION",
+    tasks=[
+        {
+            "task_id": "initial_dashboard_collection",
+            "function": "collect_dashboard_reports_initial_data",
+            "cron": None,  # No schedule, run once on enable
+            "args": {},  # Uses incremental collection by default to minimize load
+            "enabled": True,
+            "description": "Initial dashboard report collection",
+            "category": "dashboard_collection",
+        },
+        {
+            "task_id": "daily_dashboard_collection",
+            "function": "collect_dashboard_reports_data",
+            "cron": (getattr(settings, "DASHBOARD_COLLECTION", {}) or {}).get(
+                "COLLECTION_SCHEDULE_CRON", "0 */6 * * *"
+            ),
+            "args": {"incremental": True},  # Uses incremental collection by default to minimize load
+            "enabled": False,
+            "description": "Dashboard report collection (default every 6 hours)",
+            "category": "dashboard_collection",
+        },
+        {
+            "task_id": "cleanup_dashboard_reports_old_data",
+            "function": "cleanup_dashboard_reports_old_data",
+            "cron": "0 5 * * *",  # Daily at 5:00 AM
+            "args": {
+                "retention_period_days": 90,
+            },
+            "enabled": True,
+            "description": "Clean up old dashboard report data based on retention policy",
+            "category": "maintenance",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
+    DASHBOARD_COLLECTION_GROUP,
 ]
 
 

@@ -33,6 +33,11 @@ jobs:
       - name: "Checkout repository"
         uses: actions/checkout@v6
         with:
+          # Explicitly checkout the PR HEAD (not the GitHub-created merge commit) so that
+          # coverage.xml line numbers match exactly what sonar_checks.yml checks out via
+          # `gh pr checkout`. Without this, files modified in devel after the PR was branched
+          # will have different line counts between the coverage and the sonar scan.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: "Install uv"
@@ -42,6 +47,9 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version-file: "pyproject.toml"
+
+      - name: "Remove stale coverage report"
+        run: rm -f coverage.xml .coverage
 
       - name: "Run pytest"
         env:
@@ -80,7 +88,7 @@ jobs:
 
       - name: "Send code coverage report to SonarCloud (on push)"
         if: github.event_name == 'push'
-        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_ORGANIZATION: ansible

@@ -3,10 +3,9 @@ API viewsets for dynamic settings management.
 """
 
 from ansible_base.lib.utils.views.django_app_api import AnsibleBaseDjangoAppApiView
-from ansible_base.rbac.api.permissions import AnsibleBaseObjectPermissions
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
 from metrics_service.settings import DYNACONF
@@ -15,7 +14,7 @@ from ..utils import log_setting_change, rollback_configuration_change
 
 
 class SettingViewSet(AnsibleBaseDjangoAppApiView, viewsets.ViewSet):
-    permission_classes = [IsAdminUser, AnsibleBaseObjectPermissions]
+    permission_classes = [IsSystemAdminOrAuditor]
 
     def _get_current_settings(self):
         """Helper to get serializable settings."""
