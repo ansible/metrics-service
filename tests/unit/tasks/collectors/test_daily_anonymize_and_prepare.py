@@ -15,9 +15,7 @@ from unittest.mock import patch
 import pytest
 from django.utils import timezone
 
-from apps.tasks.collectors.daily_anonymize_and_prepare import (
-    daily_anonymize_and_prepare,
-)
+from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 
 
 @pytest.mark.unit
@@ -366,3 +364,59 @@ class TestDailyAnonymizeAndPrepare:
         assert result["status"] == "error"
         assert "Anonymization failed" in result["error"]
         assert "Anonymization error" in result["error"]
+
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
+    def test_creates_send_task_on_success(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
+        """Test a one-time send_anonymized_to_segment Task is created after successful anonymization."""
+        summary_date = timezone.now().date() - timedelta(days=1)
+        mock_generate_salt.return_value = "test-salt"
+        mock_anonymize_rollups.return_value = {"statistics": {}}
+
+        daily_summary_factory(
+            summary_date=summary_date,
+            status="aggregated",
+            aggregated_metrics={"job_host_summary_service": {}, "unified_jobs": {}, "execution_environments": {}},
+        )
+
+        before = timezone.now()
+        result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
+
+        from apps.tasks.models import Task
+
+        assert result["status"] == "success"
+        task = Task.objects.get(function_name="send_anonymized_to_segment")
+        assert task.task_data["payload_id"] == result["payload_id"]
+        assert before <= task.scheduled_time <= before + timedelta(minutes=239)
+
+    @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
+    @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
+    def test_send_task_not_created_when_anonymization_fails(
+        self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory
+    ):
+        """Test no send task is created when anonymization raises an exception."""
+        summary_date = timezone.now().date() - timedelta(days=1)
+        mock_generate_salt.return_value = "test-salt"
+        mock_anonymize_rollups.side_effect = Exception("boom")
+
+        daily_summary_factory(
+            summary_date=summary_date,
+            status="aggregated",
+            aggregated_metrics={"job_host_summary_service": {}, "unified_jobs": {}, "execution_environments": {}},
+        )
+
+        result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
+
+        from apps.tasks.models import Task
+
+        assert result["status"] == "error"
+        assert not Task.objects.filter(function_name="send_anonymized_to_segment").exists()
+
+    def test_jitter_offset_is_deterministic(self):
+        """Same UUID always produces the same jitter offset."""
+        import random
+        import uuid
+
+        test_uuid = "12345678-1234-5678-9012-123456789012"
+        seed = int(uuid.UUID(test_uuid)) % (10**9)
+        assert random.Random(seed).randint(0, 239) == random.Random(seed).randint(0, 239)

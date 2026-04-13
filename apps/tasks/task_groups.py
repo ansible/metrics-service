@@ -282,15 +282,6 @@ ANONYMIZATION_GROUP = TaskGroup(
             "description": "Anonymize daily summary for Segment transmission",
             "category": "daily_anonymization",
         },
-        {
-            "task_id": "send_to_segment_daily",
-            "function": "send_anonymized_to_segment",
-            "cron": "30 3 * * *",  # Daily at 3:30 AM
-            "args": {},
-            "enabled": True,
-            "description": "Send anonymized payloads to Segment",
-            "category": "daily_send",
-        },
     ],
 )
 
