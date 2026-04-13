@@ -197,8 +197,8 @@ def job_data(template_metadata):
 # - job_id 2: elapsed=5, num_hosts=10, status=failed
 # - Total: runs=2, successful=1, failed=1, elapsed=65, num_hosts=20
 # - automated_costs = (40 * 1.0) + (65 * ~0.00187) = 40.12
-# - manual_costs = 20 * 240 * 1.0 = 4800.00
-# - time_savings = 288000 - 65 - 2400 = 285535 sec
+# - manual_costs = runs * manual_minutes * rate = 2 * 240 * 1.0 = 480.00
+# - time_savings = (2 * 240 * 60) - 65 - (40 * 60) = 26335 sec
 
 EXPECTED_TEMPLATE_A_DATA = {
     "template_name": "Template A",
@@ -211,10 +211,10 @@ EXPECTED_TEMPLATE_A_DATA = {
     "elapsed": "65.00",
     "elapsed_str": "1min 5sec",
     "automated_costs": "40.12",
-    "manual_costs": "4800.00",
-    "time_savings": "285535.00",
-    "time_savings_str": "79h 18min 55sec",
-    "savings": "4759.88",
+    "manual_costs": "480.00",
+    "time_savings": "26335.00",
+    "time_savings_str": "7h 18min 55sec",
+    "savings": "439.88",
 }
 
 # =============================================================================
@@ -253,9 +253,9 @@ EXPECTED_DETAILS_JOB_1_AND_2 = {
     "total_number_of_unique_hosts": 3,
     "total_hours_of_automation": 0.02,
     "cost_of_automated_execution": 40.12,
-    "cost_of_manual_automation": 4800.0,
-    "total_saving": 4759.88,
-    "total_time_saving": 79.32,
+    "cost_of_manual_automation": 480.0,
+    "total_saving": 439.88,
+    "total_time_saving": 7.32,
     "top_users": [
         {"id": 1, "name": "test_user", "execution_count": 2},
     ],
@@ -276,9 +276,9 @@ EXPECTED_DETAILS_ALL_JOBS = {
     "total_number_of_unique_hosts": 3,
     "total_hours_of_automation": 0.12,
     "cost_of_automated_execution": 100.77,
-    "cost_of_manual_automation": 5520.0,
-    "total_saving": 5419.23,
-    "total_time_saving": 90.22,
+    "cost_of_manual_automation": 1200.0,
+    "total_saving": 1099.23,
+    "total_time_saving": 18.22,
     "top_users": [
         {"id": 1, "name": "test_user", "execution_count": 2},
         {"id": 2, "name": "other_user", "execution_count": 2},
@@ -791,10 +791,10 @@ EXPECTED_TEMPLATE_A_NO_CREATION_TIME = {
     "elapsed": "65.00",
     "elapsed_str": "1min 5sec",
     "automated_costs": "0.12",
-    "manual_costs": "4800.00",
-    "time_savings": "287935.00",
-    "time_savings_str": "79h 58min 55sec",
-    "savings": "4799.88",
+    "manual_costs": "480.00",
+    "time_savings": "28735.00",
+    "time_savings_str": "7h 58min 55sec",
+    "savings": "479.88",
 }
 
 EXPECTED_DETAILS_NO_CREATION_TIME = {
@@ -805,9 +805,9 @@ EXPECTED_DETAILS_NO_CREATION_TIME = {
     "total_number_of_unique_hosts": 3,
     "total_hours_of_automation": 0.02,
     "cost_of_automated_execution": 0.12,
-    "cost_of_manual_automation": 4800.0,
-    "total_saving": 4799.88,
-    "total_time_saving": 79.98,
+    "cost_of_manual_automation": 480.0,
+    "total_saving": 479.88,
+    "total_time_saving": 7.98,
     "top_users": [
         {"id": 1, "name": "test_user", "execution_count": 2},
     ],

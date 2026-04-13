@@ -187,13 +187,17 @@ class TestFilterOptionsViewSet:
     def test_retrieve_pk_zero(self, mock_conn, viewset):
         request = MagicMock()
         response = viewset.retrieve(request, pk=0)
-        assert response.status_code == 400
+        assert response.status_code == 404
+        assert "0" in str(response.data)
+        mock_conn.assert_not_called()
 
     @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
     def test_retrieve_pk_negative(self, mock_conn, viewset):
         request = MagicMock()
         response = viewset.retrieve(request, pk=-1)
-        assert response.status_code == 400
+        assert response.status_code == 404
+        assert "-1" in str(response.data)
+        mock_conn.assert_not_called()
 
     @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
     def test_retrieve_not_found(self, mock_conn, viewset):

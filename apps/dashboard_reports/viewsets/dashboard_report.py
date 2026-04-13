@@ -277,8 +277,10 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             automated_costs = F("elapsed") * aap_subscription_per_second
             time_savings = F("manual_time") - F("elapsed")
 
-        manual_costs = F("num_hosts") * coalesced_manual_minutes * average_cost_employee_minute
-        manual_time = F("num_hosts") * (coalesced_manual_minutes * 60)
+        # Manual minutes are a per-job-run estimate (see TemplateMetadata defaults); scale by runs,
+        # not Sum(num_hosts), which would mis-apply one run's minute estimate across all hosts.
+        manual_costs = F("runs") * coalesced_manual_minutes * average_cost_employee_minute
+        manual_time = F("runs") * (coalesced_manual_minutes * 60)
 
         return (
             # Exclude rows without template_metadata: ReportSerializer.id sources from

@@ -242,45 +242,39 @@ class ReportDetailSerializer(serializers.Serializer):
         return self._get_rounded_value(obj, "total_time_savings", divisor=3600)
 
 
-class SubscriptionCostSerializer(serializers.Serializer):
+class SubscriptionCostSerializer(serializers.ModelSerializer):
     """Serializer for viewing and updating the SubscriptionCost singleton record."""
 
-    id = serializers.IntegerField(read_only=True, help_text="ID of the subscription cost entry")
-    monthly_subscription_cost = serializers.DecimalField(
-        max_digits=15,
-        decimal_places=2,
-        required=False,
-        help_text="Monthly subscription cost for AAP subscription",
-        min_value=decimal.Decimal("0.00"),
-    )
+    class Meta:
+        """Serializer meta configuration for SubscriptionCostSerializer."""
 
-    engineer_avg_hourly_rate = serializers.DecimalField(
-        max_digits=15,
-        decimal_places=2,
-        required=False,
-        help_text="Average hourly rate for engineers performing manual work",
-        min_value=decimal.Decimal("0.00"),
-    )
-
-    include_template_creation_time_in_costs = serializers.BooleanField(
-        required=False,
-        help_text="Include template creation time in cost calculations. If false, costs related to template creation time will be excluded.",
-    )
-
-    def update(self, instance: SubscriptionCost, validated_data: dict[str, Any]) -> SubscriptionCost:
-        """Update and save the SubscriptionCost instance with validated data."""
-        instance.monthly_subscription_cost = validated_data.get(
-            "monthly_subscription_cost", instance.monthly_subscription_cost
-        )
-        instance.engineer_avg_hourly_rate = validated_data.get(
-            "engineer_avg_hourly_rate", instance.engineer_avg_hourly_rate
-        )
-        instance.include_template_creation_time_in_costs = validated_data.get(
-            "include_template_creation_time_in_costs", instance.include_template_creation_time_in_costs
-        )
-        instance.save()
-
-        return instance
+        model = SubscriptionCost
+        fields = [
+            "id",
+            "monthly_subscription_cost",
+            "engineer_avg_hourly_rate",
+            "include_template_creation_time_in_costs",
+        ]
+        extra_kwargs = {
+            "id": {"read_only": True, "help_text": "ID of the subscription cost entry"},
+            "monthly_subscription_cost": {
+                "required": False,
+                "help_text": "Monthly subscription cost for AAP subscription",
+                "min_value": decimal.Decimal("0.00"),
+            },
+            "engineer_avg_hourly_rate": {
+                "required": False,
+                "help_text": "Average hourly rate for engineers performing manual work",
+                "min_value": decimal.Decimal("0.00"),
+            },
+            "include_template_creation_time_in_costs": {
+                "required": False,
+                "help_text": (
+                    "Include template creation time in cost calculations. If false, "
+                    "costs related to template creation time will be excluded."
+                ),
+            },
+        }
 
 
 class TemplateMetadataSerializer(serializers.ModelSerializer):

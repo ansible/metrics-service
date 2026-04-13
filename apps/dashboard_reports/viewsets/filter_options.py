@@ -109,9 +109,12 @@ class FilterOptionsViewSet(GenericViewSet):
             pk = int(kwargs.get("pk"))
         except (TypeError, ValueError):
             pk = None
-        if pk is None or pk <= 0:
+        if pk is None:
             error_response = build_error_response("Invalid ID", status_code=400)
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
+        if pk <= 0:
+            error_response = build_error_response(self.not_found_msg(pk), status_code=404)
+            return Response(error_response, status=status.HTTP_404_NOT_FOUND)
 
         db_connection = None
         try:
