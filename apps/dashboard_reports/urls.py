@@ -5,6 +5,7 @@ from django.urls import include, path
 
 from apps.dashboard_reports.viewsets import (
     DashboardReportViewSet,
+    FilterSetsViewSet,
     JobTemplatesViewSet,
     LabelsViewSet,
     OrganizationsViewSet,
@@ -23,6 +24,7 @@ router.register(r"labels", LabelsViewSet, basename="labels")
 router.register(r"report", DashboardReportViewSet, basename="report")
 router.register(r"subscription_costs", SubscriptionCostViewSet, basename="subscription_costs")
 router.register(r"template_metadata", TemplateMetadataViewSet, basename="template_metadata")
+router.register(r"filter_sets", FilterSetsViewSet, basename="filter_sets")
 
 urlpatterns = [
     path("api/v1/dashboard_reports/", include(router.urls)),
