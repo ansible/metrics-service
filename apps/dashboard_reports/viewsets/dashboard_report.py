@@ -73,7 +73,10 @@ def require_date_range(view_func):
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
         if start_date > end_date:
-            error_response = build_error_response(period_err_msg, status_code=400)
+            error_response = build_error_response(
+                f"Invalid date range: start_date ({start_date.isoformat()}) must be before end_date ({end_date.isoformat()}).",
+                status_code=400,
+            )
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
         # Inject parsed dates into kwargs for downstream use

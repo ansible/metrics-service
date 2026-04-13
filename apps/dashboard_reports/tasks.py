@@ -253,7 +253,7 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
 
     if error:
         return create_task_result(
-            "error", error=result.get("message", "An unknown error occurred during initial data collection")
+            "error", error=result.get("message", "An unknown error occurred during incremental data collection")
         )
     return create_task_result("success", data=result.get("data", {}))
 
