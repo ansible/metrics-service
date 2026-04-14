@@ -6,7 +6,7 @@ with fallback to Django settings and defaults.
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -104,3 +104,125 @@ class TestFeatureEnabledDB(TestCase):
             result = get_feature_enabled_from_db("ERROR_SETTING", default=True)
             assert result is True
             mock_logger.warning.assert_called_once()
+
+
+class TestFeatureEnabledAAPFlagFallback(TestCase):
+    """Test AAPFlag is used as the second fallback in get_feature_enabled_from_db.
+
+    Priority chain:
+      1. dynamic_settings.Setting  (runtime DB override)
+      2. AAPFlag.value             (YAML-seeded default)
+      3. settings.FEATURE_ENABLED  (Django settings)
+      4. default argument
+    """
+
+    def _make_mock_flag(self, value: str) -> MagicMock:
+        flag = MagicMock()
+        flag.value = value
+        return flag
+
+    def _patch_aap_flag(self, flag_instance):
+        """Patch AAPFlag at its source module so the local import inside the function picks it up."""
+        return patch(
+            "ansible_base.feature_flags.models.AAPFlag",
+            **{"objects.filter.return_value.first.return_value": flag_instance},
+        )
+
+    # ------------------------------------------------------------------
+    # AAPFlag fallback — basic true / false
+    # ------------------------------------------------------------------
+
+    def test_aap_flag_true_returns_true(self):
+        """Returns True when AAPFlag.value is 'True' and no Setting exists."""
+        with self._patch_aap_flag(self._make_mock_flag("True")):
+            assert get_feature_enabled_from_db("MY_FLAG", default=False) is True
+
+    def test_aap_flag_false_returns_false(self):
+        """Returns False when AAPFlag.value is 'False' and no Setting exists."""
+        with self._patch_aap_flag(self._make_mock_flag("False")):
+            assert get_feature_enabled_from_db("MY_FLAG", default=True) is False
+
+    def test_aap_flag_string_variants(self):
+        """AAPFlag.value truthy strings are all accepted."""
+        for truthy in ("true", "True", "TRUE", "1", "yes", "on"):
+            with self._patch_aap_flag(self._make_mock_flag(truthy)):
+                assert get_feature_enabled_from_db("MY_FLAG", default=False) is True, truthy
+
+        for falsy in ("false", "False", "0", "no", "off"):
+            with self._patch_aap_flag(self._make_mock_flag(falsy)):
+                assert get_feature_enabled_from_db("MY_FLAG", default=True) is False, falsy
+
+    # ------------------------------------------------------------------
+    # Name mapping: setting_name → FEATURE_<setting_name>_ENABLED
+    # ------------------------------------------------------------------
+
+    def test_aap_flag_queried_with_correct_name(self):
+        """AAPFlag is looked up using the FEATURE_<setting_name>_ENABLED convention."""
+        mock_aap_flag_class = MagicMock()
+        mock_aap_flag_class.objects.filter.return_value.first.return_value = None
+
+        with patch("ansible_base.feature_flags.models.AAPFlag", mock_aap_flag_class):
+            get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False)
+
+        mock_aap_flag_class.objects.filter.assert_called_once_with(
+            name="FEATURE_DASHBOARD_COLLECTION_ENABLED", condition="boolean"
+        )
+
+    # ------------------------------------------------------------------
+    # Priority: Setting > AAPFlag > FEATURE_ENABLED > default
+    # ------------------------------------------------------------------
+
+    def test_dynamic_setting_takes_precedence_over_aap_flag(self):
+        """A dynamic_settings.Setting overrides the AAPFlag value."""
+        from django.contrib.auth import get_user_model
+
+        from apps.dynamic_settings.models import Setting
+
+        user = get_user_model().objects.create_user(username="prio_test", password="x")  # noqa: S106
+        Setting.objects.create(setting_key="PRIO_FLAG", current_value=json.dumps(True), last_modified_by=user)
+
+        # AAPFlag disagrees — says False
+        with self._patch_aap_flag(self._make_mock_flag("False")):
+            result = get_feature_enabled_from_db("PRIO_FLAG", default=False)
+
+        assert result is True  # Setting wins
+
+    @override_settings(FEATURE_ENABLED={"FALLBACK_FLAG": True})
+    def test_aap_flag_takes_precedence_over_feature_enabled_settings(self):
+        """AAPFlag value takes priority over settings.FEATURE_ENABLED."""
+        # AAPFlag says False; settings says True — AAPFlag wins
+        with self._patch_aap_flag(self._make_mock_flag("False")):
+            result = get_feature_enabled_from_db("FALLBACK_FLAG", default=True)
+
+        assert result is False
+
+    @override_settings(FEATURE_ENABLED={"SETTINGS_FLAG": True})
+    def test_feature_enabled_settings_used_when_no_aap_flag(self):
+        """settings.FEATURE_ENABLED is used when AAPFlag returns None."""
+        with self._patch_aap_flag(None):
+            result = get_feature_enabled_from_db("SETTINGS_FLAG", default=False)
+
+        assert result is True
+
+    def test_default_used_when_nothing_found(self):
+        """default argument is returned when Setting, AAPFlag, and FEATURE_ENABLED all miss."""
+        with self._patch_aap_flag(None), override_settings(FEATURE_ENABLED={}):
+            assert get_feature_enabled_from_db("NONEXISTENT", default=True) is True
+            assert get_feature_enabled_from_db("NONEXISTENT", default=False) is False
+
+    # ------------------------------------------------------------------
+    # Exception resilience
+    # ------------------------------------------------------------------
+
+    def test_aap_flag_exception_falls_through_to_settings(self):
+        """An exception inside the AAPFlag block falls through to FEATURE_ENABLED."""
+        mock_aap_flag_class = MagicMock()
+        mock_aap_flag_class.objects.filter.side_effect = Exception("registry unavailable")
+
+        with (
+            patch("ansible_base.feature_flags.models.AAPFlag", mock_aap_flag_class),
+            override_settings(FEATURE_ENABLED={"ERR_FLAG": True}),
+        ):
+            result = get_feature_enabled_from_db("ERR_FLAG", default=False)
+
+        assert result is True
