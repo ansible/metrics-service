@@ -45,6 +45,16 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
                 # If not valid JSON, treat as string boolean
                 return setting.current_value.lower() in ("true", "1", "yes", "on")
 
+        # Check AAPFlag value (seeded from feature_flags.yaml)
+        try:
+            from ansible_base.feature_flags.models import AAPFlag
+
+            flag = AAPFlag.objects.filter(name=f"FEATURE_{setting_name}_ENABLED", condition="boolean").first()
+            if flag is not None:
+                return flag.value.lower() in ("true", "1", "yes", "on")
+        except Exception:
+            pass
+
         # Fallback to Django settings
         feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
         return feature_enabled.get(setting_name, default)
