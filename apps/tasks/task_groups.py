@@ -52,8 +52,8 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
             flag = AAPFlag.objects.filter(name=f"FEATURE_{setting_name}_ENABLED", condition="boolean").first()
             if flag is not None:
                 return flag.value.lower() in ("true", "1", "yes", "on")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error reading feature enabled setting {setting_name} from AAPFlag: {e}")
 
         # Fallback to Django settings
         feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
