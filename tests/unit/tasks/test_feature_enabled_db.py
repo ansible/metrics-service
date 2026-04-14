@@ -123,7 +123,10 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
 
     def _patch_aap_flag(self, flag_instance):
         """Patch AAPFlag at its source module so the local import inside the function picks it up."""
-        return patch("ansible_base.feature_flags.models.AAPFlag", **{"objects.filter.return_value.first.return_value": flag_instance})
+        return patch(
+            "ansible_base.feature_flags.models.AAPFlag",
+            **{"objects.filter.return_value.first.return_value": flag_instance},
+        )
 
     # ------------------------------------------------------------------
     # AAPFlag fallback — basic true / false
@@ -171,8 +174,9 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
 
     def test_dynamic_setting_takes_precedence_over_aap_flag(self):
         """A dynamic_settings.Setting overrides the AAPFlag value."""
-        from apps.dynamic_settings.models import Setting
         from django.contrib.auth import get_user_model
+
+        from apps.dynamic_settings.models import Setting
 
         user = get_user_model().objects.create_user(username="prio_test", password="x")  # noqa: S106
         Setting.objects.create(setting_key="PRIO_FLAG", current_value=json.dumps(True), last_modified_by=user)
@@ -215,8 +219,9 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
         mock_aap_flag_class = MagicMock()
         mock_aap_flag_class.objects.filter.side_effect = Exception("registry unavailable")
 
-        with patch("ansible_base.feature_flags.models.AAPFlag", mock_aap_flag_class), override_settings(
-            FEATURE_ENABLED={"ERR_FLAG": True}
+        with (
+            patch("ansible_base.feature_flags.models.AAPFlag", mock_aap_flag_class),
+            override_settings(FEATURE_ENABLED={"ERR_FLAG": True}),
         ):
             result = get_feature_enabled_from_db("ERR_FLAG", default=False)
 

@@ -181,9 +181,7 @@ class TestLoadTaskFeatureFlags(TestCase):
         ):
             load_task_feature_flags()
 
-        expected_calls = [
-            call(name=f["name"], condition=f["condition"]) for f in _SAMPLE_FLAGS
-        ]
+        expected_calls = [call(name=f["name"], condition=f["condition"]) for f in _SAMPLE_FLAGS]
         assert mock_aap_flag_class.objects.filter.call_args_list == expected_calls
 
     # ------------------------------------------------------------------
