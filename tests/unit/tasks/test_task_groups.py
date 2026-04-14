@@ -187,19 +187,19 @@ class TestPredefinedTaskGroups(TestCase):
         assert "send_to_segment_daily" not in task_ids
 
     def test_anonymization_group_structure(self):
-        """Test ANONYMIZATION_GROUP contains only the two opt-out tasks with the correct flag."""
+        """Test ANONYMIZATION_GROUP contains only daily_anonymize with the correct flag."""
         assert ANONYMIZATION_GROUP.name == "anonymization"
         assert ANONYMIZATION_GROUP.feature_flag == "ANONYMIZED_DATA_COLLECTION"
 
         task_ids = [task["task_id"] for task in ANONYMIZATION_GROUP.tasks]
-        assert set(task_ids) == {"daily_anonymize", "send_to_segment_daily"}
+        assert set(task_ids) == {"daily_anonymize"}
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
     def test_anonymization_group_enabled(self):
         """Test ANONYMIZATION_GROUP returns both tasks when flag is enabled."""
         task_ids = [task["task_id"] for task in ANONYMIZATION_GROUP.get_enabled_tasks()]
         assert "daily_anonymize" in task_ids
-        assert "send_to_segment_daily" in task_ids
+        assert "send_to_segment_daily" not in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_anonymization_group_disabled(self):
@@ -277,7 +277,6 @@ class TestTaskGroupFunctions(TestCase):
         task_ids = list(all_tasks.keys())
 
         assert "daily_anonymize" in task_ids
-        assert "send_to_segment_daily" in task_ids
         assert "hourly_job_host_summary" in task_ids
         assert "daily_metrics_rollup" in task_ids
 
@@ -287,13 +286,11 @@ class TestTaskGroupFunctions(TestCase):
         all_tasks = get_all_tasks_for_init()
         task_ids = list(all_tasks.keys())
 
-        # Anonymize/send tasks must be present regardless of the flag
+        # Anonymize task must be present regardless of the flag
         assert "daily_anonymize" in task_ids
-        assert "send_to_segment_daily" in task_ids
 
-        # The feature_flag must be stored in their config for runtime checking
+        # The feature_flag must be stored in its config for runtime checking
         assert all_tasks["daily_anonymize"]["feature_flag"] == "ANONYMIZED_DATA_COLLECTION"
-        assert all_tasks["send_to_segment_daily"]["feature_flag"] == "ANONYMIZED_DATA_COLLECTION"
 
         # Collection tasks must also be present
         assert "hourly_job_host_summary" in task_ids
@@ -339,7 +336,6 @@ class TestTaskGroupIntegration(TestCase):
 
         # Anonymization tasks (from ANONYMIZATION_GROUP, enabled when flag is true)
         assert "daily_anonymize" in task_ids
-        assert "send_to_segment_daily" in task_ids
 
     @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": False})
     def test_flag_false_stops_only_anonymize_send(self):
@@ -358,6 +354,5 @@ class TestTaskGroupIntegration(TestCase):
         assert "daily_metrics_rollup" in task_ids
         assert "cleanup_metrics_data" in task_ids
 
-        # Only these two must be absent
+        # Only this must be absent when flag is disabled
         assert "daily_anonymize" not in task_ids
-        assert "send_to_segment_daily" not in task_ids

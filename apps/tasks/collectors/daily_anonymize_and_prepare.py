@@ -9,16 +9,14 @@ The output is a flattened structure with statistics and arrays ready for Segment
 """
 
 import logging
+import random
+import uuid
 from datetime import date, timedelta
 from typing import Any
 
 from django.utils import timezone
 
-from ..utils import (
-    create_task_result,
-    generate_salt,
-    log_task_execution,
-)
+from ..utils import create_task_result, generate_salt, log_task_execution
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +29,8 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     - Fetches DailyMetricsSummary with status=aggregated (upstream dependency)
     - Anonymizes using anonymize_rollups() from metrics-utility
     - Creates AnonymizedMetricsPayload record
+    - Schedules a one-time send_anonymized_to_segment task at a randomized,
+      installation-stable time offset (jitter derived from ServiceID UUID)
 
     If the upstream dependency (aggregated summary) is not met or the lock
     cannot be acquired, the task fails and will be retried automatically.
@@ -41,14 +41,13 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             - salt (str): Anonymization salt (auto-generated if not provided)
 
     Returns:
-        dict: Task result with payload ID
+        dict: Task result with payload ID and scheduled send time
     """
-    from django.db import transaction
-
     # Import from metrics-utility (will fail if not available)
+    from django.db import transaction
     from metrics_utility.anonymized_rollups import anonymize_rollups
 
-    from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
+    from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary, Task
 
     # Determine summary date
     summary_date_str = kwargs.get("summary_date")
@@ -89,7 +88,19 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             "aggregation_timestamp": aggregation_timestamp,
         }
 
-        # Use atomic transaction to prevent duplicate payloads
+        from ansible_base.resource_registry.models.service_identifier import service_id
+
+        try:
+            installation_uuid = service_id()
+            seed = int(uuid.UUID(installation_uuid)) % (10**9)
+        except Exception as e:
+            logger.warning("Unable to derive jitter seed from service_id. Using fallback: %s", e)
+            seed = 0
+        offset_minutes = random.Random(seed).randint(0, 239)  # noqa: S311  # NOSONAR - scheduling jitter, not a security context
+        send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)
+
+        # Use atomic transaction to prevent duplicate payloads and ensure the
+        # send task is only created when the payload is successfully persisted.
         with transaction.atomic():
             # Create AnonymizedMetricsPayload
             event_name = "Controller Metrics Daily Rollup"
@@ -107,6 +118,20 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             daily_summary.status = "anonymized"
             daily_summary.save()
 
+            Task.objects.create(
+                name=f"send_to_segment_{summary_date}",
+                description=f"Send anonymized metrics payload {payload.id} to Segment (scheduled with jitter)",
+                function_name="send_anonymized_to_segment",
+                task_data={"payload_id": payload.id},
+                scheduled_time=send_scheduled_time,
+                is_system_task=False,
+            )
+
+        logger.info(
+            "Anonymization complete. Scheduling Segment upload for %s (Offset: %d minutes)",
+            send_scheduled_time.isoformat(),
+            offset_minutes,
+        )
         log_task_execution("daily_anonymize_and_prepare", "completed", f"Created anonymized payload ID: {payload.id}")
 
         return create_task_result(
@@ -116,6 +141,8 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
                 "payload_id": payload.id,
                 "summary_date": str(summary_date),
                 "payload_size_bytes": payload.payload_size_bytes,
+                "segment_send_scheduled_time": send_scheduled_time.isoformat(),
+                "segment_send_offset_minutes": offset_minutes,
             },
         )
 
