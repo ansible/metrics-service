@@ -254,6 +254,7 @@ TASK_METADATA = {
             {"name": "System config", "data": {"collector_type": "config"}},
             {"name": "Controller version", "data": {"collector_type": "controller_version_service"}},
             {"name": "Table metadata", "data": {"collector_type": "table_metadata"}},
+            {"name": "Feature flags", "data": {"collector_type": "feature_flags_service"}},
         ],
     },
     # Daily Rollup and Anonymization
