@@ -18,8 +18,6 @@ The `category` field in `TASK_METADATA` (in `apps/tasks/tasks.py`) is served by 
 
 Exceptions: `"Testing"` (task-system test functions like `hello_world`) and `"Maintenance"` (shared cleanup tasks spanning metrics, dashboard, and service internals) are allowed.
 
-Do NOT check the `category` field in `task_groups.py` task dicts — that field is internal and separate.
-
 ### 2. Every TASK_FUNCTIONS entry must have a TASK_METADATA entry
 
 Every function name in the `TASK_FUNCTIONS` dict must also have a corresponding entry in `TASK_METADATA`. Functions missing from `TASK_METADATA` get `category: "General"` as a fallback in the API, and have no parameters or examples — flag them.

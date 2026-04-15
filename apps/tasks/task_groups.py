@@ -320,7 +320,7 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "cleanup_dashboard_reports_old_data",
             "function": "cleanup_dashboard_reports_old_data",
-            "cron": "30 5 * * *",  # Daily at 5:30 AM (after daily_task_cleanup at 5:00)
+            "cron": "30 5 * * *",  # Daily at 5:30 AM
             "args": {
                 "retention_period_days": 90,
             },
