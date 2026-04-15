@@ -40,6 +40,15 @@ For each function in `TASK_METADATA`:
 
 Across ALL task groups in `TASK_GROUPS`, no two tasks with `enabled: True` should share the same `cron` expression. Flag any collisions (list the task_ids and their shared cron).
 
+### 6. Rollup processors must match collector registries
+
+The daily rollup (`apps/tasks/collectors/daily_metrics_rollup.py`, function `_merge_hourly_rollups`) defines its own `hourly_rollup_processors` and `daily_rollup_processors` dicts. These must stay in sync with the collector registries:
+
+- Every collector_type in `_get_hourly_collectors()` must appear in `hourly_rollup_processors` (or be explicitly commented out with a reason).
+- Every collector_type in `_get_snapshot_collectors()` (except `config`, which is special-cased) must appear in `daily_rollup_processors`.
+- Every collector_type in `_get_daily_collectors()` must appear in `daily_rollup_processors`.
+- Conversely, every type in the rollup processor dicts must exist in the corresponding collector registry. Flag any orphaned processors.
+
 ## Output format
 
 For each check, list what you found:
