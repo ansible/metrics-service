@@ -58,7 +58,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test GET /api/v1/dashboard_reports/subscription_costs/ returns 200."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -67,7 +67,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test list endpoint returns the existing SubscriptionCost entries."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -78,7 +78,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test list response contains all expected serializer fields."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -95,7 +95,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test list endpoint returns a plain list, not a paginated response."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         # Pagination would wrap results in a dict with a 'results' key
@@ -110,7 +110,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         SubscriptionCost.objects.all().delete()
         assert SubscriptionCost.objects.count() == 0
 
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -127,7 +127,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test PUT /api/v1/dashboard_reports/subscription_costs/{id}/ returns 200."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "1500.00",
             "engineer_avg_hourly_rate": "75.00",
@@ -141,7 +141,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test updating monthly_subscription_cost persists the new value."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "2000.00",
             "engineer_avg_hourly_rate": self.subscription_cost.engineer_avg_hourly_rate,
@@ -159,7 +159,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test updating engineer_avg_hourly_rate persists the new value."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": self.subscription_cost.monthly_subscription_cost,
             "engineer_avg_hourly_rate": "99.50",
@@ -178,7 +178,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         original = self.subscription_cost.include_template_creation_time_in_costs
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": self.subscription_cost.monthly_subscription_cost,
             "engineer_avg_hourly_rate": self.subscription_cost.engineer_avg_hourly_rate,
@@ -198,7 +198,7 @@ class TestSubscriptionCostViewSet(APITestCase):
 
         original_rate = self.subscription_cost.engineer_avg_hourly_rate
         original_include = self.subscription_cost.include_template_creation_time_in_costs
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         # Only send monthly_subscription_cost; the other two fields are omitted entirely
         data = {
             "monthly_subscription_cost": "500.00",
@@ -213,7 +213,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test PUT with a non-existent PK returns 404."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": 999999})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": 999999})
         data = {
             "monthly_subscription_cost": "100.00",
             "engineer_avg_hourly_rate": "50.00",
@@ -234,7 +234,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         self.subscription_cost.include_template_creation_time_in_costs = True
         self.subscription_cost.save()
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         # Only send monthly_subscription_cost, omit the other two fields entirely
         data = {
             "monthly_subscription_cost": "1234.00",
@@ -256,7 +256,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test updating monthly_subscription_cost with a negative value returns 400."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "-100.00",
             "engineer_avg_hourly_rate": "50.00",
@@ -270,7 +270,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test updating engineer_avg_hourly_rate with a negative value returns 400."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "100.00",
             "engineer_avg_hourly_rate": "-50.00",
@@ -284,7 +284,7 @@ class TestSubscriptionCostViewSet(APITestCase):
         """Test the update response includes the id field."""
         self.client.force_authenticate(user=self.user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "300.00",
             "engineer_avg_hourly_rate": "40.00",
@@ -342,7 +342,7 @@ class TestSubscriptionCostPermissions(APITestCase):
 
     def test_list_denied_for_unauthenticated_user(self) -> None:
         """Test list is forbidden for unauthenticated requests."""
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -351,7 +351,7 @@ class TestSubscriptionCostPermissions(APITestCase):
         """Test list is forbidden for a regular authenticated (non-superuser) user."""
         self.client.force_authenticate(user=self.regular_user)
 
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -360,14 +360,14 @@ class TestSubscriptionCostPermissions(APITestCase):
         """Test list is accessible for a superuser."""
         self.client.force_authenticate(user=self.admin)
 
-        url = reverse("dashboard_reports:subscription_costs-list")
+        url = reverse("v1:subscription_costs-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
 
     def test_update_denied_for_unauthenticated_user(self) -> None:
         """Test update is forbidden for unauthenticated requests."""
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "100.00",
             "engineer_avg_hourly_rate": "50.00",
@@ -381,7 +381,7 @@ class TestSubscriptionCostPermissions(APITestCase):
         """Test update is forbidden for a regular authenticated (non-superuser) user."""
         self.client.force_authenticate(user=self.regular_user)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "100.00",
             "engineer_avg_hourly_rate": "50.00",
@@ -395,7 +395,7 @@ class TestSubscriptionCostPermissions(APITestCase):
         """Test update is accessible for a superuser."""
         self.client.force_authenticate(user=self.admin)
 
-        url = reverse("dashboard_reports:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
+        url = reverse("v1:subscription_costs-detail", kwargs={"pk": self.subscription_cost.pk})
         data = {
             "monthly_subscription_cost": "100.00",
             "engineer_avg_hourly_rate": "50.00",

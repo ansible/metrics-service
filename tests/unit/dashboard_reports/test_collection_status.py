@@ -146,7 +146,7 @@ class TestDashboardCollectionStatusURL:
     """Tests for URL registration and reversal."""
 
     def test_url_reverse(self):
-        url = reverse("dashboard_reports:collection_status-list")
+        url = reverse("v1:collection_status-list")
         assert "collection_status" in url
 
     def test_viewset_registered_in_router(self):

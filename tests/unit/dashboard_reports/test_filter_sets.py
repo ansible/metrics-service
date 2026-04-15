@@ -176,33 +176,33 @@ class TestFilterSetsPermissions(APITestCase):
         User.objects.all().delete()
 
     def test_list_denied_for_unauthenticated(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_create_denied_for_unauthenticated(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.post(url, {"name": "X", "filters": {}, "is_default": False}, format="json")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_update_denied_for_unauthenticated(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         response = self.client.put(url, {"name": "X", "filters": {}, "is_default": False}, format="json")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_partial_update_denied_for_unauthenticated(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         response = self.client.patch(url, {"name": "X"}, format="json")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_delete_denied_for_unauthenticated(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         response = self.client.delete(url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_list_accessible_for_authenticated_user(self) -> None:
         self.client.force_authenticate(user=self.user)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
 
@@ -223,17 +223,17 @@ class TestFilterSetsListEndpoint(APITestCase):
         User.objects.all().delete()
 
     def test_list_returns_200(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         assert self.client.get(url).status_code == status.HTTP_200_OK
 
     def test_list_returns_paginated_response(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         assert "results" in response.data
         assert "count" in response.data
 
     def test_list_returns_empty_when_no_filter_sets(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         assert response.data["count"] == 0
         assert response.data["results"] == []
@@ -244,7 +244,7 @@ class TestFilterSetsListEndpoint(APITestCase):
         _create_filter_set(self.user, "Mine")
         _create_filter_set(other_user, "Not Mine")
 
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
 
         assert response.data["count"] == 1
@@ -252,7 +252,7 @@ class TestFilterSetsListEndpoint(APITestCase):
 
     def test_list_response_contains_expected_fields(self) -> None:
         _create_filter_set(self.user)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         entry = response.data["results"][0]
         assert set(entry.keys()) == {"id", "name", "filters", "is_default"}
@@ -260,14 +260,14 @@ class TestFilterSetsListEndpoint(APITestCase):
     def test_list_returns_correct_count_for_multiple_filter_sets(self) -> None:
         _create_filter_set(self.user, "Set 1")
         _create_filter_set(self.user, "Set 2")
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         assert response.data["count"] == 2
 
     def test_list_shows_correct_is_default_values(self) -> None:
         _create_filter_set(self.user, "Default", is_default=True)
         _create_filter_set(self.user, "Not Default", is_default=False)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         defaults = [r["is_default"] for r in response.data["results"]]
         assert True in defaults
@@ -290,18 +290,18 @@ class TestFilterSetsCreateEndpoint(APITestCase):
         User.objects.all().delete()
 
     def test_create_returns_201(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         data = {"name": "New Set", "filters": _FILTERS_A, "is_default": False}
         assert self.client.post(url, data, format="json").status_code == status.HTTP_201_CREATED
 
     def test_create_persists_to_db(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         self.client.post(url, {"name": "Persisted", "filters": _FILTERS_A, "is_default": False}, format="json")
         assert FilterSet.objects.filter(user=self.user, name="Persisted").exists()
 
     def test_create_associates_filter_set_with_requesting_user(self) -> None:
         """POST must set user=request.user — not require the caller to supply it."""
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.post(
             url, {"name": "Auto-owned", "filters": _FILTERS_A, "is_default": False}, format="json"
         )
@@ -309,14 +309,14 @@ class TestFilterSetsCreateEndpoint(APITestCase):
         assert FilterSet.objects.get(pk=pk).user == self.user
 
     def test_create_response_contains_expected_fields(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.post(
             url, {"name": "Fields Check", "filters": _FILTERS_A, "is_default": False}, format="json"
         )
         assert set(response.data.keys()) == {"id", "name", "filters", "is_default"}
 
     def test_create_with_is_default_true_sets_as_default(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.post(
             url, {"name": "My Default", "filters": _FILTERS_A, "is_default": True}, format="json"
         )
@@ -326,7 +326,7 @@ class TestFilterSetsCreateEndpoint(APITestCase):
     def test_create_new_default_clears_previous_default(self) -> None:
         """POST with is_default=True must clear the previous default for the same user."""
         old_default = _create_filter_set(self.user, "Old Default", is_default=True)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         self.client.post(url, {"name": "New Default", "filters": _FILTERS_A, "is_default": True}, format="json")
 
         old_default.refresh_from_db()
@@ -338,19 +338,19 @@ class TestFilterSetsCreateEndpoint(APITestCase):
         other_user = _create_user("other")
         other_default = _create_filter_set(other_user, "Other Default", is_default=True)
 
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         self.client.post(url, {"name": "My Default", "filters": _FILTERS_A, "is_default": True}, format="json")
 
         other_default.refresh_from_db()
         assert other_default.is_default is True
 
     def test_create_without_name_returns_400(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.post(url, {"filters": _FILTERS_A, "is_default": False}, format="json")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_create_without_filters_returns_400(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.post(url, {"name": "No Filters", "is_default": False}, format="json")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -372,18 +372,18 @@ class TestFilterSetsUpdateEndpoint(APITestCase):
         User.objects.all().delete()
 
     def test_update_returns_200(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         response = self.client.put(url, {"name": "Updated", "filters": _FILTERS_B, "is_default": False}, format="json")
         assert response.status_code == status.HTTP_200_OK
 
     def test_update_persists_name(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         self.client.put(url, {"name": "Renamed", "filters": _FILTERS_A, "is_default": False}, format="json")
         self.filter_set.refresh_from_db()
         assert self.filter_set.name == "Renamed"
 
     def test_update_persists_filters(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         self.client.put(url, {"name": "Original", "filters": _FILTERS_B, "is_default": False}, format="json")
         self.filter_set.refresh_from_db()
         assert self.filter_set.filters == _FILTERS_B
@@ -391,7 +391,7 @@ class TestFilterSetsUpdateEndpoint(APITestCase):
     def test_update_setting_is_default_true_clears_previous_default(self) -> None:
         """PUT with is_default=True must clear the existing default for this user."""
         old_default = _create_filter_set(self.user, "Old Default", is_default=True)
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         self.client.put(url, {"name": "Original", "filters": _FILTERS_A, "is_default": True}, format="json")
 
         old_default.refresh_from_db()
@@ -403,22 +403,22 @@ class TestFilterSetsUpdateEndpoint(APITestCase):
         """PUT on another user's filter set must return 404 (not 403 — no information leak)."""
         other_user = _create_user("other")
         other_fs = _create_filter_set(other_user, "Their Set")
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": other_fs.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": other_fs.pk})
         response = self.client.put(url, {"name": "Hijacked", "filters": _FILTERS_A, "is_default": False}, format="json")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_update_returns_404_for_nonexistent_id(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": 999999})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": 999999})
         response = self.client.put(url, {"name": "X", "filters": _FILTERS_A, "is_default": False}, format="json")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_update_response_contains_expected_fields(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         response = self.client.put(url, {"name": "Updated", "filters": _FILTERS_B, "is_default": False}, format="json")
         assert set(response.data.keys()) == {"id", "name", "filters", "is_default"}
 
     def test_update_does_not_change_owner(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         self.client.put(url, {"name": "Updated", "filters": _FILTERS_B, "is_default": False}, format="json")
         self.filter_set.refresh_from_db()
         assert self.filter_set.user == self.user
@@ -441,12 +441,12 @@ class TestFilterSetsDeleteEndpoint(APITestCase):
         User.objects.all().delete()
 
     def test_delete_returns_204(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": self.filter_set.pk})
         assert self.client.delete(url).status_code == status.HTTP_204_NO_CONTENT
 
     def test_delete_removes_from_db(self) -> None:
         pk = self.filter_set.pk
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": pk})
         self.client.delete(url)
         assert not FilterSet.objects.filter(pk=pk).exists()
 
@@ -454,19 +454,19 @@ class TestFilterSetsDeleteEndpoint(APITestCase):
         """DELETE on another user's filter set must return 404."""
         other_user = _create_user("other")
         other_fs = _create_filter_set(other_user, "Not Mine")
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": other_fs.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": other_fs.pk})
         response = self.client.delete(url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_delete_returns_404_for_nonexistent_id(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": 999999})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": 999999})
         assert self.client.delete(url).status_code == status.HTTP_404_NOT_FOUND
 
     def test_delete_does_not_remove_other_users_filter_set(self) -> None:
         """A failed 404 delete must not affect another user's record."""
         other_user = _create_user("other")
         other_fs = _create_filter_set(other_user, "Safe")
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": other_fs.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": other_fs.pk})
         self.client.delete(url)
         assert FilterSet.objects.filter(pk=other_fs.pk).exists()
 
@@ -495,14 +495,14 @@ class TestFilterSetsUserIsolation(APITestCase):
     def test_user_b_cannot_see_user_a_filter_sets(self) -> None:
         _create_filter_set(self.user_a, "A's Set")
         self.client.force_authenticate(user=self.user_b)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         assert response.data["count"] == 0
 
     def test_user_a_cannot_see_user_b_filter_sets(self) -> None:
         _create_filter_set(self.user_b, "B's Set")
         self.client.force_authenticate(user=self.user_a)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         response = self.client.get(url)
         assert response.data["count"] == 0
 
@@ -512,7 +512,7 @@ class TestFilterSetsUserIsolation(APITestCase):
         _create_filter_set(self.user_b, "B1")
 
         self.client.force_authenticate(user=self.user_a)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         assert self.client.get(url).data["count"] == 2
 
         self.client.force_authenticate(user=self.user_b)
@@ -522,7 +522,7 @@ class TestFilterSetsUserIsolation(APITestCase):
         b_default = _create_filter_set(self.user_b, "B Default", is_default=True)
 
         self.client.force_authenticate(user=self.user_a)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         self.client.post(url, {"name": "A Default", "filters": _FILTERS_A, "is_default": True}, format="json")
 
         b_default.refresh_from_db()
@@ -554,7 +554,7 @@ class TestFilterSetsSingleDefault(APITestCase):
         User.objects.all().delete()
 
     def test_creating_second_default_clears_first(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         r1 = self.client.post(url, {"name": "First", "filters": _FILTERS_A, "is_default": True}, format="json")
         self.client.post(url, {"name": "Second", "filters": _FILTERS_B, "is_default": True}, format="json")
 
@@ -562,7 +562,7 @@ class TestFilterSetsSingleDefault(APITestCase):
         assert FilterSet.objects.filter(user=self.user, is_default=True).count() == 1
 
     def test_at_most_one_default_after_multiple_creates(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         for i in range(3):
             self.client.post(url, {"name": f"Set {i}", "filters": _FILTERS_A, "is_default": True}, format="json")
         assert FilterSet.objects.filter(user=self.user, is_default=True).count() == 1
@@ -571,7 +571,7 @@ class TestFilterSetsSingleDefault(APITestCase):
         existing_default = _create_filter_set(self.user, "Existing Default", is_default=True)
         target = _create_filter_set(self.user, "Will Become Default", is_default=False)
 
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": target.pk})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": target.pk})
         self.client.put(url, {"name": "Will Become Default", "filters": _FILTERS_A, "is_default": True}, format="json")
 
         existing_default.refresh_from_db()
@@ -581,7 +581,7 @@ class TestFilterSetsSingleDefault(APITestCase):
 
     def test_non_default_create_does_not_affect_existing_default(self) -> None:
         existing_default = _create_filter_set(self.user, "Keep As Default", is_default=True)
-        url = reverse("dashboard_reports:filter_sets-list")
+        url = reverse("v1:filter_sets-list")
         self.client.post(url, {"name": "Not Default", "filters": _FILTERS_B, "is_default": False}, format="json")
 
         existing_default.refresh_from_db()
@@ -620,10 +620,10 @@ class TestFilterSetsUrls(TestCase):
         assert resolve("/api/v1/dashboard_reports/filter_sets/1/").func.actions.get("delete") == "destroy"
 
     def test_list_url_can_be_reversed(self) -> None:
-        assert "filter_sets" in reverse("dashboard_reports:filter_sets-list")
+        assert "filter_sets" in reverse("v1:filter_sets-list")
 
     def test_detail_url_can_be_reversed(self) -> None:
-        url = reverse("dashboard_reports:filter_sets-detail", kwargs={"pk": 1})
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": 1})
         assert "filter_sets" in url and "1" in url
 
 

@@ -107,12 +107,12 @@ class TestFeatureEnabledDB(TestCase):
 
 
 class TestFeatureEnabledAAPFlagFallback(TestCase):
-    """Test AAPFlag is used as the second fallback in get_feature_enabled_from_db.
+    """Test AAPFlag fallback in get_feature_enabled_from_db.
 
     Priority chain:
       1. dynamic_settings.Setting  (runtime DB override)
-      2. AAPFlag.value             (YAML-seeded default)
-      3. settings.FEATURE_ENABLED  (Django settings)
+      2. settings.FEATURE_ENABLED  (when the key is present, e.g. env overrides)
+      3. AAPFlag.value             (YAML-seeded platform default)
       4. default argument
     """
 
@@ -169,7 +169,7 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
         )
 
     # ------------------------------------------------------------------
-    # Priority: Setting > AAPFlag > FEATURE_ENABLED > default
+    # Priority: Setting > FEATURE_ENABLED (if key present) > AAPFlag > default
     # ------------------------------------------------------------------
 
     def test_dynamic_setting_takes_precedence_over_aap_flag(self):
@@ -188,13 +188,25 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
         assert result is True  # Setting wins
 
     @override_settings(FEATURE_ENABLED={"FALLBACK_FLAG": True})
-    def test_aap_flag_takes_precedence_over_feature_enabled_settings(self):
-        """AAPFlag value takes priority over settings.FEATURE_ENABLED."""
-        # AAPFlag says False; settings says True — AAPFlag wins
+    def test_feature_enabled_takes_precedence_over_aap_flag(self):
+        """settings.FEATURE_ENABLED wins when the key is present (e.g. deployment env)."""
+        # AAPFlag says False; settings says True — settings wins
         with self._patch_aap_flag(self._make_mock_flag("False")):
             result = get_feature_enabled_from_db("FALLBACK_FLAG", default=True)
 
-        assert result is False
+        assert result is True
+
+    @override_settings(FEATURE_ENABLED={"DASHBOARD_COLLECTION": True})
+    def test_dashboard_collection_feature_enabled_overrides_false_aap_flag(self):
+        """Env-style FEATURE_ENABLED must win over a false AAPFlag for dashboard collection."""
+        with self._patch_aap_flag(self._make_mock_flag("False")):
+            assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False) is True
+
+    def test_dashboard_collection_uses_aap_flag_when_omitted_from_feature_enabled(self):
+        """When the key is absent from FEATURE_ENABLED, the platform AAPFlag applies."""
+        with self._patch_aap_flag(self._make_mock_flag("True")):
+            with override_settings(FEATURE_ENABLED={}):
+                assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False) is True
 
     @override_settings(FEATURE_ENABLED={"SETTINGS_FLAG": True})
     def test_feature_enabled_settings_used_when_no_aap_flag(self):
@@ -205,7 +217,7 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
         assert result is True
 
     def test_default_used_when_nothing_found(self):
-        """default argument is returned when Setting, AAPFlag, and FEATURE_ENABLED all miss."""
+        """default argument is returned when Setting, FEATURE_ENABLED key, and AAPFlag all miss."""
         with self._patch_aap_flag(None), override_settings(FEATURE_ENABLED={}):
             assert get_feature_enabled_from_db("NONEXISTENT", default=True) is True
             assert get_feature_enabled_from_db("NONEXISTENT", default=False) is False
@@ -214,15 +226,15 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
     # Exception resilience
     # ------------------------------------------------------------------
 
-    def test_aap_flag_exception_falls_through_to_settings(self):
-        """An exception inside the AAPFlag block falls through to FEATURE_ENABLED."""
+    def test_aap_flag_exception_falls_through_to_default(self):
+        """An exception inside the AAPFlag block falls through to the default argument."""
         mock_aap_flag_class = MagicMock()
         mock_aap_flag_class.objects.filter.side_effect = Exception("registry unavailable")
 
         with (
             patch("ansible_base.feature_flags.models.AAPFlag", mock_aap_flag_class),
-            override_settings(FEATURE_ENABLED={"ERR_FLAG": True}),
+            override_settings(FEATURE_ENABLED={}),
         ):
-            result = get_feature_enabled_from_db("ERR_FLAG", default=False)
+            result = get_feature_enabled_from_db("ERR_FLAG", default=True)
 
         assert result is True

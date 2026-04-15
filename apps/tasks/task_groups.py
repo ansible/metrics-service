@@ -5,8 +5,9 @@ This module defines task groups with feature enabled controls and provides
 a centralized way to manage different categories of tasks.
 
 Feature enabled settings are stored in the database using the Setting model, allowing
-runtime configuration without code changes. Values fall back to Django
-settings if not found in the database.
+runtime configuration without code changes. Values resolve in order: Setting row,
+then settings.FEATURE_ENABLED when the key is present (including env overrides),
+then DAB AAPFlag FEATURE_<name>_ENABLED, then the function default.
 
 run `manage.py metrics_utility init-system-tasks` to update the DB from `TASK_GROUPS`
 """
@@ -23,6 +24,13 @@ logger = logging.getLogger(__name__)
 def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> bool:
     """
     Get a feature enabled value from database settings.
+
+    Order: ``Setting`` row → ``FEATURE_ENABLED[setting_name]`` if that key exists
+    (Dynaconf merges ``METRICS_SERVICE_FEATURE_ENABLED__*``) → boolean ``AAPFlag``
+    ``FEATURE_<setting_name>_ENABLED`` → ``default``.
+
+    Feature keys omitted from ``FEATURE_ENABLED`` in defaults (e.g. ``DASHBOARD_COLLECTION``)
+    use the AAPFlag / default path so platform toggles work without a duplicate static default.
 
     Args:
         setting_name: Name of the feature enabled setting
@@ -45,7 +53,11 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
                 # If not valid JSON, treat as string boolean
                 return setting.current_value.lower() in ("true", "1", "yes", "on")
 
-        # Check AAPFlag value (seeded from feature_flags.yaml)
+        feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
+        if setting_name in feature_enabled:
+            return bool(feature_enabled[setting_name])
+
+        # Platform default from DAB (YAML-seeded), when not overridden above
         try:
             from ansible_base.feature_flags.models import AAPFlag
 
@@ -55,15 +67,14 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
         except Exception as e:
             logger.warning(f"Error reading feature enabled setting {setting_name} from AAPFlag: {e}")
 
-        # Fallback to Django settings
-        feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
-        return feature_enabled.get(setting_name, default)
+        return default
 
     except Exception as e:
         logger.warning(f"Error reading feature enabled setting {setting_name} from database: {e}")
-        # Fallback to Django settings
         feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
-        return feature_enabled.get(setting_name, default)
+        if setting_name in feature_enabled:
+            return bool(feature_enabled[setting_name])
+        return default
 
 
 class TaskGroup:
@@ -297,8 +308,8 @@ ANONYMIZATION_GROUP = TaskGroup(
 
 # Dashboard Collection Group - automation-reports integration
 # Feature flag: DASHBOARD_COLLECTION (default: False — customer opt-in)
-# Override via env var: METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
-# Or set in DB via: manage.py metrics_service init-default-settings (then update via settings API)
+# Enable via METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION, DAB AAPFlag
+# FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
 DASHBOARD_COLLECTION_GROUP = TaskGroup(
     name="dashboard_collection",
     description="Automation-reports dashboard data collection (SQL-based, separate from anonymization)",

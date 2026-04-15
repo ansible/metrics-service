@@ -124,7 +124,8 @@ DATABASES = {
 # also used by tasks - unless set in the db.
 FEATURE_ENABLED = {
     "ANONYMIZED_DATA_COLLECTION": True,  # Controls all metrics collection, rollup, anonymization, and sending
-    "DASHBOARD_COLLECTION": False,  # automation-reports integration (customer opt-in)
+    # DASHBOARD_COLLECTION is intentionally omitted: set via METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION,
+    # DAB AAPFlag FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"

@@ -497,7 +497,7 @@ class TestReportViewData:
     @pytest.mark.parametrize("query, expected_count, expected_data", TEST_REPORT_VIEW_CASES)
     def test_report_view(self, job_data, query, expected_count, expected_data, admin_client):
         """Test report list endpoint with various filters."""
-        url = reverse("dashboard_reports:report-list")
+        url = reverse("v1:report-list")
         response = admin_client.get(url, data=query)
 
         assert response.status_code == 200
@@ -515,7 +515,7 @@ class TestReportViewData:
     @pytest.mark.parametrize("query, expected_data", TEST_REPORT_VIEW_DETAIL_CASES)
     def test_report_view_details(self, job_data, query, expected_data, admin_client):
         """Test report details endpoint with various filters."""
-        url = reverse("dashboard_reports:report-details")
+        url = reverse("v1:report-details")
         response = admin_client.get(url, data=query)
 
         assert response.status_code == 200
@@ -531,7 +531,7 @@ class TestReportViewData:
 
     def test_report_view_details_charts_data(self, job_data, admin_client):
         """Test that job_chart and host_chart contain correct data values for recent jobs."""
-        url = reverse("dashboard_reports:report-details")
+        url = reverse("v1:report-details")
         response = admin_client.get(url, data=build_recent_query())
 
         assert response.status_code == 200
@@ -560,7 +560,7 @@ class TestReportViewData:
 
     def test_report_view_details_charts_unfiltered(self, job_data, admin_client):
         """Test job_chart and host_chart data for unfiltered (all jobs) query."""
-        url = reverse("dashboard_reports:report-details")
+        url = reverse("v1:report-details")
         response = admin_client.get(url, data=build_filtered_query())
 
         assert response.status_code == 200
@@ -606,23 +606,23 @@ class TestDashboardReportViewSetEndpoints:
     """Unit tests for DashboardReportViewSet list and details endpoints."""
 
     def test_list_missing_period_returns_400(self, admin_client):
-        response = admin_client.get(reverse("dashboard_reports:report-list"))
+        response = admin_client.get(reverse("v1:report-list"))
         assert response.status_code == 400
 
     def test_details_missing_period_returns_400(self, admin_client):
-        response = admin_client.get(reverse("dashboard_reports:report-details"))
+        response = admin_client.get(reverse("v1:report-details"))
         assert response.status_code == 400
 
     def test_details_invalid_period_returns_400(self, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-details"),
+            reverse("v1:report-details"),
             data={"period": "invalid_period", "tz": "UTC"},
         )
         assert response.status_code == 400
 
     def test_list_invalid_timezone_falls_back_to_utc(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-list"),
+            reverse("v1:report-list"),
             data={"period": "last_7_days", "tz": ""},
         )
         assert response.status_code == 200
@@ -630,7 +630,7 @@ class TestDashboardReportViewSetEndpoints:
     # List Endpoint
     def test_list_valid_period_returns_200(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-list"),
+            reverse("v1:report-list"),
             data=build_filtered_query(),
         )
         assert response.status_code == 200
@@ -639,7 +639,7 @@ class TestDashboardReportViewSetEndpoints:
 
     def test_list_response_contains_required_fields(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-list"),
+            reverse("v1:report-list"),
             data=build_filtered_query(),
         )
         assert response.status_code == 200
@@ -664,7 +664,7 @@ class TestDashboardReportViewSetEndpoints:
 
     def test_list_empty_when_no_data_in_range(self, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-list"),
+            reverse("v1:report-list"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
@@ -673,7 +673,7 @@ class TestDashboardReportViewSetEndpoints:
     def test_list_cost_annotation_with_creation_time(self, job_data, admin_client):
         """automated_costs includes template creation time when setting is True."""
         response = admin_client.get(
-            reverse("dashboard_reports:report-list"),
+            reverse("v1:report-list"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
@@ -689,7 +689,7 @@ class TestDashboardReportViewSetEndpoints:
 
         try:
             response = admin_client.get(
-                reverse("dashboard_reports:report-list"),
+                reverse("v1:report-list"),
                 data=build_recent_query(),
             )
             assert response.status_code == 200
@@ -703,14 +703,14 @@ class TestDashboardReportViewSetEndpoints:
     # Details Endpoint
     def test_details_valid_period_returns_200(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-details"),
+            reverse("v1:report-details"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
 
     def test_details_response_contains_required_fields(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-details"),
+            reverse("v1:report-details"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
@@ -734,7 +734,7 @@ class TestDashboardReportViewSetEndpoints:
 
     def test_details_aggregation_correct(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-details"),
+            reverse("v1:report-details"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
@@ -746,7 +746,7 @@ class TestDashboardReportViewSetEndpoints:
 
     def test_details_chart_structure(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-details"),
+            reverse("v1:report-details"),
             data=build_recent_query(),
         )
         assert response.status_code == 200
@@ -754,7 +754,7 @@ class TestDashboardReportViewSetEndpoints:
 
     def test_details_top_users_ordered_by_execution_count(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-details"),
+            reverse("v1:report-details"),
             data=build_filtered_query(),
         )
         assert response.status_code == 200
@@ -764,7 +764,7 @@ class TestDashboardReportViewSetEndpoints:
 
     def test_details_top_projects_ordered_by_execution_count(self, job_data, admin_client):
         response = admin_client.get(
-            reverse("dashboard_reports:report-details"),
+            reverse("v1:report-details"),
             data=build_filtered_query(),
         )
         assert response.status_code == 200
@@ -855,7 +855,7 @@ class TestReportViewDataNoCreationTime:
 
     def test_report_view_no_creation_time(self, job_data, admin_client):
         """Test report view calculations when include_template_creation_time_in_costs=False."""
-        url = reverse("dashboard_reports:report-list")
+        url = reverse("v1:report-list")
         response = admin_client.get(url, data=build_recent_query())
 
         assert response.status_code == 200
@@ -870,7 +870,7 @@ class TestReportViewDataNoCreationTime:
 
     def test_report_view_details_no_creation_time(self, job_data, admin_client):
         """Test report details calculations when include_template_creation_time_in_costs=False."""
-        url = reverse("dashboard_reports:report-details")
+        url = reverse("v1:report-details")
         response = admin_client.get(url, data=build_recent_query())
 
         assert response.status_code == 200

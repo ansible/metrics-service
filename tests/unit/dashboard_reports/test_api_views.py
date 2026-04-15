@@ -24,7 +24,7 @@ class TestCommonViewSets:
         [
             # OrganizationsViewSet tests
             pytest.param(
-                "dashboard_reports:organizations-list",
+                "v1:organizations-list",
                 "OrganizationsViewSet",
                 None,
                 [{"id": 1, "name": "Org 1"}, {"id": 2, "name": "Org 2"}],
@@ -33,7 +33,7 @@ class TestCommonViewSets:
                 id="organizations_list_with_data",
             ),
             pytest.param(
-                "dashboard_reports:organizations-list",
+                "v1:organizations-list",
                 "OrganizationsViewSet",
                 None,
                 [],
@@ -42,7 +42,7 @@ class TestCommonViewSets:
                 id="organizations_list_empty",
             ),
             pytest.param(
-                "dashboard_reports:organizations-list",
+                "v1:organizations-list",
                 "OrganizationsViewSet",
                 {"search": "Nonexistent Org"},
                 [],
@@ -51,7 +51,7 @@ class TestCommonViewSets:
                 id="organizations_list_search_no_results",
             ),
             pytest.param(
-                "dashboard_reports:organizations-detail",
+                "v1:organizations-detail",
                 "OrganizationsViewSet",
                 {"pk": 1},
                 [{"id": 1, "name": "Org 1"}],
@@ -60,7 +60,7 @@ class TestCommonViewSets:
                 id="organizations_detail_found",
             ),
             pytest.param(
-                "dashboard_reports:organizations-detail",
+                "v1:organizations-detail",
                 "OrganizationsViewSet",
                 {"pk": 1},
                 [],
@@ -70,7 +70,7 @@ class TestCommonViewSets:
             ),
             # JobTemplatesViewSet tests
             pytest.param(
-                "dashboard_reports:templates-list",
+                "v1:templates-list",
                 "JobTemplatesViewSet",
                 None,
                 [{"id": 1, "name": "Template A"}, {"id": 2, "name": "Template B"}],
@@ -79,7 +79,7 @@ class TestCommonViewSets:
                 id="templates_list_with_data",
             ),
             pytest.param(
-                "dashboard_reports:templates-list",
+                "v1:templates-list",
                 "JobTemplatesViewSet",
                 None,
                 [],
@@ -88,7 +88,7 @@ class TestCommonViewSets:
                 id="templates_list_empty",
             ),
             pytest.param(
-                "dashboard_reports:templates-list",
+                "v1:templates-list",
                 "JobTemplatesViewSet",
                 {"search": "Nonexistent Template"},
                 [],
@@ -97,7 +97,7 @@ class TestCommonViewSets:
                 id="templates_list_search_no_results",
             ),
             pytest.param(
-                "dashboard_reports:templates-detail",
+                "v1:templates-detail",
                 "JobTemplatesViewSet",
                 {"pk": 1},
                 [{"id": 1, "name": "Template A"}],
@@ -106,7 +106,7 @@ class TestCommonViewSets:
                 id="templates_detail_found",
             ),
             pytest.param(
-                "dashboard_reports:templates-detail",
+                "v1:templates-detail",
                 "JobTemplatesViewSet",
                 {"pk": 1},
                 [],
@@ -116,7 +116,7 @@ class TestCommonViewSets:
             ),
             # ProjectsViewSet tests
             pytest.param(
-                "dashboard_reports:projects-list",
+                "v1:projects-list",
                 "ProjectsViewSet",
                 None,
                 [{"id": 1, "name": "Project X"}, {"id": 2, "name": "Project Y"}],
@@ -125,7 +125,7 @@ class TestCommonViewSets:
                 id="projects_list_with_data",
             ),
             pytest.param(
-                "dashboard_reports:projects-list",
+                "v1:projects-list",
                 "ProjectsViewSet",
                 None,
                 [],
@@ -134,7 +134,7 @@ class TestCommonViewSets:
                 id="projects_list_empty",
             ),
             pytest.param(
-                "dashboard_reports:projects-list",
+                "v1:projects-list",
                 "ProjectsViewSet",
                 {"search": "Nonexistent Project"},
                 [],
@@ -143,7 +143,7 @@ class TestCommonViewSets:
                 id="projects_list_search_no_results",
             ),
             pytest.param(
-                "dashboard_reports:projects-detail",
+                "v1:projects-detail",
                 "ProjectsViewSet",
                 {"pk": 1},
                 [{"id": 1, "name": "Project X"}],
@@ -152,7 +152,7 @@ class TestCommonViewSets:
                 id="projects_detail_found",
             ),
             pytest.param(
-                "dashboard_reports:projects-detail",
+                "v1:projects-detail",
                 "ProjectsViewSet",
                 {"pk": 1},
                 [],
@@ -162,7 +162,7 @@ class TestCommonViewSets:
             ),
             # LabelsViewSet tests
             pytest.param(
-                "dashboard_reports:labels-list",
+                "v1:labels-list",
                 "LabelsViewSet",
                 None,
                 [{"id": 1, "name": "Label 1"}, {"id": 2, "name": "Label 2"}],
@@ -171,7 +171,7 @@ class TestCommonViewSets:
                 id="labels_list_with_data",
             ),
             pytest.param(
-                "dashboard_reports:labels-list",
+                "v1:labels-list",
                 "LabelsViewSet",
                 None,
                 [],
@@ -180,7 +180,7 @@ class TestCommonViewSets:
                 id="labels_list_empty",
             ),
             pytest.param(
-                "dashboard_reports:labels-list",
+                "v1:labels-list",
                 "LabelsViewSet",
                 {"search": "Nonexistent Label"},
                 [],
@@ -189,7 +189,7 @@ class TestCommonViewSets:
                 id="labels_list_search_no_results",
             ),
             pytest.param(
-                "dashboard_reports:labels-detail",
+                "v1:labels-detail",
                 "LabelsViewSet",
                 {"pk": 1},
                 [{"id": 1, "name": "Label 1"}],
@@ -198,7 +198,7 @@ class TestCommonViewSets:
                 id="labels_detail_found",
             ),
             pytest.param(
-                "dashboard_reports:labels-detail",
+                "v1:labels-detail",
                 "LabelsViewSet",
                 {"pk": 1},
                 [],
@@ -253,25 +253,25 @@ class TestCommonViewSets:
         "endpoint, method, pk",
         [
             # POST not allowed on list endpoints
-            pytest.param("dashboard_reports:organizations-list", "post", None, id="organizations_list_post"),
-            pytest.param("dashboard_reports:templates-list", "post", None, id="templates_list_post"),
-            pytest.param("dashboard_reports:projects-list", "post", None, id="projects_list_post"),
-            pytest.param("dashboard_reports:labels-list", "post", None, id="labels_list_post"),
+            pytest.param("v1:organizations-list", "post", None, id="organizations_list_post"),
+            pytest.param("v1:templates-list", "post", None, id="templates_list_post"),
+            pytest.param("v1:projects-list", "post", None, id="projects_list_post"),
+            pytest.param("v1:labels-list", "post", None, id="labels_list_post"),
             # PUT not allowed on detail endpoints
-            pytest.param("dashboard_reports:organizations-detail", "put", 1, id="organizations_detail_put"),
-            pytest.param("dashboard_reports:templates-detail", "put", 1, id="templates_detail_put"),
-            pytest.param("dashboard_reports:projects-detail", "put", 1, id="projects_detail_put"),
-            pytest.param("dashboard_reports:labels-detail", "put", 1, id="labels_detail_put"),
+            pytest.param("v1:organizations-detail", "put", 1, id="organizations_detail_put"),
+            pytest.param("v1:templates-detail", "put", 1, id="templates_detail_put"),
+            pytest.param("v1:projects-detail", "put", 1, id="projects_detail_put"),
+            pytest.param("v1:labels-detail", "put", 1, id="labels_detail_put"),
             # PATCH not allowed on detail endpoints
-            pytest.param("dashboard_reports:organizations-detail", "patch", 1, id="organizations_detail_patch"),
-            pytest.param("dashboard_reports:templates-detail", "patch", 1, id="templates_detail_patch"),
-            pytest.param("dashboard_reports:projects-detail", "patch", 1, id="projects_detail_patch"),
-            pytest.param("dashboard_reports:labels-detail", "patch", 1, id="labels_detail_patch"),
+            pytest.param("v1:organizations-detail", "patch", 1, id="organizations_detail_patch"),
+            pytest.param("v1:templates-detail", "patch", 1, id="templates_detail_patch"),
+            pytest.param("v1:projects-detail", "patch", 1, id="projects_detail_patch"),
+            pytest.param("v1:labels-detail", "patch", 1, id="labels_detail_patch"),
             # DELETE not allowed on detail endpoints
-            pytest.param("dashboard_reports:organizations-detail", "delete", 1, id="organizations_detail_delete"),
-            pytest.param("dashboard_reports:templates-detail", "delete", 1, id="templates_detail_delete"),
-            pytest.param("dashboard_reports:projects-detail", "delete", 1, id="projects_detail_delete"),
-            pytest.param("dashboard_reports:labels-detail", "delete", 1, id="labels_detail_delete"),
+            pytest.param("v1:organizations-detail", "delete", 1, id="organizations_detail_delete"),
+            pytest.param("v1:templates-detail", "delete", 1, id="templates_detail_delete"),
+            pytest.param("v1:projects-detail", "delete", 1, id="projects_detail_delete"),
+            pytest.param("v1:labels-detail", "delete", 1, id="labels_detail_delete"),
         ],
     )
     def test_http_method_not_allowed(self, _, endpoint, method, pk, admin_client):

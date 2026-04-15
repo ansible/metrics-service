@@ -15,8 +15,6 @@ from apps.dashboard_reports.viewsets import (
     TemplateMetadataViewSet,
 )
 
-app_name = "dashboard_reports"
-
 router = AssociationResourceRouter()
 router.register(r"organizations", OrganizationsViewSet, basename="organizations")
 router.register(r"templates", JobTemplatesViewSet, basename="templates")
@@ -29,5 +27,8 @@ router.register(r"filter_sets", FilterSetsViewSet, basename="filter_sets")
 router.register(r"collection_status", DashboardCollectionStatusViewSet, basename="collection_status")
 
 urlpatterns = [
-    path("api/v1/dashboard_reports/", include(router.urls)),
+    path(
+        "api/v1/dashboard_reports/",
+        include((router.urls, "dashboard_reports"), namespace="v1"),
+    ),
 ]
