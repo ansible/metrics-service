@@ -342,6 +342,46 @@ TASK_METADATA = {
             {"name": "Last 7 days", "data": {"since": "2024-01-24T00:00:00Z", "until": "2024-01-31T00:00:00Z"}},
         ],
     },
+    "collect_dashboard_reports_initial_data": {
+        "category": "Dashboard Reports",
+        "description": "Collect up to 90 days of historical AWX job data and schedule the recurring incremental task",
+        "parameters": {
+            "since": {
+                "type": "string",
+                "description": "Start datetime for collection (ISO format, defaults to 90 days ago)",
+                "pattern": "datetime",
+            },
+            "until": {
+                "type": "string",
+                "description": "End datetime for collection (ISO format, defaults to now)",
+                "pattern": "datetime",
+            },
+        },
+        "examples": [
+            {"name": "Default (last 90 days)", "data": {}},
+            {
+                "name": "Custom date range",
+                "data": {"since": "2024-01-01T00:00:00Z", "until": "2024-03-31T23:59:59Z"},
+            },
+        ],
+    },
+    "cleanup_dashboard_reports_old_data": {
+        "category": "Dashboard Maintenance",
+        "description": "Delete dashboard report JobData records older than the retention period",
+        "parameters": {
+            "retention_period_days": {
+                "type": "integer",
+                "default": 90,
+                "description": "Number of days to retain dashboard report data",
+                "min": 0,
+                "max": 365,
+            },
+        },
+        "examples": [
+            {"name": "Default retention (90 days)", "data": {}},
+            {"name": "Extended retention", "data": {"retention_period_days": 180}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
