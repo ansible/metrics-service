@@ -541,6 +541,37 @@
             const API_BASE_URL = '{{ api_base_url }}';
             let refreshInterval;
 
+            function escapeHtml(str) {
+                if (str == null) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            class RawHtml {
+                constructor(str) { this.str = str; }
+                toString() { return this.str; }
+            }
+
+            function html(strings, ...values) {
+                let result = strings[0];
+                for (let i = 0; i < values.length; i++) {
+                    const val = values[i];
+                    if (val instanceof RawHtml) {
+                        result += val.str;
+                    } else if (Array.isArray(val)) {
+                        result += val.map(v => v instanceof RawHtml ? v.str : escapeHtml(v)).join('');
+                    } else {
+                        result += escapeHtml(val);
+                    }
+                    result += strings[i + 1];
+                }
+                return new RawHtml(result);
+            }
+
             // Initialize dashboard
             document.addEventListener('DOMContentLoaded', function() {
                 loadAvailableFunctions();
@@ -624,7 +655,7 @@
 
                 // Update description
                 document.getElementById('function-description').innerHTML =
-                    `<div class="bg-blue-50 p-3 rounded border-l-4 border-blue-400">
+                    html`<div class="bg-blue-50 p-3 rounded border-l-4 border-blue-400">
                         <p class="font-medium text-blue-900">${func.category}</p>
                         <p class="text-blue-800">${func.description}</p>
                     </div>`;
@@ -638,16 +669,16 @@
                 } else {
                     parametersSection.classList.remove('hidden');
                     parametersList.innerHTML = Object.entries(func.parameters).map(([name, param]) => {
-                        const required = param.required ? '<span class="text-red-500">*</span>' : '';
-                        const defaultValue = param.default === undefined ? '' : ` (default: ${JSON.stringify(param.default)})`;
-                        const typeInfo = param.type ? `<span class="text-xs text-gray-500">${param.type}${defaultValue}</span>` : '';
+                        const required = param.required ? html`<span class="text-red-500">*</span>` : '';
+                        const defaultValue = param.default === undefined ? '' : html` (default: ${JSON.stringify(param.default)})`;
+                        const typeInfo = param.type ? html`<span class="text-xs text-gray-500">${param.type}${defaultValue}</span>` : '';
 
-                        return `
+                        return html`
                             <div class="bg-white p-2 rounded border">
                                 <div class="font-medium text-sm">${name}${required} ${typeInfo}</div>
                                 <div class="text-xs text-gray-600">${param.description || 'No description'}</div>
-                                ${param.choices ? `<div class="text-xs text-blue-600">Choices: ${param.choices.join(', ')}</div>` : ''}
-                                ${param.items ? `<div class="text-xs text-blue-600">Items: ${param.items.join(', ')}</div>` : ''}
+                                ${param.choices ? html`<div class="text-xs text-blue-600">Choices: ${param.choices.join(', ')}</div>` : ''}
+                                ${param.items ? html`<div class="text-xs text-blue-600">Items: ${param.items.join(', ')}</div>` : ''}
                             </div>
                         `;
                     }).join('');
@@ -662,7 +693,7 @@
                     examplesSection.classList.remove('hidden');
                     useExampleBtn.classList.remove('hidden');
 
-                    examplesList.innerHTML = func.examples.map((example, index) => `
+                    examplesList.innerHTML = func.examples.map((example, index) => html`
                         <div class="bg-white p-2 rounded border">
                             <div class="font-medium text-sm mb-1">${example.name}</div>
                             <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto" onclick="copyExample(${index})" style="cursor: pointer;" title="Click to copy to Task Data">${JSON.stringify(example.data, null, 2)}</pre>
@@ -904,7 +935,7 @@
                 const container = document.getElementById(containerId);
 
                 if (tasks.length === 0) {
-                    container.innerHTML = `
+                    container.innerHTML = html`
                         <div class="text-center text-gray-500 py-8">
                             <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
@@ -913,13 +944,13 @@
                         </div>
                     `;
                 } else {
-                    container.innerHTML = tasks.map(task => `
+                    container.innerHTML = tasks.map(task => html`
                         <div class="task-card bg-gray-50 rounded-lg p-4 border-l-4 border-${getStatusColor(task.status)}-500">
                             <div class="flex justify-between items-start">
                                 <div class="flex-1">
                                     <h3 class="font-medium text-gray-900">
                                         ${task.is_system_task ? '🔧 ' : ''}${task.name}
-                                        ${task.is_system_task ? '<span class="ml-1 text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">SYSTEM</span>' : ''}
+                                        ${task.is_system_task ? html`<span class="ml-1 text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">SYSTEM</span>` : ''}
                                     </h3>
                                     <p class="text-sm text-gray-600 mt-1">${task.function_name}</p>
                                     <div class="flex items-center mt-2">
@@ -946,12 +977,12 @@
                         </tr>
                     `;
                 } else {
-                    tbody.innerHTML = tasks.map(task => `
+                    tbody.innerHTML = tasks.map(task => html`
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">
                                     ${task.name}
-                                    ${task.is_system_task ? '<span class="ml-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">SYSTEM</span>' : ''}
+                                    ${task.is_system_task ? html`<span class="ml-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">SYSTEM</span>` : ''}
                                 </div>
                                 <div class="text-sm text-gray-500">${task.function_name}</div>
                             </td>
@@ -963,18 +994,18 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${task.function_name}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDateTime(task.created)}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                ${task.cron_expression ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">🔄 ${task.cron_expression}</span>` : ""}
+                                ${task.cron_expression ? html`<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">🔄 ${task.cron_expression}</span>` : ""}
                                 ${task.scheduled_time ? formatDateTime(task.scheduled_time) : ""}
                                 ${!task.cron_expression && !task.scheduled_time ? "Immediate" : ""}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex space-x-2">
-                                    ${task.can_retry ? `<button onclick="retryTask(${task.id})" class="text-blue-600 hover:text-blue-900">Retry</button>` : ''}
-                                    ${task.status === 'pending' || task.status === 'running' ? `<button onclick="cancelTask(${task.id})" class="text-red-600 hover:text-red-900">Cancel</button>` : ''}
-                                    <button onclick="viewTaskDetails(${task.id})" class="text-gray-600 hover:text-gray-900">Details</button>
+                                    ${task.can_retry ? html`<button onclick="retryTask(${task.id})" class="text-blue-600 hover:text-blue-900">Retry</button>` : ''}
+                                    ${task.status === 'pending' || task.status === 'running' ? html`<button onclick="cancelTask(${task.id})" class="text-red-600 hover:text-red-900">Cancel</button>` : ''}
+                                    ${html`<button onclick="viewTaskDetails(${task.id})" class="text-gray-600 hover:text-gray-900">Details</button>`}
                                     ${task.can_delete ?
-                                        `<button onclick="deleteTask(${task.id})" class="text-red-600 hover:text-red-900">Delete</button>` :
-                                        `<span class="text-gray-400 cursor-not-allowed" title="System task - protected from deletion">🔒 Protected</span>`
+                                        html`<button onclick="deleteTask(${task.id})" class="text-red-600 hover:text-red-900">Delete</button>` :
+                                        html`<span class="text-gray-400 cursor-not-allowed" title="System task - protected from deletion">🔒 Protected</span>`
                                     }
                                 </div>
                             </td>
@@ -1101,7 +1132,8 @@
                     document.getElementById('task-details-title').textContent = `Task Details - ${task.name}`;
 
                     // Build detailed HTML content
-                    let content = `
+                    let content = '';
+                    content += html`
                         <div class="space-y-4">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
@@ -1109,7 +1141,7 @@
                                     <div class="bg-gray-50 p-3 rounded text-sm">
                                         <div class="mb-1"><span class="font-medium">Name:</span> ${task.is_system_task ? '🔧 ' : ''}${task.name}</div>
                                         <div class="mb-1"><span class="font-medium">Function:</span> ${task.function_name}</div>
-                                        ${task.is_system_task ? '<div class="mb-1"><span class="font-medium">Type:</span> <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">SYSTEM TASK</span></div>' : ''}
+                                        ${task.is_system_task ? html`<div class="mb-1"><span class="font-medium">Type:</span> <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">SYSTEM TASK</span></div>` : ''}
                                         <div class="mb-1">
                                             <span class="font-medium">Status:</span>
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-${getStatusColor(task.status)}-100 text-${getStatusColor(task.status)}-800">
@@ -1123,17 +1155,17 @@
                                     <h4 class="font-medium text-gray-900 mb-2">Timing</h4>
                                     <div class="bg-gray-50 p-3 rounded text-sm">
                                         <div class="mb-1"><span class="font-medium">Created:</span> ${formatDateTime(task.created)}</div>
-                                        ${task.scheduled_time ? `<div class="mb-1"><span class="font-medium">Scheduled:</span> ${formatDateTime(task.scheduled_time)}</div>` : ''}
-                                        ${task.started_at ? `<div class="mb-1"><span class="font-medium">Started:</span> ${formatDateTime(task.started_at)}</div>` : ''}
-                                        ${task.completed_at ? `<div class="mb-1"><span class="font-medium">Completed:</span> ${formatDateTime(task.completed_at)}</div>` : ''}
-                                        ${task.duration ? `<div><span class="font-medium">Duration:</span> ${task.duration.toFixed(3)}s</div>` : ''}
+                                        ${task.scheduled_time ? html`<div class="mb-1"><span class="font-medium">Scheduled:</span> ${formatDateTime(task.scheduled_time)}</div>` : ''}
+                                        ${task.started_at ? html`<div class="mb-1"><span class="font-medium">Started:</span> ${formatDateTime(task.started_at)}</div>` : ''}
+                                        ${task.completed_at ? html`<div class="mb-1"><span class="font-medium">Completed:</span> ${formatDateTime(task.completed_at)}</div>` : ''}
+                                        ${task.duration ? html`<div><span class="font-medium">Duration:</span> ${task.duration.toFixed(3)}s</div>` : ''}
                                     </div>
                                 </div>
                             </div>
                     `;
 
                     if (task.task_data && Object.keys(task.task_data).length > 0) {
-                        content += `
+                        content += html`
                             <div>
                                 <h4 class="font-medium text-gray-900 mb-2">Task Data</h4>
                                 <div class="bg-gray-50 p-3 rounded">
@@ -1144,7 +1176,7 @@
                     }
 
                     if (task.result_data && Object.keys(task.result_data).length > 0) {
-                        content += `
+                        content += html`
                             <div>
                                 <h4 class="font-medium text-gray-900 mb-2">Result Data</h4>
                                 <div class="bg-green-50 p-3 rounded">
@@ -1155,7 +1187,7 @@
                     }
 
                     if (task.error_message) {
-                        content += `
+                        content += html`
                             <div>
                                 <h4 class="font-medium text-red-900 mb-2">Error Message</h4>
                                 <div class="bg-red-50 p-3 rounded">
@@ -1166,7 +1198,7 @@
                     }
 
                     // Executions history
-                    content += `<div>
+                    content += html`<div>
                             <h4 class="font-medium text-gray-900 mb-2">Executions (${executions.length})</h4>`;
 
                     if (executions.length === 0) {
@@ -1192,21 +1224,19 @@
                                 ? exec.execution_time_seconds.toFixed(3) + 's'
                                 : '-';
 
-                            let details = '';
+                            let details;
                             if (exec.error_message) {
-                                const escaped = exec.error_message.replace(/"/g, '&quot;');
                                 const truncated = exec.error_message.substring(0, 80) + (exec.error_message.length > 80 ? '...' : '');
-                                details = `<span class="text-red-600" title="${escaped}">${truncated}</span>`;
+                                details = html`<span class="text-red-600" title="${exec.error_message}">${truncated}</span>`;
                             } else if (exec.result_data && Object.keys(exec.result_data).length > 0) {
                                 const resultStr = JSON.stringify(exec.result_data);
-                                const escaped = resultStr.replace(/"/g, '&quot;');
                                 const truncated = resultStr.substring(0, 80) + (resultStr.length > 80 ? '...' : '');
-                                details = `<span class="text-gray-600" title="${escaped}">${truncated}</span>`;
+                                details = html`<span class="text-gray-600" title="${resultStr}">${truncated}</span>`;
                             } else {
-                                details = '<span class="text-gray-400">-</span>';
+                                details = html`<span class="text-gray-400">-</span>`;
                             }
 
-                            content += `
+                            content += html`
                                 <tr>
                                     <td class="px-3 py-2 whitespace-nowrap">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-${getStatusColor(exec.status)}-100 text-${getStatusColor(exec.status)}-800">
@@ -1276,12 +1306,12 @@
 
             function getTaskTimeDisplay(task) {
                 if (task.cron_expression) {
-                    return `🔄 ${task.cron_expression}`;
+                    return html`🔄 ${task.cron_expression}`;
                 }
                 if (task.scheduled_time) {
-                    return formatDateTime(task.scheduled_time);
+                    return html`${formatDateTime(task.scheduled_time)}`;
                 }
-                return 'Now';
+                return html`Now`;
             }
 
             function startAutoRefresh() {
