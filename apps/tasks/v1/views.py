@@ -279,24 +279,6 @@ class TaskViewSet(BaseViewSet):
 
         return Response({"functions": functions})
 
-    @action(detail=False, methods=["get"])
-    def system_tasks_info(self, request: HttpRequest) -> Response:
-        """
-        Get information about system-defined tasks.
-
-        Returns:
-            Response: List of system tasks with their status and configuration
-        """
-        from apps.tasks.tasks import get_system_task_info
-
-        try:
-            info = get_system_task_info()
-            return Response(info)
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to get system task info: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
     def perform_destroy(self, instance):
         """
         Override destroy to protect system tasks.

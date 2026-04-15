@@ -36,7 +36,6 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 from .simple.hello_world import hello_world
 from .tasks_system import (
     create_system_tasks,
-    get_system_task_info,
     submit_task_to_dispatcher,
 )
 
@@ -397,7 +396,6 @@ __all__ = [
     "cleanup_metrics_data",
     "submit_task_to_dispatcher",
     "create_system_tasks",
-    "get_system_task_info",
     # Metrics collection (hourly, snapshot, and daily time-range)
     "collect_hourly_metrics",
     "collect_snapshot_metrics",

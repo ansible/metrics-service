@@ -326,8 +326,9 @@ class Command(BaseCommand):
         """List current system tasks."""
         try:
             from apps.tasks.models import Task
+            from apps.tasks.tasks import TASK_METADATA
 
-            system_tasks = Task.objects.filter(is_system_task=True).order_by("created")
+            system_tasks = Task.objects.filter(is_system_task=True).order_by("name")
 
             if not system_tasks.exists():
                 self.output.write("📭 No system tasks found")
@@ -336,74 +337,34 @@ class Command(BaseCommand):
             self.output.write("📋 Current System Tasks")
             self.output.write_separator()
 
-            # Group and display tasks
-            categories = self._categorize_tasks(system_tasks)
-            self._display_categorized_tasks(categories)
+            # Group tasks by category from TASK_METADATA
+            categories: dict[str, list] = {}
+            for task in system_tasks:
+                metadata = TASK_METADATA.get(task.function_name, {})
+                category = metadata.get("category", "Other")
+                categories.setdefault(category, []).append(task)
+
+            # Display tasks grouped by category
+            for category, tasks in sorted(categories.items()):
+                self.output.write(f"\n🏷️  {category} ({len(tasks)} tasks)")
+                self.output.write_separator("-", 40)
+
+                for task in tasks:
+                    status_icon = {"pending": "⏳", "completed": "✅"}.get(task.status, "❌")
+                    self.output.write(f"  {status_icon} {task.name}")
+                    self.output.write(f"    Function: {task.function_name}")
+                    if task.cron_expression:
+                        self.output.write(f"    Schedule: {task.cron_expression}")
+                    self.output.write(f"    Status: {task.status}")
+                    self.output.write("")
+
+            total = sum(len(t) for t in categories.values())
+            self.output.write_separator()
+            self.output.write(f"📊 Total: {total} system tasks")
+            self.output.write(f"📂 Categories: {', '.join(c.lower() for c in sorted(categories))}")
 
         except Exception as e:
             self.output.error(f"❌ Failed to list system tasks: {e}")
-
-    # FIXME
-    def _categorize_tasks(self, tasks):
-        """Categorize tasks based on their function names."""
-        categories = {}
-        for task in tasks:
-            category = self._get_task_category(task)
-            if category not in categories:
-                categories[category] = []
-            categories[category].append(task)
-        return categories
-
-    # FIXME
-    def _get_task_category(self, task):
-        """Determine the category for a task based on its function name."""
-        if "cleanup" in task.function_name:
-            return "MAINTENANCE"
-        if "collect" in task.function_name:
-            return "METRICS"
-        return "OTHER"
-
-    def _display_categorized_tasks(self, categories):
-        """Display tasks organized by category."""
-        total_tasks = 0
-        category_names = []
-
-        for category, tasks in categories.items():
-            self._display_category_section(category, tasks)
-            total_tasks += len(tasks)
-            category_names.append(category.lower())
-
-        self._display_summary(total_tasks, category_names)
-
-    def _display_category_section(self, category, tasks):
-        """Display a category section with its tasks."""
-        self.output.write(f"\n🏷️  {category} ({len(tasks)} tasks)")
-        self.output.write_separator("-", 40)
-
-        for task in tasks:
-            self._display_single_task(task)
-
-    def _display_single_task(self, task):
-        """Display information for a single task."""
-        if task.status == "pending":
-            status_icon = "⏳"
-        elif task.status == "completed":
-            status_icon = "✅"
-        else:
-            status_icon = "❌"
-
-        self.output.write(f"  {status_icon} {task.name}")
-        self.output.write(f"    Function: {task.function_name}")
-        if task.cron_expression:
-            self.output.write(f"    Schedule: {task.cron_expression}")
-        self.output.write(f"    Status: {task.status}")
-        self.output.write("")
-
-    def _display_summary(self, total_tasks, category_names):
-        """Display summary statistics."""
-        self.output.write_separator()
-        self.output.write(f"📊 Total: {total_tasks} system tasks")
-        self.output.write(f"📂 Categories: {', '.join(category_names)}")
 
     def _handle_task_create(self, options: dict[str, Any]) -> None:
         """Handle task creation."""

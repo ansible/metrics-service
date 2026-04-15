@@ -480,21 +480,6 @@ class TestTaskViewSet(APITestCase):
                 # Within same category, names should be sorted
                 assert functions[i]["name"] <= functions[i + 1]["name"]
 
-    def test_system_tasks_info_handles_exception(self):
-        """Test system_tasks_info handles exceptions gracefully."""
-        from unittest.mock import patch
-
-        self.client.force_authenticate(user=self.user)
-        url = reverse("tasks:v1:task-system-tasks-info")
-
-        with patch("apps.tasks.tasks.get_system_task_info") as mock_get_info:
-            mock_get_info.side_effect = Exception("Database error")
-            response = self.client.get(url)
-
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert "error" in response.data
-        assert "Database error" in response.data["error"]
-
     def test_perform_destroy_protects_system_tasks(self):
         """Test perform_destroy prevents deletion of system tasks."""
         self.client.force_authenticate(user=self.user)
