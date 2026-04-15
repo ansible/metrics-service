@@ -42,9 +42,7 @@ class TestURLReverse:
         "viewname, endpoint, kwargs",
         [
             pytest.param("v1:organizations-list", "organizations", None, id="organizations_list"),
-            pytest.param(
-                "v1:organizations-detail", "organizations", {"pk": 1}, id="organizations_detail"
-            ),
+            pytest.param("v1:organizations-detail", "organizations", {"pk": 1}, id="organizations_detail"),
             pytest.param("v1:templates-list", "templates", None, id="templates_list"),
             pytest.param("v1:templates-detail", "templates", {"pk": 1}, id="templates_detail"),
             pytest.param("v1:projects-list", "projects", None, id="projects_list"),

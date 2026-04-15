@@ -46,12 +46,11 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
         setting = Setting.objects.filter(setting_key=setting_name).first()
         if setting and setting.current_value:
             try:
-                # Parse JSON value from database
                 value = json.loads(setting.current_value)
-                return bool(value)
             except (json.JSONDecodeError, ValueError):
                 # If not valid JSON, treat as string boolean
-                return setting.current_value.lower() in ("true", "1", "yes", "on")
+                value = setting.current_value.lower() in ("true", "1", "yes", "on")
+            return bool(value)
 
         feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
         if setting_name in feature_enabled:
