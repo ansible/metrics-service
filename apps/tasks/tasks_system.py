@@ -211,7 +211,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         logger.error(f"Error submitting task to dispatcher: {str(e)}")
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
-        task.save()
+        task.save(update_fields=["status", "error_message", "modified"])
 
 
 # runs during `manage.py metrics_service init-system-tasks`

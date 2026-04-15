@@ -514,7 +514,7 @@ class Command(BaseCommand):
 
         if task.status in ["pending", "running"]:
             task.status = "cancelled"
-            task.save()
+            task.save(update_fields=["status", "modified"])
             self.output.success(f"✅ Cancelled task: {task.name}")
         else:
             self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be cancelled")
@@ -529,7 +529,7 @@ class Command(BaseCommand):
 
         if task.status == "failed":
             task.status = "pending"
-            task.save()
+            task.save(update_fields=["status", "modified"])
             self.output.success(f"✅ Retrying task: {task.name}")
         else:
             self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be retried")

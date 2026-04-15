@@ -168,7 +168,7 @@ class TaskViewSet(BaseViewSet):
         task.error_message = ""
         task.started_at = None
         task.completed_at = None
-        task.save()
+        task.save(update_fields=["status", "error_message", "started_at", "completed_at", "modified"])
 
         return Response({"message": f"Task '{task.name}' queued for retry"})
 
@@ -194,7 +194,7 @@ class TaskViewSet(BaseViewSet):
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
         task.status = "cancelled"
-        task.save()
+        task.save(update_fields=["status", "modified"])
 
         return Response({"message": f"Task '{task.name}' cancelled"})
 

@@ -97,14 +97,14 @@ def handle_task_error(
                 if previous_status in ["pending"]:
                     task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
 
-                task_instance.save()
+                task_instance.save(update_fields=["status", "error_message", "completed_at", "attempts", "modified"])
 
             # Update execution status if provided
             if execution_instance:
                 execution_instance.status = "failed"
                 execution_instance.error_message = error_message
                 execution_instance.completed_at = timezone.now()
-                execution_instance.save()
+                execution_instance.save(update_fields=["status", "error_message", "completed_at", "execution_time_seconds", "modified"])
 
     except Exception as save_error:
         logger.error(f"Failed to update task status after error: {save_error}")
@@ -161,7 +161,7 @@ def update_task_status(
             if previous_status in ["pending", "failed"]:
                 task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
 
-        task_instance.save()
+        task_instance.save(update_fields=["status", "result_data", "error_message", "completed_at", "started_at", "attempts", "modified"])
 
         # Update execution instance if provided
         if execution_instance:
@@ -173,7 +173,7 @@ def update_task_status(
                 execution_instance.error_message = error_message
             if status in ["completed", "failed"]:
                 execution_instance.completed_at = timezone.now()
-            execution_instance.save()
+            execution_instance.save(update_fields=["status", "result_data", "error_message", "completed_at", "execution_time_seconds", "modified"])
 
 
 def create_task_result(status: str, data: dict[str, Any] | None = None, error: str = "") -> dict[str, Any]:
