@@ -299,7 +299,6 @@ class UnifiedTaskScheduler:
                     created_by=task.created_by,
                     is_system_task=task.is_system_task,
                 )
-                execution_task.save()
 
                 logger.info(
                     f"Created execution record for recurring task: {task.name} → {execution_task.name} (ID: {execution_task.id})"
