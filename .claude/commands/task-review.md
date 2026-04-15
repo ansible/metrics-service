@@ -16,7 +16,7 @@ Read these files and cross-reference them to find problems:
 
 The `category` field in `TASK_METADATA` (in `apps/tasks/tasks.py`) is served by the API at `apps/tasks/v1/views.py` and displayed in the dashboard UI. Every `category` value must start with either `"Metrics"` or `"Dashboard"`.
 
-Exception: `"Testing"` is allowed (used for task-system test functions like `hello_world`).
+Exceptions: `"Testing"` (task-system test functions like `hello_world`) and `"Maintenance"` (shared cleanup tasks spanning metrics, dashboard, and service internals) are allowed.
 
 Do NOT check the `category` field in `task_groups.py` task dicts — that field is internal and separate.
 

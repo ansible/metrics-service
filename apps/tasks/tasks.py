@@ -88,7 +88,7 @@ TASK_METADATA = {
     },
     # Maintenance
     "cleanup_old_tasks": {
-        "category": "Metrics Maintenance",
+        "category": "Maintenance",  # task system records
         "description": "Clean up old completed and failed tasks (preserves recurring tasks by default)",
         "parameters": {
             "days_old": {
@@ -122,7 +122,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_activitystream": {
-        "category": "Metrics Maintenance",
+        "category": "Maintenance",  # DAB activity stream audit log
         "description": "Clean up old ActivityStream (django-ansible-base) audit log entries",
         "parameters": {
             "days_old": {
@@ -145,7 +145,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_metrics_data": {
-        "category": "Metrics Maintenance",
+        "category": "Maintenance",  # metrics collection data
         "description": "Clean up old metrics data based on retention policies",
         "parameters": {
             "hourly_retention_days": {
@@ -370,7 +370,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_dashboard_reports_old_data": {
-        "category": "Dashboard Maintenance",
+        "category": "Maintenance",  # dashboard report JobData
         "description": "Delete dashboard report JobData records older than the retention period",
         "parameters": {
             "retention_period_days": {
