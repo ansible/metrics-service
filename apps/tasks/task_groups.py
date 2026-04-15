@@ -145,7 +145,6 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             },
             "enabled": True,
             "description": "Daily cleanup of old completed/failed tasks (preserves recurring tasks)",
-            "category": "maintenance",
         },
         {
             "task_id": "hourly_health_check",
@@ -154,7 +153,6 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "args": {},
             "enabled": True,
             "description": "Hourly system health check",
-            "category": "monitoring",
         },
     ],
 )
@@ -175,7 +173,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "job_host_summary_service"},
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
-            "category": "hourly_collection",
         },
         {
             "task_id": "hourly_unified_jobs",
@@ -184,7 +181,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "unified_jobs"},
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
-            "category": "hourly_collection",
         },
         {
             "task_id": "hourly_credentials",
@@ -193,7 +189,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "credentials_service"},
             "enabled": True,
             "description": "Collect credentials metrics every hour",
-            "category": "hourly_collection",
         },
         {
             "task_id": "hourly_job_events",
@@ -202,7 +197,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "main_jobevent_service"},
             "enabled": False,  # NOT enabled by default, for performance
             "description": "Collect job events (event modules) metrics every hour",
-            "category": "hourly_collection",
         },
         # Daily Snapshot Collection
         {
@@ -212,7 +206,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "execution_environments"},
             "enabled": True,
             "description": "Collect execution environments snapshot daily",
-            "category": "daily_collection",
         },
         {
             "task_id": "daily_config",
@@ -221,7 +214,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "config"},
             "enabled": True,
             "description": "Collect system configuration snapshot daily",
-            "category": "daily_collection",
         },
         {
             "task_id": "daily_controller_version",
@@ -230,7 +222,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "controller_version_service"},
             "enabled": True,
             "description": "Collect controller version snapshot daily",
-            "category": "daily_collection",
         },
         {
             "task_id": "daily_table_metadata",
@@ -239,7 +230,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "table_metadata"},
             "enabled": True,
             "description": "Collect table metadata snapshot daily",
-            "category": "daily_collection",
         },
         {
             "task_id": "daily_feature_flags",
@@ -248,7 +238,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "feature_flags_service"},
             "enabled": True,
             "description": "Collect feature flags snapshot daily",
-            "category": "daily_collection",
         },
         {
             "task_id": "daily_task_executions",
@@ -257,7 +246,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "task_executions_service"},
             "enabled": True,
             "description": "Collect task execution observability metrics for the previous day (pipeline health)",
-            "category": "daily_collection",
         },
         # Daily Rollup
         {
@@ -267,7 +255,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {},
             "enabled": True,
             "description": "Create daily rollup from hourly collections",
-            "category": "daily_rollup",
         },
         # Cleanup Task
         {
@@ -281,7 +268,6 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             },
             "enabled": True,
             "description": "Clean up old metrics data based on retention policies",
-            "category": "maintenance",
         },
     ],
 )
@@ -301,7 +287,6 @@ ANONYMIZATION_GROUP = TaskGroup(
             "args": {},
             "enabled": True,
             "description": "Anonymize daily summary for Segment transmission",
-            "category": "daily_anonymization",
         },
     ],
 )
@@ -322,7 +307,6 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "args": {},  # Uses incremental collection by default to minimize load
             "enabled": True,
             "description": "Initial dashboard report collection",
-            "category": "dashboard_collection",
         },
         {
             "task_id": "daily_dashboard_collection",
@@ -333,7 +317,6 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "args": {"incremental": True},  # Uses incremental collection by default to minimize load
             "enabled": False,
             "description": "Dashboard report collection (default every 6 hours)",
-            "category": "dashboard_collection",
         },
         {
             "task_id": "cleanup_dashboard_reports_old_data",
@@ -344,7 +327,6 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             },
             "enabled": True,
             "description": "Clean up old dashboard report data based on retention policy",
-            "category": "maintenance",
         },
     ],
 )

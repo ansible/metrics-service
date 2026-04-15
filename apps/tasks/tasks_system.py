@@ -307,10 +307,13 @@ def get_system_task_info() -> dict[str, Any]:
     except ImportError:
         return {"error": "ERROR_DJANGO_NOT_READY", "system_tasks": []}
 
+    from .tasks import TASK_METADATA
+
     system_tasks = Task.objects.filter(is_system_task=True).order_by("name")
 
     task_info = []
     for task in system_tasks:
+        metadata = TASK_METADATA.get(task.function_name, {})
         info = {
             "id": task.id,
             "name": task.name,
@@ -320,7 +323,7 @@ def get_system_task_info() -> dict[str, Any]:
             "cron_expression": task.cron_expression,
             "created": task.created.isoformat() if task.created else None,
             "last_run": task.completed_at.isoformat() if task.completed_at else None,
-            "category": "unknown",  # FIXME .. from task_groups?
+            "category": metadata.get("category", "unknown"),
         }
         task_info.append(info)
 
