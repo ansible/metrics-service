@@ -118,6 +118,7 @@ TASK_METADATA = {
             {"name": "Standard cleanup (5 days)", "data": {"days_old": 5}},
             {"name": "Test cleanup (dry run)", "data": {"days_old": 7, "dry_run": True}},
             {"name": "Conservative cleanup", "data": {"days_old": 10, "include_executions": False}},
+            {"name": "Include recurring tasks", "data": {"days_old": 30, "preserve_recurring": False}},
         ],
     },
     "cleanup_activitystream": {
@@ -288,6 +289,7 @@ TASK_METADATA = {
         "examples": [
             {"name": "Default (yesterday)", "data": {}},
             {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
+            {"name": "With custom salt", "data": {"summary_date": "2024-01-01", "salt": "my-custom-salt"}},
         ],
     },
     "send_anonymized_to_segment": {
@@ -317,6 +319,7 @@ TASK_METADATA = {
             {"name": "Default (send pending)", "data": {}},
             {"name": "Specific payload", "data": {"payload_id": 123}},
             {"name": "Send batch of 10", "data": {"max_payloads": 10}},
+            {"name": "Recover stale payloads (30 min)", "data": {"stale_minutes": 30}},
         ],
     },
     "collect_dashboard_reports_data": {
