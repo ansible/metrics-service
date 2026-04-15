@@ -205,10 +205,6 @@ def submit_task_to_dispatcher(task: Any) -> None:
         # TaskExecution is created inside _claim_task to avoid orphaned records
         submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
-        # Update task status to indicate it's been submitted
-        task.status = "pending"
-        task.save()
-
         logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 
     except Exception as e:
