@@ -88,7 +88,7 @@ TASK_METADATA = {
     },
     # Maintenance
     "cleanup_old_tasks": {
-        "category": "Maintenance",
+        "category": "Metrics Maintenance",
         "description": "Clean up old completed and failed tasks (preserves recurring tasks by default)",
         "parameters": {
             "days_old": {
@@ -121,7 +121,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_activitystream": {
-        "category": "Maintenance",
+        "category": "Metrics Maintenance",
         "description": "Clean up old ActivityStream (django-ansible-base) audit log entries",
         "parameters": {
             "days_old": {
@@ -144,7 +144,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_metrics_data": {
-        "category": "Maintenance",
+        "category": "Metrics Maintenance",
         "description": "Clean up old metrics data based on retention policies",
         "parameters": {
             "hourly_retention_days": {
