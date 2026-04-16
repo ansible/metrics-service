@@ -15,11 +15,9 @@ brokers:
     # See apps/tasks/dispatcherd_config.py::_load_config_with_django_db()
 
     channels:
-      - 'metrics_tasks' # Main task execution channel
-      - 'metrics_cleanup' # Cleanup and maintenance tasks
-      - 'metrics_notifications' # Email and notification tasks
-      - 'metrics_collectors' # Metrics collection tasks
-      - 'metrics_utility' # Metrics-utility specific tasks
+      - 'dashboard'
+      - 'maintenance'
+      - 'metrics'
 
 service:
   pool_kwargs:
@@ -36,4 +34,4 @@ logging:
   level: INFO
   format: '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 
-# NOTE: Queue routing is handled in apps/tasks/dispatcherd_config.py::get_queue_for_function()
+# NOTE: Queue routing is handled in apps/tasks/tasks.py::get_queue_for_function()

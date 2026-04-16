@@ -129,7 +129,7 @@ def execute_claimed(task, execution):
 
 
 # This is the sole dispatcherd entry point — all DB tasks are routed through it.
-@task(queue="metrics_tasks", decorate=False)
+@task(decorate=False)
 def execute_db_task(**kwargs) -> dict[str, Any]:
     """
     Execute a database-defined task with comprehensive error handling and tracking.
@@ -197,7 +197,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         from dispatcherd.publish import submit_task
 
         # Determine the appropriate queue based on task type
-        from .dispatcherd_config import get_queue_for_function
+        from .tasks import get_queue_for_function
 
         queue = get_queue_for_function(task.function_name)
 
@@ -205,17 +205,13 @@ def submit_task_to_dispatcher(task: Any) -> None:
         # TaskExecution is created inside _claim_task to avoid orphaned records
         submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
-        # Update task status to indicate it's been submitted
-        task.status = "pending"
-        task.save()
-
         logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 
     except Exception as e:
         logger.error(f"Error submitting task to dispatcher: {str(e)}")
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
-        task.save()
+        task.save(update_fields=["status", "error_message", "modified"])
 
 
 # runs during `manage.py metrics_service init-system-tasks`
@@ -293,39 +289,3 @@ def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[
     )
     results["created"] += 1
     results["tasks"].append(f"Created: {new_task.name}")
-
-
-def get_system_task_info() -> dict[str, Any]:
-    """
-    Get information about system tasks for display purposes.
-
-    Returns:
-        dict: Information about system tasks including their status and schedules
-    """
-    try:
-        from .models import Task
-    except ImportError:
-        return {"error": "ERROR_DJANGO_NOT_READY", "system_tasks": []}
-
-    system_tasks = Task.objects.filter(is_system_task=True).order_by("name")
-
-    task_info = []
-    for task in system_tasks:
-        info = {
-            "id": task.id,
-            "name": task.name,
-            "function_name": task.function_name,
-            "description": task.description,
-            "status": task.status,
-            "cron_expression": task.cron_expression,
-            "created": task.created.isoformat() if task.created else None,
-            "last_run": task.completed_at.isoformat() if task.completed_at else None,
-            "category": "unknown",  # FIXME .. from task_groups?
-        }
-        task_info.append(info)
-
-    return {
-        "system_tasks": task_info,
-        "total_count": len(task_info),
-        "categories": list({task["category"] for task in task_info}),
-    }

@@ -1,5 +1,6 @@
 import datetime
 import decimal
+import unittest.mock
 from unittest.mock import patch
 
 import pytest
@@ -484,6 +485,19 @@ def assert_chart_data(
 @pytest.mark.unit
 @pytest.mark.django_db(transaction=True, reset_sequences=True)
 class TestReportViewData:
+    FIXED_NOW = datetime.datetime(2026, 6, 15, 12, 0, 0, tzinfo=pytz.UTC)
+
+    @pytest.fixture(autouse=True)
+    def fixed_now(self):
+        """Pin time to a fixed noon UTC so tests never depend on the real clock."""
+        mock_dt = unittest.mock.MagicMock(wraps=datetime)
+        mock_dt.datetime.now = unittest.mock.Mock(return_value=self.FIXED_NOW)
+        with (
+            patch(f"{__name__}.get_now", return_value=self.FIXED_NOW),
+            patch("apps.dashboard_reports.filters.datetime", mock_dt),
+        ):
+            yield
+
     @pytest.fixture(autouse=True)
     def fixed_subscription_cost(self):
         with patch(

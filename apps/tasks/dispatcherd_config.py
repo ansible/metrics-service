@@ -48,6 +48,7 @@ def setup_dispatcherd_config() -> None:
 
         config_file = get_config_file_path()
 
+        # FIXME: does it ever not?
         if config_file.exists():
             # Load config file and merge with Django database settings
             logger.info(f"Loading dispatcherd config from file: {config_file}")
@@ -152,16 +153,14 @@ def build_config_from_django_settings() -> dict[str, Any]:
                 "pg_notify": {
                     "config": pg_config,
                     "channels": [
-                        "metrics_tasks",
-                        "metrics_cleanup",
-                        "metrics_notifications",
-                        "metrics_collectors",
-                        "metrics_utility",
+                        "dashboard",
+                        "maintenance",
+                        "metrics",
                     ],
                 },
             },
             "service": {
-                "pool_kwargs": {"max_workers": 1},
+                "pool_kwargs": {"max_workers": 4},
             },
         }
 
@@ -196,31 +195,3 @@ def ensure_dispatcherd_configured() -> None:
     except Exception as e:
         logger.error(f"Failed to ensure dispatcherd configuration: {e}")
         raise
-
-
-def get_queue_for_function(function_name: str) -> str:
-    """
-    Get the appropriate queue name for a task function.
-
-    Args:
-        function_name: Name of the task function
-
-    Returns:
-        Queue name to submit the task to
-    """
-    queue_mapping = {
-        # System/general tasks
-        "hello_world": "metrics_tasks",
-        # Cleanup tasks
-        "cleanup_old_tasks": "metrics_cleanup",
-        "cleanup_metrics_data": "metrics_cleanup",
-        # Hourly collection tasks
-        "collect_hourly_metrics": "metrics_collectors",
-        "collect_snapshot_metrics": "metrics_collectors",
-        # Daily rollup and anonymization tasks
-        "daily_metrics_rollup": "metrics_collectors",
-        "daily_anonymize_and_prepare": "metrics_collectors",
-        "send_anonymized_to_segment": "metrics_collectors",
-    }
-
-    return queue_mapping.get(function_name, "metrics_tasks")

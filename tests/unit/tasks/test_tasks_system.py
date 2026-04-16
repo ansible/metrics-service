@@ -12,6 +12,7 @@ Organized into clear test classes:
 - TestEdgeCasesAndErrorHandling: Edge cases, error conditions, and resilience
 """
 
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -267,6 +268,23 @@ class TestTaskRegistry(TestCase):
             has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
             assert has_var_keyword, f"{func_name} does not accept **kwargs"
 
+    def test_every_task_function_has_metadata_with_queue(self):
+        """Every TASK_FUNCTIONS entry must have a TASK_METADATA entry with a valid queue."""
+        import yaml
+
+        from apps.tasks.tasks import TASK_METADATA
+
+        # Load valid queues from dispatcherd config
+        config_path = Path(__file__).resolve().parents[3] / "apps" / "settings" / "dispatcherd.yaml"
+        with open(config_path) as f:
+            valid_queues = set(yaml.safe_load(f)["brokers"]["pg_notify"]["channels"])
+
+        for func_name in TASK_FUNCTIONS:
+            assert func_name in TASK_METADATA, f"{func_name} missing from TASK_METADATA"
+            queue = TASK_METADATA[func_name].get("queue")
+            assert queue, f"{func_name} has no queue in TASK_METADATA"
+            assert queue in valid_queues, f"{func_name} has unknown queue {queue!r} (valid: {valid_queues})"
+
 
 # =============================================================================
 # System Task Creation Tests
@@ -342,7 +360,7 @@ class TestTaskDispatcher(TestCase):
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    @patch("apps.tasks.tasks.get_queue_for_function")
     def test_submit_skips_when_active_execution_exists(self, mock_get_queue, mock_ensure_config, mock_submit):
         """Test that submit_task_to_dispatcher is a no-op when a pending/running execution exists."""
         # Create an existing pending execution
@@ -773,7 +791,7 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    @patch("apps.tasks.tasks.get_queue_for_function")
     def test_submit_task_success_path(self, mock_get_queue, mock_ensure_config, mock_submit):
         """Test successful task submission to dispatcher."""
         # Arrange
@@ -783,7 +801,7 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
             task_data={},
             created_by=self.user,
         )
-        mock_get_queue.return_value = "metrics_tasks"
+        mock_get_queue.return_value = "maintenance"
 
         # Act
         submit_task_to_dispatcher(task)
@@ -800,7 +818,7 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
         call_kwargs = mock_submit.call_args.kwargs
         assert call_kwargs["kwargs"]["task_id"] == task.id
         assert "execution_id" not in call_kwargs["kwargs"]
-        assert call_kwargs["queue"] == "metrics_tasks"
+        assert call_kwargs["queue"] == "maintenance"
 
         # TaskExecution is no longer created here — _claim_task creates it
         assert TaskExecution.objects.filter(task=task).count() == 0
@@ -811,7 +829,7 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    @patch("apps.tasks.dispatcherd_config.get_queue_for_function")
+    @patch("apps.tasks.tasks.get_queue_for_function")
     def test_submit_task_handles_submission_error(self, mock_get_queue, mock_ensure_config, mock_submit):
         """Test submit_task_to_dispatcher handles submission errors."""
         # Arrange
@@ -820,7 +838,7 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
             function_name="hello_world",
             created_by=self.user,
         )
-        mock_get_queue.return_value = "metrics_tasks"
+        mock_get_queue.return_value = "maintenance"
         mock_submit.side_effect = Exception("Submission failed")
 
         # Act
@@ -870,134 +888,3 @@ class TestCreateSystemTasksExceptionHandling(TestCase):
         # Result should contain error for failed task
         assert any("Error with task1" in msg for msg in result["tasks"])
         assert any("Creation failed" in msg for msg in result["tasks"])
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-class TestGetSystemTaskInfo(TestCase):
-    """Test get_system_task_info function."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.user = User.objects.create_user(
-            username="testuser_sysinfo", email="test@example.com", password=get_test_password()
-        )
-
-    def test_returns_system_task_info(self):
-        """Test get_system_task_info returns information about system tasks."""
-        from django.utils import timezone
-
-        from apps.tasks.tasks_system import get_system_task_info
-
-        # Create system tasks
-        Task.objects.create(
-            name="System Task 1",
-            function_name="cleanup_old_tasks",
-            description="Clean up old tasks",
-            status="pending",
-            cron_expression="0 2 * * *",
-            is_system_task=True,
-            created_by=self.user,
-        )
-
-        Task.objects.create(
-            name="System Task 2",
-            function_name="hello_world",
-            description="Test task",
-            status="completed",
-            cron_expression="0 * * * *",
-            is_system_task=True,
-            created_by=self.user,
-            completed_at=timezone.now(),
-        )
-
-        # Create non-system task (should be excluded)
-        Task.objects.create(
-            name="Regular Task",
-            function_name="hello_world",
-            is_system_task=False,
-            created_by=self.user,
-        )
-
-        # Act
-        result = get_system_task_info()
-
-        # Assert
-        assert "system_tasks" in result
-        assert "total_count" in result
-        assert "categories" in result
-
-        assert result["total_count"] == 2
-        assert len(result["system_tasks"]) == 2
-
-        # Verify task info structure
-        task_info = result["system_tasks"][0]
-        assert "id" in task_info
-        assert "name" in task_info
-        assert "function_name" in task_info
-        assert "description" in task_info
-        assert "status" in task_info
-        assert "cron_expression" in task_info
-        assert "created" in task_info
-        assert "last_run" in task_info
-        assert "category" in task_info
-
-    def test_returns_empty_when_no_system_tasks(self):
-        """Test get_system_task_info returns empty list when no system tasks."""
-        from apps.tasks.tasks_system import get_system_task_info
-
-        # Act
-        result = get_system_task_info()
-
-        # Assert
-        assert result["total_count"] == 0
-        assert len(result["system_tasks"]) == 0
-
-    def test_formats_datetime_fields_correctly(self):
-        """Test get_system_task_info formats datetime fields as ISO strings."""
-        from django.utils import timezone
-
-        from apps.tasks.tasks_system import get_system_task_info
-
-        completed_time = timezone.now()
-        Task.objects.create(
-            name="System Task",
-            function_name="hello_world",
-            is_system_task=True,
-            created_by=self.user,
-            completed_at=completed_time,
-        )
-
-        # Act
-        result = get_system_task_info()
-
-        # Assert
-        task_info = result["system_tasks"][0]
-        assert task_info["created"] is not None
-        assert isinstance(task_info["created"], str)  # ISO format string
-        assert task_info["last_run"] is not None
-        assert isinstance(task_info["last_run"], str)  # ISO format string
-
-    def test_orders_tasks_by_name(self):
-        """Test get_system_task_info orders tasks alphabetically by name."""
-        from apps.tasks.tasks_system import get_system_task_info
-
-        Task.objects.create(
-            name="Zebra Task",
-            function_name="hello_world",
-            is_system_task=True,
-            created_by=self.user,
-        )
-        Task.objects.create(
-            name="Alpha Task",
-            function_name="hello_world",
-            is_system_task=True,
-            created_by=self.user,
-        )
-
-        # Act
-        result = get_system_task_info()
-
-        # Assert
-        assert result["system_tasks"][0]["name"] == "Alpha Task"
-        assert result["system_tasks"][1]["name"] == "Zebra Task"

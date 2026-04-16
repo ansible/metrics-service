@@ -19,20 +19,6 @@ from apps.tasks.models import Task
 from apps.tasks.task_groups import DASHBOARD_COLLECTION_GROUP
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
 
-try:
-    from dispatcherd.publish import task
-except ImportError:
-
-    def task(*args, **kwargs):
-        """No-op fallback for the dispatcherd @task decorator when dispatcherd is not installed."""
-
-        def decorator(func):
-            """Return the original function unchanged."""
-            return func
-
-        return decorator
-
-
 DEFAULT_DB_NAME = "awx"
 
 logger = logging.getLogger(__name__)
@@ -173,7 +159,6 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     return result
 
 
-@task(queue="metrics_collectors", decorate=False)
 def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     """
     Collect up to 90 days of historical AWX job data and schedule the recurring incremental task.
@@ -239,7 +224,6 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     return create_task_result("success", data=data)
 
 
-@task(queue="metrics_collectors", decorate=False)
 def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
     """
     Incrementally collect AWX job data since the last known JobData timestamp.
@@ -258,7 +242,6 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
     return create_task_result("success", data=result.get("data", {}))
 
 
-@task(queue="metrics_collectors", decorate=False)
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     """
     Delete JobData records with a finished date older than retention_period_days (default: 90).

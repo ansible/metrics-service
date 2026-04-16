@@ -168,7 +168,7 @@ class TaskViewSet(BaseViewSet):
         task.error_message = ""
         task.started_at = None
         task.completed_at = None
-        task.save()
+        task.save(update_fields=["status", "error_message", "started_at", "completed_at", "modified"])
 
         return Response({"message": f"Task '{task.name}' queued for retry"})
 
@@ -194,7 +194,7 @@ class TaskViewSet(BaseViewSet):
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
         task.status = "cancelled"
-        task.save()
+        task.save(update_fields=["status", "modified"])
 
         return Response({"message": f"Task '{task.name}' cancelled"})
 
@@ -278,24 +278,6 @@ class TaskViewSet(BaseViewSet):
         functions.sort(key=lambda x: (x["category"], x["name"]))
 
         return Response({"functions": functions})
-
-    @action(detail=False, methods=["get"])
-    def system_tasks_info(self, request: HttpRequest) -> Response:
-        """
-        Get information about system-defined tasks.
-
-        Returns:
-            Response: List of system tasks with their status and configuration
-        """
-        from apps.tasks.tasks import get_system_task_info
-
-        try:
-            info = get_system_task_info()
-            return Response(info)
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to get system task info: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
     def perform_destroy(self, instance):
         """

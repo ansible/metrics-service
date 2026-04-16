@@ -134,18 +134,18 @@ class TestUnifiedTaskScheduler:
         scheduler.stop()  # Should catch exception
 
     def test_get_queue_for_function_known_functions(self):
-        """Test queue mapping for known functions (now using shared function from dispatcherd_config)."""
-        from apps.tasks.dispatcherd_config import get_queue_for_function
+        """Test queue mapping for known functions."""
+        from apps.tasks.tasks import get_queue_for_function
 
         # Test specific queue mappings
-        assert get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
-        assert get_queue_for_function("daily_metrics_rollup") == "metrics_collectors"
+        assert get_queue_for_function("cleanup_old_tasks") == "maintenance"
+        assert get_queue_for_function("daily_metrics_rollup") == "metrics"
 
     def test_get_queue_for_function_unknown_function(self):
-        """Test queue mapping for unknown function (now using shared function from dispatcherd_config)."""
-        from apps.tasks.dispatcherd_config import get_queue_for_function
+        """Test queue mapping for unknown function."""
+        from apps.tasks.tasks import get_queue_for_function
 
-        assert get_queue_for_function("unknown_function") == "metrics_tasks"
+        assert get_queue_for_function("unknown_function") == "maintenance"
 
 
 @pytest.mark.unit
@@ -424,24 +424,28 @@ class TestGlobalSchedulerFunctions:
 @pytest.mark.parametrize(
     "function_name,expected_queue",
     [
-        # System/general tasks
-        ("hello_world", "metrics_tasks"),
-        # Cleanup tasks
-        ("cleanup_old_tasks", "metrics_cleanup"),
-        ("cleanup_metrics_data", "metrics_cleanup"),
-        # Collection tasks
-        ("collect_hourly_metrics", "metrics_collectors"),
-        ("collect_snapshot_metrics", "metrics_collectors"),
-        # Daily rollup and anonymization tasks
-        ("daily_metrics_rollup", "metrics_collectors"),
-        ("daily_anonymize_and_prepare", "metrics_collectors"),
-        ("send_anonymized_to_segment", "metrics_collectors"),
+        # Maintenance tasks
+        ("hello_world", "maintenance"),
+        ("cleanup_old_tasks", "maintenance"),
+        ("cleanup_activitystream", "maintenance"),
+        # Metrics tasks
+        ("collect_hourly_metrics", "metrics"),
+        ("collect_snapshot_metrics", "metrics"),
+        ("collect_daily_metrics", "metrics"),
+        ("daily_metrics_rollup", "metrics"),
+        ("daily_anonymize_and_prepare", "metrics"),
+        ("send_anonymized_to_segment", "metrics"),
+        ("cleanup_metrics_data", "metrics"),
+        # Dashboard tasks
+        ("collect_dashboard_reports_initial_data", "dashboard"),
+        ("collect_dashboard_reports_data", "dashboard"),
+        ("cleanup_dashboard_reports_old_data", "dashboard"),
         # Unknown function (default)
-        ("unknown_function", "metrics_tasks"),
+        ("unknown_function", "maintenance"),
     ],
 )
 def test_queue_mapping_parametrized(function_name, expected_queue):
-    """Test queue mapping for all known functions (now using shared function from dispatcherd_config)."""
-    from apps.tasks.dispatcherd_config import get_queue_for_function
+    """Test queue mapping for all known functions."""
+    from apps.tasks.tasks import get_queue_for_function
 
     assert get_queue_for_function(function_name) == expected_queue

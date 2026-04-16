@@ -175,7 +175,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         else:
             self.scheduled_time = None
 
-        self.save()
+        self.save(update_fields=["status", "error_message", "started_at", "completed_at", "scheduled_time", "modified"])
 
         # Submit the task for immediate execution if it has no scheduled time
         # and is not recurring (otherwise it will be picked up by the scheduler)
@@ -189,7 +189,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
                 logger.error(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")
                 self.status = "failed"
                 self.error_message = f"Failed to submit to dispatcher: {str(e)}"
-                self.save()
+                self.save(update_fields=["status", "error_message", "modified"])
 
         return True
 

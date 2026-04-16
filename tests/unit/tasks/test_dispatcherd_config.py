@@ -16,7 +16,6 @@ from apps.tasks.dispatcherd_config import (
     build_config_from_django_settings,
     ensure_dispatcherd_configured,
     get_config_file_path,
-    get_queue_for_function,
     setup_dispatcherd_config,
 )
 
@@ -343,11 +342,9 @@ class TestBuildConfigFromDjangoSettings:
         config = build_config_from_django_settings()
 
         channels = config["brokers"]["pg_notify"]["channels"]
-        assert "metrics_tasks" in channels
-        assert "metrics_cleanup" in channels
-        assert "metrics_notifications" in channels
-        assert "metrics_collectors" in channels
-        assert "metrics_utility" in channels
+        assert "dashboard" in channels
+        assert "maintenance" in channels
+        assert "metrics" in channels
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
@@ -367,7 +364,7 @@ class TestBuildConfigFromDjangoSettings:
 
         assert "service" in config
         assert "pool_kwargs" in config["service"]
-        assert config["service"]["pool_kwargs"]["max_workers"] == 1
+        assert config["service"]["pool_kwargs"]["max_workers"] == 4
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
@@ -461,56 +458,3 @@ class TestEnsureDispatcherdConfigured:
 
         mock_logger.error.assert_called()
         assert "Failed to ensure dispatcherd configuration" in str(mock_logger.error.call_args)
-
-
-class TestGetQueueForFunction:
-    """Tests for get_queue_for_function function."""
-
-    def test_returns_correct_queue_for_cleanup_tasks(self):
-        """Test that cleanup tasks are routed to metrics_cleanup queue."""
-        assert get_queue_for_function("cleanup_old_tasks") == "metrics_cleanup"
-        assert get_queue_for_function("cleanup_metrics_data") == "metrics_cleanup"
-
-    def test_returns_correct_queue_for_collector_tasks(self):
-        """Test that collector tasks are routed to metrics_collectors queue."""
-        # Hourly collection tasks
-        assert get_queue_for_function("collect_hourly_metrics") == "metrics_collectors"
-        assert get_queue_for_function("collect_snapshot_metrics") == "metrics_collectors"
-        # Daily rollup and anonymization tasks
-        assert get_queue_for_function("daily_metrics_rollup") == "metrics_collectors"
-        assert get_queue_for_function("daily_anonymize_and_prepare") == "metrics_collectors"
-        assert get_queue_for_function("send_anonymized_to_segment") == "metrics_collectors"
-
-    def test_returns_correct_queue_for_general_tasks(self):
-        """Test that general tasks are routed to metrics_tasks queue."""
-        assert get_queue_for_function("hello_world") == "metrics_tasks"
-
-    def test_returns_default_queue_for_unknown_function(self):
-        """Test that unknown functions are routed to default metrics_tasks queue."""
-        assert get_queue_for_function("unknown_function") == "metrics_tasks"
-        assert get_queue_for_function("") == "metrics_tasks"
-        assert get_queue_for_function("non_existent_task") == "metrics_tasks"
-
-    def test_all_mapped_functions_return_correct_queues(self):
-        """Test comprehensive mapping of all functions to their queues."""
-        # Comprehensive test of all mappings
-        function_queue_map = {
-            # System/general tasks
-            "hello_world": "metrics_tasks",
-            # Cleanup tasks
-            "cleanup_old_tasks": "metrics_cleanup",
-            "cleanup_metrics_data": "metrics_cleanup",
-            # Collection tasks
-            "collect_hourly_metrics": "metrics_collectors",
-            "collect_snapshot_metrics": "metrics_collectors",
-            # Daily rollup and anonymization tasks
-            "daily_metrics_rollup": "metrics_collectors",
-            "daily_anonymize_and_prepare": "metrics_collectors",
-            "send_anonymized_to_segment": "metrics_collectors",
-        }
-
-        for function_name, expected_queue in function_queue_map.items():
-            actual_queue = get_queue_for_function(function_name)
-            assert actual_queue == expected_queue, (
-                f"Function {function_name} should map to {expected_queue}, got {actual_queue}"
-            )
