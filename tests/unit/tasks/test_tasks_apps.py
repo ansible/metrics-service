@@ -200,9 +200,12 @@ class TestLoadTaskFeatureFlags(TestCase):
             patch("apps.tasks.apps._FEATURE_FLAGS_FILE", mock_file_path),
             patch("django.apps.apps.get_model", return_value=mock_aap_flag_class),
         ):
-            load_task_feature_flags()  # must not raise
+            assert load_task_feature_flags() is False  # must not raise
 
-        mock_logger.exception.assert_called_once_with("Failed to load tasks feature flags into AAPFlag")
+        mock_logger.warning.assert_called_once_with(
+            "Failed to load tasks feature flags into AAPFlag",
+            exc_info=True,
+        )
 
     @patch("apps.tasks.apps.logger")
     def test_empty_yaml_is_a_no_op(self, mock_logger):

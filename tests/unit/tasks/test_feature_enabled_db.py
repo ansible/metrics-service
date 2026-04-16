@@ -204,9 +204,8 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
 
     def test_dashboard_collection_uses_aap_flag_when_omitted_from_feature_enabled(self):
         """When the key is absent from FEATURE_ENABLED, the platform AAPFlag applies."""
-        with self._patch_aap_flag(self._make_mock_flag("True")):
-            with override_settings(FEATURE_ENABLED={}):
-                assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False) is True
+        with self._patch_aap_flag(self._make_mock_flag("True")), override_settings(FEATURE_ENABLED={}):
+            assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False) is True
 
     @override_settings(FEATURE_ENABLED={"SETTINGS_FLAG": True})
     def test_feature_enabled_settings_used_when_no_aap_flag(self):

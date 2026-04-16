@@ -236,8 +236,12 @@ class Command(BaseCommand):
             # mirrors what the post_migrate signal does during `migrate`, but
             # must also run here because init-default-settings is called in
             # production without a preceding migrate (DB is pre-migrated).
-            load_task_feature_flags()
-            self.output.success("Initialized default settings")
+            if load_task_feature_flags():
+                self.output.success("Initialized default settings")
+            else:
+                self.output.warning(
+                    "Initialized default settings in the database, but task feature flags could not be seeded; see logs.",
+                )
         except Exception as e:
             raise CommandError(f"Failed to initialize default settings: {e}") from e
 
