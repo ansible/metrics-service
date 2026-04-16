@@ -91,7 +91,7 @@ EXPOSE 8080 8443 8000
 # docker-compose can override with entrypoint: ["/usr/local/bin/entrypoint-web.sh"] etc. for split services.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 # App binds to 127.0.0.1:8000; Nginx proxies external 8080/8443 to it.
-CMD ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "1"]
+CMD ["python3.12", "manage.py", "metrics_service", "run", "--host", "127.0.0.1", "--port", "8000", "--workers", "4"]
 
 LABEL com.redhat.component="ansible-automation-platform-tech-preview-metrics-service-rhel9" \
     name="ansible-automation-platform-tech-preview/metrics-service-rhel9" \

@@ -33,7 +33,7 @@ trap cleanup EXIT INT TERM
 $MANAGE runserver 0.0.0.0:8000 &
 PIDS+=($!)
 
-$MANAGE run_dispatcherd --workers=1 --log-level=DEBUG &
+$MANAGE run_dispatcherd --workers=4 --log-level=DEBUG &
 PIDS+=($!)
 
 $MANAGE run_task_scheduler --log-level=DEBUG --check-interval=60 &
