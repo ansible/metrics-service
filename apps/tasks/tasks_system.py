@@ -129,7 +129,7 @@ def execute_claimed(task, execution):
 
 
 # This is the sole dispatcherd entry point — all DB tasks are routed through it.
-@task(queue="metrics_tasks", decorate=False)
+@task(decorate=False)
 def execute_db_task(**kwargs) -> dict[str, Any]:
     """
     Execute a database-defined task with comprehensive error handling and tracking.
