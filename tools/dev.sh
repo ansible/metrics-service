@@ -28,7 +28,7 @@ cleanup() {
     echo "All services stopped."
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup EXIT INT TERM ERR
 
 $MANAGE runserver 0.0.0.0:8000 &
 PIDS+=($!)
@@ -42,4 +42,8 @@ PIDS+=($!)
 echo "Dev server running (runserver + dispatcherd + scheduler)"
 echo "Press Ctrl+C to stop"
 
-wait
+# Wait for any child to exit — if one crashes, cleanup trap stops the rest.
+wait -n
+code=$?
+echo "A service exited with code $code, shutting down..."
+exit "$code"
