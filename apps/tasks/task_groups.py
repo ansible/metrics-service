@@ -71,9 +71,7 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
     except Exception as e:
         logger.warning(f"Error reading feature enabled setting {setting_name} from database: {e}")
         feature_enabled = getattr(settings, "FEATURE_ENABLED", {})
-        if setting_name in feature_enabled:
-            return bool(feature_enabled[setting_name])
-        return default
+        return bool(feature_enabled[setting_name]) if setting_name in feature_enabled else default
 
 
 class TaskGroup:

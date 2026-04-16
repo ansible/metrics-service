@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 _FEATURE_FLAGS_FILE = Path(__file__).parent / "feature_flags.yaml"
 
 
-def load_task_feature_flags(**kwargs):
+def load_task_feature_flags(**kwargs) -> bool:
     """
     Upsert tasks feature flags into AAPFlag after each DAB purge cycle.
 
@@ -22,6 +22,10 @@ def load_task_feature_flags(**kwargs):
     purge_feature_flags() + load_feature_flags() in create_initial_data(). This
     ensures task-level feature flags survive every DAB migration without requiring
     a change to the django-ansible-base feature_flags.yaml.
+
+    Returns True if flags were loaded successfully. On failure, logs at WARNING
+    (with exception context) and returns False without re-raising, so migrate and
+    other callers are not aborted by optional flag seeding.
     """
     try:
         from ansible_base.resource_registry.signals.handlers import no_reverse_sync
@@ -52,7 +56,12 @@ def load_task_feature_flags(**kwargs):
                     flag.save()
             logger.debug("Loaded task feature flag: %s", flag_def["name"])
     except Exception:
-        logger.exception("Failed to load tasks feature flags into AAPFlag")
+        logger.warning(
+            "Failed to load tasks feature flags into AAPFlag",
+            exc_info=True,
+        )
+        return False
+    return True
 
 
 class TasksConfig(AppConfig):
@@ -68,6 +77,14 @@ class TasksConfig(AppConfig):
         # are (re)loaded after every DAB purge_feature_flags() + load_feature_flags()
         # cycle. INSTALLED_APPS order ensures ansible_base.feature_flags connects its
         # handler first, so DAB's purge runs before ours adds the flags back.
-        from ansible_base.feature_flags.apps import FeatureFlagsConfig
+        #
+        # post_migrate dispatches with sender=<AppConfig instance>, not the class,
+        # so we must pass the live instance here — id(class) != id(instance) and
+        # Django's signal dispatch matches by id(), so using the class would mean
+        # load_task_feature_flags is never called.
+        from django.apps import apps as django_apps
 
-        post_migrate.connect(load_task_feature_flags, sender=FeatureFlagsConfig)
+        post_migrate.connect(
+            load_task_feature_flags,
+            sender=django_apps.get_app_config("dab_feature_flags"),
+        )
