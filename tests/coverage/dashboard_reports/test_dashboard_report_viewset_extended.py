@@ -470,9 +470,9 @@ def test_export_no_period_returns_400(user):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_export_invalid_export_format_returns_400(user):
-    """GET /report/export/?period=last_7_days&export_format=pdf returns 400."""
+    """GET /report/export/?period=last_7_days&export_format=excel returns 400."""
     client = _authenticated_client(user)
-    response = client.get(EXPORT_URL, {"period": "last_7_days", "tz": "UTC", "export_format": "pdf"})
+    response = client.get(EXPORT_URL, {"period": "last_7_days", "tz": "UTC", "export_format": "excel"})
     assert response.status_code == 400
 
 
@@ -674,3 +674,33 @@ def test_get_date_range_and_kind_46_days_is_month():
     vs = _make_viewset_with_dates(start, end)
     _, _, kind = vs._get_date_range_and_kind()
     assert kind == "month"
+
+
+# ---------------------------------------------------------------------------
+# _export_pdf defensive fallback (line 905)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_export_pdf_unknown_report_type_returns_400():
+    """
+    _export_pdf() has a defensive fallback for unknown report_type values.
+    The export() action validates report_type before calling _export_pdf(), so this
+    branch is unreachable through the public API, but exists as a safety net.
+    Call the private method directly to cover it.
+    """
+    from unittest.mock import MagicMock
+
+    from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
+
+    vs = _make_viewset_with_dates(
+        datetime(2025, 1, 1, tzinfo=UTC),
+        datetime(2025, 1, 14, tzinfo=UTC),
+    )
+    request = MagicMock()
+    response = vs._export_pdf(request, report_type="unknown_type", filename="test-report")
+
+    assert response.status_code == 400
+    import json
+
+    assert "detail" in json.loads(response.content)

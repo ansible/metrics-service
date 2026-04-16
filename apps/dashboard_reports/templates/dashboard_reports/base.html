@@ -1,0 +1,17 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="{% static 'dashboard_reports/styles/style.css' %}">
+  <title>Automation Dashboard Report</title>
+</head>
+<body>
+<header>
+  <img src="{% static 'dashboard_reports/images/RedHatLogo.svg' %}" alt="Red Hat logo" />
+</header>
+<div class="content">
+  {% block content %}
+  {% endblock %}
+</div>
+</body>
+</html>

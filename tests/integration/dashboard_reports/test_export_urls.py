@@ -187,9 +187,11 @@ class TestExportEndpointResponseContract:
         assert response.status_code == 400
 
     def test_invalid_format_returns_400(self):
+        # NOTE: export_format=pdf via GET returns 405 (method not allowed) since PDF requires POST.
+        # Kept here to verify other truly invalid formats still return 400.
         response = self.client.get(
             "/api/v1/dashboard_reports/report/export/",
-            data={"period": "last_7_days", "tz": "UTC", "report_type": "summary", "export_format": "pdf"},
+            data={"period": "last_7_days", "tz": "UTC", "report_type": "summary", "export_format": "xml"},
         )
         assert response.status_code == 400
 

@@ -5,6 +5,8 @@ The settings here overrides any setting previously loaded
 from the `metrics_service.settings`.
 """
 
+from pathlib import Path
+
 from dynaconf import Dynaconf, post_hook
 
 # Extra applications added after PSF templating
@@ -34,6 +36,12 @@ project_applications = [
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
 ]
 
+# WEASYPRINT_BASEURL for production is overriden in apps/settings/production.py
+# to be consistent with the production environment, whereas these settings below are for
+# the development environment.
+_BASE_DIR = Path(__file__).resolve().parent.parent.parent
+WEASYPRINT_BASEURL = f"file://{_BASE_DIR}/apps/dashboard_reports/static/"
+
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
 INSTALLED_APPS = [
     "dynaconf_merge_unique",  # DO NOT REMOVE THIS
@@ -41,6 +49,7 @@ INSTALLED_APPS = [
     *project_applications,
     *extra_applications,
     "django_generate_series",  # Dashboard data for automation-reports integration
+    "django.contrib.humanize",  # Required for {% load humanize %} in PDF templates
 ]
 
 # Enable debug mode

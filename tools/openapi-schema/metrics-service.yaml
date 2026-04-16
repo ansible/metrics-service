@@ -550,7 +550,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Job Data.
         required: true
       tags:
       - dashboard_reports
@@ -682,9 +683,9 @@ paths:
   /api/v1/dashboard_reports/report/export/:
     get:
       operationId: dashboard_reports_report_export_retrieve
-      description: Exports report data as CSV based on the specific report type and
-        format query parameters.
-      summary: Exports report data as CSV
+      description: Exports report data as CSV or PDF based on the specific report
+        type and format query parameters.
+      summary: Exports report data as CSV or PDF
       parameters:
       - in: query
         name: export_format
@@ -692,8 +693,9 @@ paths:
           type: string
           enum:
           - csv
+          - pdf
           default: csv
-        description: 'Export file format. Options: ''csv''.'
+        description: 'Export file format. Options: ''csv'', ''pdf''.'
       - in: query
         name: label
         schema:
@@ -796,12 +798,28 @@ paths:
             text/csv; charset=UTF-8:
               schema:
                 type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
           description: ''
         '400':
           content:
             text/csv:
               schema:
                 $ref: '#/components/schemas/DashboardReportExportError'
+            application/pdf:
+              schema:
+                $ref: '#/components/schemas/DashboardReportExportError'
+          description: ''
+        '405':
+          content:
+            text/csv:
+              schema:
+                $ref: '#/components/schemas/DashboardReportExportBadRequest'
+            application/pdf:
+              schema:
+                $ref: '#/components/schemas/DashboardReportExportBadRequest'
           description: ''
       x-ai-description: Retrieve single dashboard reports report export
   /api/v1/dashboard_reports/subscription_costs/:
@@ -863,7 +881,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Subscription Cost.
         required: true
       tags:
       - dashboard_reports
@@ -897,7 +916,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Subscription Cost.
         required: true
       tags:
       - dashboard_reports
@@ -6620,12 +6640,28 @@ paths:
         required: true
       tags:
       - teams
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+        required: true
       security:
       - cookieAuth: []
       - basicAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationDisassociate'
+          description: ''
       x-ai-description: Disassociate organization from a team
   /api/v1/users/:
     get:
@@ -7127,6 +7163,13 @@ components:
       - enabled
       - initial_collection_status
       - next_run
+    DashboardReportExportBadRequest:
+      type: object
+      properties:
+        detail:
+          type: string
+        error:
+          type: string
     DashboardReportExportError:
       type: object
       properties:
@@ -7413,6 +7456,30 @@ components:
           description: The user who created this resource.
       required:
       - name
+    OrganizationDisassociate:
+      type: object
+      description: Serializer used for removing objects that are currently associated
+        via a many-to-many relationship
+      properties:
+        instances:
+          type: array
+          items:
+            type: integer
+          description: A list of organizations to remove from this relationship.
+      required:
+      - instances
+    OrganizationDisassociateRequest:
+      type: object
+      description: Serializer used for removing objects that are currently associated
+        via a many-to-many relationship
+      properties:
+        instances:
+          type: array
+          items:
+            type: integer
+          description: A list of organizations to remove from this relationship.
+      required:
+      - instances
     OrganizationRequest:
       type: object
       description: Serializer for the Organization model with RBAC access mixin.

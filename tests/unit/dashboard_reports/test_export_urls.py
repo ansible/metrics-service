@@ -5,6 +5,7 @@ import datetime
 import decimal
 import io
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 import pytest
 from django.urls import reverse
@@ -250,11 +251,6 @@ class TestExportEndpointGeneral:
         assert response.status_code == 200
         rows = parse_csv(response.content)
         assert len(rows) == 1  # header only
-
-    def test_export_post_not_allowed(self, admin_client):
-        url = reverse("dashboard_reports:report-export")
-        response = admin_client.post(url, data={})
-        assert response.status_code == 405
 
     def test_export_unauthenticated_returns_403(self, api_client):
         url = reverse("dashboard_reports:report-export")
@@ -618,3 +614,36 @@ class TestCsvSafe:
 
     def test_string_starting_with_space_unchanged(self, csv_safe):
         assert csv_safe(" =not_a_formula") == " =not_a_formula"
+
+
+# =============================================================================
+# Tests — export endpoint: response contract
+# =============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestExportEndpointResponseContract:
+    """Tests for HTTP method enforcement on the export endpoint."""
+
+    @pytest.fixture(autouse=True)
+    def fixed_subscription_cost(self):
+        with patch(
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_COST,
+        ):
+            yield
+
+    def test_csv_via_post_returns_405(self, admin_client):
+        """CSV export only supports GET — POST should return 405."""
+        url = reverse("dashboard_reports:report-export")
+        qs = urlencode({"period": "last_14_days", "tz": "UTC", "report_type": "summary", "export_format": "csv"})
+        response = admin_client.post(f"{url}?{qs}")
+        assert response.status_code == 405
+
+    def test_pdf_via_post_returns_405(self, admin_client):
+        """PDF export only supports GET — POST should return 405."""
+        url = reverse("dashboard_reports:report-export")
+        qs = urlencode({"period": "last_14_days", "tz": "UTC", "report_type": "summary", "export_format": "pdf"})
+        response = admin_client.post(f"{url}?{qs}")
+        assert response.status_code == 405

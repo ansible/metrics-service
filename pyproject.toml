@@ -36,6 +36,7 @@ dependencies = [
     "metrics-utility>=0.8.0",
     "django-prometheus>=2.3.1",
     "django-extensions>=3.2",
+    "django-weasyprint>=2.5.0",
     "gunicorn>=23.0",
     "whitenoise>=6.6",
     "pip>=25.2",

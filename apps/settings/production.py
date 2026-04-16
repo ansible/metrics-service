@@ -235,6 +235,7 @@ validators.append(
 # Override BASE_DIR-relative default so static files land in a known writable
 # location regardless of where the package is installed (e.g. site-packages).
 STATIC_ROOT = "/var/lib/ansible-automation-platform/metrics/staticfiles"
+WEASYPRINT_BASEURL = f"file://{STATIC_ROOT}/"
 
 # =============================================================================
 # URL Configuration

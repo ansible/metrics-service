@@ -838,8 +838,9 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Job Data.",
                         "required": true
                     }
                 ],
@@ -1047,8 +1048,8 @@
         "/api/v1/dashboard_reports/report/export/": {
             "get": {
                 "operationId": "dashboard_reports_report_export_retrieve",
-                "description": "Exports report data as CSV based on the specific report type and format query parameters.",
-                "summary": "Exports report data as CSV",
+                "description": "Exports report data as CSV or PDF based on the specific report type and format query parameters.",
+                "summary": "Exports report data as CSV or PDF",
                 "parameters": [
                     {
                         "in": "query",
@@ -1056,11 +1057,12 @@
                         "schema": {
                             "type": "string",
                             "enum": [
-                                "csv"
+                                "csv",
+                                "pdf"
                             ],
                             "default": "csv"
                         },
-                        "description": "Export file format. Options: 'csv'."
+                        "description": "Export file format. Options: 'csv', 'pdf'."
                     },
                     {
                         "in": "query",
@@ -1217,6 +1219,12 @@
                                 "schema": {
                                     "type": "string"
                                 }
+                            },
+                            "application/pdf": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
                             }
                         },
                         "description": ""
@@ -1226,6 +1234,26 @@
                             "text/csv": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DashboardReportExportError"
+                                }
+                            },
+                            "application/pdf": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DashboardReportExportError"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "405": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DashboardReportExportBadRequest"
+                                }
+                            },
+                            "application/pdf": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DashboardReportExportBadRequest"
                                 }
                             }
                         },
@@ -1322,8 +1350,9 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -1380,8 +1409,9 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
+                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -10325,6 +10355,26 @@
                 "tags": [
                     "teams"
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
                 "security": [
                     {
                         "cookieAuth": []
@@ -10335,7 +10385,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrganizationDisassociate"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
                 "x-ai-description": "Disassociate organization from a team"
@@ -11108,6 +11165,17 @@
                     "next_run"
                 ]
             },
+            "DashboardReportExportBadRequest": {
+                "type": "object",
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            },
             "DashboardReportExportError": {
                 "type": "object",
                 "properties": {
@@ -11470,6 +11538,38 @@
                 },
                 "required": [
                     "name"
+                ]
+            },
+            "OrganizationDisassociate": {
+                "type": "object",
+                "description": "Serializer used for removing objects that are currently associated via a many-to-many relationship",
+                "properties": {
+                    "instances": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "A list of organizations to remove from this relationship."
+                    }
+                },
+                "required": [
+                    "instances"
+                ]
+            },
+            "OrganizationDisassociateRequest": {
+                "type": "object",
+                "description": "Serializer used for removing objects that are currently associated via a many-to-many relationship",
+                "properties": {
+                    "instances": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "A list of organizations to remove from this relationship."
+                    }
+                },
+                "required": [
+                    "instances"
                 ]
             },
             "OrganizationRequest": {
