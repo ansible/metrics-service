@@ -48,11 +48,15 @@ The daily rollup (`apps/tasks/collectors/daily_metrics_rollup.py`, function `_me
 - Every collector_type in `_get_daily_collectors()` must appear in `daily_rollup_processors`.
 - Conversely, every type in the rollup processor dicts must exist in the corresponding collector registry. Flag any orphaned processors.
 
-### 7. Task group entries must have required fields and valid queue values
+### 7. Task group entries must have required fields
 
-Every task dict in `TASK_GROUPS` must contain these required fields: `task_id`, `function`, `queue`, `cron` (may be `None`), `args`, `description`.
+Every task dict in `TASK_GROUPS` must contain these required fields: `task_id`, `function`, `cron` (may be `None`), `args`, `description`. Flag any task with a missing required field.
 
-Additionally, every `queue` value must match one of the channels defined in `apps/settings/dispatcherd.yaml` under `brokers.pg_notify.channels`. Flag any task with a missing required field or an unknown queue value.
+### 8. Every TASK_METADATA entry must have required fields and a valid queue
+
+Every entry in `TASK_METADATA` must contain these required fields: `queue`, `category`, `description`, `parameters`, `examples`.
+
+Additionally, every `queue` value must match one of the channels defined in `apps/settings/dispatcherd.yaml` under `brokers.pg_notify.channels`. Flag any entry with a missing required field or an unknown queue value.
 
 ## Output format
 

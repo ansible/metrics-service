@@ -135,7 +135,7 @@ class TestUnifiedTaskScheduler:
 
     def test_get_queue_for_function_known_functions(self):
         """Test queue mapping for known functions."""
-        from apps.tasks.task_groups import get_queue_for_function
+        from apps.tasks.tasks import get_queue_for_function
 
         # Test specific queue mappings
         assert get_queue_for_function("cleanup_old_tasks") == "maintenance"
@@ -143,7 +143,7 @@ class TestUnifiedTaskScheduler:
 
     def test_get_queue_for_function_unknown_function(self):
         """Test queue mapping for unknown function."""
-        from apps.tasks.task_groups import get_queue_for_function
+        from apps.tasks.tasks import get_queue_for_function
 
         assert get_queue_for_function("unknown_function") == "maintenance"
 
@@ -427,12 +427,14 @@ class TestGlobalSchedulerFunctions:
         # Maintenance tasks
         ("hello_world", "maintenance"),
         ("cleanup_old_tasks", "maintenance"),
+        ("cleanup_activitystream", "maintenance"),
         # Metrics tasks
         ("collect_hourly_metrics", "metrics"),
         ("collect_snapshot_metrics", "metrics"),
         ("collect_daily_metrics", "metrics"),
         ("daily_metrics_rollup", "metrics"),
         ("daily_anonymize_and_prepare", "metrics"),
+        ("send_anonymized_to_segment", "metrics"),
         ("cleanup_metrics_data", "metrics"),
         # Dashboard tasks
         ("collect_dashboard_reports_initial_data", "dashboard"),
@@ -444,6 +446,6 @@ class TestGlobalSchedulerFunctions:
 )
 def test_queue_mapping_parametrized(function_name, expected_queue):
     """Test queue mapping for all known functions."""
-    from apps.tasks.task_groups import get_queue_for_function
+    from apps.tasks.tasks import get_queue_for_function
 
     assert get_queue_for_function(function_name) == expected_queue

@@ -12,6 +12,7 @@ Organized into clear test classes:
 - TestEdgeCasesAndErrorHandling: Edge cases, error conditions, and resilience
 """
 
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -267,6 +268,23 @@ class TestTaskRegistry(TestCase):
             has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
             assert has_var_keyword, f"{func_name} does not accept **kwargs"
 
+    def test_every_task_function_has_metadata_with_queue(self):
+        """Every TASK_FUNCTIONS entry must have a TASK_METADATA entry with a valid queue."""
+        import yaml
+
+        from apps.tasks.tasks import TASK_METADATA
+
+        # Load valid queues from dispatcherd config
+        config_path = Path(__file__).resolve().parents[3] / "apps" / "settings" / "dispatcherd.yaml"
+        with open(config_path) as f:
+            valid_queues = set(yaml.safe_load(f)["brokers"]["pg_notify"]["channels"])
+
+        for func_name in TASK_FUNCTIONS:
+            assert func_name in TASK_METADATA, f"{func_name} missing from TASK_METADATA"
+            queue = TASK_METADATA[func_name].get("queue")
+            assert queue, f"{func_name} has no queue in TASK_METADATA"
+            assert queue in valid_queues, f"{func_name} has unknown queue {queue!r} (valid: {valid_queues})"
+
 
 # =============================================================================
 # System Task Creation Tests
@@ -342,7 +360,7 @@ class TestTaskDispatcher(TestCase):
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    @patch("apps.tasks.task_groups.get_queue_for_function")
+    @patch("apps.tasks.tasks.get_queue_for_function")
     def test_submit_skips_when_active_execution_exists(self, mock_get_queue, mock_ensure_config, mock_submit):
         """Test that submit_task_to_dispatcher is a no-op when a pending/running execution exists."""
         # Create an existing pending execution
@@ -773,7 +791,7 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    @patch("apps.tasks.task_groups.get_queue_for_function")
+    @patch("apps.tasks.tasks.get_queue_for_function")
     def test_submit_task_success_path(self, mock_get_queue, mock_ensure_config, mock_submit):
         """Test successful task submission to dispatcher."""
         # Arrange
@@ -811,7 +829,7 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    @patch("apps.tasks.task_groups.get_queue_for_function")
+    @patch("apps.tasks.tasks.get_queue_for_function")
     def test_submit_task_handles_submission_error(self, mock_get_queue, mock_ensure_config, mock_submit):
         """Test submit_task_to_dispatcher handles submission errors."""
         # Arrange

@@ -197,7 +197,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         from dispatcherd.publish import submit_task
 
         # Determine the appropriate queue based on task type
-        from .task_groups import get_queue_for_function
+        from .tasks import get_queue_for_function
 
         queue = get_queue_for_function(task.function_name)
 

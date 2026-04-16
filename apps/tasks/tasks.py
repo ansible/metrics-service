@@ -2,11 +2,13 @@
 Background tasks for metrics_service using dispatcherd.
 
 This module serves as an aggregator, importing and re-exporting tasks from
-individual task modules organized by queue:
-- simple/: Simple system tasks (metrics_tasks queue)
-- cleanup/: Cleanup and maintenance tasks (metrics_cleanup queue)
-- collectors/: Metrics collection and anonymization tasks (metrics_collectors queue)
+individual task modules:
+- simple/: Simple system tasks
+- cleanup/: Cleanup and maintenance tasks
+- collectors/: Metrics collection and anonymization tasks
 - tasks_system: Core task execution infrastructure and utilities
+
+Queue routing is defined per-function in TASK_METADATA ("queue" field).
 """
 
 import logging
@@ -76,10 +78,18 @@ TASK_LOCKS = {
     "cleanup_dashboard_reports_old_data",
 }
 
+
+def get_queue_for_function(function_name: str) -> str:
+    """Get the appropriate queue name for a task function; or 'maintenance'"""
+    metadata = TASK_METADATA.get(function_name)
+    return (metadata and metadata.get("queue", None)) or "maintenance"
+
+
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
     # Testing
     "hello_world": {
+        "queue": "maintenance",
         "category": "Testing",
         "description": "Simple hello world task for testing the dispatcherd integration",
         "parameters": {},
@@ -87,6 +97,7 @@ TASK_METADATA = {
     },
     # Maintenance
     "cleanup_old_tasks": {
+        "queue": "maintenance",
         "category": "Maintenance",  # task system records
         "description": "Clean up old completed and failed tasks (preserves recurring tasks by default)",
         "parameters": {
@@ -121,6 +132,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_activitystream": {
+        "queue": "maintenance",
         "category": "Maintenance",  # DAB activity stream audit log
         "description": "Clean up old ActivityStream (django-ansible-base) audit log entries",
         "parameters": {
@@ -144,6 +156,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_metrics_data": {
+        "queue": "metrics",
         "category": "Maintenance",  # metrics collection data
         "description": "Clean up old metrics data based on retention policies",
         "parameters": {
@@ -185,6 +198,7 @@ TASK_METADATA = {
     },
     # Metrics Collection (Hourly and Snapshot)
     "collect_hourly_metrics": {
+        "queue": "metrics",
         "category": "Metrics Collection",
         "description": "Collect hourly time-series metrics for a specific collector type",
         "parameters": {
@@ -210,6 +224,7 @@ TASK_METADATA = {
         ],
     },
     "collect_daily_metrics": {
+        "queue": "metrics",
         "category": "Metrics Collection",
         "description": "Collect daily time-range metrics (previous full day) for a specific collector type",
         "parameters": {
@@ -240,6 +255,7 @@ TASK_METADATA = {
         ],
     },
     "collect_snapshot_metrics": {
+        "queue": "metrics",
         "category": "Metrics Collection",
         "description": "Collect daily snapshot metrics for a specific collector type",
         "parameters": {
@@ -259,6 +275,7 @@ TASK_METADATA = {
     },
     # Daily Rollup and Anonymization
     "daily_metrics_rollup": {
+        "queue": "metrics",
         "category": "Metrics Rollup",
         "description": "Merge hourly collections and create daily rollup summary",
         "parameters": {
@@ -273,6 +290,7 @@ TASK_METADATA = {
         ],
     },
     "daily_anonymize_and_prepare": {
+        "queue": "metrics",
         "category": "Metrics Anonymization",
         "description": "Anonymize daily rollup and prepare payload for transmission",
         "parameters": {
@@ -292,6 +310,7 @@ TASK_METADATA = {
         ],
     },
     "send_anonymized_to_segment": {
+        "queue": "metrics",
         "category": "Metrics Transmission",
         "description": "Send anonymized metrics payloads to Segment.com",
         "parameters": {
@@ -322,6 +341,7 @@ TASK_METADATA = {
         ],
     },
     "collect_dashboard_reports_data": {
+        "queue": "dashboard",
         "category": "Dashboard Reports",
         "description": "Collect data for automation-reports dashboard (job templates, top projects/users) with configurable date range",
         "parameters": {
@@ -346,6 +366,7 @@ TASK_METADATA = {
         ],
     },
     "collect_dashboard_reports_initial_data": {
+        "queue": "dashboard",
         "category": "Dashboard Reports",
         "description": "Collect up to 90 days of historical AWX job data and schedule the recurring incremental task",
         "parameters": {
@@ -369,6 +390,7 @@ TASK_METADATA = {
         ],
     },
     "cleanup_dashboard_reports_old_data": {
+        "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
         "description": "Delete dashboard report JobData records older than the retention period",
         "parameters": {
@@ -408,6 +430,7 @@ __all__ = [
     "TASK_FUNCTIONS",
     "TASK_LOCKS",
     "TASK_METADATA",
+    "get_queue_for_function",
     # Dashboard reports
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
