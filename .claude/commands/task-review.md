@@ -4,11 +4,12 @@ Read these files and cross-reference them to find problems:
 
 1. `apps/tasks/tasks.py` — `TASK_FUNCTIONS` registry and `TASK_METADATA` dict (contains `category`, `parameters`, `examples` per function)
 2. `apps/tasks/task_groups.py` — the `TASK_GROUPS` list of `TaskGroup` instances, each containing task dicts with `function`, `cron`, `args`, etc.
-3. The collector registries (the `_get_*_collectors()` functions that return dicts keyed by collector_type):
+3. `apps/settings/dispatcherd.yaml` — the `channels` list under `brokers.pg_notify` (these are the valid queue names)
+4. The collector registries (the `_get_*_collectors()` functions that return dicts keyed by collector_type):
    - `apps/tasks/collectors/collect_hourly_metrics.py` — `_get_hourly_collectors()`
    - `apps/tasks/collectors/collect_snapshot_metrics.py` — `_get_snapshot_collectors()`
    - `apps/tasks/collectors/collect_daily_metrics.py` — `_get_daily_collectors()`
-4. The function signatures of all task functions referenced by `TASK_FUNCTIONS` — check what `**kwargs` keys each function actually reads (via `kwargs.get()`, `kwargs.pop()`, etc.)
+5. The function signatures of all task functions referenced by `TASK_FUNCTIONS` — check what `**kwargs` keys each function actually reads (via `kwargs.get()`, `kwargs.pop()`, etc.)
 
 ## Checks to perform
 
@@ -46,6 +47,12 @@ The daily rollup (`apps/tasks/collectors/daily_metrics_rollup.py`, function `_me
 - Every collector_type in `_get_snapshot_collectors()` (except `config`, which is special-cased) must appear in `daily_rollup_processors`.
 - Every collector_type in `_get_daily_collectors()` must appear in `daily_rollup_processors`.
 - Conversely, every type in the rollup processor dicts must exist in the corresponding collector registry. Flag any orphaned processors.
+
+### 7. Task group entries must have required fields and valid queue values
+
+Every task dict in `TASK_GROUPS` must contain these required fields: `task_id`, `function`, `queue`, `cron` (may be `None`), `args`, `description`.
+
+Additionally, every `queue` value must match one of the channels defined in `apps/settings/dispatcherd.yaml` under `brokers.pg_notify.channels`. Flag any task with a missing required field or an unknown queue value.
 
 ## Output format
 
