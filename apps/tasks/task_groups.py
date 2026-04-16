@@ -135,6 +135,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
         {
             "task_id": "daily_task_cleanup",
             "function": "cleanup_old_tasks",
+            "queue": "maintenance",
             "cron": "0 5 * * *",  # Daily at 5 AM
             "args": {
                 "days_old": 5,
@@ -148,6 +149,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
         {
             "task_id": "hourly_health_check",
             "function": "hello_world",
+            "queue": "maintenance",
             "cron": "0 * * * *",  # Every hour
             "args": {},
             "enabled": True,
@@ -168,6 +170,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "hourly_job_host_summary",
             "function": "collect_hourly_metrics",
+            "queue": "metrics",
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {"collector_type": "job_host_summary_service"},
             "enabled": True,
@@ -176,6 +179,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "hourly_unified_jobs",
             "function": "collect_hourly_metrics",
+            "queue": "metrics",
             "cron": "10 * * * *",  # Every hour at XX:10
             "args": {"collector_type": "unified_jobs"},
             "enabled": True,
@@ -184,6 +188,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "hourly_credentials",
             "function": "collect_hourly_metrics",
+            "queue": "metrics",
             "cron": "15 * * * *",  # Every hour at XX:15
             "args": {"collector_type": "credentials_service"},
             "enabled": True,
@@ -192,6 +197,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "hourly_job_events",
             "function": "collect_hourly_metrics",
+            "queue": "metrics",
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {"collector_type": "main_jobevent_service"},
             "enabled": False,  # NOT enabled by default, for performance
@@ -201,6 +207,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_execution_environments",
             "function": "collect_snapshot_metrics",
+            "queue": "metrics",
             "cron": "0 1 * * *",  # Daily at 1:00 AM
             "args": {"collector_type": "execution_environments"},
             "enabled": True,
@@ -209,6 +216,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_config",
             "function": "collect_snapshot_metrics",
+            "queue": "metrics",
             "cron": "30 1 * * *",  # Daily at 1:30 AM
             "args": {"collector_type": "config"},
             "enabled": True,
@@ -217,6 +225,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_controller_version",
             "function": "collect_snapshot_metrics",
+            "queue": "metrics",
             "cron": "35 1 * * *",  # Daily at 1:35 AM
             "args": {"collector_type": "controller_version_service"},
             "enabled": True,
@@ -225,6 +234,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_table_metadata",
             "function": "collect_snapshot_metrics",
+            "queue": "metrics",
             "cron": "40 1 * * *",  # Daily at 1:40 AM
             "args": {"collector_type": "table_metadata"},
             "enabled": True,
@@ -233,6 +243,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_feature_flags",
             "function": "collect_snapshot_metrics",
+            "queue": "metrics",
             "cron": "45 1 * * *",  # Daily at 1:45 AM
             "args": {"collector_type": "feature_flags_service"},
             "enabled": True,
@@ -241,6 +252,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_task_executions",
             "function": "collect_daily_metrics",
+            "queue": "metrics",
             "cron": "50 1 * * *",  # Daily at 1:50 AM — after snapshots (1:45 AM), before rollup (2:00 AM)
             "args": {"collector_type": "task_executions_service"},
             "enabled": True,
@@ -250,6 +262,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "daily_metrics_rollup",
             "function": "daily_metrics_rollup",
+            "queue": "metrics",
             "cron": "0 2 * * *",  # Daily at 2:00 AM
             "args": {},
             "enabled": True,
@@ -259,6 +272,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "cleanup_metrics_data",
             "function": "cleanup_metrics_data",
+            "queue": "metrics",
             "cron": "0 4 * * *",  # Daily at 4:00 AM
             "args": {
                 "hourly_retention_days": 7,
@@ -282,6 +296,7 @@ ANONYMIZATION_GROUP = TaskGroup(
         {
             "task_id": "daily_anonymize",
             "function": "daily_anonymize_and_prepare",
+            "queue": "metrics",
             "cron": "0 3 * * *",  # Daily at 3:00 AM
             "args": {},
             "enabled": True,
@@ -302,14 +317,17 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "initial_dashboard_collection",
             "function": "collect_dashboard_reports_initial_data",
+            "queue": "dashboard",
             "cron": None,  # No schedule, run once on enable
-            "args": {},  # Uses incremental collection by default to minimize load
+            "args": {},
             "enabled": True,
             "description": "Initial dashboard report collection",
         },
         {
             "task_id": "daily_dashboard_collection",
             "function": "collect_dashboard_reports_data",
+            "queue": "dashboard",
+            # FIXME: this is broken, the setting will only be read on initial task setup
             "cron": (getattr(settings, "DASHBOARD_COLLECTION", {}) or {}).get(
                 "COLLECTION_SCHEDULE_CRON", "0 */6 * * *"
             ),
@@ -320,6 +338,7 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "cleanup_dashboard_reports_old_data",
             "function": "cleanup_dashboard_reports_old_data",
+            "queue": "dashboard",
             "cron": "30 5 * * *",  # Daily at 5:30 AM
             "args": {
                 "retention_period_days": 90,
@@ -337,6 +356,29 @@ TASK_GROUPS = [
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
 ]
+
+
+DEFAULT_QUEUE = "maintenance"
+
+
+def get_queue_for_function(function_name: str) -> str:
+    """
+    Get the appropriate queue name for a task function.
+
+    Looks up the queue from TASK_GROUPS definitions; falls back to DEFAULT_QUEUE
+    for functions not listed in any group.
+
+    Args:
+        function_name: Name of the task function
+
+    Returns:
+        Queue name to submit the task to
+    """
+    for group in TASK_GROUPS:
+        for task in group.tasks:
+            if task["function"] == function_name:
+                return task.get("queue", DEFAULT_QUEUE)
+    return DEFAULT_QUEUE
 
 
 def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
