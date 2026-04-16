@@ -228,9 +228,15 @@ class Command(BaseCommand):
         """Handle the init-default-settings command."""
         try:
             from apps.dynamic_settings.utils import initialize_default_settings
+            from apps.tasks.apps import load_task_feature_flags
 
             overwrite = options.get("overwrite", False) if options else False
             initialize_default_settings(overwrite=overwrite)
+            # Seed metrics-specific AAPFlags from feature_flags.yaml. This
+            # mirrors what the post_migrate signal does during `migrate`, but
+            # must also run here because init-default-settings is called in
+            # production without a preceding migrate (DB is pre-migrated).
+            load_task_feature_flags()
             self.output.success("Initialized default settings")
         except Exception as e:
             raise CommandError(f"Failed to initialize default settings: {e}") from e

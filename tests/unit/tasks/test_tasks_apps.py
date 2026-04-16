@@ -227,14 +227,23 @@ class TestLoadTaskFeatureFlags(TestCase):
     # ------------------------------------------------------------------
 
     def test_ready_connects_signal_to_feature_flags_app(self):
-        """TasksConfig.ready() connects load_task_feature_flags to FeatureFlagsConfig post_migrate."""
-        from ansible_base.feature_flags.apps import FeatureFlagsConfig
+        """TasksConfig.ready() connects load_task_feature_flags to the dab_feature_flags
+        AppConfig *instance*, not the class.
+
+        post_migrate dispatches with sender=<AppConfig instance>. Django's signal
+        dispatch matches by id(), so id(class) != id(instance) — connecting with the
+        class means the handler is never called. We must pass the live instance from
+        django.apps.apps.get_app_config("dab_feature_flags").
+        """
+        from django.apps import apps as django_apps
         from django.db.models.signals import post_migrate
 
         from apps.tasks.apps import TasksConfig, load_task_feature_flags
+
+        dab_ff_instance = django_apps.get_app_config("dab_feature_flags")
 
         config = TasksConfig("apps.tasks", __import__("apps.tasks"))
         with patch.object(post_migrate, "connect") as mock_connect:
             config.ready()
 
-        mock_connect.assert_called_once_with(load_task_feature_flags, sender=FeatureFlagsConfig)
+        mock_connect.assert_called_once_with(load_task_feature_flags, sender=dab_ff_instance)

@@ -68,6 +68,14 @@ class TasksConfig(AppConfig):
         # are (re)loaded after every DAB purge_feature_flags() + load_feature_flags()
         # cycle. INSTALLED_APPS order ensures ansible_base.feature_flags connects its
         # handler first, so DAB's purge runs before ours adds the flags back.
-        from ansible_base.feature_flags.apps import FeatureFlagsConfig
+        #
+        # post_migrate dispatches with sender=<AppConfig instance>, not the class,
+        # so we must pass the live instance here — id(class) != id(instance) and
+        # Django's signal dispatch matches by id(), so using the class would mean
+        # load_task_feature_flags is never called.
+        from django.apps import apps as django_apps
 
-        post_migrate.connect(load_task_feature_flags, sender=FeatureFlagsConfig)
+        post_migrate.connect(
+            load_task_feature_flags,
+            sender=django_apps.get_app_config("dab_feature_flags"),
+        )
