@@ -74,9 +74,7 @@ class TestFeatureFlagRuntimeCheck:
     @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
     @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
     @patch("apps.tasks.models.Task")
-    def test_recurring_task_skips_when_metrics_collection_disabled(
-        self, mock_task_cls, mock_get_feature, mock_submit
-    ):
+    def test_recurring_task_skips_when_metrics_collection_disabled(self, mock_task_cls, mock_get_feature, mock_submit):
         """Recurring metrics template is not dispatched when METRICS_COLLECTION is false."""
         mock_get_feature.return_value = False
         mock_task = _make_mock_task(
@@ -107,9 +105,7 @@ class TestFeatureFlagRuntimeCheck:
         mock_submit.assert_called_once()
 
     @pytest.mark.django_db
-    @override_settings(
-        FEATURE_ENABLED={"METRICS_COLLECTION": True, "ANONYMIZED_DATA_COLLECTION": True}
-    )
+    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION": True, "ANONYMIZED_DATA_COLLECTION": True})
     def test_get_all_enabled_tasks_includes_feature_flag(self):
         """get_all_enabled_tasks propagates each group's feature_flag into task configs."""
         from apps.tasks.task_groups import ANONYMIZATION_GROUP, METRICS_COLLECTION_GROUP, get_all_enabled_tasks
