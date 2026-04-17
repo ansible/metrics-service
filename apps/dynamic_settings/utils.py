@@ -151,9 +151,13 @@ def rollback_configuration_change(change_id, user):
 # Define default feature flags - same as in initialize_default_settings
 # default_value is the fallback, set the actual default in apps/settings/defaults.py
 DEFAULT_SETTINGS = {
+    "METRICS_COLLECTION": {
+        "default_value": True,
+        "description": "Enable local metrics collection (hourly/daily collectors), daily rollup, and metrics data cleanup",
+    },
     "ANONYMIZED_DATA_COLLECTION": {
         "default_value": True,
-        "description": "Enable anonymized data collection and transmission to Red Hat (includes metrics collection, rollup, anonymization, and sending)",
+        "description": "Enable anonymization of daily rollup and transmission to Red Hat (Segment); does not gate local metrics collection",
     },
 }
 

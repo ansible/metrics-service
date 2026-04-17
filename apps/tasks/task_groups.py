@@ -154,13 +154,14 @@ SYSTEM_TASKS_GROUP = TaskGroup(
     ],
 )
 
-# Metrics Collection Group - Always enabled, no feature flag.
-# Raw collection, rollup, and cleanup run regardless of the ANONYMIZED_DATA_COLLECTION flag.
-# Operators who opt out of sending data to Red Hat will still collect local metrics
-# to prevent a data gap if sending is enabled later.
+# Metrics Collection Group - Feature flag: METRICS_COLLECTION (default: True).
+# Hourly/daily collectors, rollup, and metrics DB cleanup are gated independently of
+# ANONYMIZED_DATA_COLLECTION (upstream anonymization/Segment). Disabling this stops
+# local scheduled collection; re-enable and run collectors to backfill if needed.
 METRICS_COLLECTION_GROUP = TaskGroup(
     name="metrics_collection",
-    description="Metrics collection, rollup, and cleanup (always enabled)",
+    description="Metrics collection, rollup, and cleanup (METRICS_COLLECTION feature flag)",
+    feature_flag="METRICS_COLLECTION",
     tasks=[
         # Hourly Collection Tasks
         {
@@ -270,8 +271,8 @@ METRICS_COLLECTION_GROUP = TaskGroup(
 )
 
 # Anonymization Group - Controlled by ANONYMIZED_DATA_COLLECTION.
-# Only these two tasks are gated by the flag, disabling it stops data being sent to Red Hat
-# while leaving local collection intact so there is no data gap after enabling again.
+# Disabling the flag stops anonymization / upstream transmission while METRICS_COLLECTION
+# can remain on for local collectors (no data gap when re-enabling anonymization).
 ANONYMIZATION_GROUP = TaskGroup(
     name="anonymization",
     description="Anonymization and transmission of metrics to Red Hat (opt-out via ANONYMIZED_DATA_COLLECTION)",

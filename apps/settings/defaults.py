@@ -123,7 +123,10 @@ DATABASES = {
 # and only used when not already changed in the settings DB table
 # also used by tasks - unless set in the db.
 FEATURE_ENABLED = {
-    "ANONYMIZED_DATA_COLLECTION": True,  # Controls all metrics collection, rollup, anonymization, and sending
+    # Local hourly/daily collectors, rollup, cleanup_metrics_data — see METRICS_COLLECTION_GROUP.
+    "METRICS_COLLECTION": True,
+    # Anonymization and Segment transmission only — does not gate METRICS_COLLECTION_GROUP.
+    "ANONYMIZED_DATA_COLLECTION": True,
     # DASHBOARD_COLLECTION is intentionally omitted: set via METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION,
     # DAB AAPFlag FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
 }
