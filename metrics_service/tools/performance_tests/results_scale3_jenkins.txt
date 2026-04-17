@@ -1,0 +1,172 @@
+34 objects imported automatically (use -v 2 for details).
+
+======================================================================
+Metrics Service Pipeline Benchmark (manage.py)
+======================================================================
+  Test date       : 2024-01-25
+  Baseline memory : 129.4 MB
+
+======================================================================
+Phase 1: Snapshot collectors (run once each)
+======================================================================
+  Collector                             Duration    Peak MB
+  ---------                             --------    -------
+  execution_environments                  0.10s     135.4M
+  config                                  0.05s     135.4M
+  controller_version_service              0.05s     135.4M
+  table_metadata                          0.30s     135.4M
+
+  Total: 0.5s
+
+======================================================================
+Phase 2: Hourly collectors (24 hours x 3 collectors)
+======================================================================
+  Hour   Collector                             Duration    Peak MB
+  ----   ---------                             --------    -------
+  0      job_host_summary_service                0.80s     157.7M
+  0      unified_jobs                            0.88s     172.7M
+  0      credentials_service                     0.05s     169.6M
+  1      job_host_summary_service                3.65s     250.3M
+  1      unified_jobs                            2.34s     217.2M
+  1      credentials_service                     0.05s     215.3M
+  2      job_host_summary_service                4.28s     278.3M
+  2      unified_jobs                            2.49s     237.8M
+  2      credentials_service                     0.05s     236.9M
+  3      job_host_summary_service                4.34s     281.0M
+  3      unified_jobs                            2.50s     230.3M
+  3      credentials_service                     0.05s     229.3M
+  4      job_host_summary_service                4.27s     279.1M
+  4      unified_jobs                            2.51s     251.2M
+  4      credentials_service                     0.05s     251.2M
+  5      job_host_summary_service                4.23s     278.6M
+  5      unified_jobs                            2.46s     252.3M
+  5      credentials_service                     0.05s     252.3M
+  6      job_host_summary_service                4.28s     279.0M
+  6      unified_jobs                            2.47s     254.2M
+  6      credentials_service                     0.05s     253.2M
+  7      job_host_summary_service                4.24s     279.2M
+  7      unified_jobs                            2.50s     254.1M
+  7      credentials_service                     0.05s     254.1M
+  8      job_host_summary_service                4.29s     279.4M
+  8      unified_jobs                            2.48s     254.3M
+  8      credentials_service                     0.05s     253.3M
+  9      job_host_summary_service                4.23s     279.3M
+  9      unified_jobs                            2.47s     254.3M
+  9      credentials_service                     0.05s     254.3M
+  10     job_host_summary_service                4.38s     281.7M
+  10     unified_jobs                            2.54s     235.5M
+  10     credentials_service                     0.05s     234.6M
+  11     job_host_summary_service                4.31s     280.1M
+  11     unified_jobs                            2.48s     256.4M
+  11     credentials_service                     0.05s     256.4M
+  12     job_host_summary_service                4.28s     280.2M
+  12     unified_jobs                            2.50s     256.4M
+  12     credentials_service                     0.05s     256.4M
+  13     job_host_summary_service                4.22s     279.8M
+  13     unified_jobs                            2.51s     257.2M
+  13     credentials_service                     0.05s     256.2M
+  14     job_host_summary_service                4.27s     279.8M
+  14     unified_jobs                            2.48s     257.3M
+  14     credentials_service                     0.05s     256.4M
+  15     job_host_summary_service                4.33s     281.1M
+  15     unified_jobs                            2.48s     257.4M
+  15     credentials_service                     0.05s     257.4M
+  16     job_host_summary_service                4.20s     279.4M
+  16     unified_jobs                            2.46s     257.8M
+  16     credentials_service                     0.05s     257.8M
+  17     job_host_summary_service                4.25s     280.4M
+  17     unified_jobs                            2.50s     257.8M
+  17     credentials_service                     0.05s     257.6M
+  18     job_host_summary_service                4.30s     282.1M
+  18     unified_jobs                            2.55s     237.4M
+  18     credentials_service                     0.05s     237.2M
+  19     job_host_summary_service                4.38s     281.7M
+  19     unified_jobs                            2.51s     238.0M
+  19     credentials_service                     0.05s     236.1M
+  20     job_host_summary_service                4.27s     279.2M
+  20     unified_jobs                            2.51s     257.6M
+  20     credentials_service                     0.05s     257.6M
+  21     job_host_summary_service                4.24s     279.7M
+  21     unified_jobs                            2.51s     258.1M
+  21     credentials_service                     0.05s     258.1M
+  22     job_host_summary_service                3.60s     270.8M
+  22     unified_jobs                            2.33s     258.1M
+  22     credentials_service                     0.05s     257.8M
+  23     job_host_summary_service                0.86s     257.8M
+  23     unified_jobs                            0.91s     257.8M
+  23     credentials_service                     0.05s     257.8M
+
+  Total: 152.1s (2.5 min)
+
+======================================================================
+Phase 3: Daily rollup
+======================================================================
+  Duration: 3.78s
+  Peak memory: 501.0 MB
+
+======================================================================
+Summary
+======================================================================
+  Snapshot collectors:     0.50s
+  Hourly collection  :    152.1s (2.5 min)
+  Daily rollup       :     3.78s
+  Total              :    156.4s (2.6 min)
+
+  Baseline memory: 129.4 MB
+  Peak memory:     501.0 MB (RSS, sampled every 50ms during execution)
+  Delta:           371.5 MB
+
+  Output Table Sizes:
+    HourlyMetricsCollection: 72 rows, 76.34 MB
+    DailyMetricsSummary:     1 rows, 3.43 MB
+
+  Source Table Counts (AWX DB):
+    Table                            Total (all time)  Test date total
+    -------------------------------- ----------------  ---------------
+    main_unifiedjob                           848,034          253,311
+    main_jobhostsummary                     4,240,160        1,266,555 (5 per job)
+    main_unifiedjob_credentials             3,392,128        1,013,244 (4 per job)
+    main_host                                      21
+    main_job                                  848,032
+    main_unifiedjobtemplate                        49
+    main_inventory                                  5
+    main_organization                               5
+    main_credential                                18
+    main_credentialtype                            32
+    main_executionenvironment                     405
+
+  Jobs finished per hour on test date (main_unifiedjob.finished):
+      Hour      Jobs
+      ----      ----
+         0     1,975
+         1     9,596
+         2    11,513
+         3    11,678
+         4    11,510
+         5    11,377
+         6    11,433
+         7    11,477
+         8    11,471
+         9    11,432
+        10    11,711
+        11    11,526
+        12    11,520
+        13    11,394
+        14    11,429
+        15    11,560
+        16    11,259
+        17    11,471
+        18    11,684
+        19    11,656
+        20    11,400
+        21    11,499
+        22     9,640
+        23     2,100
+
+  Per-Collector Summary (24 hours total):
+    Collector                            Total duration        Rows processed
+    ---------                            --------------   -------------------
+    job_host_summary_service                    94.52s        1,266,555 (main_jobhostsummary rows)
+    unified_jobs                                56.37s          253,311 (main_unifiedjob rows)
+    credentials_service                          1.22s        1,013,244 (main_unifiedjob_credentials rows)
+
