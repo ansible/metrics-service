@@ -112,7 +112,7 @@ GET /api/v1/tasks/available_functions/
 - `hello_world` - Simple test task for dispatcherd integration
 - `execute_db_task` - Execute database-defined tasks with lifecycle management
 
-**Metrics Collection Tasks** (always enabled - run regardless of opt-out flag):
+**Metrics Collection Tasks** (controlled by `METRICS_COLLECTION`, default: enabled):
 
 - `collect_hourly_metrics` - Collect time-series metrics every hour (collector type via `collector_type` parameter)
 - `collect_snapshot_metrics` - Collect daily snapshot metrics (collector type via `collector_type` parameter)
@@ -159,18 +159,25 @@ We have these feature flags:
 
 |flag|default|
 |-|-|
+|`METRICS_COLLECTION`|true|
 |`ANONYMIZED_DATA_COLLECTION`|true|
+|`DASHBOARD_COLLECTION`|false (customer opt-in)|
 
-You can change the default value using the `METRICS_SERVICE_FEATURE_ENABLED__` prefixed-environment variables.
+You can change defaults using `METRICS_SERVICE_FEATURE_ENABLED__` prefixed environment variables.
 
 ```sh
-# Enable/disable anonymized data collection (default: true)
+# Pause local collectors, rollup, and metrics cleanup (default: true)
+METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION=false
+
+# Disable anonymization and Segment transmission (default: true)
 METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
 ```
 
-These environment variables (or their default values) are used to populate the feature flags database tables during `mangage.py metrics_service init-default-settings`. You can also use `python manage.py metrics_service remove-default-settings` to remove these settings from the database.
+These environment variables (or their default values) are used to populate the feature flags database tables during `manage.py metrics_service init-default-settings`. You can also use `python manage.py metrics_service remove-default-settings` to remove these settings from the database.
 
-The feature flag value in the database determines whether the anonymization and transmission tasks run. Collection, rollup, and cleanup tasks always run regardless of this flag. If the value is missing from the database, the environment variable is used as the fallback.
+The feature flag values in the database determine which scheduled tasks run (checked at execution time). If a value is missing from the database, the environment variable or static default is used as the fallback.
+
+After upgrading to a version that adds `METRICS_COLLECTION`, run `python manage.py metrics_service init-system-tasks` once so system tasks include `_feature_flag` for metrics collection templates.
 
 
 ## Development

@@ -9,6 +9,7 @@ do not require @pytest.mark.django_db.
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.test import override_settings
 
 from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 
@@ -71,6 +72,26 @@ class TestFeatureFlagRuntimeCheck:
         mock_submit.assert_not_called()
 
     @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
+    @patch("apps.tasks.models.Task")
+    def test_recurring_task_skips_when_metrics_collection_disabled(self, mock_task_cls, mock_get_feature, mock_submit):
+        """Recurring metrics template is not dispatched when METRICS_COLLECTION is false."""
+        mock_get_feature.return_value = False
+        mock_task = _make_mock_task(
+            task_id=7,
+            task_data={"_feature_flag": "METRICS_COLLECTION"},
+            cron_expression="5 * * * *",
+        )
+        mock_task_cls.objects.get.return_value = mock_task
+
+        scheduler = UnifiedTaskScheduler()
+        scheduler._execute_database_task(7)
+
+        mock_get_feature.assert_called_once_with("METRICS_COLLECTION")
+        mock_submit.assert_not_called()
+        mock_task_cls.objects.create.assert_not_called()
+
+    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
     @patch("apps.tasks.models.Task")
     def test_task_executes_when_no_feature_flag(self, mock_task_cls, mock_submit):
         """Task executes without a feature flag check when task_data has no _feature_flag."""
@@ -83,9 +104,11 @@ class TestFeatureFlagRuntimeCheck:
 
         mock_submit.assert_called_once()
 
+    @pytest.mark.django_db
+    @override_settings(FEATURE_ENABLED={"METRICS_COLLECTION": True, "ANONYMIZED_DATA_COLLECTION": True})
     def test_get_all_enabled_tasks_includes_feature_flag(self):
-        """get_all_enabled_tasks propagates the group's feature_flag into each task config."""
-        from apps.tasks.task_groups import METRICS_COLLECTION_GROUP, get_all_enabled_tasks
+        """get_all_enabled_tasks propagates each group's feature_flag into task configs."""
+        from apps.tasks.task_groups import ANONYMIZATION_GROUP, METRICS_COLLECTION_GROUP, get_all_enabled_tasks
 
         all_tasks = get_all_enabled_tasks()
 
@@ -93,6 +116,11 @@ class TestFeatureFlagRuntimeCheck:
             task_id = task["task_id"]
             if task_id in all_tasks:
                 assert "feature_flag" in all_tasks[task_id]
+                assert all_tasks[task_id]["feature_flag"] == "METRICS_COLLECTION"
+
+        for task in ANONYMIZATION_GROUP.tasks:
+            task_id = task["task_id"]
+            if task_id in all_tasks:
                 assert all_tasks[task_id]["feature_flag"] == "ANONYMIZED_DATA_COLLECTION"
 
     @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")

@@ -304,12 +304,13 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         # Verify settings were created
         assert Setting.objects.count() > 0
         assert Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+        assert Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
 
         # Check output
         output = self.out.getvalue()
         assert "Initialized default settings" in output
 
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True, "METRICS_COLLECTION": True})
     def test_handle_init_default_settings_updates_unchanged_defaults(self):
         """Test that init updates unchanged default settings to match current config."""
         from apps.dynamic_settings.models import Setting
@@ -402,7 +403,7 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         assert "Failed to initialize default settings" in str(exc_info.value)
         assert "Database error" in str(exc_info.value)
 
-    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True})
+    @override_settings(FEATURE_ENABLED={"ANONYMIZED_DATA_COLLECTION": True, "METRICS_COLLECTION": True})
     def test_handle_init_default_settings_with_overwrite(self):
         """Test that _handle_init_default_settings_command with --overwrite removes even modified settings."""
         from apps.dynamic_settings.models import Setting

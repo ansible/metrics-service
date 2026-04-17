@@ -247,7 +247,7 @@ def create_system_tasks() -> dict[str, Any]:
         logger.info(f"Removed {removed_count} existing system tasks")
 
     # Get all task group definitions. Use get_all_tasks_for_init() (not get_all_enabled_tasks())
-    # so that feature-flagged tasks such as daily_anonymize and send_to_segment_daily are always
+    # so that feature-flagged tasks (e.g. daily_anonymize, metrics collectors) are always
     # written to the DB with _feature_flag stored in task_data. The runtime check in
     # cron_scheduler._execute_database_task() then gates execution without requiring re-init
     # when the flag is toggled.
