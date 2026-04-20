@@ -102,8 +102,7 @@ validators.append(
         ne="",
         messages={
             "operations": (
-                "ANSIBLE_BASE_JWT_KEY must be set. "
-                "Set METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY environment variable."
+                "ANSIBLE_BASE_JWT_KEY must be set. Set METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY environment variable."
             )
         },
     ),
