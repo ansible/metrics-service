@@ -64,6 +64,28 @@ class TestDynaconfValidators:
     These tests import the production validators directly to verify they are configured.
     """
 
+    def test_production_module_validators_are_defined(self):
+        """Test that production.py module defines validators at module level.
+
+        This test ensures coverage tracking captures the validator definitions
+        by importing the module and verifying the validators list is populated.
+        """
+        import importlib
+        import sys
+
+        # Force reimport of production module to ensure coverage tracking
+        if "apps.settings.production" in sys.modules:
+            importlib.reload(sys.modules["apps.settings.production"])
+        else:
+            import apps.settings.production  # noqa: F401
+
+        # Import after ensuring module is loaded
+        from apps.settings.production import validators
+
+        # Verify validators list is populated with module-level appends
+        assert len(validators) > 0, "Production validators list should not be empty"
+        assert isinstance(validators, list), "Validators should be a list"
+
     def test_validators_are_registered_in_production(self):
         """Test that validators are defined in production settings."""
         from apps.settings.production import validators
