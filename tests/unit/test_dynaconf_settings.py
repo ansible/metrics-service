@@ -123,6 +123,68 @@ class TestDynaconfValidators:
         assert settings.SECRET_KEY is not None
         assert settings.DATABASES is not None
 
+    def test_newly_enabled_validators_have_actionable_messages(self):
+        """Test that newly uncommented validators have clear, actionable error messages.
+
+        This test ensures that the four validators uncommented as part of the
+        startup validation enhancement have helpful error messages that tell
+        operators exactly what to do when validation fails.
+        """
+        from apps.settings.production import validators
+
+        # Map of setting names to what their error message should mention
+        expected_message_content = {
+            "RESOURCE_SERVER__SECRET_KEY": "METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY",
+            "ANSIBLE_BASE_JWT_KEY": "METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY",
+            "SEGMENT_WRITE_KEY": "METRICS_SERVICE_SEGMENT_WRITE_KEY",
+            "ALLOWED_HOSTS": "METRICS_SERVICE_ALLOWED_HOSTS",
+        }
+
+        for v in validators:
+            for name in v.names:
+                if name in expected_message_content:
+                    # Validator should have messages defined
+                    assert hasattr(v, "messages"), f"{name} validator missing messages attribute"
+                    assert v.messages, f"{name} validator has empty messages"
+
+                    # Get all message values
+                    all_messages = " ".join(str(msg) for msg in v.messages.values())
+
+                    # Error message should mention the environment variable name or general guidance
+                    expected_content = expected_message_content[name]
+                    assert expected_content in all_messages or "must be set" in all_messages.lower(), (
+                        f"{name} validator message should mention '{expected_content}' or 'must be set'. "
+                        f"Got: {all_messages}"
+                    )
+
+    def test_allowed_hosts_validator_condition(self):
+        """Test ALLOWED_HOSTS validator enforces non-empty list."""
+        from apps.settings.production import validators
+
+        # Find the ALLOWED_HOSTS validator
+        allowed_hosts_validator = None
+        for v in validators:
+            if "ALLOWED_HOSTS" in v.names:
+                allowed_hosts_validator = v
+                break
+
+        assert allowed_hosts_validator is not None, "ALLOWED_HOSTS validator not found"
+
+        # Validator should have a condition function
+        assert hasattr(allowed_hosts_validator, "condition"), "ALLOWED_HOSTS validator missing condition"
+        assert callable(allowed_hosts_validator.condition), "ALLOWED_HOSTS condition is not callable"
+
+        # Should pass with non-empty list
+        assert allowed_hosts_validator.condition(["example.com"]) is True
+        assert allowed_hosts_validator.condition(["host1", "host2"]) is True
+
+        # Should fail with empty list
+        assert allowed_hosts_validator.condition([]) is False
+
+        # Should fail with non-list values
+        assert allowed_hosts_validator.condition("") is False
+        assert allowed_hosts_validator.condition(None) is False
+
 
 class TestEnvironmentSwitching:
     """Test environment-specific configuration sections."""
