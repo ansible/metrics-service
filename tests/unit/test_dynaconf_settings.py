@@ -91,7 +91,7 @@ class TestDynaconfValidators:
         """Test that required production settings have validators.
 
         RESOURCE_SERVER__SECRET_KEY, ANSIBLE_BASE_JWT_KEY, SEGMENT_WRITE_KEY, and
-        ALLOWED_HOSTS are now required in production to ensure proper AAP gateway
+        ALLOWED_HOSTS are required in production to ensure proper AAP gateway
         integration and prevent misconfigured deployments.
 
         SEGMENT_WRITE_KEY is baked into the container image at build time, so it
@@ -106,14 +106,29 @@ class TestDynaconfValidators:
             "ALLOWED_HOSTS",
         }
 
-        found_validators = set()
+        found_validators = {}
         for v in validators:
             for name in v.names:
                 if name in required_settings:
-                    found_validators.add(name)
+                    found_validators[name] = v
 
         # All required settings should have validators
-        assert found_validators == required_settings, f"Missing validators for: {required_settings - found_validators}"
+        assert set(found_validators.keys()) == required_settings, (
+            f"Missing validators for: {required_settings - set(found_validators.keys())}"
+        )
+
+        # Each validator should be properly configured with error messages
+        for name, validator in found_validators.items():
+            # Should have messages defined
+            assert hasattr(validator, "messages"), f"{name} validator missing messages attribute"
+            assert validator.messages, f"{name} validator has empty messages"
+
+            # Should have must_exist=True or a condition function
+            has_must_exist = hasattr(validator, "must_exist") and validator.must_exist
+            has_condition = hasattr(validator, "condition") and callable(validator.condition)
+            assert has_must_exist or has_condition, (
+                f"{name} validator should have must_exist=True or a condition function"
+            )
 
     def test_settings_pass_validation(self):
         """Test that current settings pass validation (since we're running)."""

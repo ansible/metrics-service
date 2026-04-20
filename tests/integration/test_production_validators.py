@@ -87,5 +87,5 @@ class TestProductionValidatorEnforcement:
         # Error message should clearly identify the missing variable
         output = result.stderr + result.stdout
         assert expected_in_error in output, (
-            f"Error should mention {expected_in_error} when {omitted_var} is missing. " f"Got: {output}"
+            f"Error should mention {expected_in_error} when {omitted_var} is missing. Got: {output}"
         )
