@@ -93,6 +93,9 @@ class TestDynaconfValidators:
         RESOURCE_SERVER__SECRET_KEY, ANSIBLE_BASE_JWT_KEY, SEGMENT_WRITE_KEY, and
         ALLOWED_HOSTS are now required in production to ensure proper AAP gateway
         integration and prevent misconfigured deployments.
+
+        SEGMENT_WRITE_KEY is baked into the container image at build time, so it
+        should always be present even in air-gapped environments.
         """
         from apps.settings.production import validators
 

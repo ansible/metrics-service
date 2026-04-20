@@ -210,6 +210,7 @@ validators.append(
 # Loaded from file at startup via _load_segment_write_key_from_file().
 # Default path: /etc/ansible-automation-platform/metrics/segment-write-key
 # Override path via METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE
+# Key is baked into container image at build time - always present even in air-gapped environments.
 SEGMENT_WRITE_KEY = ""
 validators.append(
     Validator(
