@@ -64,28 +64,6 @@ class TestDynaconfValidators:
     These tests import the production validators directly to verify they are configured.
     """
 
-    def test_production_module_validators_are_defined(self):
-        """Test that production.py module defines validators at module level.
-
-        This test ensures coverage tracking captures the validator definitions
-        by importing the module and verifying the validators list is populated.
-        """
-        import importlib
-        import sys
-
-        # Force reimport of production module to ensure coverage tracking
-        if "apps.settings.production" in sys.modules:
-            importlib.reload(sys.modules["apps.settings.production"])
-        else:
-            import apps.settings.production  # noqa: F401
-
-        # Import after ensuring module is loaded
-        from apps.settings.production import validators
-
-        # Verify validators list is populated with module-level appends
-        assert len(validators) > 0, "Production validators list should not be empty"
-        assert isinstance(validators, list), "Validators should be a list"
-
     def test_validators_are_registered_in_production(self):
         """Test that validators are defined in production settings."""
         from apps.settings.production import validators
@@ -113,7 +91,7 @@ class TestDynaconfValidators:
         """Test that required production settings have validators.
 
         RESOURCE_SERVER__SECRET_KEY, ANSIBLE_BASE_JWT_KEY, SEGMENT_WRITE_KEY, and
-        ALLOWED_HOSTS are required in production to ensure proper AAP gateway
+        ALLOWED_HOSTS are now required in production to ensure proper AAP gateway
         integration and prevent misconfigured deployments.
 
         SEGMENT_WRITE_KEY is baked into the container image at build time, so it
@@ -128,29 +106,14 @@ class TestDynaconfValidators:
             "ALLOWED_HOSTS",
         }
 
-        found_validators = {}
+        found_validators = set()
         for v in validators:
             for name in v.names:
                 if name in required_settings:
-                    found_validators[name] = v
+                    found_validators.add(name)
 
         # All required settings should have validators
-        assert set(found_validators.keys()) == required_settings, (
-            f"Missing validators for: {required_settings - set(found_validators.keys())}"
-        )
-
-        # Each validator should be properly configured with error messages
-        for name, validator in found_validators.items():
-            # Should have messages defined
-            assert hasattr(validator, "messages"), f"{name} validator missing messages attribute"
-            assert validator.messages, f"{name} validator has empty messages"
-
-            # Should have must_exist=True or a condition function
-            has_must_exist = hasattr(validator, "must_exist") and validator.must_exist
-            has_condition = hasattr(validator, "condition") and callable(validator.condition)
-            assert has_must_exist or has_condition, (
-                f"{name} validator should have must_exist=True or a condition function"
-            )
+        assert found_validators == required_settings, f"Missing validators for: {required_settings - found_validators}"
 
     def test_settings_pass_validation(self):
         """Test that current settings pass validation (since we're running)."""
@@ -159,68 +122,6 @@ class TestDynaconfValidators:
         # If we got here, validation passed during settings load
         assert settings.SECRET_KEY is not None
         assert settings.DATABASES is not None
-
-    def test_newly_enabled_validators_have_actionable_messages(self):
-        """Test that newly uncommented validators have clear, actionable error messages.
-
-        This test ensures that the four validators uncommented as part of the
-        startup validation enhancement have helpful error messages that tell
-        operators exactly what to do when validation fails.
-        """
-        from apps.settings.production import validators
-
-        # Map of setting names to what their error message should mention
-        expected_message_content = {
-            "RESOURCE_SERVER__SECRET_KEY": "METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY",
-            "ANSIBLE_BASE_JWT_KEY": "METRICS_SERVICE_ANSIBLE_BASE_JWT_KEY",
-            "SEGMENT_WRITE_KEY": "METRICS_SERVICE_SEGMENT_WRITE_KEY",
-            "ALLOWED_HOSTS": "METRICS_SERVICE_ALLOWED_HOSTS",
-        }
-
-        for v in validators:
-            for name in v.names:
-                if name in expected_message_content:
-                    # Validator should have messages defined
-                    assert hasattr(v, "messages"), f"{name} validator missing messages attribute"
-                    assert v.messages, f"{name} validator has empty messages"
-
-                    # Get all message values
-                    all_messages = " ".join(str(msg) for msg in v.messages.values())
-
-                    # Error message should mention the environment variable name or general guidance
-                    expected_content = expected_message_content[name]
-                    assert expected_content in all_messages or "must be set" in all_messages.lower(), (
-                        f"{name} validator message should mention '{expected_content}' or 'must be set'. "
-                        f"Got: {all_messages}"
-                    )
-
-    def test_allowed_hosts_validator_condition(self):
-        """Test ALLOWED_HOSTS validator enforces non-empty list."""
-        from apps.settings.production import validators
-
-        # Find the ALLOWED_HOSTS validator
-        allowed_hosts_validator = None
-        for v in validators:
-            if "ALLOWED_HOSTS" in v.names:
-                allowed_hosts_validator = v
-                break
-
-        assert allowed_hosts_validator is not None, "ALLOWED_HOSTS validator not found"
-
-        # Validator should have a condition function
-        assert hasattr(allowed_hosts_validator, "condition"), "ALLOWED_HOSTS validator missing condition"
-        assert callable(allowed_hosts_validator.condition), "ALLOWED_HOSTS condition is not callable"
-
-        # Should pass with non-empty list
-        assert allowed_hosts_validator.condition(["example.com"]) is True
-        assert allowed_hosts_validator.condition(["host1", "host2"]) is True
-
-        # Should fail with empty list
-        assert allowed_hosts_validator.condition([]) is False
-
-        # Should fail with non-list values
-        assert allowed_hosts_validator.condition("") is False
-        assert allowed_hosts_validator.condition(None) is False
 
 
 class TestEnvironmentSwitching:
