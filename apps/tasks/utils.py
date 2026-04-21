@@ -300,14 +300,12 @@ def get_db_connection(db_name: str = "awx"):
         DO NOT CLOSE the returned connection. It is a Django-managed singleton
         shared across multiple tasks. Django handles connection lifecycle.
     """
-    from django.db import close_old_connections, connections
-
-    # Close any stale/unusable connections first
-    # This handles CONN_MAX_AGE expiry and connections with errors_occurred flag
-    close_old_connections()
+    from django.db import connections
 
     # Get the raw connection to bypass Django's cursor wrapper
     # This is necessary for PostgreSQL COPY commands used by metrics-utility
+    # NOTE: Do not call close_old_connections() here as it closes ALL connections
+    # including the default connection that may be holding advisory locks in run_with_lock()
     django_connection = connections[db_name]
 
     # Ensure the connection is open
