@@ -263,6 +263,44 @@ class TestGetDbConnection(TestCase):
         mock_connections.__getitem__.assert_called_once_with("custom_db")
         self.assertEqual(result, mock_raw_conn)
 
+    @patch("django.db.close_old_connections")
+    @patch("django.db.connections")
+    def test_get_db_connection_calls_close_old_connections(self, mock_connections, mock_close_old):
+        """Test that get_db_connection calls close_old_connections before getting connection."""
+        mock_raw_conn = MagicMock()
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        result = utils.get_db_connection()
+
+        # Verify close_old_connections was called
+        mock_close_old.assert_called_once()
+        # Verify it was called before ensure_connection
+        self.assertTrue(mock_close_old.called)
+        mock_django_conn.ensure_connection.assert_called_once()
+        self.assertEqual(result, mock_raw_conn)
+
+    @patch("django.db.close_old_connections")
+    @patch("django.db.connections")
+    def test_get_db_connection_call_order(self, mock_connections, mock_close_old):
+        """Test that close_old_connections is called before ensure_connection."""
+        mock_raw_conn = MagicMock()
+        mock_django_conn = MagicMock()
+        mock_django_conn.connection = mock_raw_conn
+        mock_connections.__getitem__.return_value = mock_django_conn
+
+        # Track call order
+        call_order = []
+        mock_close_old.side_effect = lambda: call_order.append("close_old")
+        mock_django_conn.ensure_connection.side_effect = lambda: call_order.append("ensure")
+
+        utils.get_db_connection()
+
+        # Verify close_old_connections was called before ensure_connection
+        self.assertEqual(call_order, ["close_old", "ensure"])
+
+
 
 class TestRunWithLock(TestCase):
     """Test run_with_lock function."""

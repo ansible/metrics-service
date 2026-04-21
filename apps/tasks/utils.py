@@ -287,13 +287,24 @@ def get_db_connection(db_name: str = "awx"):
     to use the raw connection for metrics-utility collectors that use COPY
     for efficient data extraction.
 
+    This function ensures the connection is healthy by calling close_old_connections()
+    which closes stale/unusable connections and respects CONN_MAX_AGE settings.
+
     Args:
         db_name: Database name from Django settings (default: 'awx')
 
     Returns:
         Raw database connection object (psycopg2 connection)
+
+    Note:
+        DO NOT CLOSE the returned connection. It is a Django-managed singleton
+        shared across multiple tasks. Django handles connection lifecycle.
     """
-    from django.db import connections
+    from django.db import close_old_connections, connections
+
+    # Close any stale/unusable connections first
+    # This handles CONN_MAX_AGE expiry and connections with errors_occurred flag
+    close_old_connections()
 
     # Get the raw connection to bypass Django's cursor wrapper
     # This is necessary for PostgreSQL COPY commands used by metrics-utility
