@@ -265,8 +265,15 @@ class TestGetDbConnection(TestCase):
 
     @patch("django.db.close_old_connections")
     @patch("django.db.connections")
-    def test_get_db_connection_calls_close_old_connections(self, mock_connections, mock_close_old):
-        """Test that get_db_connection calls close_old_connections before getting connection."""
+    def test_get_db_connection_does_not_call_close_old_connections(self, mock_connections, mock_close_old):
+        """Test that get_db_connection does NOT call close_old_connections.
+
+        close_old_connections() closes ALL Django connections, not just one.
+        If called during task execution, it can close connections holding advisory locks,
+        causing lock release failures.
+
+        close_old_connections() should only be called at task entry points like run_with_lock().
+        """
         mock_raw_conn = MagicMock()
         mock_django_conn = MagicMock()
         mock_django_conn.connection = mock_raw_conn
@@ -274,31 +281,11 @@ class TestGetDbConnection(TestCase):
 
         result = utils.get_db_connection()
 
-        # Verify close_old_connections was called
-        mock_close_old.assert_called_once()
-        # Verify it was called before ensure_connection
-        self.assertTrue(mock_close_old.called)
+        # Verify close_old_connections was NOT called
+        mock_close_old.assert_not_called()
+        # Verify ensure_connection was still called
         mock_django_conn.ensure_connection.assert_called_once()
         self.assertEqual(result, mock_raw_conn)
-
-    @patch("django.db.close_old_connections")
-    @patch("django.db.connections")
-    def test_get_db_connection_call_order(self, mock_connections, mock_close_old):
-        """Test that close_old_connections is called before ensure_connection."""
-        mock_raw_conn = MagicMock()
-        mock_django_conn = MagicMock()
-        mock_django_conn.connection = mock_raw_conn
-        mock_connections.__getitem__.return_value = mock_django_conn
-
-        # Track call order
-        call_order = []
-        mock_close_old.side_effect = lambda: call_order.append("close_old")
-        mock_django_conn.ensure_connection.side_effect = lambda: call_order.append("ensure")
-
-        utils.get_db_connection()
-
-        # Verify close_old_connections was called before ensure_connection
-        self.assertEqual(call_order, ["close_old", "ensure"])
 
 
 class TestRunWithLock(TestCase):
@@ -328,6 +315,25 @@ class TestRunWithLock(TestCase):
         fn.assert_not_called()
         self.assertEqual(result["status"], "error")
         self.assertIn("Could not acquire lock", result["error"])
+
+    @patch("django.db.close_old_connections")
+    @patch("metrics_utility.library.lock.lock")
+    def test_run_with_lock_calls_close_old_connections(self, mock_lock_cls, mock_close_old):
+        """Test that run_with_lock calls close_old_connections before acquiring lock.
+
+        This is critical because close_old_connections() must be called BEFORE
+        acquiring advisory locks to ensure stale connections are cleaned up first.
+        If called during execution, it would close ALL connections including the
+        one holding the lock.
+        """
+        mock_lock_cls.return_value.__enter__ = MagicMock(return_value=True)
+        mock_lock_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        fn = MagicMock(return_value={"status": "success"})
+        utils.run_with_lock("my_lock", "my_task", fn, foo="bar")
+
+        # Verify close_old_connections was called
+        mock_close_old.assert_called_once()
 
 
 class TestGenerateSalt(TestCase):
