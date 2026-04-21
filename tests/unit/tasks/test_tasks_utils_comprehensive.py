@@ -301,7 +301,6 @@ class TestGetDbConnection(TestCase):
         self.assertEqual(call_order, ["close_old", "ensure"])
 
 
-
 class TestRunWithLock(TestCase):
     """Test run_with_lock function."""
 
