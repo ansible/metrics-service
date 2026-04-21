@@ -330,8 +330,11 @@ def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):
         fn: Task function to execute
         **kwargs: Arguments to pass to fn
     """
-    from django.db import connection
+    from django.db import close_old_connections, connection
     from metrics_utility.library.lock import lock
+
+    # Close any stale/unusable connections before acquiring lock
+    close_old_connections()
 
     with lock(lock_key, wait=False, db=connection) as acquired:
         if not acquired:
