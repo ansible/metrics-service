@@ -33,6 +33,10 @@ RUN pip install --no-cache-dir uv && \
     uv venv --python python3.12 /app/.venv && \
     uv pip install --python /app/.venv/bin/python --no-cache .
 
+# Prepend venv bin so python/gunicorn/metrics-service resolve to venv executables,
+# not the S2I base image's /opt/app-root/bin Python which lacks our packages.
+ENV PATH=/app/.venv/bin:$PATH
+
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/
 COPY --chown=1001:1001 scripts/init.sh /usr/local/bin/

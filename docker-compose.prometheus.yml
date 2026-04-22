@@ -1,0 +1,144 @@
+---
+# Common environment shared by all metrics-service containers.
+# PATH must include /app/.venv/bin because the UBI9 S2I base image sets
+# PATH=/opt/app-root/bin:... which resolves python/gunicorn/metrics-service
+# to the S2I virtualenv (no packages installed there). Prepending the project
+# venv fixes this without requiring an image rebuild.
+x-metrics-env: &metrics-env
+  PATH: /app/.venv/bin:/opt/app-root/src/.local/bin/:/opt/app-root/src/bin:/opt/app-root/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  METRICS_SERVICE_DATABASES__default__HOST: postgres
+  METRICS_SERVICE_DATABASES__default__USER: metrics_service
+  METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+  METRICS_SERVICE_DATABASES__awx__HOST: postgres
+  METRICS_SERVICE_DATABASES__awx__USER: myuser
+  METRICS_SERVICE_DATABASES__awx__PASSWORD: mypassword
+  METRICS_SERVICE_MODE: development
+  METRICS_SERVICE_ALLOWED_HOSTS: "*"
+
+x-metrics-volumes: &metrics-volumes
+  - "./:/app:z"
+  - "/app/.venv"
+  - type: tmpfs
+    target: /app/metrics_service.egg-info
+    tmpfs:
+      mode: 0o01777
+
+x-metrics-build: &metrics-build
+  context: .
+  dockerfile: Dockerfile.dev
+
+services:
+  postgres:
+    image: "mirror.gcr.io/postgres:15"
+    container_name: metrics-service-postgres
+    environment:
+      POSTGRES_DB: awx
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "myuser", "-d", "awx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+    volumes:
+      - "metrics_service_db:/var/lib/postgresql/data"
+      - "./scripts/postgres/roles.sql:/docker-entrypoint-initdb.d/init-0-roles.sql"
+    networks:
+      - metrics-net
+
+  metrics-service-init:
+    build: *metrics-build
+    container_name: metrics-service-init
+    entrypoint: ["/app/scripts/init.sh"]
+    volumes: *metrics-volumes
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *metrics-env
+    restart: "no"
+    networks:
+      - metrics-net
+
+  # Single container running web + dispatcher + scheduler together (dev mode).
+  # supervisord is not in pyproject.toml so the split-container entrypoints
+  # (entrypoint-web.sh / entrypoint-dispatcherd.sh / entrypoint-scheduler.sh)
+  # do not work. `metrics_service run` starts all three processes internally.
+  metrics-service:
+    build: *metrics-build
+    container_name: metrics-service
+    entrypoint: ["python", "manage.py", "metrics_service", "run", "--host", "0.0.0.0", "--port", "8000"]
+    volumes: *metrics-volumes
+    ports:
+      - ${METRICS_SERVICE_PORT:-8000}:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      metrics-service-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *metrics-env
+    networks:
+      - metrics-net
+
+  node-exporter:
+    image: "quay.io/prometheus/node-exporter:latest"
+    container_name: metrics-node-exporter
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/rootfs:ro"
+    ports:
+      - "9100:9100"
+    networks:
+      - metrics-net
+
+  postgres-exporter:
+    image: "quay.io/prometheuscommunity/postgres-exporter:latest"
+    container_name: metrics-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://metrics_service:metrics_service@postgres:5432/metrics_service?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - metrics-net
+
+  prometheus:
+    image: "quay.io/prometheus/prometheus:latest"
+    container_name: metrics-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - "./scripts/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "prometheus_data:/prometheus"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - metrics-service
+      - node-exporter
+      - postgres-exporter
+    networks:
+      - metrics-net
+
+volumes:
+  metrics_service_db:
+    name: metrics_service_prometheus_db
+  prometheus_data:
+    name: metrics_service_prometheus_data
+
+networks:
+  metrics-net:
+    name: metrics-net
+    driver: bridge
