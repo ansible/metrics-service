@@ -1,9 +1,28 @@
 """ViewSet for listing AWX labels as filter dropdown options."""
 
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema, extend_schema_view
+
 from apps.dashboard_reports.awx_queries import fetch_labels
 from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="Get a list of labels from AWX database.",
+        description="Returns a list of labels from AWX database.",
+        parameters=[
+            OpenApiParameter(name="page", type=OpenApiTypes.INT, default=1, description="Page number (default: 1)."),
+            OpenApiParameter(
+                name="page_size", type=OpenApiTypes.INT, default=10, description="Results per page (default: 10)."
+            ),
+            OpenApiParameter(name="search", type=OpenApiTypes.STR, description="Search by label name."),
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="Get a specific label from AWX database by ID.",
+        description="Returns a single label record from AWX database by ID.",
+    ),
+)
 class LabelsViewSet(FilterOptionsViewSet):
     """
     ViewSet for retrieving labels from AWX database.

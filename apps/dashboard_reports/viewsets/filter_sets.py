@@ -4,6 +4,7 @@ from typing import Any
 from ansible_base.rest_pagination import DefaultPaginator
 from django.db import transaction
 from django.db.models import QuerySet
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin, UpdateModelMixin
 from rest_framework.permissions import IsAuthenticated
@@ -17,6 +18,29 @@ from apps.dashboard_reports.serializers import FilterSetSerializer
 logger = logging.getLogger(__name__)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="Get a list of filter sets from metrics service database (with pagination).",
+        description="Returns a list of job templates from metrics service database.",
+    ),
+    create=extend_schema(
+        summary="Create a filter set.",
+        description="Create a new filter set object.",
+        request=FilterSetSerializer,
+    ),
+    update=extend_schema(
+        summary="Update a specific filter set by ID.",
+        description="Update a specific filter set by ID.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a specific filter set by ID.",
+        description="Partially update a specific filter set by ID.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a specific filter set by ID.",
+        description="Delete a specific filter set record by ID.",
+    ),
+)
 class FilterSetsViewSet(ListModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin, GenericViewSet):
     """
     ViewSet for retrieving and modifying filter sets from metrics service database.

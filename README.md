@@ -258,6 +258,35 @@ python manage.py metrics_service init-service-id
 python manage.py metrics_service init-system-tasks
 ```
 
+### OpenAPI Schema
+
+The OpenAPI schema files are committed to `tools/openapi-schema/` and must be kept in sync with the codebase. A CI check will fail if the committed schema differs from what the code generates.
+
+#### Generating the schema
+
+Requires the database to be running:
+
+```bash
+make generate-openapi-schema
+```
+
+This will write/update:
+- `tools/openapi-schema/metrics-service.yaml`
+- `tools/openapi-schema/metrics-service.json`
+
+Commit these files along with any API changes.
+
+#### Validating the schema
+
+To validate the committed schema against the OpenAPI 3.0 specification locally:
+
+```bash
+make validate-openapi-schema
+```
+
+> [!NOTE]
+> Schema validation runs automatically in CI on every PR and will block merging if the schema is invalid or out of sync with the code.
+
 ## Configuration
 
 Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings management, following the [Platform Service Framework](https://github.com/ansible/platform-service-framework).

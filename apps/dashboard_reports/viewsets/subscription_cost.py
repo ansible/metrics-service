@@ -3,6 +3,7 @@
 from typing import Any
 
 from django.db.models import QuerySet
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.mixins import ListModelMixin, UpdateModelMixin
 from rest_framework.request import Request
@@ -13,6 +14,20 @@ from apps.dashboard_reports.serializers import SubscriptionCostSerializer
 from apps.dashboard_reports.viewsets.admin_viewsets import GenericAdminViewSet
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="Get a list of subscription costs.",
+        description="Returns a list of subscription costs.",
+    ),
+    update=extend_schema(
+        summary="Update a specific subscription cost by ID.",
+        description="Update a specific subscription cost by ID.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a specific subscription cost by ID.",
+        description="Partially update a specific subscription cost by ID.",
+    ),
+)
 class SubscriptionCostViewSet(ListModelMixin, UpdateModelMixin, GenericAdminViewSet):
     """
     ViewSet for retrieving subscription cost from metrics service database.

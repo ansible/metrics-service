@@ -15,8 +15,8 @@ from django.db.models.functions import Cast, Coalesce, Trunc
 from django.http import HttpResponse, JsonResponse
 from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import filters, status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
+from rest_framework import filters, serializers, status
 from rest_framework.decorators import action
 from rest_framework.renderers import BaseRenderer
 from rest_framework.request import Request
@@ -124,6 +124,22 @@ def require_date_range(view_func):
     return wrapper
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="Get a list of report data for dashboard (with pagination).",
+        description="Returns a paginated report data for dashboard.",
+    ),
+    retrieve=extend_schema(
+        summary="Not supported for aggregated dashboard report data.",
+        description="This endpoint is intentionally not supported and returns 405.",
+        responses={
+            405: inline_serializer(
+                name="DashboardReportRetrieveNotAllowed",
+                fields={"detail": serializers.CharField()},
+            )
+        },
+    ),
+)
 class DashboardReportViewSet(ReadOnlyModelViewSet):
     """
     ViewSet for dashboard reporting and chart data aggregation.
@@ -651,7 +667,11 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 ]
             )
 
-    @extend_schema(parameters=detail_query_parameters)
+    @extend_schema(
+        summary="Returns summary, chart data, and top users/projects for dashboard",
+        description="Returns summary, chart data, and top users/projects for dashboard",
+        parameters=detail_query_parameters,
+    )
     @action(detail=False, methods=["get"], url_path="details")
     @require_date_range
     def details(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -731,7 +751,21 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
         return Response(report_data, status=status.HTTP_200_OK)
 
-    @extend_schema(parameters=export_query_parameters, responses={(200, "text/csv; charset=UTF-8"): str})
+    @extend_schema(
+        summary="Exports report data as CSV",
+        description="Exports report data as CSV based on the specific report type and format query parameters.",
+        parameters=export_query_parameters,
+        responses={
+            (200, "text/csv; charset=UTF-8"): str,
+            400: inline_serializer(
+                name="DashboardReportExportErrorSerializer",
+                fields={
+                    "detail": serializers.CharField(required=False),
+                    "error": serializers.CharField(required=False),
+                },
+            ),
+        },
+    )
     @action(methods=["get"], detail=False, url_path="export", renderer_classes=[PassthroughRenderer])
     @require_date_range
     def export(self, request: Request, *args: Any, **kwargs: Any) -> HttpResponse | JsonResponse:
