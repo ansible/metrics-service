@@ -61,7 +61,7 @@ TASK_FUNCTIONS = {
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
-    # BI connector on-demand collection
+    # BI connector on-demand collection (triggered by Layer 2 API requests)
     "collect_bi_controller_data": collect_bi_controller_data,
     # Dashboard reports
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
@@ -391,6 +391,40 @@ TASK_METADATA = {
             {
                 "name": "Custom date range",
                 "data": {"since": "2024-01-01T00:00:00Z", "until": "2024-03-31T23:59:59Z"},
+            },
+        ],
+    },
+    "collect_bi_controller_data": {
+        "queue": "metrics",
+        "category": "BI Connector",
+        "description": "On-demand collection of live AWX data for a BI connector Layer 2 request",
+        "parameters": {
+            "collector_key": {
+                "type": "string",
+                "required": True,
+                "description": "Hourly collector type (e.g., unified_jobs, job_host_summary_service)",
+            },
+            "since": {
+                "type": "string",
+                "required": True,
+                "description": "Start of date range (ISO 8601 datetime)",
+                "pattern": "datetime",
+            },
+            "until": {
+                "type": "string",
+                "required": True,
+                "description": "End of date range (ISO 8601 datetime)",
+                "pattern": "datetime",
+            },
+        },
+        "examples": [
+            {
+                "name": "Unified jobs — 7-day window",
+                "data": {
+                    "collector_key": "unified_jobs",
+                    "since": "2025-03-01T00:00:00Z",
+                    "until": "2025-03-07T23:59:59Z",
+                },
             },
         ],
     },
