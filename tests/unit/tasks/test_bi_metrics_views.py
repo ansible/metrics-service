@@ -198,7 +198,9 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
             username="admin", email="admin@example.com", password=get_test_password()
         )
 
-    def _create_collection(self, collector_type="unified_jobs", hours_ago=1, raw_data=None, collection_status="collected"):
+    def _create_collection(
+        self, collector_type="unified_jobs", hours_ago=1, raw_data=None, collection_status="collected"
+    ):
         from apps.tasks.models import HourlyMetricsCollection
 
         ts = timezone.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=hours_ago)
