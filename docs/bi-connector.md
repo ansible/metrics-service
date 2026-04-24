@@ -1,13 +1,18 @@
-# BI Connector Guide
+# BI Connector
 
 This service exposes two sets of read-only REST API endpoints that BI tools can query directly, acting as a single data source for both pre-aggregated metrics and live Controller data.
 
+- **Layer 1** — Pre-aggregated daily/hourly metrics from the metrics-service DB. Fast, no AWX load.
+- **Layer 2** — Live data queried directly from the AWX DB. Requires mandatory date windows to protect the production database.
+
+---
+
 ## Authentication
 
-All endpoints require a long-lived API token.
+All endpoints require a long-lived API token (DRF `TokenAuthentication`).
 
 ```bash
-# Create a token for a user
+# Create a token for a service account user
 uv run ./manage.py drf_create_token <username>
 ```
 
@@ -16,6 +21,12 @@ Pass the token in every request:
 ```
 Authorization: Token <your-token>
 ```
+
+---
+
+## Rate Limits
+
+Authenticated users are throttled to **30 requests per hour** across all BI connector endpoints. Exceeding the limit returns `429 Too Many Requests`. Design your BI tool's refresh schedule accordingly — polling more frequently than every 2 minutes will hit the limit.
 
 ---
 
@@ -42,6 +53,49 @@ The daily list endpoint flattens `aggregated_metrics` into top-level fields per 
 - `metrics_controller_version_service`
 - `metrics_table_metadata`
 
+The detail endpoint (`/daily/<date>/`) additionally includes `aggregated_metrics` (the raw blob) and `hourly_collection_ids`.
+
+#### Pagination
+
+List endpoints are paginated. The response envelope looks like:
+
+```json
+{
+  "count": 42,
+  "next": "http://localhost:8000/api/v1/metrics/daily/?page=2",
+  "previous": null,
+  "results": [ ... ]
+}
+```
+
+Use `?page=<n>` to walk through pages. All results are ordered newest-first by default.
+
+#### Example daily summary response
+
+```json
+{
+  "id": 1,
+  "summary_date": "2025-06-13",
+  "status": "aggregated",
+  "hourly_collections_count": 24,
+  "missing_hours": [],
+  "aggregation_completed_at": "2025-06-14T01:05:32Z",
+  "error_message": "",
+  "config_data": {},
+  "metrics_unified_jobs": { "jobs_total": 1200, "jobs_successful": 1150 },
+  "metrics_job_host_summary_service": { "hosts_total": 340 },
+  "metrics_credentials_service": { "usage_count": 88 },
+  "metrics_main_jobevent_service": {},
+  "metrics_execution_environments": { "ee_count": 5 },
+  "metrics_controller_version_service": { "version": "4.5.0" },
+  "metrics_table_metadata": { "unified_job_count": 12400 },
+  "created": "2025-06-14T01:05:32Z",
+  "modified": "2025-06-14T01:05:32Z"
+}
+```
+
+---
+
 ### Layer 2 — Live Controller data (AWX DB)
 
 These query the AWX database directly. Mandatory `since`/`until` parameters protect the production DB from unbounded queries.
@@ -62,6 +116,34 @@ The snapshot endpoint optionally accepts a `?collectors=` query param to subset 
 GET /api/v1/controller/snapshot/?collectors=config,controller_version_service
 ```
 
+#### Example time-series response (jobs, hosts, credentials, events)
+
+```json
+{
+  "since": "2025-06-06T00:00:00+00:00",
+  "until": "2025-06-12T23:59:59+00:00",
+  "collector_type": "unified_jobs",
+  "data": [ ... ]
+}
+```
+
+#### Example snapshot response
+
+```json
+{
+  "collected_at": "2025-06-13T10:22:11.543210+00:00",
+  "collectors": {
+    "execution_environments": { ... },
+    "controller_version_service": { "version": "4.5.0" },
+    "table_metadata": { ... },
+    "config": { ... }
+  },
+  "errors": {}
+}
+```
+
+If a collector fails, the endpoint still returns `200` — the failed key appears in `errors` and is absent from `collectors`. This allows partial results when, for example, one table is locked or metrics_utility is partially unavailable.
+
 ---
 
 ## Example requests
@@ -69,9 +151,9 @@ GET /api/v1/controller/snapshot/?collectors=config,controller_version_service
 ```bash
 TOKEN="your-token-here"
 
-# Daily summary list
+# Daily summary list — last 30 days
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/metrics/daily/?summary_date__gte=2025-01-01"
+  "http://localhost:8000/api/v1/metrics/daily/?summary_date__gte=2025-05-14"
 
 # Single day detail
 curl -H "Authorization: Token $TOKEN" \
@@ -81,14 +163,27 @@ curl -H "Authorization: Token $TOKEN" \
 curl -H "Authorization: Token $TOKEN" \
   "http://localhost:8000/api/v1/metrics/hourly/?collector_type=unified_jobs"
 
-# Live jobs (max 7-day window)
+# Live jobs — 6-day window (within the 7-day limit)
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/controller/jobs/?since=2025-03-12T00:00:00Z&until=2025-03-19T00:00:00Z"
+  "http://localhost:8000/api/v1/controller/jobs/?since=2025-03-12T00:00:00Z&until=2025-03-18T00:00:00Z"
 
-# Current state snapshot
+# Current state snapshot — config and version only
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/controller/snapshot/"
+  "http://localhost:8000/api/v1/controller/snapshot/?collectors=config,controller_version_service"
 ```
+
+---
+
+## Troubleshooting
+
+| Status | Cause | Fix |
+|---|---|---|
+| `401 Unauthorized` | No or invalid token | Check `Authorization: Token <token>` header |
+| `403 Forbidden` | Token valid but user lacks permission | Ensure the user has API access |
+| `400 Bad Request` | Missing or invalid `since`/`until`, or range exceeds max window | Use ISO 8601 datetimes; check the `detail` field in the response |
+| `429 Too Many Requests` | Rate limit exceeded (30 req/hour) | Reduce polling frequency |
+| `500 Internal Server Error` | Collector function raised an exception | Check service logs; the `error` field contains the exception message |
+| `503 Service Unavailable` | AWX DB connection failed | Verify the AWX DB alias is configured and reachable |
 
 ---
 

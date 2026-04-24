@@ -61,7 +61,48 @@ class DateRangeRequiredMixin:
         return since, until
 
 
-class ControllerJobsView(DateRangeRequiredMixin, APIView):
+class ControllerTimeSeriesView(DateRangeRequiredMixin, APIView):
+    """
+    Base view for live time-series data from the AWX DB.
+
+    Subclasses set COLLECTOR_KEY to select which hourly collector to invoke.
+    Override MAX_DAYS to tighten the allowed date range (default: 7 days).
+    """
+
+    permission_classes = [IsAuthenticated]
+    versioning_class = None
+    COLLECTOR_KEY: str = ""
+
+    def get(self, request: Any) -> Response:
+        since, until = self.validate_date_range(request)
+
+        try:
+            conn = get_db_connection()
+        except Exception as e:
+            logger.error("AWX DB unavailable for %s: %s", self.__class__.__name__, e)
+            return Response({"error": f"AWX database unavailable: {e}"}, status=503)
+
+        try:
+            from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
+
+            collectors = _get_hourly_collectors()
+            collector = collectors[self.COLLECTOR_KEY]["collector_func"](db=conn, since=since, until=until)
+            data = collector.gather()
+        except Exception as e:
+            logger.error("Collection failed for %s: %s", self.__class__.__name__, e)
+            return Response({"error": f"Collection failed: {e}"}, status=500)
+
+        return Response(
+            {
+                "since": since.isoformat(),
+                "until": until.isoformat(),
+                "collector_type": self.COLLECTOR_KEY,
+                "data": data,
+            }
+        )
+
+
+class ControllerJobsView(ControllerTimeSeriesView):
     """
     Live unified jobs data from the AWX DB (max 7-day window).
 
@@ -70,32 +111,10 @@ class ControllerJobsView(DateRangeRequiredMixin, APIView):
         until (required) — end of range, ISO 8601 datetime
     """
 
-    permission_classes = [IsAuthenticated]
-    versioning_class = None
-
-    def get(self, request: Any) -> Response:
-        since, until = self.validate_date_range(request)
-
-        try:
-            conn = get_db_connection()
-        except Exception as e:
-            logger.error("AWX DB unavailable for controller/jobs: %s", e)
-            return Response({"error": f"AWX database unavailable: {e}"}, status=503)
-
-        try:
-            from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
-
-            collectors = _get_hourly_collectors()
-            collector = collectors["unified_jobs"]["collector_func"](db=conn, since=since, until=until)
-            data = collector.gather()
-        except Exception as e:
-            logger.error("Collection failed for controller/jobs: %s", e)
-            return Response({"error": f"Collection failed: {e}"}, status=500)
-
-        return Response({"since": since.isoformat(), "until": until.isoformat(), "collector_type": "unified_jobs", "data": data})
+    COLLECTOR_KEY = "unified_jobs"
 
 
-class ControllerHostsView(DateRangeRequiredMixin, APIView):
+class ControllerHostsView(ControllerTimeSeriesView):
     """
     Live job host summary data from the AWX DB (max 7-day window).
 
@@ -104,34 +123,10 @@ class ControllerHostsView(DateRangeRequiredMixin, APIView):
         until (required) — end of range, ISO 8601 datetime
     """
 
-    permission_classes = [IsAuthenticated]
-    versioning_class = None
-
-    def get(self, request: Any) -> Response:
-        since, until = self.validate_date_range(request)
-
-        try:
-            conn = get_db_connection()
-        except Exception as e:
-            logger.error("AWX DB unavailable for controller/hosts: %s", e)
-            return Response({"error": f"AWX database unavailable: {e}"}, status=503)
-
-        try:
-            from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
-
-            collectors = _get_hourly_collectors()
-            collector = collectors["job_host_summary_service"]["collector_func"](db=conn, since=since, until=until)
-            data = collector.gather()
-        except Exception as e:
-            logger.error("Collection failed for controller/hosts: %s", e)
-            return Response({"error": f"Collection failed: {e}"}, status=500)
-
-        return Response(
-            {"since": since.isoformat(), "until": until.isoformat(), "collector_type": "job_host_summary_service", "data": data}
-        )
+    COLLECTOR_KEY = "job_host_summary_service"
 
 
-class ControllerCredentialsView(DateRangeRequiredMixin, APIView):
+class ControllerCredentialsView(ControllerTimeSeriesView):
     """
     Live credentials usage data from the AWX DB (max 7-day window).
 
@@ -140,34 +135,10 @@ class ControllerCredentialsView(DateRangeRequiredMixin, APIView):
         until (required) — end of range, ISO 8601 datetime
     """
 
-    permission_classes = [IsAuthenticated]
-    versioning_class = None
-
-    def get(self, request: Any) -> Response:
-        since, until = self.validate_date_range(request)
-
-        try:
-            conn = get_db_connection()
-        except Exception as e:
-            logger.error("AWX DB unavailable for controller/credentials: %s", e)
-            return Response({"error": f"AWX database unavailable: {e}"}, status=503)
-
-        try:
-            from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
-
-            collectors = _get_hourly_collectors()
-            collector = collectors["credentials_service"]["collector_func"](db=conn, since=since, until=until)
-            data = collector.gather()
-        except Exception as e:
-            logger.error("Collection failed for controller/credentials: %s", e)
-            return Response({"error": f"Collection failed: {e}"}, status=500)
-
-        return Response(
-            {"since": since.isoformat(), "until": until.isoformat(), "collector_type": "credentials_service", "data": data}
-        )
+    COLLECTOR_KEY = "credentials_service"
 
 
-class ControllerEventsView(DateRangeRequiredMixin, APIView):
+class ControllerEventsView(ControllerTimeSeriesView):
     """
     Live job events (event modules) data from the AWX DB.
 
@@ -179,32 +150,8 @@ class ControllerEventsView(DateRangeRequiredMixin, APIView):
         until (required) — end of range, ISO 8601 datetime
     """
 
-    permission_classes = [IsAuthenticated]
-    versioning_class = None
+    COLLECTOR_KEY = "main_jobevent_service"
     MAX_DAYS: int = 3
-
-    def get(self, request: Any) -> Response:
-        since, until = self.validate_date_range(request)
-
-        try:
-            conn = get_db_connection()
-        except Exception as e:
-            logger.error("AWX DB unavailable for controller/events: %s", e)
-            return Response({"error": f"AWX database unavailable: {e}"}, status=503)
-
-        try:
-            from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
-
-            collectors = _get_hourly_collectors()
-            collector = collectors["main_jobevent_service"]["collector_func"](db=conn, since=since, until=until)
-            data = collector.gather()
-        except Exception as e:
-            logger.error("Collection failed for controller/events: %s", e)
-            return Response({"error": f"Collection failed: {e}"}, status=500)
-
-        return Response(
-            {"since": since.isoformat(), "until": until.isoformat(), "collector_type": "main_jobevent_service", "data": data}
-        )
 
 
 class ControllerSnapshotView(APIView):
@@ -237,9 +184,14 @@ class ControllerSnapshotView(APIView):
             logger.error("AWX DB unavailable for controller/snapshot: %s", e)
             return Response({"error": f"AWX database unavailable: {e}"}, status=503)
 
-        from apps.tasks.collectors.collect_snapshot_metrics import _get_snapshot_collectors
+        try:
+            from apps.tasks.collectors.collect_snapshot_metrics import _get_snapshot_collectors
 
-        registry = _get_snapshot_collectors()
+            registry = _get_snapshot_collectors()
+        except Exception as e:
+            logger.error("Failed to load snapshot collectors: %s", e)
+            return Response({"error": f"Snapshot collectors unavailable: {e}"}, status=500)
+
         results: dict = {}
         errors: dict = {}
 
@@ -255,8 +207,10 @@ class ControllerSnapshotView(APIView):
                 logger.warning("Snapshot collector %s failed: %s", collector_type, e)
                 errors[collector_type] = str(e)
 
-        return Response({
-            "collected_at": timezone.now().isoformat(),
-            "collectors": results,
-            "errors": errors,
-        })
+        return Response(
+            {
+                "collected_at": timezone.now().isoformat(),
+                "collectors": results,
+                "errors": errors,
+            }
+        )
