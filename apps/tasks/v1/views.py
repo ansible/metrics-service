@@ -30,13 +30,12 @@ Operations:
 from datetime import timedelta
 from typing import Any
 
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from django.http import HttpRequest
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
-from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 
 from apps.tasks.api_utils import build_error_response
 from apps.tasks.models import Task, TaskExecution

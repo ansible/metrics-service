@@ -27,10 +27,20 @@ from tests.test_utils import get_test_password
 _FLAG_PATCH = "apps.bi_connector.v1.mixins.get_feature_enabled_from_db"
 
 
-def _make_job(job_id, template_name="Deploy App", template_id=10, org_id=1, org_name="Org A",
-              project_id=5, project_name="Project X", job_status="successful",
-              finished_offset_hours=1, elapsed=Decimal("30.000"), num_hosts=3,
-              template_metadata=None):
+def _make_job(
+    job_id,
+    template_name="Deploy App",
+    template_id=10,
+    org_id=1,
+    org_name="Org A",
+    project_id=5,
+    project_name="Project X",
+    job_status="successful",
+    finished_offset_hours=1,
+    elapsed=Decimal("30.000"),
+    num_hosts=3,
+    template_metadata=None,
+):
     from apps.dashboard_reports.models import JobData
 
     now = timezone.now().replace(second=0, microsecond=0)

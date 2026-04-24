@@ -46,6 +46,7 @@ def _make_mock_collector(data=None):
 # Time-series views — shared behaviour tested via the jobs endpoint
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestControllerJobsView(APITestCase):
@@ -262,6 +263,7 @@ class TestControllerEventsView(APITestCase):
 # Snapshot view — stays synchronous
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestControllerSnapshotView(APITestCase):
@@ -283,6 +285,7 @@ class TestControllerSnapshotView(APITestCase):
         def _make_func(collector_type):
             def collector_func(**kw):
                 return _make_mock_collector(data={"type": collector_type})
+
             return collector_func
 
         return {c: {"collector_func": _make_func(c)} for c in collectors}
