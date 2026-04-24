@@ -1,15 +1,17 @@
 """
 Tests for BI connector Layer 2 API endpoints (live AWX DB).
 
-Covers ControllerJobsView, ControllerHostsView, ControllerCredentialsView,
-ControllerEventsView, and ControllerSnapshotView:
-- Missing since/until params → 400
-- Date range exceeding max window → 400 (7 days for most, 3 days for events)
-- AWX DB unavailable → 503
-- Collector exception → 500
-- Valid request → 200 with data key
-- Snapshot returns partial results when a collector fails
-- Unauthenticated requests → 401/403
+Time-series views (jobs, hosts, credentials, events) are async:
+  - Valid request → 202 Accepted with task_id and results_url
+  - Duplicate in-flight request → 202 with the existing task_id (no new task created)
+  - Bad date params → 400 before any task is created
+  - Feature flag disabled → 404
+
+Snapshot view remains synchronous:
+  - Valid request → 200 with collectors/errors/collected_at
+  - AWX DB unavailable → 503
+  - Partial collector failure → 200 with errors dict populated
+  - Feature flag disabled → 404
 """
 
 from unittest.mock import MagicMock, patch
@@ -28,37 +30,51 @@ VALID_UNTIL_3 = "2025-03-03T23:59:59Z"  # 2 days — within 3-day limit
 OVER_7_DAYS_UNTIL = "2025-03-10T00:00:00Z"  # 9 days — exceeds 7-day limit
 OVER_3_DAYS_UNTIL = "2025-03-05T00:00:00Z"  # 4 days — exceeds 3-day limit
 
-_HOURLY_PATCH = "apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors"
 _SNAPSHOT_PATCH = "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors"
-_DB_PATCH = "apps.tasks.v1.controller_views.get_db_connection"
+_DB_PATCH = "apps.bi_connector.v1.controller_views.get_db_connection"
+_FLAG_PATCH = "apps.bi_connector.v1.mixins.get_feature_enabled_from_db"
+_SUBMIT_PATCH = "apps.bi_connector.v1.controller_views.submit_task_to_dispatcher"
 
 
 def _make_mock_collector(data=None):
-    """Return a mock collector instance whose .gather() returns data."""
     mock = MagicMock()
-    mock.gather.return_value = data or [{"id": 1, "name": "test"}]
+    mock.gather.return_value = data or [{"id": 1}]
     return mock
 
 
-def _make_collectors_registry(collector_key: str, mock_collector):
-    """Build a minimal collector registry dict for the given key."""
-    return {collector_key: {"collector_func": lambda **kw: mock_collector}}
-
+# ---------------------------------------------------------------------------
+# Time-series views — shared behaviour tested via the jobs endpoint
+# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestControllerJobsView(APITestCase):
-    """Tests for GET /api/v1/controller/jobs/"""
+    """Tests for GET /api/v1/controller/jobs/ — async 202 pattern."""
 
     def setUp(self):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
-        self.url = reverse("tasks:controller:controller-jobs")
+        self.url = reverse("bi_connector:controller:controller-jobs")
+        flag_patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = flag_patcher.start()
+        self.addCleanup(flag_patcher.stop)
+
+    # --- Feature flag ---
+
+    def test_flag_disabled_returns_404(self):
+        self.client.force_authenticate(user=self.user)
+        self.flag_mock.return_value = False
+        response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    # --- Authentication ---
 
     def test_unauthenticated_returns_401_or_403(self):
         response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    # --- Date range validation (400 before any task is created) ---
 
     def test_missing_since_returns_400(self):
         self.client.force_authenticate(user=self.user)
@@ -91,96 +107,120 @@ class TestControllerJobsView(APITestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "7 days" in str(response.data)
 
-    def test_awx_db_unavailable_returns_503(self):
-        self.client.force_authenticate(user=self.user)
-        with patch(_DB_PATCH, side_effect=Exception("connection refused")):
-            response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
-        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    # --- Async 202 response ---
 
-    def test_collector_exception_returns_500(self):
+    def test_valid_request_returns_202_with_task_id(self):
         self.client.force_authenticate(user=self.user)
-        mock_collector = MagicMock()
-        mock_collector.gather.side_effect = Exception("query failed")
-        registry = _make_collectors_registry("unified_jobs", mock_collector)
-
-        with patch(_DB_PATCH, return_value=MagicMock()), patch(_HOURLY_PATCH, return_value=registry):
+        with patch(_SUBMIT_PATCH):
             response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
 
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-
-    def test_valid_request_returns_200_with_data(self):
-        self.client.force_authenticate(user=self.user)
-        mock_collector = _make_mock_collector(data=[{"job_id": 1}])
-        registry = _make_collectors_registry("unified_jobs", mock_collector)
-
-        with patch(_DB_PATCH, return_value=MagicMock()), patch(_HOURLY_PATCH, return_value=registry):
-            response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
-
-        assert response.status_code == status.HTTP_200_OK
-        assert "data" in response.data
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert "task_id" in response.data
+        assert "results_url" in response.data
+        assert response.data["status"] == "pending"
         assert response.data["collector_type"] == "unified_jobs"
-        assert "since" in response.data
-        assert "until" in response.data
+        assert f"/api/v1/tasks/{response.data['task_id']}/" == response.data["results_url"]
+
+    def test_task_created_with_correct_task_data(self):
+        self.client.force_authenticate(user=self.user)
+        with patch(_SUBMIT_PATCH):
+            response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+
+        from apps.tasks.models import Task
+
+        task = Task.objects.get(id=response.data["task_id"])
+        assert task.function_name == "collect_bi_controller_data"
+        assert task.task_data["collector_key"] == "unified_jobs"
+        assert "2025-03-01" in task.task_data["since"]
+        assert "2025-03-07" in task.task_data["until"]
+
+    def test_duplicate_in_flight_request_returns_existing_task_id(self):
+        self.client.force_authenticate(user=self.user)
+        with patch(_SUBMIT_PATCH):
+            first = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+            second = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+
+        assert first.status_code == status.HTTP_202_ACCEPTED
+        assert second.status_code == status.HTTP_202_ACCEPTED
+        assert first.data["task_id"] == second.data["task_id"]
+
+        from apps.tasks.models import Task
+
+        assert Task.objects.filter(function_name="collect_bi_controller_data").count() == 1
+
+    def test_different_date_range_creates_new_task(self):
+        self.client.force_authenticate(user=self.user)
+        with patch(_SUBMIT_PATCH):
+            first = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+            second = self.client.get(self.url, {"since": "2025-04-01T00:00:00Z", "until": "2025-04-06T00:00:00Z"})
+
+        assert first.data["task_id"] != second.data["task_id"]
+
+        from apps.tasks.models import Task
+
+        assert Task.objects.filter(function_name="collect_bi_controller_data").count() == 2
+
+    def test_submit_to_dispatcher_called(self):
+        self.client.force_authenticate(user=self.user)
+        with patch(_SUBMIT_PATCH) as mock_submit:
+            self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
+
+        mock_submit.assert_called_once()
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestControllerHostsView(APITestCase):
-    """Tests for GET /api/v1/controller/hosts/"""
+    """Tests for GET /api/v1/controller/hosts/ — spot-checks the async pattern."""
 
     def setUp(self):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
-        self.url = reverse("tasks:controller:controller-hosts")
+        self.url = reverse("bi_connector:controller:controller-hosts")
+        flag_patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = flag_patcher.start()
+        self.addCleanup(flag_patcher.stop)
 
     def test_missing_params_returns_400(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.get(self.url)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_range_exceeding_7_days_returns_400(self):
+    def test_valid_request_returns_202_with_correct_collector_type(self):
         self.client.force_authenticate(user=self.user)
-        response = self.client.get(self.url, {"since": VALID_SINCE, "until": OVER_7_DAYS_UNTIL})
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    def test_valid_request_returns_200(self):
-        self.client.force_authenticate(user=self.user)
-        mock_collector = _make_mock_collector()
-        registry = _make_collectors_registry("job_host_summary_service", mock_collector)
-
-        with patch(_DB_PATCH, return_value=MagicMock()), patch(_HOURLY_PATCH, return_value=registry):
+        with patch(_SUBMIT_PATCH):
             response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
         assert response.data["collector_type"] == "job_host_summary_service"
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestControllerCredentialsView(APITestCase):
-    """Tests for GET /api/v1/controller/credentials/"""
+    """Tests for GET /api/v1/controller/credentials/ — spot-checks the async pattern."""
 
     def setUp(self):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
-        self.url = reverse("tasks:controller:controller-credentials")
+        self.url = reverse("bi_connector:controller:controller-credentials")
+        flag_patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = flag_patcher.start()
+        self.addCleanup(flag_patcher.stop)
 
     def test_missing_params_returns_400(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.get(self.url)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_valid_request_returns_200(self):
+    def test_valid_request_returns_202_with_correct_collector_type(self):
         self.client.force_authenticate(user=self.user)
-        mock_collector = _make_mock_collector()
-        registry = _make_collectors_registry("credentials_service", mock_collector)
-
-        with patch(_DB_PATCH, return_value=MagicMock()), patch(_HOURLY_PATCH, return_value=registry):
+        with patch(_SUBMIT_PATCH):
             response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
         assert response.data["collector_type"] == "credentials_service"
 
 
@@ -193,12 +233,10 @@ class TestControllerEventsView(APITestCase):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
-        self.url = reverse("tasks:controller:controller-events")
-
-    def test_missing_params_returns_400(self):
-        self.client.force_authenticate(user=self.user)
-        response = self.client.get(self.url)
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        self.url = reverse("bi_connector:controller:controller-events")
+        flag_patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = flag_patcher.start()
+        self.addCleanup(flag_patcher.stop)
 
     def test_range_exceeding_3_days_returns_400(self):
         self.client.force_authenticate(user=self.user)
@@ -208,45 +246,52 @@ class TestControllerEventsView(APITestCase):
 
     def test_range_within_7_days_but_over_3_also_rejected(self):
         self.client.force_authenticate(user=self.user)
-        # 6-day range — fine for other endpoints but rejected for events
         response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_7})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_valid_3_day_range_returns_200(self):
+    def test_valid_3_day_range_returns_202(self):
         self.client.force_authenticate(user=self.user)
-        mock_collector = _make_mock_collector()
-        registry = _make_collectors_registry("main_jobevent_service", mock_collector)
-
-        with patch(_DB_PATCH, return_value=MagicMock()), patch(_HOURLY_PATCH, return_value=registry):
+        with patch(_SUBMIT_PATCH):
             response = self.client.get(self.url, {"since": VALID_SINCE, "until": VALID_UNTIL_3})
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_202_ACCEPTED
         assert response.data["collector_type"] == "main_jobevent_service"
 
+
+# ---------------------------------------------------------------------------
+# Snapshot view — stays synchronous
+# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestControllerSnapshotView(APITestCase):
-    """Tests for GET /api/v1/controller/snapshot/"""
+    """Tests for GET /api/v1/controller/snapshot/ — synchronous, unchanged."""
 
     def setUp(self):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
-        self.url = reverse("tasks:controller:controller-snapshot")
+        self.url = reverse("bi_connector:controller:controller-snapshot")
+        flag_patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = flag_patcher.start()
+        self.addCleanup(flag_patcher.stop)
 
     def _make_snapshot_registry(self, collectors=None):
-        """Build a snapshot registry where all collectors succeed."""
         if collectors is None:
             collectors = ["execution_environments", "controller_version_service", "table_metadata", "config"]
 
         def _make_func(collector_type):
             def collector_func(**kw):
                 return _make_mock_collector(data={"type": collector_type})
-
             return collector_func
 
         return {c: {"collector_func": _make_func(c)} for c in collectors}
+
+    def test_flag_disabled_returns_404(self):
+        self.client.force_authenticate(user=self.user)
+        self.flag_mock.return_value = False
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_unauthenticated_returns_401_or_403(self):
         response = self.client.get(self.url)
@@ -290,16 +335,6 @@ class TestControllerSnapshotView(APITestCase):
         assert "controller_version_service" in response.data["errors"]
         assert "execution_environments" in response.data["collectors"]
 
-    def test_unknown_collector_in_query_param_returns_error_entry(self):
-        self.client.force_authenticate(user=self.user)
-        registry = self._make_snapshot_registry(["execution_environments"])
-
-        with patch(_DB_PATCH, return_value=MagicMock()), patch(_SNAPSHOT_PATCH, return_value=registry):
-            response = self.client.get(self.url, {"collectors": "execution_environments,nonexistent"})
-
-        assert response.status_code == status.HTTP_200_OK
-        assert "nonexistent" in response.data["errors"]
-
     def test_collectors_query_param_subsets_results(self):
         self.client.force_authenticate(user=self.user)
         registry = self._make_snapshot_registry()
@@ -310,3 +345,13 @@ class TestControllerSnapshotView(APITestCase):
         assert response.status_code == status.HTTP_200_OK
         assert "config" in response.data["collectors"]
         assert "execution_environments" not in response.data["collectors"]
+
+    def test_unknown_collector_in_query_param_returns_error_entry(self):
+        self.client.force_authenticate(user=self.user)
+        registry = self._make_snapshot_registry(["execution_environments"])
+
+        with patch(_DB_PATCH, return_value=MagicMock()), patch(_SNAPSHOT_PATCH, return_value=registry):
+            response = self.client.get(self.url, {"collectors": "execution_environments,nonexistent"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "nonexistent" in response.data["errors"]

@@ -1,7 +1,7 @@
 """
 URL configuration for BI connector Layer 1 (metrics-service DB) endpoints.
 
-Mounts at /api/v1/metrics/ via apps/tasks/urls.py.
+Mounts at /api/v1/metrics/ via apps/bi_connector/urls.py.
 
 Endpoints:
     GET /api/v1/metrics/daily/                    - list DailyMetricsSummary (filterable by date)

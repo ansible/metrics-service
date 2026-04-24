@@ -1,18 +1,37 @@
 # BI Connector
 
-This service exposes two sets of read-only REST API endpoints that BI tools can query directly, acting as a single data source for both pre-aggregated metrics and live Controller data.
+This service exposes three sets of read-only REST API endpoints that BI tools can query directly.
 
 - **Layer 1** — Pre-aggregated daily/hourly metrics from the metrics-service DB. Fast, no AWX load.
-- **Layer 2** — Live data queried directly from the AWX DB. Requires mandatory date windows to protect the production database.
+- **Layer 2** — Live data from the AWX DB. Async: returns a task ID immediately, collect result once complete.
+- **Layer 3** — Job execution data collected by the DASHBOARD_COLLECTION task group. Ready to query, no AWX load.
 
 ---
 
-## Authentication
+## Setup
 
-All endpoints require a long-lived API token (DRF `TokenAuthentication`).
+### 1. Enable the feature flag
+
+The BI connector is disabled by default. Enable it at runtime — no restart required:
 
 ```bash
-# Create a token for a service account user
+# Via environment variable
+METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR=true
+
+# Or toggle FEATURE_BI_CONNECTOR_ENABLED via the DAB feature flags admin UI
+```
+
+Layer 3 (dashboard data) additionally requires the DASHBOARD_COLLECTION flag:
+
+```bash
+METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
+```
+
+All endpoints return `404 Not Found` while the flag is off.
+
+### 2. Create a service account token
+
+```bash
 uv run ./manage.py drf_create_token <username>
 ```
 
@@ -26,7 +45,9 @@ Authorization: Token <your-token>
 
 ## Rate Limits
 
-Authenticated users are throttled to **30 requests per hour** across all BI connector endpoints. Exceeding the limit returns `429 Too Many Requests`. Design your BI tool's refresh schedule accordingly — polling more frequently than every 2 minutes will hit the limit.
+Authenticated users are throttled to **30 requests per hour** across all BI connector endpoints. Exceeding the limit returns `429 Too Many Requests`.
+
+Layer 2 endpoints use an async poll pattern — budget your 30 requests across both the initial collection trigger and the status polls. A single collection typically requires 2–5 polls before completing.
 
 ---
 
@@ -57,7 +78,7 @@ The detail endpoint (`/daily/<date>/`) additionally includes `aggregated_metrics
 
 #### Pagination
 
-List endpoints are paginated. The response envelope looks like:
+List endpoints are paginated. The response envelope:
 
 ```json
 {
@@ -67,8 +88,6 @@ List endpoints are paginated. The response envelope looks like:
   "results": [ ... ]
 }
 ```
-
-Use `?page=<n>` to walk through pages. All results are ordered newest-first by default.
 
 #### Example daily summary response
 
@@ -96,9 +115,11 @@ Use `?page=<n>` to walk through pages. All results are ordered newest-first by d
 
 ---
 
-### Layer 2 — Live Controller data (AWX DB)
+### Layer 2 — Live Controller data (AWX DB) — async
 
-These query the AWX database directly. Mandatory `since`/`until` parameters protect the production DB from unbounded queries.
+These query the AWX database directly. Because a 7-day collection can take tens of seconds, the endpoints are **asynchronous**: the initial request returns `202 Accepted` immediately with a task ID, and the BI tool polls until the collection completes.
+
+#### Time-series endpoints (async)
 
 | Endpoint | Collector | Max window |
 |---|---|---|
@@ -106,28 +127,55 @@ These query the AWX database directly. Mandatory `since`/`until` parameters prot
 | `GET /api/v1/controller/hosts/` | Job host summaries | 7 days |
 | `GET /api/v1/controller/credentials/` | Credentials usage | 7 days |
 | `GET /api/v1/controller/events/` | Job events (event modules) | **3 days** |
-| `GET /api/v1/controller/snapshot/` | Current state (EEs, version, table metadata, config) | — |
 
 `since` and `until` must be ISO 8601 datetimes. Requests exceeding the max window return `400`.
 
-The snapshot endpoint optionally accepts a `?collectors=` query param to subset results:
+**202 response:**
+
+```json
+{
+  "task_id": 42,
+  "status": "pending",
+  "collector_type": "unified_jobs",
+  "results_url": "/api/v1/tasks/42/"
+}
+```
+
+**Deduplication:** if an identical collection (same endpoint + same `since`/`until`) is already running, the existing `task_id` is returned — no duplicate AWX query is started.
+
+**Polling:** `GET /api/v1/tasks/<task_id>/` returns the task status and, once complete, the result data:
+
+```json
+{
+  "id": 42,
+  "status": "completed",
+  "result_data": {
+    "status": "success",
+    "collector_type": "unified_jobs",
+    "since": "2025-03-01T00:00:00+00:00",
+    "until": "2025-03-07T23:59:59+00:00",
+    "data": [ ... ]
+  }
+}
+```
+
+If the task fails, `status` is `"failed"` and `result_data.error` contains the reason.
+
+#### Snapshot endpoint (synchronous)
+
+```
+GET /api/v1/controller/snapshot/
+```
+
+Point-in-time snapshot of execution environments, controller version, table metadata, and config. Remains synchronous — fast query, no date window.
+
+Optional `?collectors=` query param to subset results:
 
 ```
 GET /api/v1/controller/snapshot/?collectors=config,controller_version_service
 ```
 
-#### Example time-series response (jobs, hosts, credentials, events)
-
-```json
-{
-  "since": "2025-06-06T00:00:00+00:00",
-  "until": "2025-06-12T23:59:59+00:00",
-  "collector_type": "unified_jobs",
-  "data": [ ... ]
-}
-```
-
-#### Example snapshot response
+**Response:**
 
 ```json
 {
@@ -142,7 +190,26 @@ GET /api/v1/controller/snapshot/?collectors=config,controller_version_service
 }
 ```
 
-If a collector fails, the endpoint still returns `200` — the failed key appears in `errors` and is absent from `collectors`. This allows partial results when, for example, one table is locked or metrics_utility is partially unavailable.
+Returns `200` even when individual collectors fail — the failed key appears in `errors` and is absent from `collectors`.
+
+---
+
+### Layer 3 — Dashboard collected data (metrics-service DB)
+
+Pre-collected AWX job execution data, synced incrementally every 6 hours by the `DASHBOARD_COLLECTION` task group. Query directly with no AWX DB load.
+
+| Endpoint | Description | Key filters |
+|---|---|---|
+| `GET /api/v1/dashboard/jobs/` | List job execution records | `finished__gte`, `finished__lte`, `status`, `template_id`, `organization_id`, `project_id` |
+| `GET /api/v1/dashboard/jobs/<job_id>/` | Single job with label IDs and host summaries | — |
+| `GET /api/v1/dashboard/templates/` | Template time estimates (manual/automation minutes) | `template_id`, `template_name__icontains` |
+| `GET /api/v1/dashboard/templates/<template_id>/` | Single template detail | — |
+
+The job list response inlines template metadata as flat columns (`template_time_manual_minutes`, `template_time_automation_minutes`) so BI tools get a single joined row per job.
+
+The job detail response adds `label_ids` (list of AWX label IDs) and `host_summaries` (list of `{host_summary_id, host_id, host_name}`).
+
+Data availability depends on `DASHBOARD_COLLECTION` being enabled. Endpoints return empty results (not errors) if no data has been collected yet.
 
 ---
 
@@ -150,6 +217,8 @@ If a collector fails, the endpoint still returns `200` — the failed key appear
 
 ```bash
 TOKEN="your-token-here"
+
+# --- Layer 1 ---
 
 # Daily summary list — last 30 days
 curl -H "Authorization: Token $TOKEN" \
@@ -163,13 +232,35 @@ curl -H "Authorization: Token $TOKEN" \
 curl -H "Authorization: Token $TOKEN" \
   "http://localhost:8000/api/v1/metrics/hourly/?collector_type=unified_jobs"
 
-# Live jobs — 6-day window (within the 7-day limit)
-curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/controller/jobs/?since=2025-03-12T00:00:00Z&until=2025-03-18T00:00:00Z"
+# --- Layer 2 (async) ---
 
-# Current state snapshot — config and version only
+# Step 1 — kick off the collection
+RESPONSE=$(curl -s -H "Authorization: Token $TOKEN" \
+  "http://localhost:8000/api/v1/controller/jobs/?since=2025-03-01T00:00:00Z&until=2025-03-07T23:59:59Z")
+TASK_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['task_id'])")
+
+# Step 2 — poll until complete
+curl -H "Authorization: Token $TOKEN" \
+  "http://localhost:8000/api/v1/tasks/$TASK_ID/"
+# Repeat until "status": "completed", then read result_data.data
+
+# Snapshot (synchronous, no polling needed)
 curl -H "Authorization: Token $TOKEN" \
   "http://localhost:8000/api/v1/controller/snapshot/?collectors=config,controller_version_service"
+
+# --- Layer 3 ---
+
+# Jobs finished in the last 7 days, failed only
+curl -H "Authorization: Token $TOKEN" \
+  "http://localhost:8000/api/v1/dashboard/jobs/?status=failed&finished__gte=2025-06-06T00:00:00Z"
+
+# Single job detail with labels and host summaries
+curl -H "Authorization: Token $TOKEN" \
+  "http://localhost:8000/api/v1/dashboard/jobs/12345/"
+
+# Template time estimates
+curl -H "Authorization: Token $TOKEN" \
+  "http://localhost:8000/api/v1/dashboard/templates/?template_name__icontains=deploy"
 ```
 
 ---
@@ -180,10 +271,12 @@ curl -H "Authorization: Token $TOKEN" \
 |---|---|---|
 | `401 Unauthorized` | No or invalid token | Check `Authorization: Token <token>` header |
 | `403 Forbidden` | Token valid but user lacks permission | Ensure the user has API access |
+| `404 Not Found` | BI connector feature flag is disabled | Set `METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR=true` |
 | `400 Bad Request` | Missing or invalid `since`/`until`, or range exceeds max window | Use ISO 8601 datetimes; check the `detail` field in the response |
-| `429 Too Many Requests` | Rate limit exceeded (30 req/hour) | Reduce polling frequency |
-| `500 Internal Server Error` | Collector function raised an exception | Check service logs; the `error` field contains the exception message |
-| `503 Service Unavailable` | AWX DB connection failed | Verify the AWX DB alias is configured and reachable |
+| `429 Too Many Requests` | Rate limit exceeded (30 req/hour) | Reduce polling frequency; note each poll counts toward the limit |
+| `202 Accepted` (Layer 2) | Collection started — not an error | Poll `results_url` until `status == "completed"` |
+| `500 Internal Server Error` | Collector raised an exception (Layer 2: visible in `result_data.error` after task completes) | Check service logs |
+| `503 Service Unavailable` | AWX DB connection failed (snapshot endpoint only) | Verify the AWX DB alias is configured and reachable |
 
 ---
 
@@ -191,17 +284,16 @@ curl -H "Authorization: Token $TOKEN" \
 
 [Grafana](https://grafana.com/) with the [Infinity datasource plugin](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/) can call the REST endpoints directly — no database driver needed.
 
+> **Note:** Grafana Infinity does not natively support the async poll pattern. Use Layer 1 or Layer 3 endpoints for live Grafana dashboards. For Layer 2 data, schedule a separate collection job and point Grafana at the task result URL once complete.
+
 ### Install
 
 ```bash
 brew install grafana
 
-# Install the Infinity plugin (requires sudo or fixing directory ownership first)
-sudo grafana cli plugins install yesoreyeram-infinity-datasource
-# OR fix ownership then install without sudo:
+# Install the Infinity plugin
 sudo chown -R $(whoami) /usr/local/var/lib/grafana/plugins
 grafana cli plugins install yesoreyeram-infinity-datasource
-
 brew services restart grafana
 ```
 
@@ -221,40 +313,39 @@ Open `http://localhost:3000` (default credentials: admin / admin).
 **Daily jobs trend (time series)**
 - Type: Time series
 - URL: `http://127.0.0.1:8000/api/v1/metrics/daily/`
-- Parser: JSON
-- Rows/Root: `results`
+- Parser: JSON / Rows root: `results`
 - Columns: `summary_date`, `metrics_unified_jobs.jobs_total`
 
-**Hourly collection status (table)**
-- URL: `http://127.0.0.1:8000/api/v1/metrics/hourly/?collector_type=unified_jobs`
-- Parser: JSON
-- Rows/Root: `results`
+**Dashboard job status breakdown (table)**
+- URL: `http://127.0.0.1:8000/api/v1/dashboard/jobs/?finished__gte=2025-06-01T00:00:00Z`
+- Parser: JSON / Rows root: `results`
+- Columns: `job_id`, `template_name`, `status`, `elapsed`, `finished`
 
 **Current Controller state (stat panels)**
 - URL: `http://127.0.0.1:8000/api/v1/controller/snapshot/`
 - Parser: JSON
-- Extract nested fields from `collectors.controller_version_service`, `collectors.table_metadata`, etc.
+- Extract from `collectors.controller_version_service`, `collectors.table_metadata`
 
 ---
 
 ## Alternative BI tools
 
-### Metabase (no REST support — connects to PostgreSQL directly)
+### Metabase (connects to PostgreSQL directly)
 
 ```bash
 docker run -d -p 3001:3000 --name metabase metabase/metabase
 ```
 
-Connect to the metrics-service PostgreSQL database. Use SQL questions to query `tasks_dailymetricssummary` and `tasks_hourlymetricscollection` directly. JSON column extraction requires PostgreSQL `->` / `->>` operators.
+Connect to the metrics-service PostgreSQL database. Query `tasks_dailymetricssummary`, `tasks_hourlymetricscollection`, `dashboard_job_data`, and `dashboard_template_metadata` directly via SQL. JSON column extraction requires `->` / `->>` operators.
 
-### Evidence (code-based, SQL-driven)
+### Evidence (SQL-driven, code-based)
 
 ```bash
 npx degit evidence-dev/template my-metrics-reports
 cd my-metrics-reports && npm install && npm run dev
 ```
 
-Write SQL in markdown files, connect to the metrics-service PostgreSQL.
+Write SQL in markdown files connected to the metrics-service PostgreSQL.
 
 ---
 
@@ -262,9 +353,12 @@ Write SQL in markdown files, connect to the metrics-service PostgreSQL.
 
 For enterprise BI tools (Tableau, Power BI) that require a native connector:
 
-1. **Auth**: Use the token endpoint or configure OAuth2 (DAB includes `ansible_base.oauth2_provider`)
-2. **Schema declaration**: Map the flat fields from `/api/v1/metrics/daily/` to typed columns
-3. **Data fetching**: Call the Layer 1 endpoints with date range filters; handle the paginated `results` array
-4. **Layer 2**: Call the controller endpoints with mandatory `since`/`until` params; handle the `data` key in the response
+1. **Auth** — Use the token endpoint or configure OAuth2 (`ansible_base.oauth2_provider` is included)
+2. **Layer 1 & 3** — Call with date range filters, handle the paginated `results` array; declare flat column schemas
+3. **Layer 2 (async)** — Implement a request/poll loop:
+   - `GET /api/v1/controller/<type>/?since=...&until=...` → capture `task_id`
+   - Poll `GET /api/v1/tasks/<task_id>/` until `status == "completed"`
+   - Read rows from `result_data.data`
+4. **Schema** — Map flat fields from Layer 1/3 and `result_data.data` from Layer 2 to typed columns
 
-The connector declares a unified schema spanning both layers. From the BI tool's perspective it is one data source; the split between pre-aggregated and live data is an implementation detail.
+From the BI tool's perspective it is one data source. The split between layers is an implementation detail — Layer 1/3 are fast reads, Layer 2 is async and suitable for scheduled/nightly refreshes rather than interactive queries.

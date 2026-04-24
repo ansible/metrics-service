@@ -9,9 +9,10 @@ Permission is IsAuthenticated (not DeveloperModeRequired) so they are available 
 from rest_framework.permissions import IsAuthenticated
 
 from apps.tasks.models import DailyMetricsSummary, HourlyMetricsCollection
+from apps.tasks.v1.base_views import BaseViewSet
 
-from .base_views import BaseViewSet
-from .metrics_serializers import (
+from .mixins import BiConnectorEnabledMixin
+from .serializers import (
     DailyMetricsSummaryDetailSerializer,
     DailyMetricsSummaryListSerializer,
     HourlyMetricsCollectionDetailSerializer,
@@ -19,7 +20,7 @@ from .metrics_serializers import (
 )
 
 
-class DailyMetricsSummaryViewSet(BaseViewSet):
+class DailyMetricsSummaryViewSet(BiConnectorEnabledMixin, BaseViewSet):
     """
     Read-only ViewSet for DailyMetricsSummary.
 
@@ -32,7 +33,7 @@ class DailyMetricsSummaryViewSet(BaseViewSet):
     queryset = DailyMetricsSummary.objects.all()
     permission_classes = [IsAuthenticated]
     http_method_names = ["get", "head", "options"]
-    versioning_class = None  # Not under the v1 namespace; disable NamespaceVersioning
+    versioning_class = None
     lookup_field = "summary_date"
     ordering = ["-summary_date"]
     ordering_fields = ["summary_date", "created", "modified"]
@@ -51,7 +52,7 @@ class DailyMetricsSummaryViewSet(BaseViewSet):
         return DailyMetricsSummaryListSerializer
 
 
-class HourlyMetricsCollectionViewSet(BaseViewSet):
+class HourlyMetricsCollectionViewSet(BiConnectorEnabledMixin, BaseViewSet):
     """
     Read-only ViewSet for HourlyMetricsCollection.
 
@@ -65,7 +66,7 @@ class HourlyMetricsCollectionViewSet(BaseViewSet):
     queryset = HourlyMetricsCollection.objects.all()
     permission_classes = [IsAuthenticated]
     http_method_names = ["get", "head", "options"]
-    versioning_class = None  # Not under the v1 namespace; disable NamespaceVersioning
+    versioning_class = None
     ordering = ["-collection_timestamp"]
     ordering_fields = ["collection_timestamp", "collector_type", "created"]
     serializer_class = HourlyMetricsCollectionListSerializer

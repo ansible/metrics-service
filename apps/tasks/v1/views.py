@@ -36,7 +36,8 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.core.permissions import DeveloperModeRequired
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
+
 from apps.tasks.api_utils import build_error_response
 from apps.tasks.models import Task, TaskExecution
 
@@ -61,7 +62,7 @@ class TaskViewSet(BaseViewSet):
 
     queryset = Task.objects.select_related("created_by").all()
     serializer_class = TaskSerializer
-    permission_classes = [DeveloperModeRequired]
+    permission_classes = [IsSystemAdminOrAuditor]
     ordering_fields = ["id", "name", "status", "scheduled_time", "created", "started_at", "completed_at"]
     ordering = ["-id"]
 
@@ -457,7 +458,7 @@ class TaskExecutionViewSet(BaseViewSet):
 
     queryset = TaskExecution.objects.select_related("task").all()
     serializer_class = TaskExecutionSerializer
-    permission_classes = [DeveloperModeRequired]
+    permission_classes = [IsSystemAdminOrAuditor]
     ordering_fields = ["started_at", "completed_at", "execution_time_seconds", "status"]
     ordering = ["-started_at"]
 

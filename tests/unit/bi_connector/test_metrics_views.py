@@ -3,6 +3,7 @@ Tests for BI connector Layer 1 API endpoints (metrics-service DB).
 
 Covers DailyMetricsSummaryViewSet and HourlyMetricsCollectionViewSet:
 - Authentication enforcement
+- Feature flag disabled → 404
 - Flat column serialization of aggregated_metrics JSON
 - Date range and collector_type filtering
 - Read-only enforcement (write methods rejected)
@@ -10,6 +11,7 @@ Covers DailyMetricsSummaryViewSet and HourlyMetricsCollectionViewSet:
 """
 
 from datetime import date, timedelta
+from unittest.mock import patch
 
 import pytest
 from django.urls import reverse
@@ -19,6 +21,8 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import User
 from tests.test_utils import get_test_password
+
+_FLAG_PATCH = "apps.bi_connector.v1.mixins.get_feature_enabled_from_db"
 
 
 @pytest.mark.unit
@@ -30,6 +34,9 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
+        patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _create_summary(self, summary_date, aggregated_metrics=None, summary_status="aggregated"):
         from apps.tasks.models import DailyMetricsSummary
@@ -42,16 +49,25 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
             aggregated_metrics=aggregated_metrics or {},
         )
 
+    # --- Feature flag ---
+
+    def test_flag_disabled_returns_404(self):
+        self.client.force_authenticate(user=self.user)
+        self.flag_mock.return_value = False
+        url = reverse("bi_connector:metrics:daily-metrics-list")
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
     # --- Authentication ---
 
     def test_list_requires_authentication(self):
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url)
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
     def test_list_authenticated_returns_200(self):
         self.client.force_authenticate(user=self.user)
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
 
@@ -67,7 +83,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
             },
         )
 
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -79,7 +95,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
         self._create_summary(summary_date="2025-01-15", aggregated_metrics={})
 
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -91,7 +107,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
         self._create_summary(summary_date="2025-01-15", aggregated_metrics={"unified_jobs": {"total": 1}})
 
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -105,7 +121,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
             aggregated_metrics={"unified_jobs": {"total": 1}},
         )
 
-        url = reverse("tasks:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-01-15"})
+        url = reverse("bi_connector:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-01-15"})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -116,7 +132,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
         self._create_summary(summary_date="2025-02-20")
 
-        url = reverse("tasks:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-02-20"})
+        url = reverse("bi_connector:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-02-20"})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -124,7 +140,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
 
     def test_detail_not_found_returns_404(self):
         self.client.force_authenticate(user=self.user)
-        url = reverse("tasks:metrics:daily-metrics-detail", kwargs={"summary_date": "1999-01-01"})
+        url = reverse("bi_connector:metrics:daily-metrics-detail", kwargs={"summary_date": "1999-01-01"})
         response = self.client.get(url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -135,7 +151,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
         self._create_summary(summary_date="2025-01-10")
         self._create_summary(summary_date="2025-01-20")
 
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url, {"summary_date": "2025-01-10"})
 
         assert response.status_code == status.HTTP_200_OK
@@ -148,7 +164,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
         self._create_summary(summary_date="2025-01-15")
         self._create_summary(summary_date="2025-02-01")
 
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url, {"summary_date__gte": "2025-01-15"})
 
         assert response.status_code == status.HTTP_200_OK
@@ -159,7 +175,7 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
         self._create_summary(summary_date="2025-01-01", summary_status="aggregated")
         self._create_summary(summary_date="2025-01-02", summary_status="pending")
 
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.get(url, {"status": "aggregated"})
 
         assert response.status_code == status.HTTP_200_OK
@@ -169,21 +185,21 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
 
     def test_post_returns_405(self):
         self.client.force_authenticate(user=self.user)
-        url = reverse("tasks:metrics:daily-metrics-list")
+        url = reverse("bi_connector:metrics:daily-metrics-list")
         response = self.client.post(url, {"summary_date": "2025-01-01"})
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
     def test_put_returns_405(self):
         self.client.force_authenticate(user=self.user)
         self._create_summary(summary_date="2025-01-15")
-        url = reverse("tasks:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-01-15"})
+        url = reverse("bi_connector:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-01-15"})
         response = self.client.put(url, {})
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
     def test_delete_returns_405(self):
         self.client.force_authenticate(user=self.user)
         self._create_summary(summary_date="2025-01-15")
-        url = reverse("tasks:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-01-15"})
+        url = reverse("bi_connector:metrics:daily-metrics-detail", kwargs={"summary_date": "2025-01-15"})
         response = self.client.delete(url)
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
@@ -197,6 +213,9 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
         self.user = User.objects.create_superuser(
             username="admin", email="admin@example.com", password=get_test_password()
         )
+        patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _create_collection(
         self, collector_type="unified_jobs", hours_ago=1, raw_data=None, collection_status="collected"
@@ -211,16 +230,25 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
             status=collection_status,
         )
 
+    # --- Feature flag ---
+
+    def test_flag_disabled_returns_404(self):
+        self.client.force_authenticate(user=self.user)
+        self.flag_mock.return_value = False
+        url = reverse("bi_connector:metrics:hourly-metrics-list")
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
     # --- Authentication ---
 
     def test_list_requires_authentication(self):
-        url = reverse("tasks:metrics:hourly-metrics-list")
+        url = reverse("bi_connector:metrics:hourly-metrics-list")
         response = self.client.get(url)
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
     def test_list_authenticated_returns_200(self):
         self.client.force_authenticate(user=self.user)
-        url = reverse("tasks:metrics:hourly-metrics-list")
+        url = reverse("bi_connector:metrics:hourly-metrics-list")
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
 
@@ -230,7 +258,7 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
         self._create_collection(raw_data={"large": "payload"})
 
-        url = reverse("tasks:metrics:hourly-metrics-list")
+        url = reverse("bi_connector:metrics:hourly-metrics-list")
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -242,7 +270,7 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
         collection = self._create_collection(raw_data={"jobs_total": 99})
 
-        url = reverse("tasks:metrics:hourly-metrics-detail", kwargs={"pk": collection.pk})
+        url = reverse("bi_connector:metrics:hourly-metrics-detail", kwargs={"pk": collection.pk})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -255,7 +283,7 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
         self._create_collection(collector_type="unified_jobs", hours_ago=2)
         self._create_collection(collector_type="credentials_service", hours_ago=3)
 
-        url = reverse("tasks:metrics:hourly-metrics-list")
+        url = reverse("bi_connector:metrics:hourly-metrics-list")
         response = self.client.get(url, {"collector_type": "unified_jobs"})
 
         assert response.status_code == status.HTTP_200_OK
@@ -267,7 +295,7 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
         self._create_collection(collection_status="collected", hours_ago=2)
         self._create_collection(collection_status="processed", hours_ago=3)
 
-        url = reverse("tasks:metrics:hourly-metrics-list")
+        url = reverse("bi_connector:metrics:hourly-metrics-list")
         response = self.client.get(url, {"status": "collected"})
 
         assert response.status_code == status.HTTP_200_OK
@@ -277,13 +305,13 @@ class TestHourlyMetricsCollectionViewSet(APITestCase):
 
     def test_post_returns_405(self):
         self.client.force_authenticate(user=self.user)
-        url = reverse("tasks:metrics:hourly-metrics-list")
+        url = reverse("bi_connector:metrics:hourly-metrics-list")
         response = self.client.post(url, {})
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
     def test_delete_returns_405(self):
         self.client.force_authenticate(user=self.user)
         collection = self._create_collection()
-        url = reverse("tasks:metrics:hourly-metrics-detail", kwargs={"pk": collection.pk})
+        url = reverse("bi_connector:metrics:hourly-metrics-detail", kwargs={"pk": collection.pk})
         response = self.client.delete(url)
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED

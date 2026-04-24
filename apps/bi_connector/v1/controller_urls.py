@@ -1,7 +1,7 @@
 """
 URL configuration for BI connector Layer 2 (live AWX DB) endpoints.
 
-Mounts at /api/v1/controller/ via apps/tasks/urls.py.
+Mounts at /api/v1/controller/ via apps/bi_connector/urls.py.
 
 Endpoints:
     GET /api/v1/controller/jobs/?since=&until=         - unified jobs (max 7-day window)

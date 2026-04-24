@@ -13,6 +13,9 @@ Queue routing is defined per-function in TASK_METADATA ("queue" field).
 
 import logging
 
+# BI connector on-demand collection
+from ..bi_connector.collectors.collect_bi_controller_data import collect_bi_controller_data
+
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
@@ -58,6 +61,8 @@ TASK_FUNCTIONS = {
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
+    # BI connector on-demand collection
+    "collect_bi_controller_data": collect_bi_controller_data,
     # Dashboard reports
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,

@@ -1,13 +1,21 @@
 """
 BI connector Layer 2 views — live data queried directly from the AWX DB.
 
-These endpoints use the existing AWX DB connection (Django "awx" alias) and
-metrics_utility collector functions to serve real-time Controller data.
+Time-series endpoints (jobs, hosts, credentials, events) are asynchronous:
+  GET ?since=&until=  →  202 Accepted + {"task_id": N, "status_url": "/api/v1/tasks/N/"}
 
-All time-series endpoints enforce mandatory since/until parameters with a maximum
-date range to prevent unbounded queries against the production AWX DB.
-Collector functions are imported lazily inside each get() method to prevent
-metrics_utility import failures from breaking the entire module in test environments.
+The collection runs inside dispatcherd so the HTTP request returns immediately.
+Poll GET /api/v1/tasks/<task_id>/ until status == "completed", then read
+result_data.data for the collected rows.
+
+Deduplication: a second identical request while the first is still pending/running
+returns the existing task_id rather than creating a duplicate AWX query.
+
+The snapshot endpoint remains synchronous — it is a fast point-in-time query
+with no date window, so an async round-trip would add latency for no benefit.
+
+Collector functions are imported lazily to prevent metrics_utility import failures
+from breaking the module in environments where it is not installed.
 """
 
 import logging
@@ -20,6 +28,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.tasks.utils import get_db_connection, parse_datetime_string
+
+from .mixins import BiConnectorEnabledMixin
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +71,11 @@ class DateRangeRequiredMixin:
         return since, until
 
 
-class ControllerTimeSeriesView(DateRangeRequiredMixin, APIView):
+class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, APIView):
     """
-    Base view for live time-series data from the AWX DB.
+    Base view for async live time-series data from the AWX DB.
 
+    Returns 202 Accepted immediately and kicks off a dispatcherd task.
     Subclasses set COLLECTOR_KEY to select which hourly collector to invoke.
     Override MAX_DAYS to tighten the allowed date range (default: 7 days).
     """
@@ -76,39 +87,63 @@ class ControllerTimeSeriesView(DateRangeRequiredMixin, APIView):
     def get(self, request: Any) -> Response:
         since, until = self.validate_date_range(request)
 
-        try:
-            conn = get_db_connection()
-        except Exception as e:
-            logger.error("AWX DB unavailable for %s: %s", self.__class__.__name__, e)
-            return Response({"error": f"AWX database unavailable: {e}"}, status=503)
+        from apps.tasks.models import Task
+        from apps.tasks.tasks_system import submit_task_to_dispatcher
 
-        try:
-            from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
+        since_iso = since.isoformat()
+        until_iso = until.isoformat()
 
-            collectors = _get_hourly_collectors()
-            collector = collectors[self.COLLECTOR_KEY]["collector_func"](db=conn, since=since, until=until)
-            data = collector.gather()
-        except Exception as e:
-            logger.error("Collection failed for %s: %s", self.__class__.__name__, e)
-            return Response({"error": f"Collection failed: {e}"}, status=500)
+        # Return the existing task if an identical collection is already in flight.
+        existing = Task.objects.filter(
+            function_name="collect_bi_controller_data",
+            status__in=["pending", "running"],
+            task_data__collector_key=self.COLLECTOR_KEY,
+            task_data__since=since_iso,
+            task_data__until=until_iso,
+        ).first()
+
+        if existing:
+            return Response(
+                {
+                    "task_id": existing.id,
+                    "status": existing.status,
+                    "collector_type": self.COLLECTOR_KEY,
+                    "results_url": f"/api/v1/tasks/{existing.id}/",
+                },
+                status=202,
+            )
+
+        task = Task.objects.create(
+            name=f"bi_collect_{self.COLLECTOR_KEY}",
+            function_name="collect_bi_controller_data",
+            task_data={
+                "collector_key": self.COLLECTOR_KEY,
+                "since": since_iso,
+                "until": until_iso,
+            },
+        )
+        submit_task_to_dispatcher(task)
 
         return Response(
             {
-                "since": since.isoformat(),
-                "until": until.isoformat(),
+                "task_id": task.id,
+                "status": "pending",
                 "collector_type": self.COLLECTOR_KEY,
-                "data": data,
-            }
+                "results_url": f"/api/v1/tasks/{task.id}/",
+            },
+            status=202,
         )
 
 
 class ControllerJobsView(ControllerTimeSeriesView):
     """
-    Live unified jobs data from the AWX DB (max 7-day window).
+    Async live unified jobs data from the AWX DB (max 7-day window).
 
     Query params:
         since (required) — start of range, ISO 8601 datetime
         until (required) — end of range, ISO 8601 datetime
+
+    Returns 202 with task_id. Poll /api/v1/tasks/<task_id>/ for completion.
     """
 
     COLLECTOR_KEY = "unified_jobs"
@@ -116,11 +151,13 @@ class ControllerJobsView(ControllerTimeSeriesView):
 
 class ControllerHostsView(ControllerTimeSeriesView):
     """
-    Live job host summary data from the AWX DB (max 7-day window).
+    Async live job host summary data from the AWX DB (max 7-day window).
 
     Query params:
         since (required) — start of range, ISO 8601 datetime
         until (required) — end of range, ISO 8601 datetime
+
+    Returns 202 with task_id. Poll /api/v1/tasks/<task_id>/ for completion.
     """
 
     COLLECTOR_KEY = "job_host_summary_service"
@@ -128,11 +165,13 @@ class ControllerHostsView(ControllerTimeSeriesView):
 
 class ControllerCredentialsView(ControllerTimeSeriesView):
     """
-    Live credentials usage data from the AWX DB (max 7-day window).
+    Async live credentials usage data from the AWX DB (max 7-day window).
 
     Query params:
         since (required) — start of range, ISO 8601 datetime
         until (required) — end of range, ISO 8601 datetime
+
+    Returns 202 with task_id. Poll /api/v1/tasks/<task_id>/ for completion.
     """
 
     COLLECTOR_KEY = "credentials_service"
@@ -140,7 +179,7 @@ class ControllerCredentialsView(ControllerTimeSeriesView):
 
 class ControllerEventsView(ControllerTimeSeriesView):
     """
-    Live job events (event modules) data from the AWX DB.
+    Async live job events data from the AWX DB.
 
     Tighter 3-day max window enforced because main_jobevent is one of the
     largest tables in the AWX DB — even a 7-day query can be very heavy.
@@ -148,18 +187,21 @@ class ControllerEventsView(ControllerTimeSeriesView):
     Query params:
         since (required) — start of range, ISO 8601 datetime
         until (required) — end of range, ISO 8601 datetime
+
+    Returns 202 with task_id. Poll /api/v1/tasks/<task_id>/ for completion.
     """
 
     COLLECTOR_KEY = "main_jobevent_service"
     MAX_DAYS: int = 3
 
 
-class ControllerSnapshotView(APIView):
+class ControllerSnapshotView(BiConnectorEnabledMixin, APIView):
     """
-    Current-state snapshot from the AWX DB.
+    Synchronous current-state snapshot from the AWX DB.
 
     Queries execution environments, controller version, table metadata, and config.
-    No time window required — these are point-in-time snapshots of current state.
+    Remains synchronous — fast point-in-time query, no date window, no benefit
+    to async dispatch.
 
     Returns partial results if individual collectors fail (200 with populated errors dict).
 
