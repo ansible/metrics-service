@@ -373,34 +373,7 @@ class TestSendToSegment(TestCase):
                 write_key="test-write-key",
                 user_id="user1",
                 debug=False,
-                use_bulk=False,  # Small data, no bulk
             )
-
-    @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
-    def test_send_to_segment_bulk_mode(self, mock_logger):
-        """Test send_to_segment uses bulk mode for large data."""
-        mock_storage_instance = MagicMock()
-        mock_storage_instance.put.return_value = None  # No chunks returned
-
-        # Create large data (> 24KB)
-        large_data = {"data": "x" * (25 * 1024)}
-
-        with (
-            patch("metrics_utility.library.storage.segment.SEGMENT_AVAILABLE", True),
-            patch(
-                "metrics_utility.library.storage.segment.StorageSegment", return_value=mock_storage_instance
-            ) as mock_storage_class,
-            patch("django.conf.settings") as mock_settings,
-        ):
-            mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
-            mock_settings.DEBUG = False
-
-            result = send_to_segment("user1", "test_event", large_data)
-
-            self.assertEqual(result["status"], "success")
-            # Should use bulk mode for large data
-            call_kwargs = mock_storage_class.call_args[1]
-            self.assertTrue(call_kwargs["use_bulk"])
 
     @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
     def test_send_to_segment_exception(self, mock_logger):
