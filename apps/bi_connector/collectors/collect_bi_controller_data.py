@@ -28,12 +28,9 @@ def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
     Returns a dict compatible with the tasks_system success/error convention:
         {"status": "success", "collector_type": ..., "since": ..., "until": ..., "data": [...]}
     """
-    if not task_data:
-        return {"status": "error", "error": "task_data is required"}
-
-    collector_key = task_data.get("collector_key")
-    since_str = task_data.get("since")
-    until_str = task_data.get("until")
+    collector_key = task_data.get("collector_key") if task_data else None
+    since_str = task_data.get("since") if task_data else None
+    until_str = task_data.get("until") if task_data else None
 
     if not all([collector_key, since_str, until_str]):
         return {"status": "error", "error": "task_data must contain collector_key, since, and until"}
