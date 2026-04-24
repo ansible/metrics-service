@@ -32,7 +32,7 @@ OVER_3_DAYS_UNTIL = "2025-03-05T00:00:00Z"  # 4 days — exceeds 3-day limit
 
 _SNAPSHOT_PATCH = "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors"
 _DB_PATCH = "apps.bi_connector.v1.controller_views.get_db_connection"
-_FLAG_PATCH = "apps.bi_connector.v1.mixins.get_feature_enabled_from_db"
+_FLAG_PATCH = "apps.tasks.task_groups.get_feature_enabled_from_db"
 _SUBMIT_PATCH = "apps.bi_connector.v1.controller_views.submit_task_to_dispatcher"
 
 

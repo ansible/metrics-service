@@ -4,8 +4,6 @@ Mixins for BI connector views.
 
 from rest_framework.exceptions import NotFound
 
-from apps.tasks.task_groups import get_feature_enabled_from_db
-
 
 class BiConnectorEnabledMixin:
     """
@@ -18,6 +16,8 @@ class BiConnectorEnabledMixin:
     """
 
     def initial(self, request, *args, **kwargs):
+        from apps.tasks.task_groups import get_feature_enabled_from_db
+
         if not get_feature_enabled_from_db("BI_CONNECTOR", default=False):
             raise NotFound()
         super().initial(request, *args, **kwargs)

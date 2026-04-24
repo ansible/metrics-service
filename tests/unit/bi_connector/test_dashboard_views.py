@@ -24,7 +24,7 @@ from rest_framework.test import APITestCase
 from apps.core.models import User
 from tests.test_utils import get_test_password
 
-_FLAG_PATCH = "apps.bi_connector.v1.mixins.get_feature_enabled_from_db"
+_FLAG_PATCH = "apps.tasks.task_groups.get_feature_enabled_from_db"
 
 
 def _make_job(
