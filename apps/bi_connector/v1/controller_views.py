@@ -76,9 +76,7 @@ class DateRangeRequiredMixin:
         max_days = self._get_max_days()
         delta = until - since
         if delta.total_seconds() > max_days * 86400:
-            raise ValidationError(
-                {"detail": f"Date range cannot exceed {max_days} days. Requested {delta.days} days."}
-            )
+            raise ValidationError({"detail": f"Date range cannot exceed {max_days} days. Requested {delta.days} days."})
 
         return since, until
 
