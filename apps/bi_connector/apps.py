@@ -68,7 +68,10 @@ class BiConnectorConfig(AppConfig):
     def ready(self):
         from django.apps import apps as django_apps
 
-        post_migrate.connect(
-            load_bi_connector_feature_flags,
-            sender=django_apps.get_app_config("dab_feature_flags"),
-        )
+        try:
+            dab_ff_config = django_apps.get_app_config("dab_feature_flags")
+        except LookupError:
+            logger.debug("dab_feature_flags not installed; skipping bi_connector feature flag signal")
+            return
+
+        post_migrate.connect(load_bi_connector_feature_flags, sender=dab_ff_config)

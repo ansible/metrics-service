@@ -21,6 +21,7 @@ from breaking the module in environments where it is not installed.
 import logging
 from typing import Any
 
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -38,12 +39,22 @@ class DateRangeRequiredMixin:
     """
     Mixin that enforces mandatory since/until query parameters with a maximum window.
 
-    Protects the AWX production DB from unbounded BI queries. Override MAX_DAYS
-    on the view class to set a tighter limit (e.g., ControllerEventsView uses 3 days
-    because main_jobevent is one of the largest tables in the AWX DB).
+    Protects the AWX production DB from unbounded BI queries. The default window is
+    controlled by the BI_CONNECTOR_MAX_DAYS_DEFAULT Django setting (default: 7).
+    Override MAX_DAYS_SETTING on the view class to point to a different setting key
+    (e.g., ControllerEventsView uses BI_CONNECTOR_MAX_DAYS_EVENTS for its tighter 3-day limit).
+
+    Configurable without code changes:
+        METRICS_SERVICE_BI_CONNECTOR_MAX_DAYS_DEFAULT=14
+        METRICS_SERVICE_BI_CONNECTOR_MAX_DAYS_EVENTS=5
     """
 
-    MAX_DAYS: int = 7
+    MAX_DAYS_SETTING: str = "BI_CONNECTOR_MAX_DAYS_DEFAULT"
+
+    def _get_max_days(self) -> int:
+        from django.conf import settings
+
+        return getattr(settings, self.MAX_DAYS_SETTING, 7)
 
     def validate_date_range(self, request: Any) -> tuple:
         since_str = request.query_params.get("since")
@@ -62,10 +73,11 @@ class DateRangeRequiredMixin:
         if until <= since:
             raise ValidationError({"detail": "'until' must be after 'since'."})
 
+        max_days = self._get_max_days()
         delta = until - since
-        if delta.days > self.MAX_DAYS:
+        if delta.total_seconds() > max_days * 86400:
             raise ValidationError(
-                {"detail": f"Date range cannot exceed {self.MAX_DAYS} days. Requested {delta.days} days."}
+                {"detail": f"Date range cannot exceed {max_days} days. Requested {delta.days} days."}
             )
 
         return since, until
@@ -77,7 +89,7 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
 
     Returns 202 Accepted immediately and kicks off a dispatcherd task.
     Subclasses set COLLECTOR_KEY to select which hourly collector to invoke.
-    Override MAX_DAYS to tighten the allowed date range (default: 7 days).
+    Override MAX_DAYS_SETTING to point to a different settings key for a tighter limit.
     """
 
     permission_classes = [IsAuthenticated]
@@ -108,7 +120,7 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
                     "task_id": existing.id,
                     "status": existing.status,
                     "collector_type": self.COLLECTOR_KEY,
-                    "results_url": f"/api/v1/tasks/{existing.id}/",
+                    "results_url": reverse("tasks:v1:task-detail", args=[existing.id]),
                 },
                 status=202,
             )
@@ -129,7 +141,7 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
                 "task_id": task.id,
                 "status": "pending",
                 "collector_type": self.COLLECTOR_KEY,
-                "results_url": f"/api/v1/tasks/{task.id}/",
+                "results_url": reverse("tasks:v1:task-detail", args=[task.id]),
             },
             status=202,
         )
@@ -192,7 +204,7 @@ class ControllerEventsView(ControllerTimeSeriesView):
     """
 
     COLLECTOR_KEY = "main_jobevent_service"
-    MAX_DAYS: int = 3
+    MAX_DAYS_SETTING: str = "BI_CONNECTOR_MAX_DAYS_EVENTS"
 
 
 class ControllerSnapshotView(BiConnectorEnabledMixin, APIView):

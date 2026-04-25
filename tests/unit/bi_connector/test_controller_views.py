@@ -108,6 +108,19 @@ class TestControllerJobsView(APITestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "7 days" in str(response.data)
 
+    def test_range_exactly_7_days_is_allowed(self):
+        # 2025-03-01T00:00:00Z to 2025-03-08T00:00:00Z is exactly 7 days — should be accepted.
+        self.client.force_authenticate(user=self.user)
+        with patch(_SUBMIT_PATCH):
+            response = self.client.get(self.url, {"since": VALID_SINCE, "until": "2025-03-08T00:00:00Z"})
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+    def test_range_7_days_plus_1_second_returns_400(self):
+        # Validates the total_seconds() check catches fractional-day overruns that delta.days would miss.
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.url, {"since": VALID_SINCE, "until": "2025-03-08T00:00:01Z"})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
     # --- Async 202 response ---
 
     def test_valid_request_returns_202_with_task_id(self):
