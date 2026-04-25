@@ -13,11 +13,6 @@ REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = [
     "rest_framework.authentication.TokenAuthentication",
 ]
 
-# Rate limit scoped to "bi_connector" — only applies when BiConnectorThrottle is used.
-# Applied per-view via BiConnectorEnabledMixin.throttle_classes, not globally.
-# Override with: METRICS_SERVICE_REST_FRAMEWORK__DEFAULT_THROTTLE_RATES__BI_CONNECTOR=60/hour
-REST_FRAMEWORK__DEFAULT_THROTTLE_RATES = {"dynaconf_merge": True, "bi_connector": "30/hour"}
-
 # Maximum date window (in days) for BI connector AWX queries.
 # Override via environment variable: METRICS_SERVICE_BI_CONNECTOR_MAX_DAYS_DEFAULT=14
 BI_CONNECTOR_MAX_DAYS_DEFAULT = 7

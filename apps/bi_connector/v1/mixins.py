@@ -2,7 +2,7 @@
 Mixins for BI connector views.
 """
 
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import ImproperlyConfigured, NotFound
 from rest_framework.throttling import UserRateThrottle
 
 
@@ -16,6 +16,12 @@ class BiConnectorThrottle(UserRateThrottle):
     """
 
     scope = "bi_connector"
+
+    def get_rate(self):
+        try:
+            return super().get_rate()
+        except ImproperlyConfigured:
+            return "30/hour"
 
 
 class BiConnectorEnabledMixin:

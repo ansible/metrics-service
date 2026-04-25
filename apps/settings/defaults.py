@@ -72,6 +72,11 @@ REST_FRAMEWORK = {
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
+    # Scoped throttle rates — each key corresponds to a throttle class scope.
+    # Override via METRICS_SERVICE_REST_FRAMEWORK__DEFAULT_THROTTLE_RATES__<SCOPE>=<rate>
+    "DEFAULT_THROTTLE_RATES": {
+        "bi_connector": "30/hour",
+    },
 }
 
 # Title of Swagger the API documentation
