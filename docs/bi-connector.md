@@ -59,10 +59,10 @@ These return data already collected and rolled up by the metrics pipeline. Fast,
 
 | Endpoint | Description | Key filters |
 |---|---|---|
-| `GET /api/v1/metrics/daily/` | List daily summaries | `summary_date`, `summary_date__gte`, `summary_date__lte`, `status` |
-| `GET /api/v1/metrics/daily/<date>/` | Single day detail (e.g. `2025-06-13`) | — |
-| `GET /api/v1/metrics/hourly/` | List hourly collections | `collector_type`, `collection_timestamp__gte`, `collection_timestamp__lte`, `status` |
-| `GET /api/v1/metrics/hourly/<id>/` | Single hourly record with raw data | — |
+| `GET /api/v1/bi/metrics/daily/` | List daily summaries | `summary_date`, `summary_date__gte`, `summary_date__lte`, `status` |
+| `GET /api/v1/bi/metrics/daily/<date>/` | Single day detail (e.g. `2025-06-13`) | — |
+| `GET /api/v1/bi/metrics/hourly/` | List hourly collections | `collector_type`, `collection_timestamp__gte`, `collection_timestamp__lte`, `status` |
+| `GET /api/v1/bi/metrics/hourly/<id>/` | Single hourly record with raw data | — |
 
 The daily list endpoint flattens `aggregated_metrics` into top-level fields per collector type:
 
@@ -83,7 +83,7 @@ List endpoints are paginated. The response envelope:
 ```json
 {
   "count": 42,
-  "next": "http://localhost:8000/api/v1/metrics/daily/?page=2",
+  "next": "http://localhost:8000/api/v1/bi/metrics/daily/?page=2",
   "previous": null,
   "results": [ ... ]
 }
@@ -123,10 +123,10 @@ These query the AWX database directly. Because a 7-day collection can take tens 
 
 | Endpoint | Collector | Max window |
 |---|---|---|
-| `GET /api/v1/controller/jobs/` | Unified jobs | 7 days |
-| `GET /api/v1/controller/hosts/` | Job host summaries | 7 days |
-| `GET /api/v1/controller/credentials/` | Credentials usage | 7 days |
-| `GET /api/v1/controller/events/` | Job events (event modules) | **3 days** |
+| `GET /api/v1/bi/controller/jobs/` | Unified jobs | 7 days |
+| `GET /api/v1/bi/controller/hosts/` | Job host summaries | 7 days |
+| `GET /api/v1/bi/controller/credentials/` | Credentials usage | 7 days |
+| `GET /api/v1/bi/controller/events/` | Job events (event modules) | **3 days** |
 
 `since` and `until` must be ISO 8601 datetimes. Requests exceeding the max window return `400`.
 
@@ -164,7 +164,7 @@ If the task fails, `status` is `"failed"` and `result_data.error` contains the r
 #### Snapshot endpoint (synchronous)
 
 ```
-GET /api/v1/controller/snapshot/
+GET /api/v1/bi/controller/snapshot/
 ```
 
 Point-in-time snapshot of execution environments, controller version, table metadata, and config. Remains synchronous — fast query, no date window.
@@ -172,7 +172,7 @@ Point-in-time snapshot of execution environments, controller version, table meta
 Optional `?collectors=` query param to subset results:
 
 ```
-GET /api/v1/controller/snapshot/?collectors=config,controller_version_service
+GET /api/v1/bi/controller/snapshot/?collectors=config,controller_version_service
 ```
 
 **Response:**
@@ -200,10 +200,10 @@ Pre-collected AWX job execution data, synced incrementally every 6 hours by the 
 
 | Endpoint | Description | Key filters |
 |---|---|---|
-| `GET /api/v1/dashboard/jobs/` | List job execution records | `finished__gte`, `finished__lte`, `status`, `template_id`, `organization_id`, `project_id` |
-| `GET /api/v1/dashboard/jobs/<job_id>/` | Single job with label IDs and host summaries | — |
-| `GET /api/v1/dashboard/templates/` | Template time estimates (manual/automation minutes) | `template_id`, `template_name__icontains` |
-| `GET /api/v1/dashboard/templates/<template_id>/` | Single template detail | — |
+| `GET /api/v1/bi/dashboard/jobs/` | List job execution records | `finished__gte`, `finished__lte`, `status`, `template_id`, `organization_id`, `project_id` |
+| `GET /api/v1/bi/dashboard/jobs/<job_id>/` | Single job with label IDs and host summaries | — |
+| `GET /api/v1/bi/dashboard/templates/` | Template time estimates (manual/automation minutes) | `template_id`, `template_name__icontains` |
+| `GET /api/v1/bi/dashboard/templates/<template_id>/` | Single template detail | — |
 
 The job list response inlines template metadata as flat columns (`template_time_manual_minutes`, `template_time_automation_minutes`) so BI tools get a single joined row per job.
 
@@ -222,21 +222,21 @@ TOKEN="your-token-here"
 
 # Daily summary list — last 30 days
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/metrics/daily/?summary_date__gte=2025-05-14"
+  "http://localhost:8000/api/v1/bi/metrics/daily/?summary_date__gte=2025-05-14"
 
 # Single day detail
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/metrics/daily/2025-06-13/"
+  "http://localhost:8000/api/v1/bi/metrics/daily/2025-06-13/"
 
 # Hourly collections for unified_jobs
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/metrics/hourly/?collector_type=unified_jobs"
+  "http://localhost:8000/api/v1/bi/metrics/hourly/?collector_type=unified_jobs"
 
 # --- Layer 2 (async) ---
 
 # Step 1 — kick off the collection
 RESPONSE=$(curl -s -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/controller/jobs/?since=2025-03-01T00:00:00Z&until=2025-03-07T23:59:59Z")
+  "http://localhost:8000/api/v1/bi/controller/jobs/?since=2025-03-01T00:00:00Z&until=2025-03-07T23:59:59Z")
 TASK_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['task_id'])")
 
 # Step 2 — poll until complete
@@ -246,21 +246,21 @@ curl -H "Authorization: Token $TOKEN" \
 
 # Snapshot (synchronous, no polling needed)
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/controller/snapshot/?collectors=config,controller_version_service"
+  "http://localhost:8000/api/v1/bi/controller/snapshot/?collectors=config,controller_version_service"
 
 # --- Layer 3 ---
 
 # Jobs finished in the last 7 days, failed only
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/dashboard/jobs/?status=failed&finished__gte=2025-06-06T00:00:00Z"
+  "http://localhost:8000/api/v1/bi/dashboard/jobs/?status=failed&finished__gte=2025-06-06T00:00:00Z"
 
 # Single job detail with labels and host summaries
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/dashboard/jobs/12345/"
+  "http://localhost:8000/api/v1/bi/dashboard/jobs/12345/"
 
 # Template time estimates
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/dashboard/templates/?template_name__icontains=deploy"
+  "http://localhost:8000/api/v1/bi/dashboard/templates/?template_name__icontains=deploy"
 ```
 
 ---
@@ -312,17 +312,17 @@ Open `http://localhost:3000` (default credentials: admin / admin).
 
 **Daily jobs trend (time series)**
 - Type: Time series
-- URL: `http://127.0.0.1:8000/api/v1/metrics/daily/`
+- URL: `http://127.0.0.1:8000/api/v1/bi/metrics/daily/`
 - Parser: JSON / Rows root: `results`
 - Columns: `summary_date`, `metrics_unified_jobs.jobs_total`
 
 **Dashboard job status breakdown (table)**
-- URL: `http://127.0.0.1:8000/api/v1/dashboard/jobs/?finished__gte=2025-06-01T00:00:00Z`
+- URL: `http://127.0.0.1:8000/api/v1/bi/dashboard/jobs/?finished__gte=2025-06-01T00:00:00Z`
 - Parser: JSON / Rows root: `results`
 - Columns: `job_id`, `template_name`, `status`, `elapsed`, `finished`
 
 **Current Controller state (stat panels)**
-- URL: `http://127.0.0.1:8000/api/v1/controller/snapshot/`
+- URL: `http://127.0.0.1:8000/api/v1/bi/controller/snapshot/`
 - Parser: JSON
 - Extract from `collectors.controller_version_service`, `collectors.table_metadata`
 
@@ -356,7 +356,7 @@ For enterprise BI tools (Tableau, Power BI) that require a native connector:
 1. **Auth** — Use the token endpoint or configure OAuth2 (`ansible_base.oauth2_provider` is included)
 2. **Layer 1 & 3** — Call with date range filters, handle the paginated `results` array; declare flat column schemas
 3. **Layer 2 (async)** — Implement a request/poll loop:
-   - `GET /api/v1/controller/<type>/?since=...&until=...` → capture `task_id`
+   - `GET /api/v1/bi/controller/<type>/?since=...&until=...` → capture `task_id`
    - Poll `GET /api/v1/tasks/<task_id>/` until `status == "completed"`
    - Read rows from `result_data.data`
 4. **Schema** — Map flat fields from Layer 1/3 and `result_data.data` from Layer 2 to typed columns

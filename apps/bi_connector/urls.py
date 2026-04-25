@@ -1,20 +1,18 @@
 """
 Top-level URL configuration for the BI connector app.
 
-Mounts all layers under their respective prefixes. The main metrics_service/urls.py
-auto-discovers this module via LOADED_APPS — no changes needed there.
+urlpatterns is intentionally empty so the LOADED_APPS URL loop in
+metrics_service/urls.py skips this module. The actual URL patterns are
+assembled in apps/urls.py (step 3, before LOADED_APPS at step 4) using
+the inner URL modules directly. This guarantees the bi_connector namespace
+is always registered regardless of app-loading order in CI.
 
-Layer 1 (pre-aggregated metrics):  /api/v1/metrics/
-Layer 2 (live AWX DB):             /api/v1/controller/
-Layer 3 (dashboard collected data):/api/v1/dashboard/
+Layer 1 (pre-aggregated metrics):  /api/v1/bi/metrics/
+Layer 2 (live AWX DB):             /api/v1/bi/controller/
+Layer 3 (dashboard collected data):/api/v1/bi/dashboard/
 """
-
-from django.urls import include, path
 
 app_name = "bi_connector"
 
-urlpatterns = [
-    path("api/v1/metrics/", include("apps.bi_connector.v1.metrics_urls", namespace="metrics")),
-    path("api/v1/controller/", include("apps.bi_connector.v1.controller_urls", namespace="controller")),
-    path("api/v1/dashboard/", include("apps.bi_connector.v1.dashboard_urls", namespace="dashboard")),
-]
+# Empty — URLs assembled in apps/urls.py to avoid duplicate namespace registration.
+urlpatterns = []
