@@ -2,7 +2,8 @@
 Mixins for BI connector views.
 """
 
-from rest_framework.exceptions import ImproperlyConfigured, NotFound
+from django.core.exceptions import ImproperlyConfigured
+from rest_framework.exceptions import NotFound
 from rest_framework.throttling import UserRateThrottle
 
 
