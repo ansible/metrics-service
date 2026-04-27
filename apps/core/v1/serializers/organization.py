@@ -5,6 +5,10 @@ from apps.core.models import Organization
 
 
 class OrganizationSerializer(RelatedAccessMixin, NamedCommonModelSerializer):
+    """Serializer for the Organization model with RBAC access mixin."""
+
     class Meta:
+        """Serializer meta configuration for OrganizationSerializer."""
+
         model = Organization
         fields = "__all__"

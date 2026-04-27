@@ -246,14 +246,17 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
 
     @classmethod
     def immediate_tasks(cls):
+        """Pending tasks with no scheduled time and no cron expression (run ASAP)."""
         return cls.objects.filter(status="pending", scheduled_time__isnull=True, cron_expression__isnull=True)
 
     @classmethod
     def scheduled_tasks(cls):
+        """Pending tasks that have a specific scheduled_time set."""
         return cls.objects.filter(status="pending", scheduled_time__isnull=False)
 
     @classmethod
     def recurring_tasks(cls):
+        """Pending tasks driven by a cron expression."""
         return cls.objects.filter(status="pending", cron_expression__isnull=False)
 
 

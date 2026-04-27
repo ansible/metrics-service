@@ -344,6 +344,7 @@ def generate_salt() -> str:
 
 
 def _serialize_args(kwargs):
+    """Convert task kwargs to a JSON-serializable dict, turning datetime values into ISO strings."""
     if not kwargs:
         return {}
 

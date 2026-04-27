@@ -5,6 +5,10 @@ from apps.core.models import Team
 
 
 class TeamSerializer(RelatedAccessMixin, NamedCommonModelSerializer):
+    """Serializer for the Team model with RBAC access mixin."""
+
     class Meta:
+        """Serializer meta configuration for TeamSerializer."""
+
         model = Team
         fields = "__all__"

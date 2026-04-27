@@ -10,6 +10,7 @@ class BaseViewSet(ModelViewSet, AnsibleBaseView):
     permission_classes = [AnsibleBaseObjectPermissions]
 
     def filter_queryset(self, queryset):
+        """Apply RBAC access filtering before delegating to DRF filter backends."""
         cls = queryset.model
         if permission_registry.is_registered(cls):
             queryset = cls.access_qs(self.request.user, queryset=queryset)

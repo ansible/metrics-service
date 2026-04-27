@@ -300,6 +300,8 @@ class TemplateMetadataSerializer(serializers.ModelSerializer):
 
 
 class FilterSetSerializer(serializers.ModelSerializer):
+    """Serializer for FilterSet, exposing name, filter criteria, and default flag."""
+
     class Meta:
         """Serializer meta configuration for FilterSetSerializer."""
 
