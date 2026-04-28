@@ -229,6 +229,7 @@ class TestLoadTaskFeatureFlags(TestCase):
     # TasksConfig.ready wires up the signal
     # ------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestSyncFlagValuesFromSettings(TestCase):
     """Tests for sync_flag_values_from_settings."""
