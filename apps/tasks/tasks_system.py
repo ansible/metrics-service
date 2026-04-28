@@ -67,6 +67,7 @@ def _claim_task(task_id):
 
 
 def execute_function(task, execution, task_function, locked):
+    """Call task_function with execution_id and task_data, under an advisory lock if required."""
     try:
         if locked:
             return run_with_lock(
@@ -85,6 +86,7 @@ def execute_function(task, execution, task_function, locked):
 
 
 def execute_claimed(task, execution):
+    """Execute a task that has already been atomically claimed, handling retries and status updates."""
     # Import TASK_FUNCTIONS here to avoid circular import
     # This import happens at runtime, not module load time
     from .tasks import TASK_FUNCTIONS, TASK_LOCKS

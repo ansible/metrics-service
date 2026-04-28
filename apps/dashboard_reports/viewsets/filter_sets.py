@@ -46,9 +46,11 @@ class FilterSetsViewSet(ListModelMixin, CreateModelMixin, UpdateModelMixin, Dest
     pagination_class = DefaultPaginator
 
     def get_queryset(self) -> QuerySet[FilterSet]:
+        """Return filter sets belonging to the currently authenticated user."""
         return FilterSet.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer: FilterSetSerializer) -> None:
+        """Create a filter set, clearing any existing default if the new one is marked default."""
         with transaction.atomic():
             if serializer.validated_data.get("is_default", False):
                 FilterSet.objects.filter(user=self.request.user, is_default=True).update(is_default=False)
@@ -98,5 +100,6 @@ class FilterSetsViewSet(ListModelMixin, CreateModelMixin, UpdateModelMixin, Dest
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance: FilterSet) -> None:
+        """Delete the filter set instance after logging the action."""
         logger.info(f"Deleting filter set with id {instance.id} and name {instance.name}")
         instance.delete()

@@ -21,6 +21,7 @@ class StatusTrackingMixin(models.Model):
         abstract = True
 
     def get_duration(self) -> float | None:
+        """Return elapsed seconds between start and completion, or None if either is unset."""
         if not self.started_at or not self.completed_at:
             return None
 
