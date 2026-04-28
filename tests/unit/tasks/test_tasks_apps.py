@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 import yaml
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
-from apps.tasks.apps import load_task_feature_flags
+from apps.tasks.apps import load_task_feature_flags, sync_flag_values_from_settings
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -228,6 +228,105 @@ class TestLoadTaskFeatureFlags(TestCase):
     # ------------------------------------------------------------------
     # TasksConfig.ready wires up the signal
     # ------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestSyncFlagValuesFromSettings(TestCase):
+    """Tests for sync_flag_values_from_settings."""
+
+    def _make_mock_flag(self, value: str) -> MagicMock:
+        flag = MagicMock()
+        flag.value = value
+        return flag
+
+    def _make_file_patch(self, flags=_SAMPLE_FLAGS):
+        yaml_content = yaml.dump(flags)
+        mock_file_path = MagicMock()
+        mock_file_path.open.return_value.__enter__ = lambda s: io.StringIO(yaml_content)
+        mock_file_path.open.return_value.__exit__ = MagicMock(return_value=False)
+        return mock_file_path
+
+    @override_settings(FEATURE_DASHBOARD_COLLECTION_ENABLED=True)
+    def test_updates_aap_flag_when_settings_differs(self):
+        """AAPFlag.value is updated and saved (without no_reverse_sync) when settings say True but flag is False."""
+        mock_flag = self._make_mock_flag("False")
+        mock_aap_flag_class = MagicMock()
+        mock_aap_flag_class.objects.filter.return_value.first.return_value = mock_flag
+        mock_file_path = self._make_file_patch()
+
+        with (
+            patch("apps.tasks.apps._FEATURE_FLAGS_FILE", mock_file_path),
+            patch("django.apps.apps.get_model", return_value=mock_aap_flag_class),
+        ):
+            result = sync_flag_values_from_settings()
+
+        assert result is True
+        assert mock_flag.value == "True"
+        mock_flag.save.assert_called_once()
+
+    @override_settings(FEATURE_DASHBOARD_COLLECTION_ENABLED=False)
+    def test_updates_aap_flag_to_false_when_settings_says_false(self):
+        """AAPFlag.value is set to False and saved when settings override disagrees."""
+        mock_flag = self._make_mock_flag("True")
+        mock_aap_flag_class = MagicMock()
+        mock_aap_flag_class.objects.filter.return_value.first.return_value = mock_flag
+        mock_file_path = self._make_file_patch()
+
+        with (
+            patch("apps.tasks.apps._FEATURE_FLAGS_FILE", mock_file_path),
+            patch("django.apps.apps.get_model", return_value=mock_aap_flag_class),
+        ):
+            sync_flag_values_from_settings()
+
+        assert mock_flag.value == "False"
+        mock_flag.save.assert_called_once()
+
+    @override_settings(FEATURE_DASHBOARD_COLLECTION_ENABLED=True)
+    def test_skips_save_when_value_already_matches(self):
+        """No save is triggered when the AAPFlag value already matches the settings."""
+        mock_flag = self._make_mock_flag("True")
+        mock_aap_flag_class = MagicMock()
+        mock_aap_flag_class.objects.filter.return_value.first.return_value = mock_flag
+        mock_file_path = self._make_file_patch()
+
+        with (
+            patch("apps.tasks.apps._FEATURE_FLAGS_FILE", mock_file_path),
+            patch("django.apps.apps.get_model", return_value=mock_aap_flag_class),
+        ):
+            sync_flag_values_from_settings()
+
+        mock_flag.save.assert_not_called()
+
+    def test_no_op_when_no_settings_override(self):
+        """Flags with no matching top-level settings attr are left untouched."""
+        mock_flag = self._make_mock_flag("False")
+        mock_aap_flag_class = MagicMock()
+        mock_aap_flag_class.objects.filter.return_value.first.return_value = mock_flag
+        mock_file_path = self._make_file_patch()
+
+        with (
+            patch("apps.tasks.apps._FEATURE_FLAGS_FILE", mock_file_path),
+            patch("django.apps.apps.get_model", return_value=mock_aap_flag_class),
+        ):
+            result = sync_flag_values_from_settings()
+
+        assert result is True
+        mock_flag.save.assert_not_called()
+
+    @patch("apps.tasks.apps.logger")
+    @override_settings(FEATURE_DASHBOARD_COLLECTION_ENABLED=True)
+    def test_returns_false_and_logs_on_exception(self, mock_logger):
+        """Returns False and logs a warning when an unexpected exception occurs."""
+        mock_file_path = self._make_file_patch()
+        with (
+            patch("apps.tasks.apps._FEATURE_FLAGS_FILE", mock_file_path),
+            patch("django.apps.apps.get_model", side_effect=Exception("registry down")),
+        ):
+            result = sync_flag_values_from_settings()
+
+        assert result is False
+        mock_logger.warning.assert_called_once_with(
+            "Failed to sync flag values from settings to AAPFlag", exc_info=True
+        )
 
     def test_ready_connects_signal_to_feature_flags_app(self):
         """TasksConfig.ready() connects load_task_feature_flags to the dab_feature_flags

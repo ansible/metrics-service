@@ -228,7 +228,7 @@ class Command(BaseCommand):
         """Handle the init-default-settings command."""
         try:
             from apps.dynamic_settings.utils import initialize_default_settings
-            from apps.tasks.apps import load_task_feature_flags
+            from apps.tasks.apps import load_task_feature_flags, sync_flag_values_from_settings
 
             overwrite = options.get("overwrite", False) if options else False
             initialize_default_settings(overwrite=overwrite)
@@ -236,7 +236,11 @@ class Command(BaseCommand):
             # mirrors what the post_migrate signal does during `migrate`, but
             # must also run here because init-default-settings is called in
             # production without a preceding migrate (DB is pre-migrated).
-            if load_task_feature_flags():
+            flags_seeded = load_task_feature_flags()
+            # Propagate installer settings.yaml overrides (e.g. FEATURE_DASHBOARD_COLLECTION_ENABLED: True)
+            # to AAPFlag values so the Gateway UI reflects the installer's intent.
+            sync_flag_values_from_settings()
+            if flags_seeded:
                 self.output.success("Initialized default settings")
             else:
                 self.output.warning(

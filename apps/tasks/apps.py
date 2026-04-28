@@ -23,6 +23,9 @@ def load_task_feature_flags(**kwargs) -> bool:
     ensures task-level feature flags survive every DAB migration without requiring
     a change to the django-ansible-base feature_flags.yaml.
 
+    Only metadata fields are updated on existing flags — ``value`` is left alone so
+    user-toggled states set via the Gateway UI are not overwritten.
+
     Returns True if flags were loaded successfully. On failure, logs at WARNING
     (with exception context) and returns False without re-raising, so migrate and
     other callers are not aborted by optional flag seeding.
@@ -60,6 +63,62 @@ def load_task_feature_flags(**kwargs) -> bool:
             "Failed to load tasks feature flags into AAPFlag",
             exc_info=True,
         )
+        return False
+    return True
+
+
+def sync_flag_values_from_settings() -> bool:
+    """
+    Propagate installer-level feature flag overrides to AAPFlag rows and the Gateway.
+
+    The installer writes top-level keys like ``FEATURE_DASHBOARD_COLLECTION_ENABLED: True``
+    into settings.yaml. Dynaconf surfaces these as direct settings attributes (e.g.
+    ``settings.FEATURE_DASHBOARD_COLLECTION_ENABLED``), but the AAPFlag row (read by the
+    Gateway) still holds the YAML-seeded default (usually ``False``).
+
+    This function reads each flag defined in ``feature_flags.yaml``, checks for a matching
+    top-level settings attribute, and — when the value differs from the stored AAPFlag —
+    updates the flag and saves **without** ``no_reverse_sync()`` so the change is pushed
+    to the Gateway resource server.
+
+    Called by ``init-default-settings`` (which runs during container startup) so the
+    Gateway reflects the installer's intent after every deploy.
+
+    Returns True if the sync completed without errors, False otherwise.
+    """
+    try:
+        from django.apps import apps as django_apps
+        from django.conf import settings
+
+        AAPFlag = django_apps.get_model("dab_feature_flags", "AAPFlag")
+
+        with _FEATURE_FLAGS_FILE.open() as f:
+            flags = yaml.safe_load(f) or []
+
+        for flag_def in flags:
+            flag_name = flag_def["name"]  # e.g. "FEATURE_DASHBOARD_COLLECTION_ENABLED"
+            settings_value = getattr(settings, flag_name, None)
+            if settings_value is None:
+                continue
+
+            desired = "True" if settings_value else "False"
+
+            flag = AAPFlag.objects.filter(name=flag_name, condition=flag_def.get("condition", "boolean")).first()
+            if flag is None:
+                logger.warning("sync_flag_values_from_settings: AAPFlag %s not found, skipping", flag_name)
+                continue
+
+            if flag.value == desired:
+                logger.debug("AAPFlag %s already set to %s, skipping", flag_name, desired)
+                continue
+
+            flag.value = desired
+            flag.full_clean(exclude=["resource"])
+            flag.save()  # no no_reverse_sync() — intentionally syncs to Gateway
+            logger.info("Updated AAPFlag %s to %s (from settings) and synced to Gateway", flag_name, desired)
+
+    except Exception:
+        logger.warning("Failed to sync flag values from settings to AAPFlag", exc_info=True)
         return False
     return True
 
