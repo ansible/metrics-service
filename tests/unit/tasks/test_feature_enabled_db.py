@@ -110,10 +110,11 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
     """Test AAPFlag fallback in get_feature_enabled_from_db.
 
     Priority chain:
-      1. dynamic_settings.Setting  (runtime DB override)
-      2. settings.FEATURE_ENABLED  (when the key is present, e.g. env overrides)
-      3. AAPFlag.value             (YAML-seeded platform default)
-      4. default argument
+      1. dynamic_settings.Setting         (runtime DB override)
+      2. settings.FEATURE_ENABLED         (when the key is present, e.g. env overrides)
+      3. settings.FEATURE_<name>_ENABLED  (top-level attr, set directly by installer settings.yaml)
+      4. AAPFlag.value                    (YAML-seeded platform default)
+      5. default argument
     """
 
     def _make_mock_flag(self, value: str) -> MagicMock:
@@ -205,6 +206,24 @@ class TestFeatureEnabledAAPFlagFallback(TestCase):
     def test_dashboard_collection_uses_aap_flag_when_omitted_from_feature_enabled(self):
         """When the key is absent from FEATURE_ENABLED, the platform AAPFlag applies."""
         with self._patch_aap_flag(self._make_mock_flag("True")), override_settings(FEATURE_ENABLED={}):
+            assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False) is True
+
+    @override_settings(FEATURE_ENABLED={}, FEATURE_DASHBOARD_COLLECTION_ENABLED=True)
+    def test_direct_top_level_attr_overrides_false_aap_flag(self):
+        """FEATURE_<name>_ENABLED top-level attr (installer convention) wins over a false AAPFlag."""
+        with self._patch_aap_flag(self._make_mock_flag("False")):
+            assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False) is True
+
+    @override_settings(FEATURE_ENABLED={}, FEATURE_DASHBOARD_COLLECTION_ENABLED=False)
+    def test_direct_top_level_attr_false_overrides_true_aap_flag(self):
+        """FEATURE_<name>_ENABLED=False suppresses a true AAPFlag."""
+        with self._patch_aap_flag(self._make_mock_flag("True")):
+            assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=True) is False
+
+    @override_settings(FEATURE_ENABLED={"DASHBOARD_COLLECTION": True}, FEATURE_DASHBOARD_COLLECTION_ENABLED=False)
+    def test_feature_enabled_dict_takes_precedence_over_direct_attr(self):
+        """FEATURE_ENABLED dict (tier 2) beats the top-level attr (tier 3)."""
+        with self._patch_aap_flag(self._make_mock_flag("False")):
             assert get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False) is True
 
     @override_settings(FEATURE_ENABLED={"SETTINGS_FLAG": True})
