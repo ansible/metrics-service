@@ -128,7 +128,8 @@ FEATURE_ENABLED = {
     # Anonymization and Segment transmission only — does not gate METRICS_COLLECTION_GROUP.
     "ANONYMIZED_DATA_COLLECTION": True,
     # DASHBOARD_COLLECTION is intentionally omitted: set via METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION,
-    # DAB AAPFlag FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+    # FEATURE_DASHBOARD_COLLECTION_ENABLED (top-level, installer convention), DAB AAPFlag
+    # FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
