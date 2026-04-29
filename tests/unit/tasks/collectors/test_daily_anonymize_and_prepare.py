@@ -379,15 +379,16 @@ class TestDailyAnonymizeAndPrepare:
             aggregated_metrics={"job_host_summary_service": {}, "unified_jobs": {}, "execution_environments": {}},
         )
 
-        before = timezone.now()
-        result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
+        now = timezone.now()
+        with patch("apps.tasks.collectors.daily_anonymize_and_prepare.timezone.now", return_value=now):
+            result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
 
         from apps.tasks.models import Task
 
         assert result["status"] == "success"
         task = Task.objects.get(function_name="send_anonymized_to_segment")
         assert task.task_data["payload_id"] == result["payload_id"]
-        assert before < task.scheduled_time <= before + timedelta(minutes=240)
+        assert now < task.scheduled_time <= now + timedelta(minutes=240)
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
