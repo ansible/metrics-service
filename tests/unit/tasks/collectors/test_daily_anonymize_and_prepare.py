@@ -411,12 +411,3 @@ class TestDailyAnonymizeAndPrepare:
 
         assert result["status"] == "error"
         assert not Task.objects.filter(function_name="send_anonymized_to_segment").exists()
-
-    def test_jitter_offset_is_deterministic(self):
-        """Same UUID always produces the same jitter offset."""
-        import random
-        import uuid
-
-        test_uuid = "12345678-1234-5678-9012-123456789012"
-        seed = int(uuid.UUID(test_uuid)) % (10**9)
-        assert random.Random(seed).randint(0, 239) == random.Random(seed).randint(0, 239)
