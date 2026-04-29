@@ -87,7 +87,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             "aggregation_timestamp": aggregation_timestamp,
         }
 
-        offset_minutes = random.randint(0, 239)
+        offset_minutes = random.randint(1, 240)
         send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)
 
         # Use atomic transaction to prevent duplicate payloads and ensure the
