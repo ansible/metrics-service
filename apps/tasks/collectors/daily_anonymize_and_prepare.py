@@ -20,6 +20,11 @@ from ..utils import create_task_result, generate_salt, log_task_execution
 logger = logging.getLogger(__name__)
 
 
+def random_offset():
+    """Return a random jitter offset in minutes for scheduling."""
+    return random.randint(1, 240)  # noqa: S311
+
+
 def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     """
     Anonymize daily metrics summary and prepare payload for Segment
@@ -87,7 +92,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             "aggregation_timestamp": aggregation_timestamp,
         }
 
-        offset_minutes = random.randint(1, 240)
+        offset_minutes = random_offset()
         send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)
 
         # Use atomic transaction to prevent duplicate payloads and ensure the

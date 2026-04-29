@@ -411,3 +411,14 @@ class TestDailyAnonymizeAndPrepare:
 
         assert result["status"] == "error"
         assert not Task.objects.filter(function_name="send_anonymized_to_segment").exists()
+
+    @patch("uuid.UUID")
+    def test_jitter_offset_is_not_deterministic(self, mock_uuid):
+        """Jitter offset is random, not derived from installation UUID."""
+        mock_uuid.return_value = "12345678-1234-5678-9012-123456789012"
+
+        from apps.tasks.collectors.daily_anonymize_and_prepare import random_offset
+
+        result = random_offset()
+        assert 1 <= result <= 240
+        mock_uuid.assert_not_called()
