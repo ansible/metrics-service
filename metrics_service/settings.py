@@ -180,6 +180,9 @@ LOGGING = {
         "request_id": {
             "()": "ansible_base.lib.logging.filters.RequestIdFilter",
         },
+        "dispatcherd_reconnect": {
+            "()": "apps.core.logging_config.DispatcherdReconnectFilter",
+        },
     },
     "formatters": {
         "simple": {
@@ -195,7 +198,7 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
-            "filters": ["request_id"],
+            "filters": ["request_id", "dispatcherd_reconnect"],
         },
     },
     "loggers": {
