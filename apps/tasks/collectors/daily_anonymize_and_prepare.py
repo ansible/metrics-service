@@ -10,7 +10,6 @@ The output is a flattened structure with statistics and arrays ready for Segment
 
 import logging
 import random
-import uuid
 from datetime import date, timedelta
 from typing import Any
 
@@ -19,6 +18,11 @@ from django.utils import timezone
 from ..utils import create_task_result, generate_salt, log_task_execution
 
 logger = logging.getLogger(__name__)
+
+
+def random_offset():
+    """Return a random jitter offset in minutes for scheduling."""
+    return random.randint(1, 240)  # noqa: S311
 
 
 def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
@@ -88,15 +92,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             "aggregation_timestamp": aggregation_timestamp,
         }
 
-        from ansible_base.resource_registry.models.service_identifier import service_id
-
-        try:
-            installation_uuid = service_id()
-            seed = int(uuid.UUID(installation_uuid)) % (10**9)
-        except Exception as e:
-            logger.warning("Unable to derive jitter seed from service_id. Using fallback: %s", e)
-            seed = 0
-        offset_minutes = random.Random(seed).randint(0, 239)  # noqa: S311  # NOSONAR - scheduling jitter, not a security context
+        offset_minutes = random_offset()
         send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)
 
         # Use atomic transaction to prevent duplicate payloads and ensure the

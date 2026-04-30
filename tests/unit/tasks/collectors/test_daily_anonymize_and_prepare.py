@@ -379,15 +379,16 @@ class TestDailyAnonymizeAndPrepare:
             aggregated_metrics={"job_host_summary_service": {}, "unified_jobs": {}, "execution_environments": {}},
         )
 
-        before = timezone.now()
-        result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
+        now = timezone.now()
+        with patch("apps.tasks.collectors.daily_anonymize_and_prepare.timezone.now", return_value=now):
+            result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
 
         from apps.tasks.models import Task
 
         assert result["status"] == "success"
         task = Task.objects.get(function_name="send_anonymized_to_segment")
         assert task.task_data["payload_id"] == result["payload_id"]
-        assert before <= task.scheduled_time <= before + timedelta(minutes=239)
+        assert now < task.scheduled_time <= now + timedelta(minutes=240)
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
@@ -412,11 +413,13 @@ class TestDailyAnonymizeAndPrepare:
         assert result["status"] == "error"
         assert not Task.objects.filter(function_name="send_anonymized_to_segment").exists()
 
-    def test_jitter_offset_is_deterministic(self):
-        """Same UUID always produces the same jitter offset."""
-        import random
-        import uuid
+    @patch("uuid.UUID")
+    def test_jitter_offset_is_not_deterministic(self, mock_uuid):
+        """Jitter offset is random, not derived from installation UUID."""
+        mock_uuid.return_value = "12345678-1234-5678-9012-123456789012"
 
-        test_uuid = "12345678-1234-5678-9012-123456789012"
-        seed = int(uuid.UUID(test_uuid)) % (10**9)
-        assert random.Random(seed).randint(0, 239) == random.Random(seed).randint(0, 239)
+        from apps.tasks.collectors.daily_anonymize_and_prepare import random_offset
+
+        result = random_offset()
+        assert 1 <= result <= 240
+        mock_uuid.assert_not_called()
