@@ -1,14 +1,20 @@
 # ruff: noqa: T201
+import os
 import threading
 import time
 from datetime import UTC, date, datetime, timedelta
 
-import psutil
-from django.core import serializers
-from django.db.models import Count
+import django
 
-from apps.tasks.collectors import collect_hourly_metrics, collect_snapshot_metrics, daily_metrics_rollup
-from apps.tasks.models import DailyMetricsSummary, HourlyMetricsCollection
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "metrics_service.settings")
+django.setup()
+
+import psutil  # noqa: E402
+from django.core import serializers  # noqa: E402
+from django.db.models import Count  # noqa: E402
+
+from apps.tasks.collectors import collect_hourly_metrics, collect_snapshot_metrics, daily_metrics_rollup  # noqa: E402
+from apps.tasks.models import DailyMetricsSummary, HourlyMetricsCollection  # noqa: E402
 
 _TABLE_COUNT_QUERIES = {
     "main_jobhostsummary": "SELECT COUNT(*) FROM main_jobhostsummary",
