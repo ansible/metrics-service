@@ -1,4 +1,4 @@
-from ansible_base.lib.constants import STATUS_DEGRADED, STATUS_FAILED, STATUS_GOOD
+from ansible_base.lib.constants import STATUS_DEGRADED, STATUS_GOOD
 from ansible_base.lib.utils.views.ansible_base import AnsibleBaseView
 from django.db import close_old_connections, connection
 from rest_framework import status
@@ -37,8 +37,8 @@ class HealthView(AnsibleBaseView):
             if most_recent is not None:
                 health_status["checks"]["segment_send"] = {}
 
-                if most_recent.status == STATUS_FAILED:
-                    health_status["checks"]["segment_send"]["status"] = STATUS_FAILED
+                if most_recent.status == "failed":
+                    health_status["checks"]["segment_send"]["status"] = "failed"
                     health_status["checks"]["segment_send"]["last_failure_at"] = str(most_recent.modified.isoformat())
                 else:
                     health_status["checks"]["segment_send"]["status"] = "ok"
