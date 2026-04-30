@@ -33,6 +33,8 @@ project_applications = [
     "apps.tasks",
     "apps.dashboard",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
+    "apps.events",  # AWX job event collection pipeline (Unit 1)
+    "apps.bi_connector",  # BI tool REST API endpoints (token auth, read-only)
 ]
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
