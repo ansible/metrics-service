@@ -21,7 +21,7 @@ class TestHealthEndpoint:
         """Test that health endpoint returns correct JSON structure when healthy."""
         response = client.get("/health/")
         json_response = response.json()
-        assert json_response["status"] == "healthy"
+        assert json_response["status"] == "good"
         assert json_response["checks"]["database"] == "ok"
 
     def test_health_check_returns_503_when_database_fails(self, client, db):
@@ -35,7 +35,7 @@ class TestHealthEndpoint:
         """Test that health endpoint doesn't require authentication."""
         response = client.get("/health/")
         json_response = response.json()
-        assert json_response["status"] == "healthy"
+        assert json_response["status"] == "good"
         assert response.status_code == status.HTTP_200_OK
 
     @pytest.mark.django_db
@@ -56,7 +56,7 @@ class TestHealthEndpoint:
 
         response = client.get("/health/")
         json_response = response.json()
-        assert json_response["status"] == "healthy"
+        assert json_response["status"] == "good"
         assert json_response["checks"]["segment_send"]["status"] == "failed"
         assert "last_failure_at" in json_response["checks"]["segment_send"]
         assert response.status_code == status.HTTP_200_OK
@@ -92,7 +92,7 @@ class TestHealthEndpoint:
 
         response = client.get("/health/")
         json_response = response.json()
-        assert json_response["status"] == "healthy"
+        assert json_response["status"] == "good"
         assert json_response["checks"]["segment_send"]["status"] == "failed"
         assert "last_failure_at" in json_response["checks"]["segment_send"]
         assert response.status_code == status.HTTP_200_OK
@@ -128,7 +128,7 @@ class TestHealthEndpoint:
 
         response = client.get("/health/")
         json_response = response.json()
-        assert json_response["status"] == "healthy"
+        assert json_response["status"] == "good"
         assert json_response["checks"]["segment_send"]["status"] == "ok"
         assert "last_success_at" in json_response["checks"]["segment_send"]
         assert response.status_code == status.HTTP_200_OK
