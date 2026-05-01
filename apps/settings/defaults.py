@@ -135,6 +135,11 @@ FEATURE_ENABLED = {
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
+# Trust X-Forwarded-Proto: https from the upstream proxy (Envoy/NGINX) when deployed
+# behind a TLS-terminating gateway. Override to None in standalone dev environments
+# where NGINX terminates TLS directly (SECURE_PROXY_SSL_HEADER is not needed there).
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 
 @post_hook
 def load_prometheus_middlewares(settings: Dynaconf) -> dict:
