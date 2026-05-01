@@ -1,3 +1,4 @@
+from ansible_base.lib.constants import STATUS_DEGRADED, STATUS_GOOD
 from ansible_base.lib.utils.views.ansible_base import AnsibleBaseView
 from django.db import close_old_connections, connection
 from rest_framework import status
@@ -16,7 +17,7 @@ class HealthView(AnsibleBaseView):
     authentication_classes = []
 
     def get(self, request):
-        health_status: dict = {"status": "healthy", "checks": {}}
+        health_status: dict = {"status": STATUS_GOOD, "checks": {}}
 
         # Database check
         try:
@@ -25,7 +26,7 @@ class HealthView(AnsibleBaseView):
             connection.ensure_connection()
             health_status["checks"]["database"] = "ok"
         except Exception as e:
-            health_status["status"] = "unhealthy"
+            health_status["status"] = STATUS_DEGRADED
             health_status["checks"]["database"] = f"error: {str(e)}"
 
         # Segment send check (no data is shown if there's no payloads to check)
@@ -47,7 +48,7 @@ class HealthView(AnsibleBaseView):
             health_status["checks"]["segment_send"]["error"] = str(e)
 
         http_status = (
-            status.HTTP_200_OK if health_status["status"] == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
+            status.HTTP_200_OK if health_status["status"] == STATUS_GOOD else status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
         return Response(health_status, status=http_status)
