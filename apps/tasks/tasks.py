@@ -18,6 +18,7 @@ from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    sync_dashboard_job_records,
 )
 
 # Import cleanup tasks
@@ -62,6 +63,7 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    "sync_dashboard_job_records": sync_dashboard_job_records,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.

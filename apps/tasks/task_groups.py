@@ -314,18 +314,7 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "cron": None,  # No schedule, run once on enable
             "args": {},
             "enabled": True,
-            "description": "Initial dashboard report collection",
-        },
-        {
-            "task_id": "daily_dashboard_collection",
-            "function": "collect_dashboard_reports_data",
-            # FIXME: this is broken, the setting will only be read on initial task setup
-            "cron": (getattr(settings, "DASHBOARD_COLLECTION", {}) or {}).get(
-                "COLLECTION_SCHEDULE_CRON", "0 */6 * * *"
-            ),
-            "args": {"incremental": True},  # Uses incremental collection by default to minimize load
-            "enabled": False,
-            "description": "Dashboard report collection (default every 6 hours)",
+            "description": "Initial dashboard report collection (backfill; window controlled by DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS'], default 90 days)",
         },
         {
             "task_id": "cleanup_dashboard_reports_old_data",

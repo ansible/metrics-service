@@ -33,7 +33,7 @@ def _get_hourly_collectors():
         credentials_service,
         job_host_summary_service,
         main_jobevent_service,
-        unified_jobs,
+        unified_jobs_dashboard,
     )
 
     # Registry mapping collector_type to (collector_func, rollup_processor_class)
@@ -44,7 +44,7 @@ def _get_hourly_collectors():
             "description": "Job host summary metrics (partition-optimized)",
         },
         "unified_jobs": {
-            "collector_func": unified_jobs,
+            "collector_func": unified_jobs_dashboard,
             "rollup_processor": JobsAnonymizedRollup,
             "description": "Unified jobs metrics",
         },
@@ -104,6 +104,10 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     # Get database connection
     db_connection = get_db_connection()
 
+    post_collect_hook = None
+    if collector_type == "unified_jobs":
+        post_collect_hook = _build_dashboard_sync_hook(start_datetime)
+
     # Use generic collector with hourly-specific time window
     return generic_collect_metrics(
         collector_type=collector_type,
@@ -113,4 +117,65 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         db_connection=db_connection,
         collector_kwargs={"since": start_datetime, "until": end_datetime},
         task_execution_id=execution_id,
+        post_collect_hook=post_collect_hook,
     )
+
+
+def _build_dashboard_sync_hook(hour_timestamp):
+    """
+    Return a post_collect_hook that schedules a sync_dashboard_job_records task.
+
+    The hook serialises the filtered raw unified_jobs DataFrame into task_data so the
+    follow-up task can write to JobData without re-querying the Controller DB.
+    Only schedules the task when the DASHBOARD_COLLECTION feature flag is enabled.
+    """
+    from django.conf import settings
+
+    dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
+    if not dashboard_cfg.get("enabled", False):
+        return None
+
+    def hook(raw_data):
+        if raw_data is None or raw_data.empty:
+            return
+
+        mask = raw_data["status"].isin(["failed", "successful"]) & (raw_data["launch_type"] != "sync")
+        filtered = raw_data[mask]
+        if filtered.empty:
+            return
+
+        # unified_jobs_dashboard guarantees these columns; guard with available
+        # in case a future schema change temporarily drops one.
+        dashboard_columns = [
+            "id", "name", "unified_job_template_id", "organization_id", "organization_name",
+            "started", "finished", "status", "elapsed", "launched_by_id", "launched_by_username",
+            "project_id", "project_name", "created", "modified", "label_ids", "num_hosts",
+        ]
+        available = [c for c in dashboard_columns if c in filtered.columns]
+        records = filtered[available].where(filtered[available].notna(), other=None).to_dict("records")
+
+        for row in records:
+            for field in ("started", "finished", "created", "modified"):
+                val = row.get(field)
+                if val is not None and hasattr(val, "isoformat"):
+                    row[field] = val.isoformat()
+            if row.get("num_hosts") is not None:
+                row["num_hosts"] = int(row["num_hosts"])
+
+        from apps.tasks.models import Task
+
+        Task.objects.get_or_create(
+            name=f"sync_dashboard_jobs_{hour_timestamp.isoformat()}",
+            defaults={
+                "description": f"Sync dashboard job records from unified_jobs for {hour_timestamp.isoformat()}",
+                "function_name": "sync_dashboard_job_records",
+                "task_data": {
+                    "raw_jobs": records,
+                    "hour_timestamp": hour_timestamp.isoformat(),
+                    "_feature_flag": "DASHBOARD_COLLECTION",
+                },
+                "is_system_task": False,
+            },
+        )
+
+    return hook

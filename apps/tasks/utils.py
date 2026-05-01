@@ -380,6 +380,7 @@ def generic_collect_metrics(
     db_connection: Any,
     collector_kwargs: dict[str, Any] | None = None,
     task_execution_id: int | None = None,
+    post_collect_hook=None,
 ) -> dict[str, Any]:
     """Generic metrics collection for hourly/snapshot collectors with optional rollup processing."""
     from apps.tasks.models import HourlyMetricsCollection
@@ -415,6 +416,12 @@ def generic_collect_metrics(
 
         collector = config["collector_func"](db=db_connection, **actual_collector_kwargs)
         raw_data = collector.gather()
+
+        if post_collect_hook is not None:
+            try:
+                post_collect_hook(raw_data)
+            except Exception as hook_exc:
+                logger.warning(f"post_collect_hook failed for {collector_type}: {hook_exc}")
 
         # Process rollup if processor provided, otherwise use raw data
         rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
