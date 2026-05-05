@@ -24,7 +24,6 @@ from ..dashboard_reports.tasks import (
 from .cleanup.cleanup_activitystream import cleanup_activitystream
 from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
-from .cleanup.cleanup_stuck_tasks import cleanup_stuck_tasks
 
 # Import collector tasks
 from .collectors.collect_daily_metrics import collect_daily_metrics
@@ -41,14 +40,11 @@ from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
 
-_DRY_RUN_EXAMPLE = {"name": "Dry run", "data": {"dry_run": True}}
-
 # Task configuration for dispatcherd
 TASK_FUNCTIONS = {
     # System tasks
     "hello_world": hello_world,
     "cleanup_old_tasks": cleanup_old_tasks,
-    "cleanup_stuck_tasks": cleanup_stuck_tasks,
     "cleanup_activitystream": cleanup_activitystream,
     "cleanup_metrics_data": cleanup_metrics_data,
     # Metrics Collection (hourly time-series, daily snapshots, and daily time-range)
@@ -97,22 +93,6 @@ TASK_METADATA = {
         "examples": [{"name": "Basic Hello World", "data": {}}],
     },
     # Maintenance
-    "cleanup_stuck_tasks": {
-        "queue": "maintenance",
-        "category": "Maintenance",
-        "description": "Detect and fail tasks stuck in running beyond their timeout (orphaned by worker crash)",
-        "parameters": {
-            "dry_run": {
-                "type": "boolean",
-                "default": False,
-                "description": "If true, only count tasks that would be failed without actually failing them",
-            },
-        },
-        "examples": [
-            {"name": "Default", "data": {}},
-            _DRY_RUN_EXAMPLE,
-        ],
-    },
     "cleanup_old_tasks": {
         "queue": "maintenance",
         "category": "Maintenance",  # task system records
@@ -168,7 +148,7 @@ TASK_METADATA = {
         },
         "examples": [
             {"name": "Default (7 days)", "data": {}},
-            _DRY_RUN_EXAMPLE,
+            {"name": "Dry run", "data": {"dry_run": True}},
             {"name": "Extended retention (30 days)", "data": {"days_old": 30}},
         ],
     },
@@ -210,7 +190,7 @@ TASK_METADATA = {
                 "name": "Custom retention",
                 "data": {"hourly_retention_days": 14, "daily_retention_days": 60, "payload_retention_days": 14},
             },
-            _DRY_RUN_EXAMPLE,
+            {"name": "Dry run", "data": {"dry_run": True}},
         ],
     },
     # Metrics Collection (Hourly and Snapshot)

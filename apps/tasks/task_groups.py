@@ -154,14 +154,6 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "description": "Daily cleanup of old completed/failed tasks (preserves recurring tasks)",
         },
         {
-            "task_id": "cleanup_stuck_tasks",
-            "function": "cleanup_stuck_tasks",
-            "cron": "*/10 * * * *",  # Every 10 minutes
-            "args": {"dry_run": False},
-            "enabled": True,
-            "description": "Fail tasks stuck in running beyond their timeout",
-        },
-        {
             "task_id": "hourly_health_check",
             "function": "hello_world",
             "cron": "0 * * * *",  # Every hour
