@@ -10,6 +10,7 @@ import sys
 from django.core.management.base import BaseCommand
 
 from apps.tasks.dispatcherd_config import setup_dispatcherd_config
+from apps.tasks.models import STUCK_TASK_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--timeout",
             type=int,
-            default=3600,
+            default=STUCK_TASK_TIMEOUT_SECONDS,
             help="Task timeout in seconds (default: 3600)",
         )
         parser.add_argument(

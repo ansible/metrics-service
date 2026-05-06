@@ -15,9 +15,9 @@ from apscheduler.triggers.date import DateTrigger
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 
-logger = logging.getLogger(__name__)
+from apps.tasks.models import STUCK_TASK_TIMEOUT_SECONDS
 
-STUCK_TASK_TIMEOUT_SECONDS = 3600
+logger = logging.getLogger(__name__)
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
