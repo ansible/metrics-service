@@ -155,6 +155,57 @@ def load_prometheus_middlewares(settings: Dynaconf) -> dict:
     return {"MIDDLEWARE": new}
 
 
+@post_hook
+def load_segment_key(settings: Dynaconf) -> dict:
+    """Load Segment write key from file if not already set via environment or settings.
+
+    Hook runs after all settings are loaded, allowing file-based key loading
+    to work in production while respecting environment variable precedence.
+    """
+    from apps.core.segment_utils import load_segment_write_key_from_file
+
+    load_segment_write_key_from_file(dynaconf_instance=settings)
+    return {}
+
+
+@post_hook
+def parse_allowed_hosts(settings: Dynaconf) -> dict:
+    """Parse ALLOWED_HOSTS from environment variable.
+
+    Supports both JSON array format and comma-separated format.
+    """
+    import json
+    import os
+
+    raw = os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS", "").strip()
+    if not raw:
+        return {}
+
+    if raw.startswith("["):
+        # JSON array format
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: invalid JSON (%s), using empty list: %s",
+                type(e).__name__,
+                e,
+            )
+            parsed = []
+        if not isinstance(parsed, list):
+            logger.warning(
+                "METRICS_SERVICE_ALLOWED_HOSTS: expected JSON array, got %s, using empty list",
+                type(parsed).__name__,
+            )
+            parsed = []
+        allowed_hosts = [str(x).strip() for x in parsed if str(x).strip()]
+    else:
+        # Comma-separated format
+        allowed_hosts = [str(x).strip() for x in raw.split(",") if x.strip()]
+
+    return {"ALLOWED_HOSTS": allowed_hosts}
+
+
 # PostgreSQL session parameters supported for environment variable normalization
 # Only the most commonly needed parameters are included to keep the feature focused
 # For other parameters, use the standard OPTIONS['options'] = "-c param=value" syntax
