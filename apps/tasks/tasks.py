@@ -36,10 +36,7 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
-from .tasks_system import (
-    create_system_tasks,
-    submit_task_to_dispatcher,
-)
+from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
 
