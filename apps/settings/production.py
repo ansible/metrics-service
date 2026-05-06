@@ -34,7 +34,10 @@ Usage:
 Validators are registered in metrics_service/settings.py and run during export().
 """
 
-from dynaconf import Validator
+import copy
+import os
+
+from dynaconf import Dynaconf, Validator, post_hook
 
 from apps.settings.defaults import framework_validators
 
@@ -269,3 +272,24 @@ validators.append(
         },
     ),
 )
+
+
+@post_hook
+def configure_json_logging(settings: Dynaconf) -> dict:
+    """Configure JSON logging for production environments.
+
+    Enables JSON-formatted logs when in production mode or when METRICS_SERVICE_LOG_FORMAT=json.
+    This provides container-friendly structured logging for production deployments.
+    PSF-OVERRIDE: Custom logging configuration for metrics service.
+    """
+    environment = os.environ.get("METRICS_SERVICE_MODE", "").lower()
+    log_format = os.environ.get("METRICS_SERVICE_LOG_FORMAT", "").lower()
+
+    if environment == "production" or log_format == "json":
+        log_cfg = copy.deepcopy(settings.get("LOGGING") or {})
+        log_cfg.setdefault("formatters", {})["json"] = {"()": "apps.core.logging_config.JsonFormatter"}
+        for h in log_cfg.get("handlers", {}).values():
+            if isinstance(h, dict) and "StreamHandler" in str(h.get("class", "")):
+                h["formatter"] = "json"
+        return {"LOGGING": log_cfg}
+    return {}

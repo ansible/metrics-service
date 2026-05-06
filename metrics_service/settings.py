@@ -49,7 +49,6 @@ uv run dynaconf inspect -k VARIABLE
 ## Default variables
 """
 
-import logging
 import os
 import sys
 from importlib import import_module
@@ -333,97 +332,6 @@ load_standard_settings_files(DYNACONF)
 
 # Load envvars at the end to allow them to override everything loaded so far.
 load_envvars(DYNACONF)
-
-
-# SEGMENT_WRITE_KEY from a single file (e.g. installed at build from pipeline secret).
-# Default path: /etc/ansible-automation-platform/metrics/segment-write-key.
-# Pipeline passes build secret metrics-service-segment-write-keys (SEGMENT_WRITE_KEY_DEV for
-# PR/devel, SEGMENT_WRITE_KEY_PROD for GA); one key is installed into that path.
-# File content is the raw plaintext key (no encoding).
-def _read_segment_key_from_path(path: Path) -> str | None:
-    """Read SEGMENT_WRITE_KEY from a single file. Returns the key or None."""
-    logger = logging.getLogger(__name__)
-    try:
-        if not path.is_file():
-            return None
-        key = path.read_text().strip()
-        return key if key else None
-    except OSError as e:
-        filename = getattr(e, "filename", path)
-        logger.error(
-            "Failed to read segment write key from %s: %s",
-            filename,
-            e,
-            exc_info=True,
-        )
-        return None
-
-
-def _load_segment_write_key_from_file(
-    path: Path | None = None,
-    dynaconf_instance=None,
-) -> None:
-    """Load SEGMENT_WRITE_KEY from file and set on Dynaconf. Used at module load and in tests."""
-    if path is None:
-        _segment_write_key_path = os.environ.get(
-            "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
-            "/etc/ansible-automation-platform/metrics/segment-write-key",
-        )
-        path = Path(_segment_write_key_path)
-    if dynaconf_instance is None:
-        dynaconf_instance = DYNACONF
-    # Respect env/settings precedence: do not overwrite if already set
-    if os.environ.get("METRICS_SERVICE_SEGMENT_WRITE_KEY", "").strip():
-        return
-    if dynaconf_instance.get("SEGMENT_WRITE_KEY"):
-        return
-    if not path.exists():
-        return
-    key = _read_segment_key_from_path(path)
-    if key:
-        dynaconf_instance.set("SEGMENT_WRITE_KEY", key)
-
-
-_load_segment_write_key_from_file()
-
-# ALLOWED_HOSTS from environment: comma-separated list or JSON array
-if os.environ.get("METRICS_SERVICE_ALLOWED_HOSTS"):
-    import json
-    import logging
-
-    raw = os.environ["METRICS_SERVICE_ALLOWED_HOSTS"].strip()
-    if raw.startswith("["):
-        try:
-            parsed = json.loads(raw)
-        except (json.JSONDecodeError, TypeError) as e:
-            logging.getLogger(__name__).warning(
-                "METRICS_SERVICE_ALLOWED_HOSTS: invalid JSON (%s), using empty list: %s",
-                type(e).__name__,
-                e,
-            )
-            parsed = []
-        if not isinstance(parsed, list):
-            logging.getLogger(__name__).warning(
-                "METRICS_SERVICE_ALLOWED_HOSTS: expected JSON array, got %s, using empty list",
-                type(parsed).__name__,
-            )
-            parsed = []
-        allowed_hosts = [str(x).strip() for x in parsed if str(x).strip()]
-        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
-    else:
-        allowed_hosts = [str(x).strip() for x in raw.split(",") if x.strip()]
-        DYNACONF.set("ALLOWED_HOSTS", allowed_hosts)
-
-# Container-friendly logging: JSON to stdout when production or METRICS_SERVICE_LOG_FORMAT=json
-if environment == "production" or os.environ.get("METRICS_SERVICE_LOG_FORMAT", "").lower() == "json":
-    import copy
-
-    log_cfg = copy.deepcopy(DYNACONF.get("LOGGING") or {})
-    log_cfg.setdefault("formatters", {})["json"] = {"()": "apps.core.logging_config.JsonFormatter"}
-    for h in log_cfg.get("handlers", {}).values():
-        if isinstance(h, dict) and "StreamHandler" in str(h.get("class", "")):
-            h["formatter"] = "json"
-    DYNACONF.set("LOGGING", log_cfg)
 
 # Load development only apps
 if not DYNACONF.get("IS_RUNNING_TESTS") and DYNACONF.get("DEBUG"):
