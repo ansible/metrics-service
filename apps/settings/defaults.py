@@ -5,7 +5,12 @@ The settings here overrides any setting previously loaded
 from the `metrics_service.settings`.
 """
 
-from dynaconf import Dynaconf, post_hook
+import copy
+import logging
+
+from dynaconf import Dynaconf, Validator, post_hook
+
+logger = logging.getLogger(__name__)
 
 # Extra applications added after PSF templating
 extra_applications = [
@@ -148,3 +153,106 @@ def load_prometheus_middlewares(settings: Dynaconf) -> dict:
         "django_prometheus.middleware.PrometheusAfterMiddleware",
     ]
     return {"MIDDLEWARE": new}
+
+
+# PostgreSQL session parameters supported for environment variable normalization
+# Only the most commonly needed parameters are included to keep the feature focused
+# For other parameters, use the standard OPTIONS['options'] = "-c param=value" syntax
+SUPPORTED_PG_SESSION_PARAMS = {
+    "datestyle",  # Date/time display format (e.g., "iso, mdy")
+    "search_path",  # Schema search order (e.g., "public,myschema")
+    "timezone",  # Session timezone (e.g., "UTC", "America/New_York")
+    "application_name",  # Identifier shown in pg_stat_activity
+}
+
+
+def _normalize_postgresql_options(databases):
+    """Normalize PostgreSQL session parameters for installer-friendly configuration.
+
+    Allows installers to set e.g. METRICS_SERVICE_DATABASES__default__OPTIONS__datestyle="iso, mdy"
+    without needing to know the psycopg-specific OPTIONS__options=-c datestyle=... syntax.
+
+    Example:
+        METRICS_SERVICE_DATABASES__default__OPTIONS__application_name="my service"
+        becomes: OPTIONS['options'] = "-c application_name=my\\ service"
+
+    Supported parameters:
+        - datestyle: Date/time display format
+        - search_path: Schema search order
+        - timezone: Session timezone
+        - application_name: Application identifier
+
+    Note:
+        - Session parameters are removed from OPTIONS to prevent duplicates
+        - Values with spaces are automatically backslash-escaped per libpq requirements
+        - Existing OPTIONS['options'] strings are preserved and extended
+        - Returns a deep copy; does not mutate the input
+
+    Args:
+        databases: DATABASES setting dict
+
+    Returns:
+        Transformed databases dict with normalized PostgreSQL options
+
+    Used as a Dynaconf Validator cast function, called during validation.
+    """
+    if not isinstance(databases, dict):
+        return databases
+
+    # Create deep copy to avoid mutating input
+    databases = copy.deepcopy(databases)
+
+    for db_name, db_conf in databases.items():
+        if not isinstance(db_conf, dict):
+            continue
+
+        opts = db_conf.get("OPTIONS", {})
+        if not isinstance(opts, dict):
+            continue
+
+        # Extract session params (case-insensitive matching)
+        session_params = {}
+        for key in list(opts.keys()):
+            if key.lower() in SUPPORTED_PG_SESSION_PARAMS:
+                session_params[key] = opts.pop(key)
+
+        if not session_params:
+            continue
+
+        try:
+            # Build PostgreSQL -c options with backslash-escaped spaces (libpq requirement)
+            pg_opts = [f"-c {k}={str(v).replace(' ', r'\ ')}" for k, v in session_params.items()]
+
+            # Preserve existing options and append new ones
+            existing = opts.get("options", "")
+            opts["options"] = f"{existing} {' '.join(pg_opts)}".strip()
+
+            logger.debug(
+                f"Normalized PostgreSQL session parameters for database '{db_name}': {list(session_params.keys())}"
+            )
+        except Exception as e:
+            # Don't break settings loading on normalization errors
+            logger.warning(
+                f"Failed to normalize PostgreSQL options for database '{db_name}': {e}. "
+                f"Session parameters: {session_params}"
+            )
+            # Restore the parameters to OPTIONS so they're not lost
+            opts.update(session_params)
+
+    return databases
+
+
+# Framework-provided validators for installer-friendly configuration
+framework_validators = [
+    Validator(
+        "DATABASES",
+        cast=_normalize_postgresql_options,
+        description="Normalize PostgreSQL session parameters to -c format in OPTIONS['options']",
+    ),
+]
+"""Validators that normalize environment variables for better installer experience.
+
+These validators transform environment variables into the format required by underlying libraries.
+For example, PostgreSQL session parameters like 'datestyle' are transformed into the -c flag
+format required by psycopg.
+"""

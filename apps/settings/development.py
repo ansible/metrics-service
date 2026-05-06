@@ -3,6 +3,8 @@ Development environment overrides
 Inherits from ./defaults.py and adds dev-specific defaults
 """
 
+from apps.settings.defaults import framework_validators
+
 DEBUG = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = False
 
@@ -49,3 +51,7 @@ LOGGING__loggers = {
         "level": "INFO",
     },
 }
+
+validators = [
+    *framework_validators,  # Include framework-provided normalization validators
+]

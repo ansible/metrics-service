@@ -7,6 +7,8 @@ NOTE: Tests use PostgreSQL to match the production environment setup.
 
 import os
 
+from apps.settings.defaults import framework_validators
+
 # Basic required settings
 DEBUG = False
 TESTING = True
@@ -94,3 +96,7 @@ REST_FRAMEWORK = {
 
 # Test database settings
 TEST_DATABASE_PREFIX = "test_"
+
+validators = [
+    *framework_validators,  # Include framework-provided normalization validators
+]

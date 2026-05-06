@@ -36,7 +36,11 @@ Validators are registered in metrics_service/settings.py and run during export()
 
 from dynaconf import Validator
 
-validators = []
+from apps.settings.defaults import framework_validators
+
+validators = [
+    *framework_validators,  # Include framework-provided normalization validators
+]
 
 # =============================================================================
 # Security Settings
