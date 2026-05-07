@@ -265,20 +265,20 @@ def test_daily_subscription_cost_year_boundary():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_per_second_subscription_cost():
-    """per_second_subscription_cost is daily / 86400."""
+    """per_second_subscription_cost returns 0 (quantized) when no jobs exist in the period."""
     from apps.dashboard_reports.models import SubscriptionCost
 
     SubscriptionCost.objects.all().delete()
     cost = SubscriptionCost.get()
     per_sec = cost.per_second_subscription_cost()
-    daily = cost.daily_subscription_cost()
-    assert abs(per_sec - daily / decimal.Decimal(86400)) < decimal.Decimal("0.000001")
+    assert isinstance(per_sec, decimal.Decimal)
+    assert per_sec == decimal.Decimal("0").quantize(decimal.Decimal("0.0000000001"))
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_per_second_subscription_cost_with_dates():
-    """per_second_subscription_cost passes date args through to daily_subscription_cost."""
+    """per_second_subscription_cost with no jobs in range returns 0 (quantized)."""
     from apps.dashboard_reports.models import SubscriptionCost
 
     SubscriptionCost.objects.all().delete()
@@ -287,7 +287,7 @@ def test_per_second_subscription_cost_with_dates():
     end = datetime(2024, 5, 31, tzinfo=UTC)
     per_sec = cost.per_second_subscription_cost(start=start, end=end)
     assert isinstance(per_sec, decimal.Decimal)
-    assert per_sec > 0
+    assert per_sec == decimal.Decimal("0").quantize(decimal.Decimal("0.0000000001"))
 
 
 # ---------------------------------------------------------------------------
