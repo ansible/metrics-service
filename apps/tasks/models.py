@@ -45,8 +45,6 @@ except ImportError:
             abstract = True
 
 
-STUCK_TASK_TIMEOUT_SECONDS = 3600
-
 logger = logging.getLogger(__name__)
 
 
@@ -99,10 +97,6 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
     attempts = models.PositiveIntegerField(default=0, help_text="Number of execution attempts")
 
     max_attempts = models.PositiveIntegerField(default=3, help_text="Maximum number of retry attempts")
-
-    timeout_seconds = models.PositiveIntegerField(
-        default=STUCK_TASK_TIMEOUT_SECONDS, help_text="Task timeout in seconds"
-    )
 
     # Execution results (inherited from StatusTrackingMixin)
     result_data = models.JSONField(default=dict, blank=True, help_text="JSON result data from task execution")

@@ -15,9 +15,10 @@ from apscheduler.triggers.date import DateTrigger
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 
-from apps.tasks.models import STUCK_TASK_TIMEOUT_SECONDS
-
 logger = logging.getLogger(__name__)
+
+DEFAULT_TASK_TIMEOUT_SECONDS = 3600
+STUCK_TASK_TIMEOUT_SECONDS = DEFAULT_TASK_TIMEOUT_SECONDS
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
@@ -334,7 +335,6 @@ class UnifiedTaskScheduler:
                     scheduled_time=None,  # Execute immediately
                     cron_expression=None,  # This is not a recurring task
                     max_attempts=task.max_attempts,
-                    timeout_seconds=task.timeout_seconds,
                     created_by=task.created_by,
                     is_system_task=task.is_system_task,
                 )

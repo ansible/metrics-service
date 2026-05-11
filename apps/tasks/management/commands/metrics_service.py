@@ -21,6 +21,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from apps.tasks.cron_scheduler import DEFAULT_TASK_TIMEOUT_SECONDS
 from apps.tasks.models import Task
 from apps.tasks.services import OutputFormatter
 
@@ -99,8 +100,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--timeout",
             type=int,
-            default=3600,
-            help="Task timeout in seconds (default: 3600)",
+            default=DEFAULT_TASK_TIMEOUT_SECONDS,
+            help=f"Task timeout in seconds (default: {DEFAULT_TASK_TIMEOUT_SECONDS})",
         )
         parser.add_argument(
             "--max-tasks",
@@ -590,7 +591,7 @@ class Command(BaseCommand):
             str(manage_py),
             "run_dispatcherd",
             f"--workers={config['dispatcher_workers']}",
-            f"--timeout={config['timeout']}",
+            *([f"--timeout={config['timeout']}"] if config["timeout"] is not None else []),
             f"--max-tasks={config['max_tasks']}",
             f"--log-level={config['log_level']}",
         ]
@@ -733,7 +734,7 @@ class Command(BaseCommand):
             "port": options.get("port", "8000"),
             "gunicorn_workers": gunicorn_workers,
             "dispatcher_workers": dispatcher_workers,
-            "timeout": options.get("timeout", 3600),
+            "timeout": options.get("timeout", DEFAULT_TASK_TIMEOUT_SECONDS),
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),
             "check_interval": options.get("check_interval", 60),
