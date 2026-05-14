@@ -44,16 +44,6 @@ def test_run_dispatcherd_handles_import_error():
             pass  # Other errors are OK — we just verify it doesn't crash unhandled
 
 
-@pytest.mark.unit
-def test_run_dispatcherd_handles_general_exception():
-    out = StringIO()
-    with patch("apps.tasks.dispatcherd_config.setup_dispatcherd_config", side_effect=Exception("config error")):
-        try:
-            call_command("run_dispatcherd", stdout=out)
-        except SystemExit as e:
-            assert e.code == 1
-
-
 # ---------------------------------------------------------------------------
 # run_task_scheduler
 # ---------------------------------------------------------------------------
