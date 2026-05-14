@@ -120,7 +120,10 @@ def test_execute_db_task_function_returns_error(user):
     task = Task.objects.create(name="raise_task_3", function_name="hello_world", task_data={}, created_by=user)
 
     mock_fn = MagicMock(return_value={"status": "error", "error": "task error occurred"})
-    with patch.dict("apps.tasks.tasks.TASK_FUNCTIONS", {"hello_world": mock_fn}), patch("apps.tasks.tasks.TASK_LOCKS", set()):
+    with (
+        patch.dict("apps.tasks.tasks.TASK_FUNCTIONS", {"hello_world": mock_fn}),
+        patch("apps.tasks.tasks.TASK_LOCKS", set()),
+    ):
         result = execute_db_task(task_id=task.id)
 
     # The task function was called and returned an error
@@ -158,7 +161,10 @@ def test_execute_claimed_task_failure_returns_error(user):
     execution = TaskExecution.objects.create(task=task, status="running", worker_id="test-1")
 
     mock_fn = MagicMock(return_value={"status": "error", "error": "failed"})
-    with patch.dict("apps.tasks.tasks.TASK_FUNCTIONS", {"hello_world": mock_fn}), patch("apps.tasks.tasks.TASK_LOCKS", set()):
+    with (
+        patch.dict("apps.tasks.tasks.TASK_FUNCTIONS", {"hello_world": mock_fn}),
+        patch("apps.tasks.tasks.TASK_LOCKS", set()),
+    ):
         result = execute_claimed(task, execution)
 
     assert result["status"] == "error"

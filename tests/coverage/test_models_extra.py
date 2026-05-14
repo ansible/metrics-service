@@ -51,9 +51,7 @@ def test_task_is_ready_to_run_past_schedule_ready(user):
 def test_task_is_ready_to_run_not_pending(user):
     from apps.tasks.models import Task
 
-    task = Task.objects.create(
-        name="t", function_name="hello_world", task_data={}, created_by=user, status="running"
-    )
+    task = Task.objects.create(name="t", function_name="hello_world", task_data={}, created_by=user, status="running")
     assert task.is_ready_to_run() is False
 
 
@@ -66,7 +64,13 @@ def test_task_can_retry_failed_under_max(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
-        name="t", function_name="hello_world", task_data={}, created_by=user, status="failed", attempts=1, max_attempts=3
+        name="t",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="failed",
+        attempts=1,
+        max_attempts=3,
     )
     assert task.can_retry() is True
 
@@ -77,7 +81,13 @@ def test_task_can_retry_exceeded_max(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
-        name="t", function_name="hello_world", task_data={}, created_by=user, status="failed", attempts=3, max_attempts=3
+        name="t",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="failed",
+        attempts=3,
+        max_attempts=3,
     )
     assert task.can_retry() is False
 
@@ -88,7 +98,13 @@ def test_task_can_retry_not_failed(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
-        name="t", function_name="hello_world", task_data={}, created_by=user, status="completed", attempts=1, max_attempts=3
+        name="t",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="completed",
+        attempts=1,
+        max_attempts=3,
     )
     assert task.can_retry() is False
 
@@ -102,7 +118,13 @@ def test_task_retry_resets_to_pending(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
-        name="t", function_name="hello_world", task_data={}, created_by=user, status="failed", attempts=1, max_attempts=3
+        name="t",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="failed",
+        attempts=1,
+        max_attempts=3,
     )
     with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
         result = task.retry()
@@ -120,7 +142,13 @@ def test_task_retry_with_delay_sets_scheduled_time(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
-        name="t", function_name="hello_world", task_data={}, created_by=user, status="failed", attempts=1, max_attempts=3
+        name="t",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="failed",
+        attempts=1,
+        max_attempts=3,
     )
     with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
         task.retry(delay_seconds=300)
@@ -135,7 +163,13 @@ def test_task_retry_returns_false_when_cannot(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
-        name="t", function_name="hello_world", task_data={}, created_by=user, status="completed", attempts=1, max_attempts=3
+        name="t",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="completed",
+        attempts=1,
+        max_attempts=3,
     )
     result = task.retry()
     assert result is False
@@ -171,7 +205,9 @@ def test_task_can_delete_system_task(user):
 def test_task_can_modify_non_system(user):
     from apps.tasks.models import Task
 
-    task = Task.objects.create(name="t", function_name="hello_world", task_data={}, created_by=user, is_system_task=False)
+    task = Task.objects.create(
+        name="t", function_name="hello_world", task_data={}, created_by=user, is_system_task=False
+    )
     assert task.can_modify() is True
 
 
@@ -180,7 +216,9 @@ def test_task_can_modify_non_system(user):
 def test_task_can_modify_system_task(user):
     from apps.tasks.models import Task
 
-    task = Task.objects.create(name="t", function_name="hello_world", task_data={}, created_by=user, is_system_task=True)
+    task = Task.objects.create(
+        name="t", function_name="hello_world", task_data={}, created_by=user, is_system_task=True
+    )
     assert task.can_modify() is False
 
 
@@ -232,10 +270,22 @@ def test_task_immediate_tasks_queryset(user):
     from apps.tasks.models import Task
 
     t1 = Task.objects.create(name="imm", function_name="hello_world", task_data={}, created_by=user, status="pending")
-    Task.objects.create(name="sched", function_name="hello_world", task_data={}, created_by=user, status="pending",
-                        scheduled_time=timezone.now() + timedelta(hours=1))
-    Task.objects.create(name="rec", function_name="hello_world", task_data={}, created_by=user, status="pending",
-                        cron_expression="0 * * * *")
+    Task.objects.create(
+        name="sched",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="pending",
+        scheduled_time=timezone.now() + timedelta(hours=1),
+    )
+    Task.objects.create(
+        name="rec",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="pending",
+        cron_expression="0 * * * *",
+    )
 
     immediate = Task.immediate_tasks()
     ids = [t.id for t in immediate]
@@ -248,8 +298,14 @@ def test_task_scheduled_tasks_queryset(user):
     from apps.tasks.models import Task
 
     future = timezone.now() + timedelta(hours=1)
-    t_sched = Task.objects.create(name="sched2", function_name="hello_world", task_data={}, created_by=user,
-                                   status="pending", scheduled_time=future)
+    t_sched = Task.objects.create(
+        name="sched2",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="pending",
+        scheduled_time=future,
+    )
     Task.objects.create(name="imm2", function_name="hello_world", task_data={}, created_by=user, status="pending")
 
     scheduled = Task.scheduled_tasks()
@@ -262,8 +318,14 @@ def test_task_scheduled_tasks_queryset(user):
 def test_task_recurring_tasks_queryset(user):
     from apps.tasks.models import Task
 
-    t_rec = Task.objects.create(name="rec3", function_name="hello_world", task_data={}, created_by=user,
-                                 status="pending", cron_expression="0 * * * *")
+    t_rec = Task.objects.create(
+        name="rec3",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="pending",
+        cron_expression="0 * * * *",
+    )
     Task.objects.create(name="plain", function_name="hello_world", task_data={}, created_by=user, status="pending")
 
     recurring = Task.recurring_tasks()

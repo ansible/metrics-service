@@ -87,7 +87,9 @@ def test_task_running_endpoint(user):
     """GET /api/v1/tasks/running/ returns running tasks."""
     from apps.tasks.models import Task
 
-    Task.objects.create(name="running_task", function_name="hello_world", task_data={}, created_by=user, status="running")
+    Task.objects.create(
+        name="running_task", function_name="hello_world", task_data={}, created_by=user, status="running"
+    )
     client = APIClient()
     client.force_authenticate(user=user)
 
@@ -106,7 +108,9 @@ def test_task_pending_endpoint(user):
     """GET /api/v1/tasks/pending/ returns pending tasks."""
     from apps.tasks.models import Task
 
-    Task.objects.create(name="pending_api_task", function_name="hello_world", task_data={}, created_by=user, status="pending")
+    Task.objects.create(
+        name="pending_api_task", function_name="hello_world", task_data={}, created_by=user, status="pending"
+    )
     client = APIClient()
     client.force_authenticate(user=user)
 
@@ -122,7 +126,9 @@ def test_task_list_filtered_endpoint(user):
     """GET /api/v1/tasks/list/?status=pending filters by status."""
     from apps.tasks.models import Task
 
-    Task.objects.create(name="filtered_task", function_name="hello_world", task_data={}, created_by=user, status="pending")
+    Task.objects.create(
+        name="filtered_task", function_name="hello_world", task_data={}, created_by=user, status="pending"
+    )
     client = APIClient()
     client.force_authenticate(user=user)
 

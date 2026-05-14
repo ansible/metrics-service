@@ -128,10 +128,13 @@ def test_setup_dispatcherd_config_loads_yaml_when_file_exists():
     dc._configured = False
     with patch("apps.tasks.dispatcherd_config.get_config_file_path") as mock_path:
         mock_path.return_value.exists.return_value = True
-        with patch("apps.tasks.dispatcherd_config._load_config_with_django_db", return_value={}) as mock_load, patch("dispatcherd.config.setup") as mock_setup:
-                setup_dispatcherd_config()
-                mock_load.assert_called_once()
-                mock_setup.assert_called_once()
+        with (
+            patch("apps.tasks.dispatcherd_config._load_config_with_django_db", return_value={}) as mock_load,
+            patch("dispatcherd.config.setup") as mock_setup,
+        ):
+            setup_dispatcherd_config()
+            mock_load.assert_called_once()
+            mock_setup.assert_called_once()
     dc._configured = False
 
 
@@ -144,10 +147,13 @@ def test_setup_dispatcherd_config_uses_django_when_no_file():
     dc._configured = False
     with patch("apps.tasks.dispatcherd_config.get_config_file_path") as mock_path:
         mock_path.return_value.exists.return_value = False
-        with patch("apps.tasks.dispatcherd_config.build_config_from_django_settings", return_value={}) as mock_build, patch("dispatcherd.config.setup") as mock_setup:
-                setup_dispatcherd_config()
-                mock_build.assert_called_once()
-                mock_setup.assert_called_once()
+        with (
+            patch("apps.tasks.dispatcherd_config.build_config_from_django_settings", return_value={}) as mock_build,
+            patch("dispatcherd.config.setup") as mock_setup,
+        ):
+            setup_dispatcherd_config()
+            mock_build.assert_called_once()
+            mock_setup.assert_called_once()
     dc._configured = False
 
 

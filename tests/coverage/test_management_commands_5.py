@@ -116,8 +116,9 @@ def test_handle_init_system_tasks_with_list_true(user):
     Task.objects.filter(is_system_task=True).delete()
     Task.objects.create(name="sys_listed", function_name="hello_world", task_data={}, is_system_task=True)
 
-    with patch("apps.tasks.tasks.create_system_tasks",
-               return_value={"created": 1, "removed": 0, "tasks": ["Created: x"]}):
+    with patch(
+        "apps.tasks.tasks.create_system_tasks", return_value={"created": 1, "removed": 0, "tasks": ["Created: x"]}
+    ):
         cmd = get_cmd()
         cmd._handle_init_system_tasks_command({"list": True})
 
@@ -156,7 +157,8 @@ def test_hourly_collection_str_representation():
 
     coll = HourlyMetricsCollection.objects.create(
         collector_type="unified_jobs",
-        collection_timestamp=timezone.now().replace(minute=0, second=0, microsecond=0) - __import__('datetime').timedelta(hours=4),
+        collection_timestamp=timezone.now().replace(minute=0, second=0, microsecond=0)
+        - __import__("datetime").timedelta(hours=4),
         raw_data={},
         status="collected",
     )

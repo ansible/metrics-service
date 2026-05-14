@@ -27,8 +27,11 @@ def test_collect_daily_metrics_default_timestamp():
         }
     }
 
-    with patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors", return_value=mock_registry), patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection", return_value=MagicMock()):
-            result = collect_daily_metrics(collector_type="task_executions_service")
+    with (
+        patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors", return_value=mock_registry),
+        patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection", return_value=MagicMock()),
+    ):
+        result = collect_daily_metrics(collector_type="task_executions_service")
 
     assert result["status"] == "success"
 
@@ -41,13 +44,17 @@ def test_setup_dispatcherd_config_import_error_raises():
     import dispatcherd.config as dc
 
     from apps.tasks.dispatcherd_config import setup_dispatcherd_config
+
     dc._configured = False
 
-    with patch("builtins.__import__", side_effect=lambda name, *a, **kw: (
-        (_ for _ in ()).throw(ImportError("no dispatcherd"))
-        if name == "dispatcherd.config"
-        else __import__(name, *a, **kw)
-    )):
+    with patch(
+        "builtins.__import__",
+        side_effect=lambda name, *a, **kw: (
+            (_ for _ in ()).throw(ImportError("no dispatcherd"))
+            if name == "dispatcherd.config"
+            else __import__(name, *a, **kw)
+        ),
+    ):
         try:
             setup_dispatcherd_config()
         except (ImportError, Exception):

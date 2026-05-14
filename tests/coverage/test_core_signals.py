@@ -17,7 +17,9 @@ def test_user_created_signal_fires():
     """Signal handler is called when a user is created."""
     with patch("apps.core.signals.logger") as mock_logger:
         user = User.objects.create_user(
-            username="signal_test_user2", email="signal2@test.com", password="password123"  # noqa: S106
+            username="signal_test_user2",
+            email="signal2@test.com",
+            password="password123",  # noqa: S106
         )
     # info should have been called for the created path
     mock_logger.info.assert_called()
@@ -31,7 +33,9 @@ def test_user_created_signal_fires():
 def test_user_updated_signal_fires():
     """Signal handler is called when a user is saved (not created)."""
     user = User.objects.create_user(
-        username="signal_update_user2", email="update2@test.com", password="password123"  # noqa: S106
+        username="signal_update_user2",
+        email="update2@test.com",
+        password="password123",  # noqa: S106
     )
 
     with patch("apps.core.signals.logger") as mock_logger:
@@ -49,7 +53,9 @@ def test_user_updated_signal_fires():
 def test_user_deleted_signal_fires():
     """pre_delete signal handler fires when a user is deleted."""
     user = User.objects.create_user(
-        username="signal_delete_user2", email="delete2@test.com", password="password123"  # noqa: S106
+        username="signal_delete_user2",
+        email="delete2@test.com",
+        password="password123",  # noqa: S106
     )
 
     with patch("apps.core.signals.logger") as mock_logger:

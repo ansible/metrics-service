@@ -39,9 +39,7 @@ def test_collect_and_group_hourly_collections_empty():
     from apps.tasks.models import HourlyMetricsCollection
 
     yesterday = date.today() - timedelta(days=1)
-    HourlyMetricsCollection.objects.filter(
-        collection_timestamp__date=yesterday
-    ).delete()
+    HourlyMetricsCollection.objects.filter(collection_timestamp__date=yesterday).delete()
 
     collections_by_type, start, end = _collect_and_group_hourly_collections(yesterday)
     assert isinstance(collections_by_type, dict)

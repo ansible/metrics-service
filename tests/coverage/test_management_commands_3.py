@@ -18,6 +18,7 @@ def get_metrics_command():
     cmd.stdout = StringIO()
     cmd.stderr = StringIO()
     from apps.tasks.services.output_formatter import OutputFormatter
+
     mock_style = MagicMock()
     mock_style.SUCCESS.side_effect = lambda msg: msg
     mock_style.ERROR.side_effect = lambda msg: msg
@@ -44,17 +45,19 @@ def test_extract_config_defaults():
 @pytest.mark.unit
 def test_extract_config_with_custom_values():
     cmd = get_metrics_command()
-    config = cmd._extract_config({
-        "workers": 2,
-        "gunicorn_workers": 3,
-        "dispatcher_workers": 1,
-        "host": "0.0.0.0",
-        "port": "9000",
-        "timeout": 7200,
-        "max_tasks": 50,
-        "log_level": "DEBUG",
-        "check_interval": 30,
-    })
+    config = cmd._extract_config(
+        {
+            "workers": 2,
+            "gunicorn_workers": 3,
+            "dispatcher_workers": 1,
+            "host": "0.0.0.0",
+            "port": "9000",
+            "timeout": 7200,
+            "max_tasks": 50,
+            "log_level": "DEBUG",
+            "check_interval": 30,
+        }
+    )
     assert config["gunicorn_workers"] == 3
     assert config["dispatcher_workers"] == 1
     assert config["host"] == "0.0.0.0"
@@ -64,11 +67,13 @@ def test_extract_config_with_custom_values():
 @pytest.mark.unit
 def test_extract_config_none_workers_use_fallback():
     cmd = get_metrics_command()
-    config = cmd._extract_config({
-        "workers": 6,
-        "gunicorn_workers": None,
-        "dispatcher_workers": None,
-    })
+    config = cmd._extract_config(
+        {
+            "workers": 6,
+            "gunicorn_workers": None,
+            "dispatcher_workers": None,
+        }
+    )
     assert config["gunicorn_workers"] == 6
     assert config["dispatcher_workers"] == 6
 
@@ -100,8 +105,9 @@ def test_handle_init_system_tasks_with_list():
     # Pre-create some system tasks
     Task.objects.create(name="test_sys_task", function_name="hello_world", task_data={}, is_system_task=True)
 
-    with patch("apps.tasks.tasks.create_system_tasks",
-               return_value={"created": 1, "removed": 0, "tasks": ["Created: test"]}):
+    with patch(
+        "apps.tasks.tasks.create_system_tasks", return_value={"created": 1, "removed": 0, "tasks": ["Created: test"]}
+    ):
         call_command("metrics_service", "init-system-tasks", "--list")
 
 
@@ -128,7 +134,9 @@ def test_handle_init_service_id_exception():
 def test_tasks_list_with_status_filter(user):
     from apps.tasks.models import Task
 
-    Task.objects.create(name="running_task", function_name="hello_world", task_data={}, created_by=user, status="running")
+    Task.objects.create(
+        name="running_task", function_name="hello_world", task_data={}, created_by=user, status="running"
+    )
     # Should run without error
     call_command("metrics_service", "tasks", "list", "--status", "running")
 
@@ -148,14 +156,18 @@ def test_tasks_show_existing_task(user):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_tasks_create_basic(user):
-
     try:
         with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
             call_command(
-                "metrics_service", "tasks", "create",
-                "--name", "test_created",
-                "--function", "hello_world",
-                "--description", "test description",
+                "metrics_service",
+                "tasks",
+                "create",
+                "--name",
+                "test_created",
+                "--function",
+                "hello_world",
+                "--description",
+                "test description",
             )
     except (SystemExit, Exception):
         pass  # May use different args or fail
@@ -171,8 +183,17 @@ def test_handle_command_error_exits():
     # Test that a CommandError in handle() results in an error message
     with patch.object(cmd, "_handle_run_command", side_effect=Exception("Unexpected error")):
         try:
-            cmd.handle(command="run", workers=1, gunicorn_workers=None, dispatcher_workers=None,
-                      host="127.0.0.1", port="8000", timeout=3600, max_tasks=100, log_level="INFO",
-                      check_interval=60)
+            cmd.handle(
+                command="run",
+                workers=1,
+                gunicorn_workers=None,
+                dispatcher_workers=None,
+                host="127.0.0.1",
+                port="8000",
+                timeout=3600,
+                max_tasks=100,
+                log_level="INFO",
+                check_interval=60,
+            )
         except SystemExit:
             pass

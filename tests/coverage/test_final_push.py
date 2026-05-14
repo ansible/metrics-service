@@ -61,8 +61,16 @@ def get_cmd():
 def test_handle_run_command_calls_start_services():
     cmd = get_cmd()
 
-    config = {"host": "0.0.0.0", "port": "8000", "gunicorn_workers": 1, "dispatcher_workers": 1,
-              "timeout": 3600, "max_tasks": 100, "log_level": "INFO", "check_interval": 60}
+    config = {
+        "host": "0.0.0.0",
+        "port": "8000",
+        "gunicorn_workers": 1,
+        "dispatcher_workers": 1,
+        "timeout": 3600,
+        "max_tasks": 100,
+        "log_level": "INFO",
+        "check_interval": 60,
+    }
     with patch.object(cmd, "_extract_config", return_value=config), patch.object(cmd, "_start_services") as mock_start:
         cmd._handle_run_command({"workers": 1})
     mock_start.assert_called_once()
@@ -162,4 +170,5 @@ def test_anonymized_payload_can_retry_when_retry_status():
 @pytest.mark.unit
 def test_base_viewset_imports():
     from apps.tasks.v1.base_views import BaseViewSet
+
     assert BaseViewSet is not None

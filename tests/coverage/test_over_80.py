@@ -44,7 +44,9 @@ def test_task_serializer_has_fields():
 def test_task_ready_to_run_queryset(user):
     from apps.tasks.models import Task
 
-    Task.objects.create(name="ready_check", function_name="hello_world", task_data={}, created_by=user, status="pending")
+    Task.objects.create(
+        name="ready_check", function_name="hello_world", task_data={}, created_by=user, status="pending"
+    )
     qs = Task.ready_to_run()
     assert qs.exists()
 

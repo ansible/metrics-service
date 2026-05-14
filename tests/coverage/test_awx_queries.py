@@ -151,9 +151,7 @@ def test_fetch_data_from_db_with_limit():
     mock_cursor.description = [("id",), ("name",)]
     mock_conn.cursor.return_value = mock_cursor
 
-    data, total = fetch_data_from_db(
-        AWXQuery.ORGANIZATIONS, db_connection=mock_conn, limit=5, offset=0
-    )
+    data, total = fetch_data_from_db(AWXQuery.ORGANIZATIONS, db_connection=mock_conn, limit=5, offset=0)
     assert total == 10
 
 

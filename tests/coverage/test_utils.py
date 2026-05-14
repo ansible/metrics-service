@@ -76,7 +76,6 @@ def test_parse_datetime_string_offset():
 
 @pytest.mark.unit
 def test_parse_datetime_string_naive_gets_utc():
-
     from apps.tasks.utils import parse_datetime_string
 
     result = parse_datetime_string("2024-01-01T10:00:00")

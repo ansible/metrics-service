@@ -31,7 +31,9 @@ def get_cmd():
 def test_handle_task_list_with_tasks(user):
     from apps.tasks.models import Task
 
-    Task.objects.create(name="list_task_1", function_name="hello_world", task_data={}, created_by=user, status="pending")
+    Task.objects.create(
+        name="list_task_1", function_name="hello_world", task_data={}, created_by=user, status="pending"
+    )
 
     cmd = get_cmd()
     cmd._handle_task_list({"status": None, "limit": 20})
@@ -56,8 +58,12 @@ def test_handle_task_list_empty():
 def test_handle_task_list_with_status_filter(user):
     from apps.tasks.models import Task
 
-    Task.objects.create(name="running_one", function_name="hello_world", task_data={}, created_by=user, status="running")
-    Task.objects.create(name="pending_one", function_name="hello_world", task_data={}, created_by=user, status="pending")
+    Task.objects.create(
+        name="running_one", function_name="hello_world", task_data={}, created_by=user, status="running"
+    )
+    Task.objects.create(
+        name="pending_one", function_name="hello_world", task_data={}, created_by=user, status="pending"
+    )
 
     cmd = get_cmd()
     cmd._handle_task_list({"status": "running", "limit": 20})
@@ -106,7 +112,9 @@ def test_handle_task_show_not_found():
 def test_handle_task_cancel_pending(user):
     from apps.tasks.models import Task
 
-    task = Task.objects.create(name="cancel_me", function_name="hello_world", task_data={}, created_by=user, status="pending")
+    task = Task.objects.create(
+        name="cancel_me", function_name="hello_world", task_data={}, created_by=user, status="pending"
+    )
     cmd = get_cmd()
     cmd._handle_task_cancel({"task_id": str(task.id)})
     task.refresh_from_db()
@@ -118,7 +126,9 @@ def test_handle_task_cancel_pending(user):
 def test_handle_task_cancel_completed(user):
     from apps.tasks.models import Task
 
-    task = Task.objects.create(name="already_done", function_name="hello_world", task_data={}, created_by=user, status="completed")
+    task = Task.objects.create(
+        name="already_done", function_name="hello_world", task_data={}, created_by=user, status="completed"
+    )
     cmd = get_cmd()
     cmd._handle_task_cancel({"task_id": str(task.id)})
     task.refresh_from_db()
@@ -143,7 +153,9 @@ def test_handle_task_cancel_not_found():
 def test_handle_task_retry_failed(user):
     from apps.tasks.models import Task
 
-    task = Task.objects.create(name="retry_me", function_name="hello_world", task_data={}, created_by=user, status="failed")
+    task = Task.objects.create(
+        name="retry_me", function_name="hello_world", task_data={}, created_by=user, status="failed"
+    )
     cmd = get_cmd()
     cmd._handle_task_retry({"task_id": str(task.id)})
     task.refresh_from_db()
@@ -155,7 +167,9 @@ def test_handle_task_retry_failed(user):
 def test_handle_task_retry_completed(user):
     from apps.tasks.models import Task
 
-    task = Task.objects.create(name="done_task", function_name="hello_world", task_data={}, created_by=user, status="completed")
+    task = Task.objects.create(
+        name="done_task", function_name="hello_world", task_data={}, created_by=user, status="completed"
+    )
     cmd = get_cmd()
     cmd._handle_task_retry({"task_id": str(task.id)})
     task.refresh_from_db()
@@ -195,8 +209,9 @@ def test_list_system_tasks():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_handle_init_system_tasks_command_without_list():
-    with patch("apps.tasks.tasks.create_system_tasks",
-               return_value={"created": 3, "removed": 1, "tasks": ["Created: x"]}):
+    with patch(
+        "apps.tasks.tasks.create_system_tasks", return_value={"created": 3, "removed": 1, "tasks": ["Created: x"]}
+    ):
         cmd = get_cmd()
         cmd._handle_init_system_tasks_command({"list": False})
     output = cmd.stdout.getvalue()

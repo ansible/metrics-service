@@ -292,7 +292,11 @@ def test_execute_database_task_recurring_creates_child_task(user, mock_apschedul
     scheduler = cs.UnifiedTaskScheduler()
     scheduler.scheduler = mock_apscheduler
 
-    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit, patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True):
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit,
+        patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True),
+    ):
         scheduler._execute_database_task(task.id)
 
     # A new (non-recurring) child task should be created
@@ -331,9 +335,12 @@ def test_execute_database_task_cancelled_task_removed(user, mock_apscheduler):
     scheduler.scheduler = mock_apscheduler
     scheduler._db_task_jobs[task.id] = "job_id"
 
-    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch.object(scheduler, "_remove_database_task") as mock_remove:
-            scheduler._execute_database_task(task.id)
-            mock_remove.assert_called_once_with(task.id)
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch.object(scheduler, "_remove_database_task") as mock_remove,
+    ):
+        scheduler._execute_database_task(task.id)
+        mock_remove.assert_called_once_with(task.id)
 
 
 # ---------------------------------------------------------------------------
@@ -357,7 +364,12 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
     scheduler.scheduler = mock_apscheduler
 
     # _periodic_database_sync also calls Task.immediate_tasks() etc. — mock them to return empty
-    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()), patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()), patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()):
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()),
+        patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()),
+        patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()),
+    ):
         scheduler._periodic_database_sync()
 
     task.refresh_from_db()

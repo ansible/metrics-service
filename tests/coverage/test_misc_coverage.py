@@ -47,6 +47,7 @@ def test_json_formatter_with_exception():
         raise ValueError("test error")
     except ValueError:
         import sys
+
         exc_info = sys.exc_info()
 
     record = logging.LogRecord(
@@ -94,6 +95,7 @@ def test_url_for_with_no_prefix():
     with patch("apps.dashboard.views.settings") as mock_settings:
         mock_settings.URL_PREFIX = None
         from apps.dashboard.views import url_for
+
         result = url_for("/v1/")
         assert result.startswith("/api/")
         assert "/v1/" in result
@@ -104,6 +106,7 @@ def test_url_for_with_prefix():
     with patch("apps.dashboard.views.settings") as mock_settings:
         mock_settings.URL_PREFIX = "/prefix"
         from apps.dashboard.views import url_for
+
         result = url_for("v1/")
         assert "prefix" in result
         assert "v1/" in result
@@ -239,6 +242,7 @@ def test_dashboard_reports_utils():
         pass  # Module may not have public functions to test
 
     from apps.dashboard_reports import utils
+
     assert utils is not None
 
 

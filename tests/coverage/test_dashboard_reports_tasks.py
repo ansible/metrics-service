@@ -63,8 +63,11 @@ def test_collect_data_success():
     since = (now - timedelta(hours=2)).isoformat()
 
     mock_jobs_result = {"results": [], "count": 0}
-    with patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result):
-            result = _collect_data("test_task", since=since, until=now.isoformat())
+    with (
+        patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
+        patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result),
+    ):
+        result = _collect_data("test_task", since=since, until=now.isoformat())
 
     assert result["error"] is False
     assert result["data"]["job_count"] == 0
@@ -104,11 +107,14 @@ def test_collect_dashboard_reports_initial_data_success():
     mock_jobs_result = {"results": [], "count": 5}
     now = datetime.now(tz=UTC)
 
-    with patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result):
-            result = collect_dashboard_reports_initial_data(
-                since=(now - timedelta(days=1)).isoformat(),
-                until=now.isoformat(),
-            )
+    with (
+        patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
+        patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result),
+    ):
+        result = collect_dashboard_reports_initial_data(
+            since=(now - timedelta(days=1)).isoformat(),
+            until=now.isoformat(),
+        )
 
     assert result["status"] == "success"
 
@@ -122,8 +128,11 @@ def test_collect_dashboard_reports_data_incremental():
     from apps.dashboard_reports.tasks import collect_dashboard_reports_data
 
     mock_jobs_result = {"results": [], "count": 0}
-    with patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result):
-            result = collect_dashboard_reports_data(incremental=True)
+    with (
+        patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
+        patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result),
+    ):
+        result = collect_dashboard_reports_data(incremental=True)
 
     assert result["status"] in ("success", "error")
 
@@ -136,12 +145,15 @@ def test_collect_dashboard_reports_data_full():
     mock_jobs_result = {"results": [], "count": 0}
     now = datetime.now(tz=UTC)
 
-    with patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result):
-            result = collect_dashboard_reports_data(
-                incremental=False,
-                since=(now - timedelta(hours=2)).isoformat(),
-                until=now.isoformat(),
-            )
+    with (
+        patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
+        patch("apps.dashboard_reports.tasks._collect_jobs", return_value=mock_jobs_result),
+    ):
+        result = collect_dashboard_reports_data(
+            incremental=False,
+            since=(now - timedelta(hours=2)).isoformat(),
+            until=now.isoformat(),
+        )
 
     assert result["status"] in ("success", "error")
 

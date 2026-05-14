@@ -118,7 +118,9 @@ def test_remove_default_settings_removes_unchanged():
     from apps.dynamic_settings.models import Setting
     from apps.dynamic_settings.utils import remove_default_settings
 
-    Setting.objects.get_or_create(setting_key="METRICS_COLLECTION", defaults={"current_value": "true", "previous_value": None})
+    Setting.objects.get_or_create(
+        setting_key="METRICS_COLLECTION", defaults={"current_value": "true", "previous_value": None}
+    )
 
     removed = remove_default_settings()
     assert removed >= 1

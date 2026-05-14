@@ -47,11 +47,14 @@ def test_collect_hourly_metrics_success():
     }
 
     ts = timezone.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=2)
-    with patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=mock_registry), patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()):
-            result = collect_hourly_metrics(
-                collector_type="unified_jobs",
-                hour_timestamp=ts.isoformat(),
-            )
+    with (
+        patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=mock_registry),
+        patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
+    ):
+        result = collect_hourly_metrics(
+            collector_type="unified_jobs",
+            hour_timestamp=ts.isoformat(),
+        )
 
     assert result["status"] == "success"
 
@@ -71,8 +74,11 @@ def test_collect_hourly_metrics_default_timestamp():
         }
     }
 
-    with patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=mock_registry), patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()):
-            result = collect_hourly_metrics(collector_type="unified_jobs")
+    with (
+        patch("apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors", return_value=mock_registry),
+        patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
+    ):
+        result = collect_hourly_metrics(collector_type="unified_jobs")
 
     assert result["status"] == "success"
 
@@ -104,11 +110,14 @@ def test_collect_snapshot_metrics_success():
     }
 
     ts = timezone.now().replace(hour=23, minute=0, second=0, microsecond=0) - timedelta(days=1)
-    with patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry), patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()):
-            result = collect_snapshot_metrics(
-                collector_type="config",
-                collection_timestamp=ts.isoformat(),
-            )
+    with (
+        patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+        patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
+    ):
+        result = collect_snapshot_metrics(
+            collector_type="config",
+            collection_timestamp=ts.isoformat(),
+        )
 
     assert result["status"] == "success"
 
@@ -127,8 +136,11 @@ def test_collect_snapshot_metrics_default_timestamp():
         }
     }
 
-    with patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry), patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()):
-            result = collect_snapshot_metrics(collector_type="config")
+    with (
+        patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+        patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
+    ):
+        result = collect_snapshot_metrics(collector_type="config")
 
     assert result["status"] == "success"
 
@@ -160,11 +172,14 @@ def test_collect_daily_metrics_success():
     }
 
     ts = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
-    with patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors", return_value=mock_registry), patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection", return_value=MagicMock()):
-            result = collect_daily_metrics(
-                collector_type="task_executions_service",
-                hour_timestamp=ts.isoformat(),
-            )
+    with (
+        patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors", return_value=mock_registry),
+        patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection", return_value=MagicMock()),
+    ):
+        result = collect_daily_metrics(
+            collector_type="task_executions_service",
+            hour_timestamp=ts.isoformat(),
+        )
 
     assert result["status"] == "success"
 
@@ -223,7 +238,7 @@ def test_daily_anonymize_no_summary():
     from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
     from apps.tasks.models import DailyMetricsSummary
 
-    yesterday = (timezone.now().date() - timedelta(days=1))
+    yesterday = timezone.now().date() - timedelta(days=1)
     DailyMetricsSummary.objects.filter(summary_date=yesterday).delete()
 
     result = daily_anonymize_and_prepare()

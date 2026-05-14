@@ -79,16 +79,19 @@ def get_cmd():
 @pytest.mark.django_db
 def test_handle_task_create_basic():
     cmd = get_cmd()
-    cmd._handle_task_create({
-        "name": "cmd_create_task",
-        "function": "hello_world",
-        "description": "test desc",
-        "data": None,
-        "scheduled_time": None,
-        "user": None,
-        "cron": None,
-    })
+    cmd._handle_task_create(
+        {
+            "name": "cmd_create_task",
+            "function": "hello_world",
+            "description": "test desc",
+            "data": None,
+            "scheduled_time": None,
+            "user": None,
+            "cron": None,
+        }
+    )
     from apps.tasks.models import Task
+
     assert Task.objects.filter(name="cmd_create_task").exists()
 
 
@@ -96,16 +99,19 @@ def test_handle_task_create_basic():
 @pytest.mark.django_db
 def test_handle_task_create_with_json_data():
     cmd = get_cmd()
-    cmd._handle_task_create({
-        "name": "json_data_task",
-        "function": "hello_world",
-        "description": "with data",
-        "data": '{"key": "value"}',
-        "scheduled_time": None,
-        "user": None,
-        "cron": None,
-    })
+    cmd._handle_task_create(
+        {
+            "name": "json_data_task",
+            "function": "hello_world",
+            "description": "with data",
+            "data": '{"key": "value"}',
+            "scheduled_time": None,
+            "user": None,
+            "cron": None,
+        }
+    )
     from apps.tasks.models import Task
+
     task = Task.objects.get(name="json_data_task")
     assert task.task_data == {"key": "value"}
 
@@ -117,15 +123,17 @@ def test_handle_task_create_invalid_json():
 
     cmd = get_cmd()
     with pytest.raises(CommandError, match="Invalid JSON"):
-        cmd._handle_task_create({
-            "name": "bad_json_task",
-            "function": "hello_world",
-            "description": "",
-            "data": "not-json{",
-            "scheduled_time": None,
-            "user": None,
-            "cron": None,
-        })
+        cmd._handle_task_create(
+            {
+                "name": "bad_json_task",
+                "function": "hello_world",
+                "description": "",
+                "data": "not-json{",
+                "scheduled_time": None,
+                "user": None,
+                "cron": None,
+            }
+        )
 
 
 @pytest.mark.unit
@@ -135,15 +143,17 @@ def test_handle_task_create_invalid_scheduled_time():
 
     cmd = get_cmd()
     with pytest.raises(CommandError, match="Invalid scheduled time"):
-        cmd._handle_task_create({
-            "name": "bad_time_task",
-            "function": "hello_world",
-            "description": "",
-            "data": None,
-            "scheduled_time": "not-a-date",
-            "user": None,
-            "cron": None,
-        })
+        cmd._handle_task_create(
+            {
+                "name": "bad_time_task",
+                "function": "hello_world",
+                "description": "",
+                "data": None,
+                "scheduled_time": "not-a-date",
+                "user": None,
+                "cron": None,
+            }
+        )
 
 
 @pytest.mark.unit
@@ -153,31 +163,36 @@ def test_handle_task_create_user_not_found():
 
     cmd = get_cmd()
     with pytest.raises(CommandError, match="User.*not found"):
-        cmd._handle_task_create({
-            "name": "user_task",
-            "function": "hello_world",
-            "description": "",
-            "data": None,
-            "scheduled_time": None,
-            "user": "nonexistent_user_xyz",
-            "cron": None,
-        })
+        cmd._handle_task_create(
+            {
+                "name": "user_task",
+                "function": "hello_world",
+                "description": "",
+                "data": None,
+                "scheduled_time": None,
+                "user": "nonexistent_user_xyz",
+                "cron": None,
+            }
+        )
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_handle_task_create_with_scheduled_time():
     cmd = get_cmd()
-    cmd._handle_task_create({
-        "name": "scheduled_task_cmd",
-        "function": "hello_world",
-        "description": "",
-        "data": None,
-        "scheduled_time": "2030-01-01 12:00:00",
-        "user": None,
-        "cron": None,
-    })
+    cmd._handle_task_create(
+        {
+            "name": "scheduled_task_cmd",
+            "function": "hello_world",
+            "description": "",
+            "data": None,
+            "scheduled_time": "2030-01-01 12:00:00",
+            "user": None,
+            "cron": None,
+        }
+    )
     from apps.tasks.models import Task
+
     task = Task.objects.get(name="scheduled_task_cmd")
     assert task.scheduled_time is not None
 
@@ -191,5 +206,6 @@ def test_task_serializer_imports():
         TaskCreateSerializer,
         TaskSerializer,
     )
+
     assert TaskSerializer is not None
     assert TaskCreateSerializer is not None
