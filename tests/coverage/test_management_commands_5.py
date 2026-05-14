@@ -97,12 +97,10 @@ def test_handle_startup_error():
     mock_proc = MagicMock()
     mock_proc.poll.return_value = None
 
-    try:
+    with pytest.raises(SystemExit):
         cmd._handle_startup_error([mock_proc], Exception("test error"))
-    except SystemExit:
-        pass  # Expected — method calls sys.exit
     output = cmd.stdout.getvalue()
-    assert "error" in output.lower() or "test error" in output or True
+    assert "error" in output.lower() or "test error" in output
 
 
 # ---------------------------------------------------------------------------

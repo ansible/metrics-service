@@ -53,7 +53,7 @@ def test_parse_period_param_valid():
     if valid_periods:
         period = valid_periods[0]
         start, end, msg = parse_period_param(period, "period", "UTC")
-        assert msg == "" or start is not None
+        assert msg == "" and start is not None and end is not None
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +83,8 @@ def test_dashboard_report_list_no_period(user):
         # Find the correct URL
         response = client.get("/api/v1/dashboard/")
 
-    assert response.status_code in (200, 400, 404)  # 404 if URL is different
+    # Dashboard viewset is at /api/v1/dashboard_reports/dashboard/ or similar; 404 means not found
+    assert response.status_code in (200, 400, 404)
 
 
 @pytest.mark.unit
@@ -120,8 +121,6 @@ def test_date_filter_to_start_date_end_date():
     periods = DateFilter.to_list()
     if periods:
         period = periods[0]
-        try:
-            start, end = DateFilter.to_start_date_end_date(value=period, tz_string="UTC")
-            assert start <= end
-        except Exception:
-            pass  # Some periods may require specific handling
+        start, end = DateFilter.to_start_date_end_date(value=period, tz_string="UTC")
+        assert start is not None and end is not None
+        assert start <= end

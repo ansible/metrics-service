@@ -89,7 +89,10 @@ def test_handle_failed_send_increments_retry_count(pending_payload):
     _handle_failed_send(pending_payload, segment_result, results)
 
     pending_payload.refresh_from_db()
-    assert results["failed"] == 1 or results["retrying"] == 1
+    # _handle_failed_send always increments results["failed"] regardless of retry status
+    assert results["failed"] == 1
+    pending_payload.refresh_from_db()
+    assert pending_payload.status == "retry"  # retry_count(0) < max_retries(3)
 
 
 # ---------------------------------------------------------------------------

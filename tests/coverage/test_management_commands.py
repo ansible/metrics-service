@@ -176,11 +176,10 @@ def test_metrics_service_tasks_list(user, capsys):
     from apps.tasks.models import Task
 
     Task.objects.create(name="list_test_task_cmd", function_name="hello_world", task_data={}, created_by=user)
-    # Command should complete without error and print task list
+    # Command writes to its own OutputFormatter, not the Django command stdout,
+    # so verify it completes without error rather than parsing captured output.
     call_command("metrics_service", "tasks", "list")
-    captured = capsys.readouterr()
-    # Task name should appear in captured output
-    assert "list_test_task_cmd" in captured.out or "list_test_task_cmd" in captured.err or True
+    capsys.readouterr()  # consume output
 
 
 @pytest.mark.unit
@@ -191,13 +190,9 @@ def test_metrics_service_tasks_cancel(user):
     task = Task.objects.create(
         name="cancel_this", function_name="hello_world", task_data={}, created_by=user, status="pending"
     )
-    out = StringIO()
-    try:
-        call_command("metrics_service", "tasks", "cancel", str(task.id), stdout=out)
-        task.refresh_from_db()
-        assert task.status == "cancelled"
-    except (TypeError, AttributeError, Exception):
-        pass  # Command structure variation allowed
+    call_command("metrics_service", "tasks", "cancel", str(task.id))
+    task.refresh_from_db()
+    assert task.status == "cancelled"
 
 
 @pytest.mark.unit
@@ -214,11 +209,7 @@ def test_metrics_service_tasks_retry(user):
         attempts=1,
         max_attempts=3,
     )
-    out = StringIO()
     with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
-        try:
-            call_command("metrics_service", "tasks", "retry", str(task.id), stdout=out)
-            task.refresh_from_db()
-            assert task.status == "pending"
-        except (TypeError, AttributeError, Exception):
-            pass
+        call_command("metrics_service", "tasks", "retry", str(task.id))
+    task.refresh_from_db()
+    assert task.status == "pending"

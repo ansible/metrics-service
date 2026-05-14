@@ -193,21 +193,28 @@ def test_job_data_create_or_update_from_awx():
         "status": "successful",
         "started": now.isoformat(),
         "finished": (now + timedelta(minutes=5)).isoformat(),
-        "elapsed": "300.0",
+        "elapsed": 300.0,
         "organization_id": 1,
         "organization_name": "Default",
         "project_id": 1,
         "project_name": "test-project",
-        "template_id": 1,
-        "template_name": "test-template",
+        "unified_job_template_id": 1,
         "labels": [],
         "host_summaries": [],
         "job_type": "run",
         "launch_type": "manual",
+        "launched_by_id": None,
+        "launched_by_username": None,
+        "created": now.isoformat(),
+        "modified": now.isoformat(),
+        "num_hosts": 0,
     }
 
+    from django.db import IntegrityError
+
     try:
-        job = JobData.create_or_update_from_awx(awx_job)
-        assert job is not None
-    except Exception:
-        pass  # May fail due to missing related objects
+        JobData.create_or_update_from_awx(awx_job)
+        # create_or_update_from_awx returns None; verify by checking the DB
+        assert JobData.objects.filter(job_id=12345).exists()
+    except (IntegrityError, ValueError, AttributeError):
+        pass  # May fail if AWX-side related objects (org, project) don't exist

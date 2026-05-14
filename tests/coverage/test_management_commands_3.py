@@ -120,10 +120,8 @@ def test_handle_init_service_id_exception():
 
     with patch("ansible_base.resource_registry.models.service_identifier.ServiceID") as mock_model:
         mock_model.objects.count.side_effect = Exception("DB error")
-        try:
+        with pytest.raises((Exception, SystemExit)):
             cmd._handle_init_service_id_command()
-        except Exception:
-            pass  # Exception may propagate
 
 
 # ---------------------------------------------------------------------------
@@ -147,30 +145,25 @@ def test_tasks_show_existing_task(user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(name="show_me", function_name="hello_world", task_data={}, created_by=user)
-    try:
-        call_command("metrics_service", "tasks", "show", str(task.id))
-    except Exception:
-        pass  # Task show may have different argument handling
+    # show command succeeds for an existing task
+    call_command("metrics_service", "tasks", "show", str(task.id))
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_tasks_create_basic(user):
-    try:
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
-            call_command(
-                "metrics_service",
-                "tasks",
-                "create",
-                "--name",
-                "test_created",
-                "--function",
-                "hello_world",
-                "--description",
-                "test description",
-            )
-    except (SystemExit, Exception):
-        pass  # May use different args or fail
+    with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
+        call_command(
+            "metrics_service",
+            "tasks",
+            "create",
+            "--name",
+            "test_created",
+            "--function",
+            "hello_world",
+            "--description",
+            "test description",
+        )
 
 
 # ---------------------------------------------------------------------------
