@@ -240,7 +240,7 @@ django_settings_module = "metrics_service.settings"
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "metrics_service.settings"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
-testpaths = ["tests", "apps/core/tests", "tests/coverage"]
+testpaths = ["tests", "apps/core/tests"]
 addopts = [
     "--verbose",
     "--tb=short",
