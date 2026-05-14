@@ -10,13 +10,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies (project uses uv)
 uv sync --dev
 
+# Copy and edit local settings (git-ignored)
+cp settings.local.py.example settings.local.py
+
 # Run database migrations
 .venv/bin/python manage.py migrate
 
 # Initialize required objects (run after every migration)
-python manage.py metrics_service init-service-id      # Required for DAB resource registry
-python manage.py metrics_service init-default-settings # Initialize feature flag DB table
-python manage.py metrics_service init-system-tasks     # Register scheduled background tasks
+python manage.py metrics_service init-service-id       # Required for DAB resource registry
+python manage.py metrics_service init-default-settings  # Initialize feature flag DB table
+python manage.py metrics_service init-system-tasks      # Register scheduled background tasks
 
 # Create superuser
 python manage.py createsuperuser
@@ -66,8 +69,9 @@ uv run poe format   # ruff format
 uv run poe lint     # ruff check
 uv run poe unit-test
 
-# Or directly
-.venv/bin/ruff format . && .venv/bin/ruff check . --fix
+# Install pre-commit hooks
+pre-commit install
+pre-commit run --all-files
 ```
 
 ### Running Django Commands with Imports
@@ -77,6 +81,13 @@ uv run poe unit-test
 python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(list(TASK_FUNCTIONS))"
 
 # Never use plain python -c for Django imports — it fails without Django setup
+
+# Debug a single task manually
+uv run ./scripts/run_task.py hello_world
+
+# Inspect settings load order and variable resolution
+uv run dynaconf inspect -m debug -f yaml        # full loading history
+uv run dynaconf inspect -k VARIABLE_NAME        # single variable
 ```
 
 ## Architecture Overview
@@ -85,13 +96,14 @@ python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(li
 
 ```
 apps/
-  core/           # Custom User/Organization/Team models, DAB integration, RBAC
-  tasks/          # Background task system (models, scheduling, execution)
+  core/             # Custom User/Organization/Team models, DAB integration, RBAC
+  tasks/            # Background task system (models, scheduling, execution)
   dynamic_settings/ # Runtime DB-backed feature flags (Setting model)
-  settings/       # Dynaconf settings layering (see below)
-  dashboard/      # Web UI for task monitoring at /dashboard/
+  settings/         # Dynaconf settings layering (see below)
+  dashboard/        # Web UI for task monitoring at /dashboard/
+  dashboard_reports/ # AWX job data ingestion and reporting models for automation-reports integration
 metrics_service/
-  settings/       # Split Django settings (development, production, test)
+  settings/         # Split Django settings (development, production, test)
 ```
 
 ### Settings Loading Order (Dynaconf)
@@ -113,16 +125,21 @@ INSTALLED_APPS = "@merge_unique my_new_app"
 DATABASES__default__PORT = 5433
 ```
 
+### URL Loading
+
+`metrics_service/urls.py` is framework-managed. Each app in `project_applications` (defined in `apps/settings/defaults.py`) has its `urls.py` auto-discovered and appended. Cross-app URL overrides go in `apps/urls.py`. URL loading order follows `project_applications` order — first match wins, so order matters when patterns overlap.
+
 ### Task System (`apps/tasks/`)
 
 The task system has several layers:
 
 - **`models.py`** — `Task`, `TaskExecution`, `TaskChain` DB models
-- **`tasks.py`** — `TASK_FUNCTIONS` registry mapping function names to callables
+- **`tasks.py`** — `TASK_FUNCTIONS` registry mapping function names to callables; also defines queue routing per function
 - **`task_groups.py`** — `TASK_GROUPS` config: defines what tasks run, their cron schedules, args, and which feature flag controls them. This is the source of truth for scheduled tasks — edit here, then run `init-system-tasks` to sync to DB.
+- **`tasks_system.py`** — `execute_db_task` is the sole dispatcherd entry point; all DB tasks route through it. Also contains `submit_task_to_dispatcher` and `create_system_tasks`.
 - **`cron_scheduler.py`** — APScheduler integration for recurring tasks
 - **`dispatcherd_config.py`** — Dispatcherd worker configuration
-- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`)
+- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `collect_daily_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`)
 - **`cleanup/`** — Cleanup functions (`cleanup_old_tasks`, `cleanup_activitystream`, `cleanup_metrics_data`)
 - **`simple/`** — Simple tasks (`hello_world`)
 - **`services/`** — Output formatting utilities
@@ -130,18 +147,27 @@ The task system has several layers:
 
 ### Task Groups and Feature Flags
 
-`task_groups.py` defines three groups:
+`task_groups.py` defines four groups:
 
-- **`SYSTEM_TASKS_GROUP`** — Always enabled. Runs `cleanup_old_tasks` (daily 5 AM) and `hello_world` (hourly).
-- **`METRICS_COLLECTION_GROUP`** — Always enabled (no feature flag). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`. Local metrics are collected regardless of the opt-out flag to prevent data gaps.
-- **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains only `daily_anonymize_and_prepare` and `send_anonymized_to_segment` — the tasks that transmit data to Red Hat.
+| Group | Feature Flag | Default | Purpose |
+|-------|-------------|---------|---------|
+| `SYSTEM_TASKS_GROUP` | None (always on) | — | `cleanup_old_tasks` (daily 5 AM), `hello_world` (hourly) |
+| `METRICS_COLLECTION_GROUP` | `METRICS_COLLECTION` | true | Hourly/daily collectors, `daily_metrics_rollup`, `collect_daily_metrics`, `cleanup_metrics_data` |
+| `ANONYMIZATION_GROUP` | `ANONYMIZED_DATA_COLLECTION` | true (customer opt-out) | `daily_anonymize_and_prepare`, `send_anonymized_to_segment` — data transmitted to Red Hat |
+| `DASHBOARD_COLLECTION_GROUP` | `DASHBOARD_COLLECTION` | false (customer opt-in) | `collect_dashboard_reports_data`, `collect_dashboard_reports_initial_data`, `cleanup_dashboard_reports_old_data` |
 
 Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE_ENABLED` in Django settings if not in DB.
 
 ```bash
 # Toggle at runtime without restart
 METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
+METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION=false
+METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
 ```
+
+### Dashboard Reports (`apps/dashboard_reports/`)
+
+Stores AWX job execution data for the automation-reports integration. Key models: `JobData`, `JobLabel`, `JobHostSummary`, `SubscriptionCost`, `FilterSet`, `TemplateMetadata`. Data is ingested via the `DASHBOARD_COLLECTION_GROUP` tasks and served through viewsets under `apps/dashboard_reports/viewsets/`.
 
 ### API Structure
 
@@ -149,6 +175,7 @@ Each app exposes its own versioned API under a `v1/` subdirectory:
 - `apps/tasks/v1/` — Task management endpoints (`/api/v1/tasks/`)
 - `apps/core/v1/` — Core resource endpoints
 - `apps/dynamic_settings/v1/` — Settings API
+- `apps/dashboard_reports/` — Dashboard reporting endpoints
 
 All viewsets use `BaseViewSet` / `UserManagementMixin` base classes. OpenAPI docs at `/api/docs/`.
 
@@ -167,6 +194,11 @@ Provides a DB-backed `Setting` model for runtime configuration. Feature flags ch
 2. Add to `TASK_FUNCTIONS` dict in `apps/tasks/tasks.py`
 3. Add a task config entry to the appropriate `TaskGroup` in `apps/tasks/task_groups.py`
 4. Run `python manage.py metrics_service init-system-tasks` to sync to DB
+
+### Adding a New App
+
+1. Create the app under `apps/`
+2. Add it to `project_applications` in `apps/settings/defaults.py` — this controls both settings and URL loading order
 
 ### Code Style
 
