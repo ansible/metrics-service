@@ -20,6 +20,9 @@ from ..dashboard_reports.tasks import (
     collect_dashboard_reports_initial_data,
 )
 
+# Prometheus scraper tasks
+from ..prometheus_scraper.tasks import scrape_prometheus_endpoints
+
 # Import cleanup tasks
 from .cleanup.cleanup_activitystream import cleanup_activitystream
 from .cleanup.cleanup_metrics_data import cleanup_metrics_data
@@ -59,6 +62,8 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    # Prometheus scraping
+    "scrape_prometheus_endpoints": scrape_prometheus_endpoints,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -73,6 +78,7 @@ TASK_LOCKS = {
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "scrape_prometheus_endpoints",
 }
 
 
@@ -399,6 +405,23 @@ TASK_METADATA = {
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },
+    "scrape_prometheus_endpoints": {
+        "queue": "metrics",
+        "category": "Prometheus Scraping",
+        "description": "Scrape Prometheus metrics from Controller, EDA, and Hub using gateway WIT tokens",
+        "parameters": {
+            "target_services": {
+                "type": "array",
+                "default": None,
+                "description": "List of service names to scrape (e.g. ['controller', 'eda']). Defaults to all configured targets.",
+            },
+        },
+        "examples": [
+            {"name": "Scrape all configured targets", "data": {}},
+            {"name": "Scrape Controller only", "data": {"target_services": ["controller"]}},
+            {"name": "Scrape Controller and EDA", "data": {"target_services": ["controller", "eda"]}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -427,4 +450,6 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    # Prometheus scraping
+    "scrape_prometheus_endpoints",
 ]

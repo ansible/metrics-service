@@ -340,12 +340,29 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+PROMETHEUS_SCRAPER_GROUP = TaskGroup(
+    name="prometheus_scraping",
+    description="Periodic scraping of Prometheus endpoints on Controller, EDA, and Hub via gateway WIT tokens",
+    feature_flag="PROMETHEUS_SCRAPING",
+    tasks=[
+        {
+            "task_id": "scrape_prometheus_all",
+            "function": "scrape_prometheus_endpoints",
+            "cron": "*/5 * * * *",  # Every 5 minutes
+            "args": {},
+            "enabled": True,
+            "description": "Scrape all configured Prometheus endpoints",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
+    PROMETHEUS_SCRAPER_GROUP,
 ]
 
 

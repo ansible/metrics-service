@@ -33,6 +33,7 @@ project_applications = [
     "apps.tasks",
     "apps.dashboard",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
+    "apps.prometheus_scraper",  # Prometheus endpoint scraper via gateway WIT tokens
 ]
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
@@ -130,6 +131,8 @@ FEATURE_ENABLED = {
     # DASHBOARD_COLLECTION is intentionally omitted: set via METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION,
     # FEATURE_DASHBOARD_COLLECTION_ENABLED (top-level, installer convention), DAB AAPFlag
     # FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+    # Prometheus scraping via gateway WIT tokens. Disabled by default until RESOURCE_SERVER is configured.
+    "PROMETHEUS_SCRAPING": False,
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
