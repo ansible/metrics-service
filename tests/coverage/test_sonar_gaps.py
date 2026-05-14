@@ -722,8 +722,7 @@ def test_task_create_serializer_invalid_function_name():
     from apps.tasks.v1.serializers import TaskCreateSerializer
 
     serializer = TaskCreateSerializer(data={"name": "test", "function_name": "nonexistent_function", "task_data": {}})
-    is_valid = serializer.is_valid()
-    assert is_valid is False or "nonexistent_function" not in str(serializer.errors)
+    assert serializer.is_valid() is False  # validate_function_name raises ValidationError
 
 
 @pytest.mark.unit
@@ -748,9 +747,7 @@ def test_task_create_serializer_invalid_cron():
             "cron_expression": "not-a-cron",
         }
     )
-    is_valid = serializer.is_valid()
-    # Either invalid (good) or valid without validation (acceptable)
-    assert isinstance(is_valid, bool)
+    assert serializer.is_valid() is False  # validate_cron_expression raises ValidationError for bad cron
 
 
 # ===========================================================================

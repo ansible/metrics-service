@@ -200,7 +200,7 @@ def test_list_system_tasks():
     cmd = get_cmd()
     cmd._list_system_tasks()
     output = cmd.stdout.getvalue()
-    assert "sys_task_listed" in output or "task" in output.lower()
+    assert "sys_task_listed" in output
 
 
 # ---------------------------------------------------------------------------
@@ -215,4 +215,5 @@ def test_handle_init_system_tasks_command_without_list():
         cmd = get_cmd()
         cmd._handle_init_system_tasks_command({"list": False})
     output = cmd.stdout.getvalue()
-    assert "3" in output or "created" in output.lower() or "Initialized" in output
+    # create_system_tasks returned {"created": 3} — command should mention 3 tasks created
+    assert "3" in output or "Initialized" in output
