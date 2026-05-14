@@ -69,6 +69,7 @@ def test_build_service_commands_returns_three_commands():
 @pytest.mark.unit
 def test_setup_signal_handlers():
     import signal
+
     cmd = get_cmd()
     processes = []
     old_sigint = signal.getsignal(signal.SIGINT)
