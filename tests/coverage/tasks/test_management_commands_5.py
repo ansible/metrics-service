@@ -68,10 +68,18 @@ def test_build_service_commands_returns_three_commands():
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 def test_setup_signal_handlers():
+    import signal
     cmd = get_cmd()
     processes = []
-    # Should not raise
-    cmd._setup_signal_handlers_for_processes(processes)
+    old_sigint = signal.getsignal(signal.SIGINT)
+    old_sigterm = signal.getsignal(signal.SIGTERM)
+    try:
+        # Should not raise
+        cmd._setup_signal_handlers_for_processes(processes)
+    finally:
+        # Restore original handlers so CI signal handling is not polluted
+        signal.signal(signal.SIGINT, old_sigint)
+        signal.signal(signal.SIGTERM, old_sigterm)
 
 
 # ---------------------------------------------------------------------------
@@ -83,8 +91,9 @@ def test_handle_keyboard_interrupt():
     mock_proc = MagicMock()
     mock_proc.poll.return_value = None
 
-    # Should not raise
-    cmd._handle_keyboard_interrupt([mock_proc])
+    # Mock time.sleep: _cleanup_all_processes has a real time.sleep(3)
+    with patch("time.sleep"):
+        cmd._handle_keyboard_interrupt([mock_proc])
     mock_proc.terminate.assert_called()
 
 
@@ -97,7 +106,7 @@ def test_handle_startup_error():
     mock_proc = MagicMock()
     mock_proc.poll.return_value = None
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit), patch("time.sleep"):
         cmd._handle_startup_error([mock_proc], Exception("test error"))
     output = cmd.stdout.getvalue()
     assert "error" in output.lower() or "test error" in output
