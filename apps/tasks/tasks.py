@@ -21,7 +21,7 @@ from ..dashboard_reports.tasks import (
 )
 
 # Prometheus scraper tasks
-from ..prometheus_scraper.tasks import scrape_prometheus_endpoints
+from ..prometheus_scraper.tasks import cleanup_prometheus_snapshots, scrape_prometheus_endpoints
 
 # Import cleanup tasks
 from .cleanup.cleanup_activitystream import cleanup_activitystream
@@ -64,6 +64,7 @@ TASK_FUNCTIONS = {
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
     # Prometheus scraping
     "scrape_prometheus_endpoints": scrape_prometheus_endpoints,
+    "cleanup_prometheus_snapshots": cleanup_prometheus_snapshots,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -79,6 +80,7 @@ TASK_LOCKS = {
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
     "scrape_prometheus_endpoints",
+    "cleanup_prometheus_snapshots",
 }
 
 
@@ -408,7 +410,7 @@ TASK_METADATA = {
     "scrape_prometheus_endpoints": {
         "queue": "metrics",
         "category": "Prometheus Scraping",
-        "description": "Scrape Prometheus metrics from Controller, EDA, and Hub using gateway WIT tokens",
+        "description": "Scrape Prometheus metrics from Controller, EDA, and Hub using gateway WIT tokens; saves each result as a PrometheusSnapshot",
         "parameters": {
             "target_services": {
                 "type": "array",
@@ -420,6 +422,30 @@ TASK_METADATA = {
             {"name": "Scrape all configured targets", "data": {}},
             {"name": "Scrape Controller only", "data": {"target_services": ["controller"]}},
             {"name": "Scrape Controller and EDA", "data": {"target_services": ["controller", "eda"]}},
+        ],
+    },
+    "cleanup_prometheus_snapshots": {
+        "queue": "maintenance",
+        "category": "Prometheus Scraping",
+        "description": "Delete PrometheusSnapshot rows older than the retention period",
+        "parameters": {
+            "retention_days": {
+                "type": "integer",
+                "default": 7,
+                "description": "Delete snapshots older than this many days",
+                "min": 1,
+                "max": 365,
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Count rows without deleting",
+            },
+        },
+        "examples": [
+            {"name": "Default (7 days)", "data": {}},
+            {"name": "Dry run", "data": {"dry_run": True}},
+            {"name": "Extended retention", "data": {"retention_days": 30}},
         ],
     },
 }
@@ -452,4 +478,5 @@ __all__ = [
     "cleanup_dashboard_reports_old_data",
     # Prometheus scraping
     "scrape_prometheus_endpoints",
+    "cleanup_prometheus_snapshots",
 ]

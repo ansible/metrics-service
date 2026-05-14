@@ -351,7 +351,15 @@ PROMETHEUS_SCRAPER_GROUP = TaskGroup(
             "cron": "*/5 * * * *",  # Every 5 minutes
             "args": {},
             "enabled": True,
-            "description": "Scrape all configured Prometheus endpoints",
+            "description": "Scrape all configured Prometheus endpoints and persist as PrometheusSnapshot rows",
+        },
+        {
+            "task_id": "cleanup_prometheus_snapshots_daily",
+            "function": "cleanup_prometheus_snapshots",
+            "cron": "30 3 * * *",  # Daily at 03:30
+            "args": {"retention_days": 7},
+            "enabled": True,
+            "description": "Delete PrometheusSnapshot rows older than 7 days",
         },
     ],
 )
