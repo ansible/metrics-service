@@ -184,6 +184,13 @@ ignore = [
     "PLR0912",  # Allow too many branches in tests
     "PLR2004",  # Allow magic values in tests
     "F632",     # Allow is comparison in tests (common pattern)
+    "F841",     # Allow unused local variables in tests (intermediate results)
+    "S110",     # Allow try-except-pass in tests (expected-exception patterns)
+    "S108",     # Allow /tmp paths in tests
+    "S104",     # Allow binding to all interfaces in tests
+    "SIM105",   # Allow try-except-pass instead of contextlib.suppress in tests
+    "SIM222",   # Allow `or True` tautologies in tests (explicit intent)
+    "F401",     # Allow unused imports in tests
 ]
 "**/conftest.py" = ["S101"]
 "apps/settings/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
