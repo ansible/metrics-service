@@ -76,7 +76,6 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
             "host": "localhost",
             "port": "9000",
             "workers": 8,
-            "timeout": 7200,
             "max_tasks": 200,
             "log_level": "DEBUG",
             "check_interval": 120,
@@ -89,7 +88,6 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
             "port": "9000",
             "gunicorn_workers": 8,
             "dispatcher_workers": 8,
-            "timeout": 7200,
             "max_tasks": 200,
             "log_level": "DEBUG",
             "check_interval": 120,
@@ -103,7 +101,6 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
             "workers": 4,
             "gunicorn_workers": 2,
             "dispatcher_workers": 8,
-            "timeout": 3600,
             "max_tasks": 100,
             "log_level": "INFO",
             "check_interval": 60,
@@ -249,7 +246,6 @@ class TestMetricsServiceCommand(BaseCommandTestCase):
         assert str(manage_py) in dispatcher_cmd
         assert "run_dispatcherd" in dispatcher_cmd
         assert "--workers=4" in dispatcher_cmd
-        assert "--timeout=3600" in dispatcher_cmd
         assert "--max-tasks=100" in dispatcher_cmd
         assert "--log-level=DEBUG" in dispatcher_cmd
 

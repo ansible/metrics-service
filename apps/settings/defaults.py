@@ -135,6 +135,9 @@ FEATURE_ENABLED = {
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
+# Task execution timeout in seconds (override via METRICS_SERVICE_TASK_TIMEOUT env var)
+TASK_TIMEOUT = 3600
+
 
 @post_hook
 def load_prometheus_middlewares(settings: Dynaconf) -> dict:
