@@ -103,8 +103,7 @@ def test_template_metadata_list(auth_client):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_organizations(auth_client):
-    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()):
-        with patch("apps.dashboard_reports.awx_queries.fetch_organizations", return_value=([], 0)):
+    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.awx_queries.fetch_organizations", return_value=([], 0)):
             response = auth_client.get("/api/v1/dashboard_reports/organizations/")
     assert response.status_code in (200, 404)
 
@@ -112,8 +111,7 @@ def test_filter_options_organizations(auth_client):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_templates(auth_client):
-    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()):
-        with patch("apps.dashboard_reports.awx_queries.fetch_templates", return_value=([], 0)):
+    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.awx_queries.fetch_templates", return_value=([], 0)):
             response = auth_client.get("/api/v1/dashboard_reports/templates/")
     assert response.status_code in (200, 404)
 
@@ -121,8 +119,7 @@ def test_filter_options_templates(auth_client):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_labels(auth_client):
-    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()):
-        with patch("apps.dashboard_reports.awx_queries.fetch_labels", return_value=([], 0)):
+    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.awx_queries.fetch_labels", return_value=([], 0)):
             response = auth_client.get("/api/v1/dashboard_reports/labels/")
     assert response.status_code in (200, 404)
 
@@ -130,8 +127,7 @@ def test_filter_options_labels(auth_client):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_projects(auth_client):
-    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()):
-        with patch("apps.dashboard_reports.awx_queries.fetch_projects", return_value=([], 0)):
+    with patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()), patch("apps.dashboard_reports.awx_queries.fetch_projects", return_value=([], 0)):
             response = auth_client.get("/api/v1/dashboard_reports/projects/")
     assert response.status_code in (200, 404)
 
@@ -142,8 +138,8 @@ def test_filter_options_projects(auth_client):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_handle_failed_send_max_retries_exceeded():
-    from apps.tasks.models import AnonymizedMetricsPayload
     from apps.tasks.collectors.send_anonymized_to_segment import _handle_failed_send
+    from apps.tasks.models import AnonymizedMetricsPayload
 
     payload = AnonymizedMetricsPayload.objects.create(
         summary_date=timezone.now().date() - timedelta(days=10),
@@ -163,8 +159,8 @@ def test_handle_failed_send_max_retries_exceeded():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_get_payloads_to_send_stale_sending():
-    from apps.tasks.models import AnonymizedMetricsPayload
     from apps.tasks.collectors.send_anonymized_to_segment import _get_payloads_to_send
+    from apps.tasks.models import AnonymizedMetricsPayload
 
     AnonymizedMetricsPayload.objects.all().delete()
     payload = AnonymizedMetricsPayload.objects.create(

@@ -98,9 +98,8 @@ def test_scheduler_status_endpoint(perm_client, perm_patch):
     mock_scheduler.running = True
     mock_scheduler.check_interval = 30
 
-    with perm_patch:
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            response = perm_client.get("/api/v1/tasks/scheduler_status/")
+    with perm_patch, patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
+        response = perm_client.get("/api/v1/tasks/scheduler_status/")
 
     assert response.status_code == 200
     data = response.json()

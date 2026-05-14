@@ -83,8 +83,7 @@ def test_get_feature_enabled_from_db_returns_default():
 def test_get_feature_enabled_db_exception_falls_back_to_settings():
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
-    with patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB error")):
-        with patch("apps.tasks.task_groups.settings") as mock_settings:
+    with patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB error")), patch("apps.tasks.task_groups.settings") as mock_settings:
             mock_settings.FEATURE_ENABLED = {"FALLBACK_FLAG": True}
             result = get_feature_enabled_from_db("FALLBACK_FLAG", default=False)
     assert result is True
@@ -94,8 +93,7 @@ def test_get_feature_enabled_db_exception_falls_back_to_settings():
 def test_get_feature_enabled_db_exception_returns_default():
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
-    with patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB error")):
-        with patch("apps.tasks.task_groups.settings") as mock_settings:
+    with patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB error")), patch("apps.tasks.task_groups.settings") as mock_settings:
             mock_settings.FEATURE_ENABLED = {}
             result = get_feature_enabled_from_db("NO_FALLBACK", default=False)
     assert result is False

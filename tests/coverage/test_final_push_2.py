@@ -3,7 +3,6 @@ Additional tests to cross the 80% threshold.
 """
 
 from datetime import timedelta
-from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,8 +27,7 @@ def test_collect_daily_metrics_default_timestamp():
         }
     }
 
-    with patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors", return_value=mock_registry):
-        with patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection", return_value=MagicMock()):
+    with patch("apps.tasks.collectors.collect_daily_metrics._get_daily_collectors", return_value=mock_registry), patch("apps.tasks.collectors.collect_daily_metrics.get_db_connection", return_value=MagicMock()):
             result = collect_daily_metrics(collector_type="task_executions_service")
 
     assert result["status"] == "success"
@@ -40,9 +38,9 @@ def test_collect_daily_metrics_default_timestamp():
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 def test_setup_dispatcherd_config_import_error_raises():
-    from apps.tasks.dispatcherd_config import setup_dispatcherd_config
-
     import dispatcherd.config as dc
+
+    from apps.tasks.dispatcherd_config import setup_dispatcherd_config
     dc._configured = False
 
     with patch("builtins.__import__", side_effect=lambda name, *a, **kw: (

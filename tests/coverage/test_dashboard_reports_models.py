@@ -5,10 +5,8 @@ Targets 47.68% → ~75% coverage.
 
 import decimal
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
 
 import pytest
-from django.utils import timezone
 
 
 # ---------------------------------------------------------------------------
@@ -16,9 +14,9 @@ from django.utils import timezone
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 def test_month_range_iter():
-    from apps.dashboard_reports.models import _month_range_iter
-
     from datetime import date
+
+    from apps.dashboard_reports.models import _month_range_iter
 
     months = list(_month_range_iter(date(2024, 1, 1), date(2024, 3, 31)))
     assert (2024, 1) in months
@@ -28,9 +26,9 @@ def test_month_range_iter():
 
 @pytest.mark.unit
 def test_month_range_iter_single_month():
-    from apps.dashboard_reports.models import _month_range_iter
-
     from datetime import date
+
+    from apps.dashboard_reports.models import _month_range_iter
 
     months = list(_month_range_iter(date(2024, 6, 1), date(2024, 6, 30)))
     assert months == [(2024, 6)]
@@ -64,9 +62,9 @@ def test_subscription_cost_per_minute():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_subscription_cost_daily():
-    from apps.dashboard_reports.models import SubscriptionCost
-
     from datetime import date
+
+    from apps.dashboard_reports.models import SubscriptionCost
 
     SubscriptionCost.objects.all().delete()
     cost = SubscriptionCost.get()

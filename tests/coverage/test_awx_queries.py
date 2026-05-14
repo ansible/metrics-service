@@ -3,7 +3,7 @@ Unit tests for apps/dashboard_reports/awx_queries.py.
 Targets 28.79% → ~90% coverage.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

@@ -3,11 +3,9 @@ Unit tests for apps/core/views/ (health, ping, api_root).
 Targets 0% → ~85% coverage.
 """
 
-from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-from django.utils import timezone
 from rest_framework.test import APIClient
 
 

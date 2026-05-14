@@ -4,7 +4,7 @@ Targets 52% → ~90% coverage.
 """
 
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -28,8 +28,8 @@ def test_random_offset_in_range():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_daily_anonymize_no_summary():
-    from apps.tasks.models import DailyMetricsSummary
     from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+    from apps.tasks.models import DailyMetricsSummary
 
     yesterday = timezone.now().date() - timedelta(days=1)
     DailyMetricsSummary.objects.filter(summary_date=yesterday).delete()
@@ -42,8 +42,8 @@ def test_daily_anonymize_no_summary():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_daily_anonymize_specific_date_no_summary():
-    from apps.tasks.models import DailyMetricsSummary
     from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+    from apps.tasks.models import DailyMetricsSummary
 
     specific_date = date(2020, 1, 15)
     DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()
@@ -59,8 +59,8 @@ def test_daily_anonymize_specific_date_no_summary():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_daily_anonymize_success():
-    from apps.tasks.models import DailyMetricsSummary, AnonymizedMetricsPayload
     from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+    from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
     specific_date = date(2024, 3, 15)
     DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()
@@ -94,8 +94,8 @@ def test_daily_anonymize_success():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_daily_anonymize_exception_in_anonymize():
-    from apps.tasks.models import DailyMetricsSummary
     from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+    from apps.tasks.models import DailyMetricsSummary
 
     specific_date = date(2024, 4, 10)
     DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()

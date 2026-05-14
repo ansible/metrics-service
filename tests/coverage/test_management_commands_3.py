@@ -3,13 +3,11 @@ Additional coverage for apps/tasks/management/commands/metrics_service.py.
 Tests internal methods and task management subcommands.
 """
 
-import sys
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
 
 
 def get_metrics_command():
@@ -20,7 +18,6 @@ def get_metrics_command():
     cmd.stdout = StringIO()
     cmd.stderr = StringIO()
     from apps.tasks.services.output_formatter import OutputFormatter
-    from unittest.mock import MagicMock
     mock_style = MagicMock()
     mock_style.SUCCESS.side_effect = lambda msg: msg
     mock_style.ERROR.side_effect = lambda msg: msg
@@ -151,7 +148,6 @@ def test_tasks_show_existing_task(user):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_tasks_create_basic(user):
-    from apps.tasks.models import Task
 
     try:
         with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
@@ -177,6 +173,6 @@ def test_handle_command_error_exits():
         try:
             cmd.handle(command="run", workers=1, gunicorn_workers=None, dispatcher_workers=None,
                       host="127.0.0.1", port="8000", timeout=3600, max_tasks=100, log_level="INFO",
-                      check_interval=60, **{})
+                      check_interval=60)
         except SystemExit:
             pass

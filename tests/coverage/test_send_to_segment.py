@@ -4,7 +4,7 @@ Targets 28% → ~85% coverage.
 """
 
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -50,8 +50,8 @@ def test_get_payloads_to_send_by_id(pending_payload):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_get_payloads_to_send_empty_when_no_pending():
-    from apps.tasks.models import AnonymizedMetricsPayload
     from apps.tasks.collectors.send_anonymized_to_segment import _get_payloads_to_send
+    from apps.tasks.models import AnonymizedMetricsPayload
 
     AnonymizedMetricsPayload.objects.all().delete()
     stale = timezone.now() - timedelta(hours=2)
@@ -98,8 +98,8 @@ def test_handle_failed_send_increments_retry_count(pending_payload):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_send_anonymized_to_segment_no_payloads():
-    from apps.tasks.models import AnonymizedMetricsPayload
     from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
+    from apps.tasks.models import AnonymizedMetricsPayload
 
     AnonymizedMetricsPayload.objects.all().delete()
     result = send_anonymized_to_segment()
@@ -134,8 +134,8 @@ def test_send_anonymized_to_segment_specific_payload(pending_payload):
 @pytest.mark.django_db
 def test_send_anonymized_to_segment_key_not_configured():
     """When SEGMENT_WRITE_KEY is missing, returns error."""
-    from apps.tasks.models import AnonymizedMetricsPayload
     from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
+    from apps.tasks.models import AnonymizedMetricsPayload
 
     AnonymizedMetricsPayload.objects.create(
         summary_date=timezone.now().date() - timedelta(days=2),

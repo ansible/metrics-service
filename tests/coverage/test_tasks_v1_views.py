@@ -3,7 +3,7 @@ Unit tests for apps/tasks/v1/views.py — TaskViewSet API endpoints.
 Targets 34% → ~90% coverage.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from rest_framework.test import APIClient
@@ -240,7 +240,7 @@ def test_task_available_functions_endpoint(user):
 
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, (dict, list))
+    assert isinstance(data, dict | list)
 
 
 @pytest.mark.unit

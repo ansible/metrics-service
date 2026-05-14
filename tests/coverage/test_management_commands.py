@@ -4,7 +4,6 @@ Covers: run_dispatcherd, run_task_scheduler, reload_config, and
         key subcommands of metrics_service.
 """
 
-import sys
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
@@ -17,8 +16,7 @@ from django.core.management import call_command
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 def test_run_dispatcherd_calls_run_service():
-    with patch("apps.tasks.dispatcherd_config.setup_dispatcherd_config"):
-        with patch("dispatcherd.run_service") as mock_run:
+    with patch("apps.tasks.dispatcherd_config.setup_dispatcherd_config"), patch("dispatcherd.run_service") as mock_run:
             try:
                 call_command("run_dispatcherd", "--workers=1")
             except SystemExit:
@@ -29,8 +27,7 @@ def test_run_dispatcherd_calls_run_service():
 @pytest.mark.unit
 def test_run_dispatcherd_handles_import_error():
     out = StringIO()
-    with patch("apps.tasks.dispatcherd_config.setup_dispatcherd_config"):
-        with patch("builtins.__import__", side_effect=lambda name, *a, **kw: (_ for _ in ()).throw(ImportError("not found")) if name == "dispatcherd" else __import__(name, *a, **kw)):
+    with patch("apps.tasks.dispatcherd_config.setup_dispatcherd_config"), patch("builtins.__import__", side_effect=lambda name, *a, **kw: (_ for _ in ()).throw(ImportError("not found")) if name == "dispatcherd" else __import__(name, *a, **kw)):
             try:
                 call_command("run_dispatcherd", stdout=out)
             except SystemExit as e:
@@ -57,14 +54,12 @@ def test_run_task_scheduler_starts_scheduler():
     mock_scheduler = MagicMock()
     mock_scheduler.running = False  # Exit loop immediately
 
-    with patch("apps.tasks.cron_scheduler.start_scheduler") as mock_start:
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            with patch("time.sleep"):  # avoid real sleep
-                try:
-                    call_command("run_task_scheduler", "--check-interval=1")
-                except SystemExit:
-                    pass
-        mock_start.assert_called_once()
+    with patch("apps.tasks.cron_scheduler.start_scheduler") as mock_start, patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler), patch("time.sleep"):
+        try:
+            call_command("run_task_scheduler", "--check-interval=1")
+        except SystemExit:
+            pass
+    mock_start.assert_called_once()
 
 
 @pytest.mark.unit
@@ -73,12 +68,9 @@ def test_run_task_scheduler_handles_keyboard_interrupt():
     mock_scheduler = MagicMock()
     mock_scheduler.running = True
 
-    with patch("apps.tasks.cron_scheduler.start_scheduler"):
-        with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
-            with patch("apps.tasks.cron_scheduler.stop_scheduler") as mock_stop:
-                with patch("time.sleep", side_effect=KeyboardInterrupt):
-                    call_command("run_task_scheduler", "--check-interval=1", stdout=out)
-                mock_stop.assert_called_once()
+    with patch("apps.tasks.cron_scheduler.start_scheduler"), patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler), patch("apps.tasks.cron_scheduler.stop_scheduler") as mock_stop, patch("time.sleep", side_effect=KeyboardInterrupt):
+        call_command("run_task_scheduler", "--check-interval=1", stdout=out)
+    mock_stop.assert_called_once()
 
 
 @pytest.mark.unit
@@ -128,8 +120,7 @@ def test_reload_config_exception_raises():
     mock_dynaconf = MagicMock()
     mock_dynaconf.reload.side_effect = Exception("reload failed")
 
-    with patch("apps.dynamic_settings.management.commands.reload_config.Command.dynaconf", mock_dynaconf):
-        with pytest.raises(Exception, match="reload failed"):
+    with patch("apps.dynamic_settings.management.commands.reload_config.Command.dynaconf", mock_dynaconf), pytest.raises(Exception, match="reload failed"):
             call_command("reload_config")
 
 

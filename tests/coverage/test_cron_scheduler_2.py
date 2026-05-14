@@ -3,7 +3,7 @@ Additional tests for uncovered paths in apps/tasks/cron_scheduler.py.
 """
 
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -117,11 +117,8 @@ def test_periodic_sync_handles_immediate_tasks(user, mock_apscheduler):
     scheduler = cs.UnifiedTaskScheduler()
     scheduler.scheduler = mock_apscheduler
 
-    with patch("apps.tasks.cron_scheduler.close_old_connections"):
-        with patch.object(scheduler, "_execute_database_task") as mock_execute:
-            with patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()):
-                with patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()):
-                    scheduler._periodic_database_sync()
+    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch.object(scheduler, "_execute_database_task") as mock_execute, patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()), patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()):
+        scheduler._periodic_database_sync()
 
     # Immediate task should have been submitted
     assert mock_execute.called or task.id in scheduler._db_task_jobs
@@ -151,9 +148,8 @@ def test_execute_database_task_flag_disabled_skips_recurse(user, mock_apschedule
     scheduler.scheduler = mock_apscheduler
     scheduler._db_task_jobs[task.id] = f"db_recurring_{task.id}"
 
-    with patch("apps.tasks.cron_scheduler.close_old_connections"):
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
-            scheduler._execute_database_task(task.id)
+    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
+        scheduler._execute_database_task(task.id)
 
     # Should NOT submit when flag is disabled
     mock_submit.assert_not_called()
@@ -179,9 +175,8 @@ def test_execute_database_task_pending_non_recurring(user, mock_apscheduler, moc
     scheduler.scheduler = mock_apscheduler
     scheduler._db_task_jobs[task.id] = f"db_task_{task.id}"
 
-    with patch("apps.tasks.cron_scheduler.close_old_connections"):
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
-            scheduler._execute_database_task(task.id)
+    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
+        scheduler._execute_database_task(task.id)
 
     mock_submit.assert_called_once_with(task)
     assert task.id not in scheduler._db_task_jobs  # Removed after submission

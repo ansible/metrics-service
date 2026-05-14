@@ -3,7 +3,7 @@ Unit tests for apps/dynamic_settings/utils.py.
 Targets 0% → ~90% coverage.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

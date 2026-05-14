@@ -4,10 +4,9 @@ Additional miscellaneous coverage tests for small uncovered areas.
 
 import decimal
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from django.utils import timezone
 
 
 # ---------------------------------------------------------------------------
@@ -189,10 +188,8 @@ def test_handle_task_create_with_scheduled_time():
 @pytest.mark.unit
 def test_task_serializer_imports():
     from apps.tasks.v1.serializers import (
-        TaskSerializer,
         TaskCreateSerializer,
-        TaskListSerializer,
-        TaskExecutionSerializer,
+        TaskSerializer,
     )
     assert TaskSerializer is not None
     assert TaskCreateSerializer is not None

@@ -3,10 +3,9 @@ Tests for apps/dashboard_reports/viewsets/dashboard_report.py helpers.
 Covers parse_period_param, PassthroughRenderer, require_date_range, and API endpoints.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from django.utils import timezone
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +46,8 @@ def test_parse_period_param_invalid_value():
 
 @pytest.mark.unit
 def test_parse_period_param_valid():
-    from apps.dashboard_reports.viewsets.dashboard_report import parse_period_param
     from apps.dashboard_reports.filters import DateFilter
+    from apps.dashboard_reports.viewsets.dashboard_report import parse_period_param
 
     valid_periods = DateFilter.to_list()
     if valid_periods:

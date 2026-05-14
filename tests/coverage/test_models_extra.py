@@ -3,7 +3,6 @@ Unit tests for uncovered paths in apps/tasks/models.py.
 Targets 65.61% → ~92% coverage.
 """
 
-import datetime
 from datetime import timedelta
 from unittest.mock import patch
 

@@ -150,8 +150,9 @@ def test_task_execution_str_representation(user):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_hourly_collection_str_representation():
-    from apps.tasks.models import HourlyMetricsCollection
     from django.utils import timezone
+
+    from apps.tasks.models import HourlyMetricsCollection
 
     coll = HourlyMetricsCollection.objects.create(
         collector_type="unified_jobs",

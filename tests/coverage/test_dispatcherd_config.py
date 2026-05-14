@@ -4,7 +4,7 @@ Targets 12.37% → ~90% coverage.
 """
 
 import os
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import pytest
 
@@ -79,9 +79,8 @@ def test_load_config_overrides_db_from_django():
 
     yaml_content = {"brokers": {"pg_notify": {"config": {"host": "old_host", "port": "5432"}}}}
 
-    with patch("builtins.open", mock_open()):
-        with patch("yaml.safe_load", return_value=yaml_content):
-            config = _load_config_with_django_db(Path("/fake/dispatcherd.yaml"))
+    with patch("builtins.open", mock_open()), patch("yaml.safe_load", return_value=yaml_content):
+        config = _load_config_with_django_db(Path("/fake/dispatcherd.yaml"))
 
     # Django settings should override the YAML host
     expected_host = settings.DATABASES["default"]["HOST"]
@@ -94,9 +93,8 @@ def test_load_config_creates_brokers_section_if_missing():
 
     from apps.tasks.dispatcherd_config import _load_config_with_django_db
 
-    with patch("builtins.open", mock_open()):
-        with patch("yaml.safe_load", return_value={}):
-            config = _load_config_with_django_db(Path("/fake/dispatcherd.yaml"))
+    with patch("builtins.open", mock_open()), patch("yaml.safe_load", return_value={}):
+        config = _load_config_with_django_db(Path("/fake/dispatcherd.yaml"))
 
     assert "brokers" in config
     assert "pg_notify" in config["brokers"]
@@ -123,15 +121,14 @@ def test_setup_dispatcherd_config_skips_when_already_configured():
 
 @pytest.mark.unit
 def test_setup_dispatcherd_config_loads_yaml_when_file_exists():
-    from apps.tasks.dispatcherd_config import setup_dispatcherd_config
-
     import dispatcherd.config as dc
+
+    from apps.tasks.dispatcherd_config import setup_dispatcherd_config
 
     dc._configured = False
     with patch("apps.tasks.dispatcherd_config.get_config_file_path") as mock_path:
         mock_path.return_value.exists.return_value = True
-        with patch("apps.tasks.dispatcherd_config._load_config_with_django_db", return_value={}) as mock_load:
-            with patch("dispatcherd.config.setup") as mock_setup:
+        with patch("apps.tasks.dispatcherd_config._load_config_with_django_db", return_value={}) as mock_load, patch("dispatcherd.config.setup") as mock_setup:
                 setup_dispatcherd_config()
                 mock_load.assert_called_once()
                 mock_setup.assert_called_once()
@@ -140,15 +137,14 @@ def test_setup_dispatcherd_config_loads_yaml_when_file_exists():
 
 @pytest.mark.unit
 def test_setup_dispatcherd_config_uses_django_when_no_file():
-    from apps.tasks.dispatcherd_config import setup_dispatcherd_config
-
     import dispatcherd.config as dc
+
+    from apps.tasks.dispatcherd_config import setup_dispatcherd_config
 
     dc._configured = False
     with patch("apps.tasks.dispatcherd_config.get_config_file_path") as mock_path:
         mock_path.return_value.exists.return_value = False
-        with patch("apps.tasks.dispatcherd_config.build_config_from_django_settings", return_value={}) as mock_build:
-            with patch("dispatcherd.config.setup") as mock_setup:
+        with patch("apps.tasks.dispatcherd_config.build_config_from_django_settings", return_value={}) as mock_build, patch("dispatcherd.config.setup") as mock_setup:
                 setup_dispatcherd_config()
                 mock_build.assert_called_once()
                 mock_setup.assert_called_once()

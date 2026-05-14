@@ -3,7 +3,6 @@ Unit tests for apps/tasks/cleanup/ modules.
 Covers cleanup_old_tasks, cleanup_metrics_data, cleanup_activitystream.
 """
 
-import datetime
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 

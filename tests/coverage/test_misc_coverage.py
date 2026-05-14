@@ -5,11 +5,10 @@ Covers: core/logging_config.py, dashboard/views.py, dashboard_reports/tasks.py b
 
 import json
 import logging
-from datetime import timedelta, timezone as dt_timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC
+from unittest.mock import patch
 
 import pytest
-from django.utils import timezone
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +112,7 @@ def test_url_for_with_prefix():
 @pytest.mark.unit
 def test_require_development_mode_returns_403_in_prod():
     from django.test import RequestFactory
+
     from apps.dashboard.views import require_development_mode
 
     @require_development_mode
@@ -133,6 +133,7 @@ def test_require_development_mode_returns_403_in_prod():
 @pytest.mark.django_db
 def test_dashboard_view_in_development_mode(user):
     from django.test import RequestFactory
+
     from apps.dashboard.views import dashboard_view
 
     factory = RequestFactory()
@@ -181,17 +182,19 @@ def test_parse_dt_naive_string_gets_utc():
 
 @pytest.mark.unit
 def test_parse_dt_datetime_already_aware():
-    from apps.dashboard_reports.tasks import _parse_dt
     from datetime import datetime
 
-    dt = datetime(2024, 1, 1, tzinfo=dt_timezone.utc)
+    from apps.dashboard_reports.tasks import _parse_dt
+
+    dt = datetime(2024, 1, 1, tzinfo=UTC)
     assert _parse_dt(dt) is dt
 
 
 @pytest.mark.unit
 def test_parse_dt_datetime_naive_gets_utc():
-    from apps.dashboard_reports.tasks import _parse_dt
     from datetime import datetime
+
+    from apps.dashboard_reports.tasks import _parse_dt
 
     dt = datetime(2024, 1, 1, 12, 0)
     result = _parse_dt(dt)
@@ -218,7 +221,6 @@ def test_cleanup_dashboard_reports_old_data_dry_run():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_cleanup_dashboard_reports_old_data_removes_old():
-    from apps.dashboard_reports.models import JobData
     from apps.dashboard_reports.tasks import cleanup_dashboard_reports_old_data
 
     # If JobData has any records, cleanup should run successfully

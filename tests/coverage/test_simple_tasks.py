@@ -3,7 +3,6 @@ Unit tests for apps/tasks/simple/ and daily_metrics_rollup coverage.
 """
 
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
 
 import pytest
 from django.utils import timezone
@@ -70,7 +69,6 @@ def test_collect_and_group_hourly_collections_with_data():
 @pytest.mark.django_db
 def test_daily_metrics_rollup_with_no_collections():
     from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
-    from apps.tasks.models import HourlyMetricsCollection
 
     # Ensure yesterday has no collections
     yesterday = (date.today() - timedelta(days=5)).isoformat()

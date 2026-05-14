@@ -4,7 +4,7 @@ Targets 11.81% → ~93% coverage.
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,13 +76,13 @@ def test_parse_datetime_string_offset():
 
 @pytest.mark.unit
 def test_parse_datetime_string_naive_gets_utc():
+
     from apps.tasks.utils import parse_datetime_string
-    from datetime import timezone as dt_timezone
 
     result = parse_datetime_string("2024-01-01T10:00:00")
     assert result is not None
     assert result.tzinfo is not None
-    assert result.tzinfo == dt_timezone.utc
+    assert result.tzinfo == UTC
 
 
 @pytest.mark.unit

@@ -3,7 +3,6 @@ Unit tests for apps/core/signals.py.
 Targets 61.11% → ~100% coverage.
 """
 
-import logging
 from unittest.mock import patch
 
 import pytest

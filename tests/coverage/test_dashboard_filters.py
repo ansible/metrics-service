@@ -210,7 +210,6 @@ def test_apply_or_filters_with_organization():
 def test_custom_report_filter_with_injected_dates():
     from apps.dashboard_reports.filters import CustomReportFilter
     from apps.dashboard_reports.models import JobData
-    from django.utils import timezone
 
     now = timezone.now()
     start = now - timedelta(days=30)

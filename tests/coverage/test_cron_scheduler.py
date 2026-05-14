@@ -4,7 +4,7 @@ Targets 13.78% → ~90% coverage.
 """
 
 from datetime import timedelta
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -130,7 +130,6 @@ def test_scheduler_stop_when_not_running(mock_apscheduler):
 @pytest.mark.django_db
 def test_task_feature_flag_enabled_no_flag(user):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task
 
     task = Task.objects.create(name="t", function_name="hello_world", task_data={}, created_by=user)
@@ -142,7 +141,6 @@ def test_task_feature_flag_enabled_no_flag(user):
 @pytest.mark.django_db
 def test_task_feature_flag_enabled_flag_on(user):
     import apps.tasks.cron_scheduler as cs
-
     from apps.dynamic_settings.models import Setting
     from apps.tasks.models import Task
 
@@ -158,7 +156,6 @@ def test_task_feature_flag_enabled_flag_on(user):
 @pytest.mark.django_db
 def test_task_feature_flag_enabled_flag_off(user):
     import apps.tasks.cron_scheduler as cs
-
     from apps.dynamic_settings.models import Setting
     from apps.tasks.models import Task
 
@@ -177,7 +174,6 @@ def test_task_feature_flag_enabled_flag_off(user):
 @pytest.mark.django_db
 def test_add_recurring_task_registers_job(user, mock_apscheduler):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -195,7 +191,6 @@ def test_add_recurring_task_registers_job(user, mock_apscheduler):
 @pytest.mark.django_db
 def test_add_recurring_task_skips_if_already_tracked(user, mock_apscheduler):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -216,7 +211,6 @@ def test_add_recurring_task_skips_if_already_tracked(user, mock_apscheduler):
 @pytest.mark.django_db
 def test_add_scheduled_task_future_registers_job(user, mock_apscheduler):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task
 
     future_time = timezone.now() + timedelta(hours=1)
@@ -235,7 +229,6 @@ def test_add_scheduled_task_future_registers_job(user, mock_apscheduler):
 @pytest.mark.django_db
 def test_add_scheduled_task_past_due_executes_immediately(user, mock_apscheduler):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task
 
     past_time = timezone.now() - timedelta(hours=2)
@@ -285,7 +278,6 @@ def test_remove_database_task_not_tracked_is_noop(mock_apscheduler):
 @pytest.mark.django_db
 def test_execute_database_task_recurring_creates_child_task(user, mock_apscheduler, mock_dispatcherd_config):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -300,10 +292,8 @@ def test_execute_database_task_recurring_creates_child_task(user, mock_apschedul
     scheduler = cs.UnifiedTaskScheduler()
     scheduler.scheduler = mock_apscheduler
 
-    with patch("apps.tasks.cron_scheduler.close_old_connections"):
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
-            with patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True):
-                scheduler._execute_database_task(task.id)
+    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit, patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True):
+        scheduler._execute_database_task(task.id)
 
     # A new (non-recurring) child task should be created
     child = Task.objects.exclude(id=task.id).filter(function_name="hello_world").first()
@@ -332,7 +322,6 @@ def test_execute_database_task_not_found_removes_tracking(user, mock_apscheduler
 @pytest.mark.django_db
 def test_execute_database_task_cancelled_task_removed(user, mock_apscheduler):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -342,8 +331,7 @@ def test_execute_database_task_cancelled_task_removed(user, mock_apscheduler):
     scheduler.scheduler = mock_apscheduler
     scheduler._db_task_jobs[task.id] = "job_id"
 
-    with patch("apps.tasks.cron_scheduler.close_old_connections"):
-        with patch.object(scheduler, "_remove_database_task") as mock_remove:
+    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch.object(scheduler, "_remove_database_task") as mock_remove:
             scheduler._execute_database_task(task.id)
             mock_remove.assert_called_once_with(task.id)
 
@@ -355,7 +343,6 @@ def test_execute_database_task_cancelled_task_removed(user, mock_apscheduler):
 @pytest.mark.django_db
 def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
     import apps.tasks.cron_scheduler as cs
-
     from apps.tasks.models import Task, TaskExecution
 
     task = Task.objects.create(
@@ -370,11 +357,8 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
     scheduler.scheduler = mock_apscheduler
 
     # _periodic_database_sync also calls Task.immediate_tasks() etc. — mock them to return empty
-    with patch("apps.tasks.cron_scheduler.close_old_connections"):
-        with patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()):
-            with patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()):
-                with patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()):
-                    scheduler._periodic_database_sync()
+    with patch("apps.tasks.cron_scheduler.close_old_connections"), patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()), patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()), patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()):
+        scheduler._periodic_database_sync()
 
     task.refresh_from_db()
     execution.refresh_from_db()

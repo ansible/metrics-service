@@ -61,11 +61,10 @@ def get_cmd():
 def test_handle_run_command_calls_start_services():
     cmd = get_cmd()
 
-    with patch.object(cmd, "_extract_config", return_value={"host": "0.0.0.0", "port": "8000",
-                      "gunicorn_workers": 1, "dispatcher_workers": 1, "timeout": 3600,
-                      "max_tasks": 100, "log_level": "INFO", "check_interval": 60}):
-        with patch.object(cmd, "_start_services") as mock_start:
-            cmd._handle_run_command({"workers": 1})
+    config = {"host": "0.0.0.0", "port": "8000", "gunicorn_workers": 1, "dispatcher_workers": 1,
+              "timeout": 3600, "max_tasks": 100, "log_level": "INFO", "check_interval": 60}
+    with patch.object(cmd, "_extract_config", return_value=config), patch.object(cmd, "_start_services") as mock_start:
+        cmd._handle_run_command({"workers": 1})
     mock_start.assert_called_once()
 
 
@@ -77,6 +76,7 @@ def test_handle_run_command_calls_start_services():
 def test_subscription_cost_per_second():
     import decimal
     from datetime import date
+
     from apps.dashboard_reports.models import SubscriptionCost
 
     SubscriptionCost.objects.all().delete()
@@ -141,8 +141,10 @@ def test_task_cleanup_serializer_validates():
 @pytest.mark.django_db
 def test_anonymized_payload_can_retry_when_retry_status():
     from datetime import timedelta
-    from apps.tasks.models import AnonymizedMetricsPayload
+
     from django.utils import timezone
+
+    from apps.tasks.models import AnonymizedMetricsPayload
 
     payload = AnonymizedMetricsPayload.objects.create(
         summary_date=timezone.now().date() - timedelta(days=20),

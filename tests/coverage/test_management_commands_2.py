@@ -3,7 +3,6 @@ Additional tests for apps/tasks/management/commands/metrics_service.py.
 Covers more subcommands to push coverage higher.
 """
 
-from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,19 +15,15 @@ from django.core.management import call_command
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_metrics_service_init_default_settings():
-    with patch("apps.dynamic_settings.utils.initialize_default_settings"):
-        with patch("apps.tasks.apps.load_task_feature_flags", return_value=True):
-            with patch("apps.tasks.apps.sync_flag_values_from_settings"):
-                call_command("metrics_service", "init-default-settings")
+    with patch("apps.dynamic_settings.utils.initialize_default_settings"), patch("apps.tasks.apps.load_task_feature_flags", return_value=True), patch("apps.tasks.apps.sync_flag_values_from_settings"):
+        call_command("metrics_service", "init-default-settings")
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_metrics_service_init_default_settings_overwrite():
-    with patch("apps.dynamic_settings.utils.initialize_default_settings") as mock_init:
-        with patch("apps.tasks.apps.load_task_feature_flags", return_value=True):
-            with patch("apps.tasks.apps.sync_flag_values_from_settings"):
-                call_command("metrics_service", "init-default-settings", "--overwrite")
+    with patch("apps.dynamic_settings.utils.initialize_default_settings") as mock_init, patch("apps.tasks.apps.load_task_feature_flags", return_value=True), patch("apps.tasks.apps.sync_flag_values_from_settings"):
+        call_command("metrics_service", "init-default-settings", "--overwrite")
     # overwrite=True should be passed to initialize_default_settings
     mock_init.assert_called_with(overwrite=True)
 
