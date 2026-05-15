@@ -73,7 +73,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("attempts", models.PositiveIntegerField(default=0, help_text="Number of execution attempts")),
-                ("max_attempts", models.PositiveIntegerField(default=7, help_text="Maximum number of retry attempts")),
+                ("max_attempts", models.PositiveIntegerField(default=3, help_text="Maximum number of retry attempts")),
                 ("timeout_seconds", models.PositiveIntegerField(default=3600, help_text="Task timeout in seconds")),
                 (
                     "result_data",

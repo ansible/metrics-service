@@ -293,6 +293,7 @@ ANONYMIZATION_GROUP = TaskGroup(
             "function": "daily_anonymize_and_prepare",
             "cron": "0 3 * * *",  # Daily at 3:00 AM
             "args": {},
+            "max_attempts": 7,  # Extended window for Segment transmission (~10.5h with exponential backoff)
             "enabled": True,
             "description": "Anonymize daily summary for Segment transmission",
         },

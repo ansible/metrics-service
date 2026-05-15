@@ -291,14 +291,18 @@ def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[
     if config.get("feature_flag"):
         task_data["_feature_flag"] = config["feature_flag"]
 
-    new_task = task_model.objects.create(
-        name=task_id,
-        description=config.get("description", ""),
-        function_name=config["function"],
-        task_data=task_data,
-        cron_expression=config.get("cron"),
-        is_system_task=True,
-        status="pending",
-    )
+    kwargs = {
+        "name": task_id,
+        "description": config.get("description", ""),
+        "function_name": config["function"],
+        "task_data": task_data,
+        "cron_expression": config.get("cron"),
+        "is_system_task": True,
+        "status": "pending",
+    }
+    if config.get("max_attempts") is not None:
+        kwargs["max_attempts"] = config["max_attempts"]
+
+    new_task = task_model.objects.create(**kwargs)
     results["created"] += 1
     results["tasks"].append(f"Created: {new_task.name}")

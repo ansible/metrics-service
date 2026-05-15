@@ -75,7 +75,7 @@ class TaskModelTestCase(TestCase):
         self.assertEqual(str(self.task), "Test Task (test_function) - Pending")
         self.assertEqual(self.task.status, "pending")
         self.assertEqual(self.task.attempts, 0)
-        self.assertEqual(self.task.max_attempts, 7)
+        self.assertEqual(self.task.max_attempts, 3)
         self.assertEqual(self.task.timeout_seconds, 3600)
         self.assertIsNone(self.task.cron_expression)  # Non-recurring task
 
@@ -113,7 +113,7 @@ class TaskModelTestCase(TestCase):
         self.assertTrue(self.task.can_retry())
 
         # Failed task with attempts >= max_attempts cannot be retried
-        self.task.attempts = 7
+        self.task.attempts = 3
         self.task.save()
         self.assertFalse(self.task.can_retry())
 

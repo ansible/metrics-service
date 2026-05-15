@@ -324,6 +324,33 @@ class TestSystemTaskCreation(TestCase):
         assert result["removed"] == 2
         assert Task.objects.filter(is_system_task=True).count() == 0
 
+    def test_create_task_from_group_respects_max_attempts_override(self):
+        """Tasks with a max_attempts field in their config get that value instead of the model default."""
+        config = {
+            "function": "hello_world",
+            "description": "Test task",
+            "cron": None,
+            "max_attempts": 7,
+        }
+        results = {"created": 0, "tasks": []}
+        tasks_system._create_task_from_group("test_override_task", config, results, Task)
+
+        task = Task.objects.get(name="test_override_task")
+        assert task.max_attempts == 7
+
+    def test_create_task_from_group_uses_model_default_when_no_max_attempts(self):
+        """Tasks without a max_attempts field in their config use the model default."""
+        config = {
+            "function": "hello_world",
+            "description": "Test task",
+            "cron": None,
+        }
+        results = {"created": 0, "tasks": []}
+        tasks_system._create_task_from_group("test_default_task", config, results, Task)
+
+        task = Task.objects.get(name="test_default_task")
+        assert task.max_attempts == 3
+
 
 # =============================================================================
 # System Task Helper Functions Tests

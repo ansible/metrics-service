@@ -121,6 +121,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
                 task_data={"payload_id": payload.id},
                 scheduled_time=send_scheduled_time,
                 is_system_task=False,
+                max_attempts=7,  # Extended window for Segment transmission (~10.5h with exponential backoff)
             )
 
         logger.info(
