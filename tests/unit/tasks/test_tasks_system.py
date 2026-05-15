@@ -232,6 +232,39 @@ class TestExecuteDbTask(TestCase):
         delta = (self.task.scheduled_time - before).total_seconds()
         assert 118 <= delta <= 125, f"Expected scheduled_time ~120s in the future, got {delta:.1f}s"
 
+    @pytest.mark.django_db(transaction=True)
+    def test_execute_db_task_invalid_retry_delay_falls_back_to_default(self):
+        """Invalid retry_delay_seconds values fall back to RETRY_BASE_DELAY_SECONDS."""
+        from django.utils import timezone
+
+        from apps.tasks.tasks_system import RETRY_BASE_DELAY_SECONDS
+
+        for bad_value in ("banana", -1, 0, None):
+            self.task.pk = None  # create a fresh task for each case
+            self.task.function_name = "hello_world"
+            self.task.max_attempts = 3
+            self.task.attempts = 0
+            self.task.status = "pending"
+            self.task.scheduled_time = None
+            self.task.task_data = {"retry_delay_seconds": bad_value}
+            self.task.save()
+
+            before = timezone.now()
+
+            with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
+                mock_fns.__contains__.return_value = True
+                mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
+                execute_db_task(task_id=self.task.id)
+
+            self.task.refresh_from_db()
+            assert self.task.status == "pending", f"Expected pending for bad_value={bad_value!r}"
+            assert self.task.scheduled_time is not None
+            delta = (self.task.scheduled_time - before).total_seconds()
+            # First attempt with default base: RETRY_BASE_DELAY_SECONDS * 2^0 = RETRY_BASE_DELAY_SECONDS
+            assert delta >= RETRY_BASE_DELAY_SECONDS - 2, (
+                f"Expected fallback delay ~{RETRY_BASE_DELAY_SECONDS}s for bad_value={bad_value!r}, got {delta:.1f}s"
+            )
+
 
 # =============================================================================
 # Task Registry Tests

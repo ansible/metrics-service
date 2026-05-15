@@ -132,7 +132,17 @@ def execute_claimed(task, execution):
     if status == "failed":
         task.refresh_from_db()
         if task.can_retry():
-            base_delay = task.task_data.get("retry_delay_seconds", RETRY_BASE_DELAY_SECONDS)
+            raw_delay = task.task_data.get("retry_delay_seconds", RETRY_BASE_DELAY_SECONDS)
+            try:
+                base_delay = int(raw_delay)
+                if base_delay <= 0:
+                    raise ValueError(f"retry_delay_seconds must be positive, got {base_delay}")
+            except (TypeError, ValueError):
+                logger.warning(
+                    f"Invalid retry_delay_seconds {raw_delay!r} for task {task.name}, "
+                    f"using default {RETRY_BASE_DELAY_SECONDS}s"
+                )
+                base_delay = RETRY_BASE_DELAY_SECONDS
             retry_delay = compute_retry_delay(base_delay, task.attempts)
             delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
             logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
