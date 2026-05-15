@@ -23,6 +23,16 @@ logger = logging.getLogger(__name__)
 
 ERROR_DJANGO_NOT_READY = "ERROR_DJANGO_NOT_READY"
 
+RETRY_BASE_DELAY_SECONDS = 600  # 10 minutes - delay used for the first retry
+RETRY_MAX_DELAY_SECONDS = 28800  # 8 hours - upper cap on any single retry delay
+
+
+def compute_retry_delay(base_delay: int, attempts: int) -> int:
+    """Seconds before next retry: min(base_delay * 2**max(0, attempts - 1), RETRY_MAX_DELAY_SECONDS)."""
+    exponent = max(0, attempts - 1)
+    return min(base_delay * (2**exponent), RETRY_MAX_DELAY_SECONDS)
+
+
 try:
     from dispatcherd.publish import task
 except ImportError:
@@ -122,7 +132,8 @@ def execute_claimed(task, execution):
     if status == "failed":
         task.refresh_from_db()
         if task.can_retry():
-            retry_delay = task.task_data.get("retry_delay_seconds", 600)
+            base_delay = task.task_data.get("retry_delay_seconds", RETRY_BASE_DELAY_SECONDS)
+            retry_delay = compute_retry_delay(base_delay, task.attempts)
             delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
             logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
             task.retry(delay_seconds=retry_delay)
