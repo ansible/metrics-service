@@ -7,7 +7,7 @@ and refreshed before expiry.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import jwt as pyjwt
 import requests
@@ -29,8 +29,8 @@ def _is_token_expiring(token: str, buffer_seconds: int) -> bool:
     """Return True if the token will expire within buffer_seconds."""
     try:
         decoded = pyjwt.decode(token, options={"verify_signature": False})
-        exp = datetime.fromtimestamp(decoded["exp"], tz=timezone.utc)
-        remaining = (exp - datetime.now(tz=timezone.utc)).total_seconds()
+        exp = datetime.fromtimestamp(decoded["exp"], tz=UTC)
+        remaining = (exp - datetime.now(tz=UTC)).total_seconds()
         return remaining < buffer_seconds
     except Exception:
         return True

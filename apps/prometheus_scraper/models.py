@@ -4,6 +4,7 @@ try:
     from ansible_base.activitystream.models import AuditableModel
     from ansible_base.lib.abstract_models import CommonModel
 except ImportError:
+
     class CommonModel(models.Model):
         id = models.BigAutoField(primary_key=True)
         created = models.DateTimeField(auto_now_add=True, help_text="The date/time this resource was created.")
