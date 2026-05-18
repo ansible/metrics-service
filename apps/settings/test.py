@@ -13,6 +13,12 @@ TESTING = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 # Use env in CI/SAST to avoid hardcoded-secret findings; default is test-only and never production
 SECRET_KEY = os.environ.get("METRICS_SERVICE_SECRET_KEY", "test-only-secret-key-for-testing-purposes-only")
+
+# Database: use 127.0.0.1 (explicit IPv4) so tests connect to Docker postgres without extra env vars.
+# localhost resolves to IPv6 first on macOS which fails for Docker-mapped ports.
+DATABASES__default__HOST = os.environ.get("METRICS_SERVICE_DATABASES__DEFAULT__HOST", "127.0.0.1")
+DATABASES__default__PASSWORD = os.environ.get("METRICS_SERVICE_DATABASES__DEFAULT__PASSWORD", "metrics_service")
+DATABASES__default__USER = os.environ.get("METRICS_SERVICE_DATABASES__DEFAULT__USER", "metrics_service")
 SEGMENT_WRITE_KEY = "test-only-segment-write-key-for-testing-only-purposes"
 
 ANSIBLE_BASE_BYPASS_SUPERUSER_FLAGS = ["is_superuser"]

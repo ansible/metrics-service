@@ -36,10 +36,7 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
-from .tasks_system import (
-    create_system_tasks,
-    submit_task_to_dispatcher,
-)
+from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -298,15 +295,10 @@ TASK_METADATA = {
                 "type": "string",
                 "description": "ISO date for the summary to anonymize (defaults to yesterday)",
             },
-            "salt": {
-                "type": "string",
-                "description": "Anonymization salt for hashing (auto-generated if not provided)",
-            },
         },
         "examples": [
             {"name": "Default (yesterday)", "data": {}},
             {"name": "Specific date", "data": {"summary_date": "2024-01-01"}},
-            {"name": "With custom salt", "data": {"summary_date": "2024-01-01", "salt": "my-custom-salt"}},
         ],
     },
     "send_anonymized_to_segment": {
