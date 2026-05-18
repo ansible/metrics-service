@@ -95,6 +95,34 @@ def execute_function(task, execution, task_function, locked):
         return create_task_result("error", error=f"Task execution failed: {e}")
 
 
+def _get_base_delay(task) -> int:
+    """Return a validated base retry delay for task, falling back to RETRY_BASE_DELAY_SECONDS."""
+    raw = task.task_data.get("retry_delay_seconds", RETRY_BASE_DELAY_SECONDS)
+    try:
+        value = int(raw)
+        if value <= 0:
+            raise ValueError(f"retry_delay_seconds must be positive, got {value}")
+        return value
+    except (TypeError, ValueError):
+        logger.warning(
+            f"Invalid retry_delay_seconds {raw!r} for task {task.name}, "
+            f"using default {RETRY_BASE_DELAY_SECONDS}s"
+        )
+        return RETRY_BASE_DELAY_SECONDS
+
+
+def _schedule_retry(task) -> None:
+    """Schedule a retry for a failed task if attempts remain."""
+    task.refresh_from_db()
+    if not task.can_retry():
+        return
+    base_delay = _get_base_delay(task)
+    retry_delay = compute_retry_delay(base_delay, task.attempts)
+    delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
+    logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
+    task.retry(delay_seconds=retry_delay)
+
+
 def execute_claimed(task, execution):
     """Execute a task that has already been atomically claimed, handling retries and status updates."""
     # Import TASK_FUNCTIONS here to avoid circular import
@@ -128,25 +156,8 @@ def execute_claimed(task, execution):
         log_task_execution(task.function_name, "error", error_msg, level="error")
     log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
-    # Auto-retry if the task failed and has attempts remaining
     if status == "failed":
-        task.refresh_from_db()
-        if task.can_retry():
-            raw_delay = task.task_data.get("retry_delay_seconds", RETRY_BASE_DELAY_SECONDS)
-            try:
-                base_delay = int(raw_delay)
-                if base_delay <= 0:
-                    raise ValueError(f"retry_delay_seconds must be positive, got {base_delay}")
-            except (TypeError, ValueError):
-                logger.warning(
-                    f"Invalid retry_delay_seconds {raw_delay!r} for task {task.name}, "
-                    f"using default {RETRY_BASE_DELAY_SECONDS}s"
-                )
-                base_delay = RETRY_BASE_DELAY_SECONDS
-            retry_delay = compute_retry_delay(base_delay, task.attempts)
-            delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
-            logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
-            task.retry(delay_seconds=retry_delay)
+        _schedule_retry(task)
 
     return result
 
