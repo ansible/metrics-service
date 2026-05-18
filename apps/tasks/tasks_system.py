@@ -112,13 +112,14 @@ def _get_base_delay(task) -> int:
 
 def _schedule_retry(task) -> None:
     """Schedule a retry for a failed task if attempts remain."""
+    if not task.can_retry():
+        return
     task.refresh_from_db()
     if not task.can_retry():
         return
     base_delay = _get_base_delay(task)
     retry_delay = compute_retry_delay(base_delay, task.attempts)
-    delay_msg = f" (delay {retry_delay}s)" if retry_delay else ""
-    logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}){delay_msg}")
+    logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}) (delay {retry_delay}s)")
     task.retry(delay_seconds=retry_delay)
 
 

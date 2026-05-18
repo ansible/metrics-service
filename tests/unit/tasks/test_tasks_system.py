@@ -240,26 +240,27 @@ class TestExecuteDbTask(TestCase):
         from apps.tasks.tasks_system import RETRY_BASE_DELAY_SECONDS
 
         for bad_value in ("banana", -1, 0, None):
-            self.task.pk = None  # create a fresh task for each case
-            self.task.function_name = "hello_world"
-            self.task.max_attempts = 3
-            self.task.attempts = 0
-            self.task.status = "pending"
-            self.task.scheduled_time = None
-            self.task.task_data = {"retry_delay_seconds": bad_value}
-            self.task.save()
+            task = Task(
+                function_name="hello_world",
+                name=f"invalid_delay_test_{bad_value}",
+                max_attempts=3,
+                attempts=0,
+                status="pending",
+                task_data={"retry_delay_seconds": bad_value},
+            )
+            task.save()
 
             before = timezone.now()
 
             with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
                 mock_fns.__contains__.return_value = True
                 mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
-                execute_db_task(task_id=self.task.id)
+                execute_db_task(task_id=task.id)
 
-            self.task.refresh_from_db()
-            assert self.task.status == "pending", f"Expected pending for bad_value={bad_value!r}"
-            assert self.task.scheduled_time is not None
-            delta = (self.task.scheduled_time - before).total_seconds()
+            task.refresh_from_db()
+            assert task.status == "pending", f"Expected pending for bad_value={bad_value!r}"
+            assert task.scheduled_time is not None
+            delta = (task.scheduled_time - before).total_seconds()
             # First attempt with default base: RETRY_BASE_DELAY_SECONDS * 2^0 = RETRY_BASE_DELAY_SECONDS
             assert delta >= RETRY_BASE_DELAY_SECONDS - 2, (
                 f"Expected fallback delay ~{RETRY_BASE_DELAY_SECONDS}s for bad_value={bad_value!r}, got {delta:.1f}s"
@@ -1045,6 +1046,12 @@ class TestRetryBackoffProgression(TestCase):
         The second retry's scheduled_time should be strictly further in the
         future than the first retry's scheduled_time, demonstrating that
         exponential backoff is applied based on the current attempt count.
+
+        Note: the second execution calls execute_claimed directly rather than
+        execute_db_task to avoid _claim_task incrementing attempts a second
+        time. The test manually sets attempts=2 to simulate the state that
+        _claim_task would produce, keeping the test focused on the backoff
+        formula rather than the claim mechanism.
         """
         from django.utils import timezone
 
