@@ -150,5 +150,5 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         return create_task_result("error", error=error_msg)
 
     except Exception as e:
-        logger.error(f"Error in daily_anonymize_and_prepare: {str(e)}")
+        logger.exception("Error in daily_anonymize_and_prepare")
         return create_task_result("error", error=f"Anonymization failed: {str(e)}")
