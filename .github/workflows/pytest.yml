@@ -64,7 +64,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: metrics_service.settings
           METRICS_SERVICE_MODE: test
         run: |
-          uv run pytest -s -v --cov --cov-report=xml
+          uv run pytest -s -v --cov --cov-branch --cov-report=xml
 
       - name: "Upload code coverage report"
         if: github.event_name == 'pull_request'
@@ -98,3 +98,8 @@ jobs:
           projectBaseDir: .
           args: >
             -Dsonar.python.coverage.reportPaths=coverage.xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
