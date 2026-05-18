@@ -105,8 +105,7 @@ def _get_base_delay(task) -> int:
         return value
     except (TypeError, ValueError):
         logger.warning(
-            f"Invalid retry_delay_seconds {raw!r} for task {task.name}, "
-            f"using default {RETRY_BASE_DELAY_SECONDS}s"
+            f"Invalid retry_delay_seconds {raw!r} for task {task.name}, using default {RETRY_BASE_DELAY_SECONDS}s"
         )
         return RETRY_BASE_DELAY_SECONDS
 
