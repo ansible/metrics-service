@@ -19,7 +19,7 @@ from typing import Any
 
 from django.conf import settings
 
-SEGMENT_MAX_ATTEMPTS = 7 # Extended window for Segment transmission (~10.5h with exponential backoff)
+SEGMENT_MAX_ATTEMPTS = 7  # Extended window for Segment transmission (~10.5h with exponential backoff)
 
 logger = logging.getLogger(__name__)
 
