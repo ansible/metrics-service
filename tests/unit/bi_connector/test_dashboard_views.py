@@ -97,6 +97,18 @@ class TestJobDataViewSet(APITestCase):
         response = self.client.get(url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_dashboard_collection_flag_disabled_returns_404(self):
+        """Dashboard endpoints return 404 when DASHBOARD_COLLECTION flag is off, even if BI_CONNECTOR is on."""
+        self.client.force_authenticate(user=self.user)
+
+        def bi_on_dashboard_off(name, default=False):
+            return name != "DASHBOARD_COLLECTION"
+
+        url = reverse("bi_connector:dashboard:dashboard-jobs-list")
+        with patch(_FLAG_PATCH, side_effect=bi_on_dashboard_off):
+            response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
     # --- Authentication ---
 
     def test_list_requires_authentication(self):
@@ -265,6 +277,18 @@ class TestTemplateMetadataViewSet(APITestCase):
         self.flag_mock.return_value = False
         url = reverse("bi_connector:dashboard:dashboard-templates-list")
         response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_dashboard_collection_flag_disabled_returns_404(self):
+        """Templates endpoint returns 404 when DASHBOARD_COLLECTION is off, even if BI_CONNECTOR is on."""
+        self.client.force_authenticate(user=self.user)
+
+        def bi_on_dashboard_off(name, default=False):
+            return name != "DASHBOARD_COLLECTION"
+
+        url = reverse("bi_connector:dashboard:dashboard-templates-list")
+        with patch(_FLAG_PATCH, side_effect=bi_on_dashboard_off):
+            response = self.client.get(url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     # --- Authentication ---

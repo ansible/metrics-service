@@ -47,3 +47,21 @@ class BiConnectorEnabledMixin:
         if not get_feature_enabled_from_db("BI_CONNECTOR", default=False):
             raise NotFound()
         super().initial(request, *args, **kwargs)
+
+
+class DashboardCollectionMixin(BiConnectorEnabledMixin):
+    """
+    Extends BiConnectorEnabledMixin with a second flag check for dashboard endpoints.
+
+    Returns 404 when either the BI_CONNECTOR flag or the DASHBOARD_COLLECTION flag
+    is disabled. Both must be enabled for Layer 3 (dashboard) endpoints to respond.
+
+    Enable dashboard collection via: METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
+    """
+
+    def initial(self, request, *args, **kwargs):
+        from apps.tasks.task_groups import get_feature_enabled_from_db
+
+        if not get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=False):
+            raise NotFound()
+        super().initial(request, *args, **kwargs)

@@ -19,10 +19,10 @@ from .dashboard_serializers import (
     JobDataListSerializer,
     TemplateMetadataSerializer,
 )
-from .mixins import BiConnectorEnabledMixin
+from .mixins import DashboardCollectionMixin
 
 
-class JobDataViewSet(BiConnectorEnabledMixin, BaseViewSet):
+class JobDataViewSet(DashboardCollectionMixin, BaseViewSet):
     """
     Read-only ViewSet for dashboard JobData.
 
@@ -59,7 +59,7 @@ class JobDataViewSet(BiConnectorEnabledMixin, BaseViewSet):
         return JobDataListSerializer
 
 
-class TemplateMetadataViewSet(BiConnectorEnabledMixin, BaseViewSet):
+class TemplateMetadataViewSet(DashboardCollectionMixin, BaseViewSet):
     """
     Read-only ViewSet for dashboard TemplateMetadata.
 
