@@ -1,0 +1,46 @@
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "50...100"
+
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+# Ignore files/directories that tests won't cover
+ignore:
+  - "**/migrations/**"      # Django migrations
+  - "**/tests/**"           # Test files themselves
+  - "tests/**"              # Root test directory
+  - "manage.py"             # Django management script
+  - "*/wsgi.py"             # WSGI entry points
+  - "*/asgi.py"             # ASGI entry points
+  - "**/settings/**"        # All settings files (Django + Dynaconf)
+  - "metrics_service/settings.py"  # Root settings file
+  - "metrics_service/test_urls.py" # Test URL configuration
+  - "**/__pycache__/*"      # Python cache
+  - "*.pyc"                 # Compiled Python files
+  - "**/tools/**"           # Developer tools and utilities
+  - "scripts/**"            # Deployment and runtime scripts
+  - ".venv/**"              # Virtual environment
+  - "htmlcov/**"            # Coverage HTML reports
+
+flags:
+  unit-tests:
+    carryforward: true
+    paths:
+      - apps/
+      - metrics_service/
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default

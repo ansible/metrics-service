@@ -103,3 +103,7 @@ jobs:
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          flags: unit-tests
+          fail_ci_if_error: false
+          verbose: true
