@@ -49,9 +49,9 @@ jobs:
           python-version-file: "pyproject.toml"
 
       - name: "Remove stale coverage report"
-        run: rm -f coverage.xml .coverage
+        run: rm -f coverage.xml coverage-unit.xml coverage-integration.xml .coverage
 
-      - name: "Run pytest"
+      - name: "Run pytest (all tests for SonarCloud)"
         env:
           METRICS_SERVICE_DATABASES__default__HOST: localhost
           METRICS_SERVICE_DATABASES__default__PORT: 5432
@@ -66,12 +66,44 @@ jobs:
         run: |
           uv run pytest -s -v --cov --cov-branch --cov-report=xml
 
+      - name: "Run unit tests (for Codecov flag)"
+        env:
+          METRICS_SERVICE_DATABASES__default__HOST: localhost
+          METRICS_SERVICE_DATABASES__default__PORT: 5432
+          METRICS_SERVICE_DATABASES__default__USER: metrics_service
+          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
+          METRICS_SERVICE_DATABASES__awx__HOST: "127.0.0.1"
+          METRICS_SERVICE_DATABASES__awx__PASSWORD: mypassword
+          DJANGO_SETTINGS_MODULE: metrics_service.settings
+          METRICS_SERVICE_MODE: test
+        run: |
+          uv run pytest -s -v -m unit --cov --cov-branch --cov-report=xml:coverage-unit.xml
+
+      - name: "Run integration tests (for Codecov flag)"
+        env:
+          METRICS_SERVICE_DATABASES__default__HOST: localhost
+          METRICS_SERVICE_DATABASES__default__PORT: 5432
+          METRICS_SERVICE_DATABASES__default__USER: metrics_service
+          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
+          METRICS_SERVICE_DATABASES__awx__HOST: "127.0.0.1"
+          METRICS_SERVICE_DATABASES__awx__PASSWORD: mypassword
+          DJANGO_SETTINGS_MODULE: metrics_service.settings
+          METRICS_SERVICE_MODE: test
+        run: |
+          uv run pytest -s -v -m integration --cov --cov-branch --cov-report=xml:coverage-integration.xml
+
       - name: "Upload code coverage report"
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
-          path: coverage.xml
+          path: |
+            coverage-unit.xml
+            coverage-integration.xml
 
       - name: "Save off PR number"
         if: github.event_name == 'pull_request'
@@ -99,11 +131,20 @@ jobs:
           args: >
             -Dsonar.python.coverage.reportPaths=coverage.xml
 
-      - name: Upload coverage reports to Codecov
+      - name: Upload unit test coverage to Codecov
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.xml
+          files: coverage-unit.xml
           flags: unit-tests
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload integration test coverage to Codecov
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-integration.xml
+          flags: integration-tests
           fail_ci_if_error: false
           verbose: true

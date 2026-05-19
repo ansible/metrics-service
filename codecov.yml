@@ -40,6 +40,11 @@ flags:
     paths:
       - apps/
       - metrics_service/
+  integration-tests:
+    carryforward: true
+    paths:
+      - apps/
+      - metrics_service/
 
 comment:
   layout: "reach,diff,flags,files"
