@@ -18,16 +18,21 @@ coverage:
 
 # Ignore files/directories that tests won't cover
 ignore:
-  - "*/migrations/*"        # Django migrations
-  - "*/tests/*"             # Test files themselves
-  - "tests/*"               # Root test directory
+  - "**/migrations/**"      # Django migrations
+  - "**/tests/**"           # Test files themselves
+  - "tests/**"              # Root test directory
   - "manage.py"             # Django management script
   - "*/wsgi.py"             # WSGI entry points
   - "*/asgi.py"             # ASGI entry points
-  - "metrics_service/settings/*"  # Django settings files
-  - "apps/settings/*"       # Dynaconf settings files
+  - "**/settings/**"        # All settings files (Django + Dynaconf)
+  - "metrics_service/settings.py"  # Root settings file
+  - "metrics_service/test_urls.py" # Test URL configuration
   - "**/__pycache__/*"      # Python cache
   - "*.pyc"                 # Compiled Python files
+  - "**/tools/**"           # Developer tools and utilities
+  - "scripts/**"            # Deployment and runtime scripts
+  - ".venv/**"              # Virtual environment
+  - "htmlcov/**"            # Coverage HTML reports
 
 flags:
   unit-tests:
