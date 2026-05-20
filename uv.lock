@@ -839,7 +839,7 @@ requires-dist = [
     { name = "factory-boy", marker = "extra == 'test'", specifier = ">=3.3" },
     { name = "gunicorn", specifier = ">=23.0" },
     { name = "ldap-filter", marker = "extra == 'ldap'", specifier = ">=1.0.1" },
-    { name = "metrics-utility", specifier = ">=0.7.20260401" },
+    { name = "metrics-utility", editable = "../metrics-utility" },
     { name = "packaging", specifier = ">=20.0" },
     { name = "pip", specifier = ">=25.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
@@ -878,8 +878,7 @@ dev = [
 
 [[package]]
 name = "metrics-utility"
-version = "0.7.20260401"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../metrics-utility" }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },
@@ -893,9 +892,29 @@ dependencies = [
     { name = "segment-analytics-python" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/f6/eeb17a4fa4ff0473e700f5e58a1be34e625c81b02ff4a8ae1a3d551b1a35/metrics_utility-0.7.20260401.tar.gz", hash = "sha256:eedf44b39dcfa3c123aa1375e5da3346f38bd0101e85ca5682964669c7d4ef66", size = 968956, upload-time = "2026-04-01T12:03:43.648Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/b9/f2e75716c2366472ce2e0ebfc5a9f04da4e0bd36086868ee29651c4acf66/metrics_utility-0.7.20260401-py3-none-any.whl", hash = "sha256:668037cb822751bf6ad197b51ca1d86a8be95141381dccd2410eeaf1a58ae853", size = 482671, upload-time = "2026-04-01T12:03:45.112Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = "==1.35.96" },
+    { name = "botocore", specifier = "==1.35.96" },
+    { name = "distro", specifier = "==1.9.0" },
+    { name = "django", specifier = "==5.2.7" },
+    { name = "kubernetes", specifier = ">=33.1.0" },
+    { name = "openpyxl", specifier = "==3.1.2" },
+    { name = "pandas", specifier = ">=2.2.3" },
+    { name = "psycopg", specifier = "==3.3.0" },
+    { name = "requests", specifier = "==2.32.5" },
+    { name = "segment-analytics-python", specifier = ">=2.3.4" },
+    { name = "setuptools", specifier = "==80.9.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pre-commit", specifier = ">=4.0.1" },
+    { name = "pytest", specifier = ">=8.3.4" },
+    { name = "pytest-cov", specifier = ">=6.0.0" },
+    { name = "pytest-mock", specifier = ">=3.14.0" },
+    { name = "ruff", specifier = ">=0.9.2" },
 ]
 
 [[package]]

@@ -2,9 +2,24 @@
 Background tasks for dashboard reports data collection and cleanup.
 
 Provides three dispatcherd tasks:
-- collect_dashboard_reports_initial_data: full 90-day historical backfill
+- collect_dashboard_reports_initial_data: 90-day historical backfill, one batch per call
 - collect_dashboard_reports_data: incremental sync from last known timestamp
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
+
+Backfill design
+---------------
+The 90-day initial backfill can contain hundreds of thousands of jobs. Processing
+everything in a single task call risks hitting the 10-minute task timeout and leaves
+no progress checkpoint if the task crashes.
+
+Instead, collect_dashboard_reports_initial_data processes exactly ONE batch per call.
+The cursor (last processed job ID) is persisted in the next Task's task_data so the
+scheduler can resume from the right place after each commit. This means:
+
+- Each task call is bounded to ~batch_size jobs (default 5 000).
+- A crash at any point loses at most one batch — the cursor in the DB marks where to resume.
+- The incremental follow-up task (daily_dashboard_collection) is only activated once the
+  final batch completes successfully.
 """
 
 import logging
@@ -13,6 +28,7 @@ from typing import Any
 
 from django.db import transaction
 from metrics_utility.library.collectors.dashboard import DashboardJobsResultType, dashboard_jobs
+from metrics_utility.library.collectors.dashboard.queries import get_min_max_job_id_query
 
 from apps.dashboard_reports.models import JobData
 from apps.tasks.models import Task
@@ -20,6 +36,8 @@ from apps.tasks.task_groups import DASHBOARD_COLLECTION_GROUP
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
 
 DEFAULT_DB_NAME = "awx"
+DEFAULT_BATCH_SIZE = 5000
+_DATE_FIELD = "finished"
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +65,106 @@ def _parse_dt(value: Any) -> datetime | None:
 
 
 def _collect_jobs(db_connection, since: datetime, until: datetime) -> DashboardJobsResultType:
+    """Collect dashboard jobs for incremental collection (small window, no batching needed)."""
+    return dashboard_jobs(db=db_connection, since=since, until=until, date_field=_DATE_FIELD).gather()
+
+
+def _collect_jobs_batch(
+    db_connection, since: datetime, until: datetime, after_id: int, batch_size: int
+) -> DashboardJobsResultType:
+    """Collect one cursor-paginated batch for the backfill."""
+    return dashboard_jobs(
+        db=db_connection,
+        since=since,
+        until=until,
+        after_id=after_id,
+        batch_size=batch_size,
+        date_field=_DATE_FIELD,
+    ).gather()
+
+
+def _get_backfill_bounds(db_connection, since: datetime, until: datetime) -> tuple[int | None, int | None]:
+    """Return (min_id, max_id) for jobs in the backfill window, or (None, None) if no jobs exist."""
+    query, params = get_min_max_job_id_query(since, until, date_field=_DATE_FIELD)
+    with db_connection.cursor() as cursor:
+        cursor.execute(query, params)
+        row = cursor.fetchone()
+    if row is None or row[0] is None:
+        return None, None
+    return int(row[0]), int(row[1])
+
+
+def _schedule_next_backfill_batch(
+    since: datetime, until: datetime, after_id: int, max_id: int, batch_size: int
+) -> None:
+    """Create a new pending Task to continue the backfill from after_id."""
+    Task.objects.create(
+        name=f"collect_dashboard_reports_initial_data_batch_{after_id}",
+        description="Dashboard reports backfill batch (auto-scheduled)",
+        function_name="collect_dashboard_reports_initial_data",
+        task_data={
+            "since": since.isoformat(),
+            "until": until.isoformat(),
+            "after_id": after_id,
+            "max_id": max_id,
+            "batch_size": batch_size,
+        },
+        is_system_task=False,
+        status="pending",
+    )
+
+
+def _activate_incremental_task(data: dict) -> dict[str, Any]:
+    """Create the daily_dashboard_collection follow-up task if not already present.
+
+    Called once the backfill is complete (or the window is empty). Mirrors the
+    existing follow-up task logic from the original single-call implementation.
     """
-    Collect dashboard jobs data from the database for the specified date range.
-    """
-    return dashboard_jobs(db=db_connection, since=since, until=until).gather()
+    task_name = "collect_dashboard_reports_initial_data"
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details="Creating follow-up task for collecting dashboard reports data (every 6 hours) after initial data collection.",
+    )
+
+    dashboard_tasks = list(
+        filter(lambda t: t["task_id"] == "daily_dashboard_collection", DASHBOARD_COLLECTION_GROUP.tasks)
+    )
+
+    if len(dashboard_tasks) == 0:
+        error_msg = "No task with task_id 'daily_dashboard_collection' found in DASHBOARD_COLLECTION_GROUP"
+        logger.error(error_msg)
+        return create_task_result("error", error=error_msg)
+
+    follow_up_task_id = dashboard_tasks[0].get("task_id")
+    daily_dashboard_collection_task = dashboard_tasks[0]
+    task_data = dashboard_tasks[0].get("args", {}).copy()
+    if DASHBOARD_COLLECTION_GROUP.feature_flag:
+        task_data["_feature_flag"] = DASHBOARD_COLLECTION_GROUP.feature_flag
+
+    try:
+        _, created = Task.objects.get_or_create(
+            name=follow_up_task_id,
+            is_system_task=True,
+            defaults={
+                "description": daily_dashboard_collection_task.get("description", ""),
+                "function_name": daily_dashboard_collection_task["function"],
+                "task_data": task_data,
+                "cron_expression": daily_dashboard_collection_task.get("cron"),
+                "status": "pending",
+            },
+        )
+        if created:
+            data["Follow-up task creation"] = "success"
+        else:
+            logger.info(f"Task '{follow_up_task_id}' already exists. Skipping creation of follow-up task.")
+            data["Follow-up task creation"] = "skipped"
+    except Exception as e:
+        logger.error(f"Error creating follow-up task for collecting dashboard reports data: {str(e)}")
+        return create_task_result("error", error=f"Creating follow-up task failed: {str(e)}")
+
+    return create_task_result("success", data=data)
 
 
 def _sync_jobs_atomically(job_results: list) -> list:
@@ -84,8 +198,10 @@ def _sync_jobs_atomically(job_results: list) -> list:
 
 def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     """
-    Core data collection logic for dashboard reports.
-    This function can be called by different tasks with varying parameters.
+    Core data collection logic for incremental dashboard reports collection.
+
+    Used only by collect_dashboard_reports_data. The initial backfill task
+    (collect_dashboard_reports_initial_data) uses its own batched flow.
     """
     result = {
         "error": False,
@@ -97,13 +213,10 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     since = _parse_dt(kwargs.get("since"))
 
     if until is None:
-        # Default to now if not provided
         until = datetime.now(tz=UTC)
     if since is None:
-        # For incremental collection, we want to start from the last timestamp in the JobData table
         since = JobData.last_timestamp()
         if since is None:
-            # Default to 90 days ago if no previous timestamp is found
             since = until - timedelta(days=90)
             since = since.replace(hour=0, minute=0, second=0, microsecond=0)
             since = since.astimezone(tz=UTC)
@@ -154,67 +267,107 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
 
 def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     """
-    Collect up to 90 days of historical AWX job data and schedule the recurring incremental task.
+    One-batch-per-call 90-day historical AWX job data backfill.
 
-    On success, creates the follow-up daily_dashboard_collection system task if it does not exist.
-    Returns a task result dict with status, data, and any error details.
+    Each invocation processes up to batch_size jobs starting from after_id, then
+    either schedules the next batch as a new pending Task or, when the cursor
+    reaches max_id, activates the daily_dashboard_collection recurring task.
+
+    Args (all passed via task_data / kwargs):
+        since (str | datetime | None): Start of backfill window. Defaults to 90 days ago.
+        until (str | datetime | None): End of backfill window. Defaults to now.
+        after_id (int | None): Exclusive lower bound for cursor pagination. None on first call.
+        max_id (int | None): Upper bound established on first call; carried through batches.
+        batch_size (int): Maximum jobs per batch. Defaults to DEFAULT_BATCH_SIZE (5 000).
+        database (str): AWX database alias. Defaults to "awx".
     """
     task_name = "collect_dashboard_reports_initial_data"
-    result = _collect_data(task_name=task_name, **kwargs)
 
-    error = result.get("error", False)
+    until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
+    since = _parse_dt(kwargs.get("since"))
+    if since is None:
+        since = until - timedelta(days=90)
+        since = since.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
 
-    if error:
-        return create_task_result(
-            "error", error=result.get("message", "An unknown error occurred during initial data collection")
-        )
-    data = result.get("data", {})
+    after_id = kwargs.get("after_id")
+    max_id = kwargs.get("max_id")
+    batch_size = int(kwargs.get("batch_size", DEFAULT_BATCH_SIZE))
+    db_name = kwargs.get("database", DEFAULT_DB_NAME)
 
-    # TODO: Tech Preview only — the daily_dashboard_collection task is created here rather than
-    # via init-system-tasks because it must only be activated after a successful initial backfill.
-    # At GA this should be refactored to align with the standard task group lifecycle so that
-    # init-system-tasks is the authoritative source for all system tasks (see task_groups.py).
+    if since >= until:
+        msg = f"Invalid date range: since ({since.isoformat()}) must be before until ({until.isoformat()})"
+        logger.error(msg)
+        return create_task_result("error", error=msg)
+
+    try:
+        db_connection = get_db_connection(db_name)
+    except Exception as e:
+        return create_task_result("error", error=f"DB connection failed: {str(e)}")
+
+    # First call only — establish cursor bounds via min/max ID query.
+    if after_id is None:
+        try:
+            min_id, max_id = _get_backfill_bounds(db_connection, since, until)
+        except Exception as e:
+            return create_task_result("error", error=f"Failed to establish backfill bounds: {str(e)}")
+
+        if min_id is None:
+            log_task_execution(task_name=task_name, operation="completed", details="No jobs found in backfill window")
+            return _activate_incremental_task(
+                data={
+                    "task_type": task_name,
+                    "date_range": {"start": since.isoformat(), "end": until.isoformat()},
+                    "job_count": 0,
+                }
+            )
+
+        after_id = min_id - 1
+
     log_task_execution(
         task_name=task_name,
         operation="processing",
-        details="Creating follow-up task for collecting dashboard reports data (every 6 hours) after initial data collection.",
+        details=f"Collecting batch after_id={after_id} (max_id={max_id}) for {since.isoformat()} to {until.isoformat()}",
     )
 
-    dashboard_tasks = list(
-        filter(lambda t: t["task_id"] == "daily_dashboard_collection", DASHBOARD_COLLECTION_GROUP.tasks)
-    )
-
-    if len(dashboard_tasks) == 0:
-        error_msg = "No task with task_id 'daily_dashboard_collection' found in DASHBOARD_COLLECTION_GROUP"
-        logger.error(error_msg)
-        return create_task_result("error", error=error_msg)
-    follow_up_task_id = dashboard_tasks[0].get("task_id")
-    daily_dashboard_collection_task = dashboard_tasks[0]
-    task_data = dashboard_tasks[0].get("args", {}).copy()
-    if DASHBOARD_COLLECTION_GROUP.feature_flag:
-        task_data["_feature_flag"] = DASHBOARD_COLLECTION_GROUP.feature_flag
     try:
-        _, created = Task.objects.get_or_create(
-            name=follow_up_task_id,
-            is_system_task=True,
-            defaults={
-                "description": daily_dashboard_collection_task.get("description", ""),
-                "function_name": daily_dashboard_collection_task["function"],
-                "task_data": task_data,
-                "cron_expression": daily_dashboard_collection_task.get("cron"),
-                "status": "pending",
-            },
-        )
-        if created:
-            data["Follow-up task creation"] = "success"
-        else:
-            logger.info(f"Task '{follow_up_task_id}' already exists. Skipping creation of follow-up task.")
-            data["Follow-up task creation"] = "skipped"
+        jobs = _collect_jobs_batch(db_connection, since, until, after_id, batch_size)
     except Exception as e:
-        logger.error(f"Error creating follow-up task for collecting dashboard reports data: {str(e)}")
-        return create_task_result("error", error=f"Creating follow-up task failed: {str(e)}")
+        logger.error(f"Error collecting backfill batch: {str(e)}")
+        return create_task_result("error", error=f"Batch collection failed: {str(e)}")
 
-    return create_task_result("success", data=data)
+    failed_jobs = _sync_jobs_atomically(jobs["results"])
+    if failed_jobs:
+        return create_task_result("error", error=f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}")
+
+    job_count = jobs["count"]
+    last_id = jobs["results"][-1]["id"] if jobs["results"] else after_id
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Synced {job_count} jobs, cursor now at {last_id}",
+    )
+
+    batch_data = {
+        "task_type": task_name,
+        "date_range": {"start": since.isoformat(), "end": until.isoformat()},
+        "job_count": job_count,
+        "cursor": last_id,
+        "max_id": max_id,
+    }
+
+    # Backfill complete — empty batch or cursor has reached the end.
+    if job_count == 0 or last_id >= max_id:
+        return _activate_incremental_task(data=batch_data)
+
+    # More batches remain — schedule next Task and return success for this one.
+    try:
+        _schedule_next_backfill_batch(since, until, last_id, max_id, batch_size)
+    except Exception as e:
+        logger.error(f"Error scheduling next backfill batch: {str(e)}")
+        return create_task_result("error", error=f"Failed to schedule next batch: {str(e)}")
+
+    return create_task_result("success", data={**batch_data, "batch_complete": False})
 
 
 def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
@@ -269,8 +422,6 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
 
     try:
         queryset = JobData.objects.filter(finished__lt=cutoff_date)
-        # Count JobData rows before deletion — delete() returns the total across all
-        # cascaded models (JobLabel, JobHostSummary, etc.) which inflates the count.
         jobdata_count = queryset.count()
         queryset.delete()
         log_task_execution(
