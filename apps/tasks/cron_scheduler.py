@@ -12,12 +12,11 @@ from datetime import timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from django.conf import settings as django_settings
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
-
-STUCK_TASK_TIMEOUT_SECONDS = 3600
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
@@ -211,7 +210,7 @@ class UnifiedTaskScheduler:
 
             now = timezone.now()
             stuck_to_fail = Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
+                status="running", started_at__lt=now - timedelta(seconds=django_settings.TASK_TIMEOUT)
             )
             if stuck_to_fail:
                 ids = [t.id for t in stuck_to_fail]
@@ -334,7 +333,6 @@ class UnifiedTaskScheduler:
                     scheduled_time=None,  # Execute immediately
                     cron_expression=None,  # This is not a recurring task
                     max_attempts=task.max_attempts,
-                    timeout_seconds=task.timeout_seconds,
                     created_by=task.created_by,
                     is_system_task=task.is_system_task,
                 )
