@@ -27,7 +27,7 @@ def is_bi_collector_enabled(collector_name: str, default: bool = True) -> bool:
                 collectors = json.loads(setting.current_value)
                 if isinstance(collectors, dict) and collector_name in collectors:
                     return bool(collectors[collector_name])
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError:
                 pass
         from django.conf import settings as django_settings
 
@@ -51,6 +51,7 @@ class BiConnectorThrottle(UserRateThrottle):
     scope = "bi_connector"
 
     def get_rate(self):
+        """Return configured rate, falling back to 30/hour if not set."""
         try:
             return super().get_rate()
         except ImproperlyConfigured:
@@ -79,6 +80,7 @@ class BiConnectorEnabledMixin:
     throttle_classes = [BiConnectorThrottle]
 
     def initial(self, request, *args, **kwargs):
+        """Raise NotFound if BI_CONNECTOR flag is disabled; otherwise delegate to DRF."""
         from apps.tasks.task_groups import get_feature_enabled_from_db
 
         if not get_feature_enabled_from_db("BI_CONNECTOR", default=False):
@@ -101,6 +103,7 @@ class DashboardCollectionMixin(BiConnectorEnabledMixin):
     """
 
     def initial(self, request, *args, **kwargs):
+        """Check BI_CONNECTOR then DASHBOARD_COLLECTION; raise NotFound if either is disabled."""
         from apps.tasks.task_groups import get_feature_enabled_from_db
 
         super().initial(request, *args, **kwargs)  # checks BI_CONNECTOR, auth, throttle

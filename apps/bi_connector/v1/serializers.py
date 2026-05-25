@@ -16,6 +16,8 @@ class HourlyMetricsCollectionListSerializer(serializers.ModelSerializer):
     collector_type_display = serializers.CharField(source="get_collector_type_display", read_only=True)
 
     class Meta:
+        """Serializer field configuration for HourlyMetricsCollectionListSerializer."""
+
         model = HourlyMetricsCollection
         fields = [
             "id",
@@ -33,6 +35,8 @@ class HourlyMetricsCollectionDetailSerializer(HourlyMetricsCollectionListSeriali
     """Detail serializer — includes raw_data and collection_parameters."""
 
     class Meta(HourlyMetricsCollectionListSerializer.Meta):
+        """Extends list serializer fields with raw_data and collection_parameters."""
+
         fields = HourlyMetricsCollectionListSerializer.Meta.fields + [
             "raw_data",
             "collection_parameters",
@@ -61,6 +65,8 @@ class DailyMetricsSummaryListSerializer(serializers.ModelSerializer):
     metrics_table_metadata = serializers.SerializerMethodField()
 
     class Meta:
+        """Serializer field configuration for DailyMetricsSummaryListSerializer."""
+
         model = DailyMetricsSummary
         fields = [
             "id",
@@ -83,24 +89,31 @@ class DailyMetricsSummaryListSerializer(serializers.ModelSerializer):
         ]
 
     def get_metrics_job_host_summary_service(self, obj: DailyMetricsSummary) -> dict | None:
+        """Return aggregated job_host_summary_service metrics, or None if not collected."""
         return obj.aggregated_metrics.get("job_host_summary_service")
 
     def get_metrics_unified_jobs(self, obj: DailyMetricsSummary) -> dict | None:
+        """Return aggregated unified_jobs metrics, or None if not collected."""
         return obj.aggregated_metrics.get("unified_jobs")
 
     def get_metrics_credentials_service(self, obj: DailyMetricsSummary) -> dict | None:
+        """Return aggregated credentials_service metrics, or None if not collected."""
         return obj.aggregated_metrics.get("credentials_service")
 
     def get_metrics_main_jobevent_service(self, obj: DailyMetricsSummary) -> dict | None:
+        """Return aggregated main_jobevent_service metrics, or None if not collected."""
         return obj.aggregated_metrics.get("main_jobevent_service")
 
     def get_metrics_execution_environments(self, obj: DailyMetricsSummary) -> dict | None:
+        """Return aggregated execution_environments metrics, or None if not collected."""
         return obj.aggregated_metrics.get("execution_environments")
 
     def get_metrics_controller_version_service(self, obj: DailyMetricsSummary) -> dict | None:
+        """Return aggregated controller_version_service metrics, or None if not collected."""
         return obj.aggregated_metrics.get("controller_version_service")
 
     def get_metrics_table_metadata(self, obj: DailyMetricsSummary) -> dict | None:
+        """Return aggregated table_metadata metrics, or None if not collected."""
         return obj.aggregated_metrics.get("table_metadata")
 
 
@@ -108,6 +121,8 @@ class DailyMetricsSummaryDetailSerializer(DailyMetricsSummaryListSerializer):
     """Detail serializer — adds raw aggregated_metrics blob and hourly collection IDs."""
 
     class Meta(DailyMetricsSummaryListSerializer.Meta):
+        """Extends list serializer fields with the raw aggregated_metrics blob."""
+
         fields = DailyMetricsSummaryListSerializer.Meta.fields + [
             "hourly_collection_ids",
             "aggregated_metrics",

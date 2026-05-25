@@ -44,6 +44,7 @@ class JobDataViewSet(DashboardCollectionMixin, BaseViewSet):
 
     @property
     def filterset_fields(self) -> dict:
+        """Return filterset field config for JobData."""
         return {
             "finished": ["gte", "lte"],
             "started": ["gte", "lte"],
@@ -54,6 +55,7 @@ class JobDataViewSet(DashboardCollectionMixin, BaseViewSet):
         }
 
     def get_serializer_class(self):
+        """Return detail serializer for retrieve, list serializer otherwise."""
         if self.action == "retrieve":
             return JobDataDetailSerializer
         return JobDataListSerializer
@@ -80,6 +82,7 @@ class TemplateMetadataViewSet(DashboardCollectionMixin, BaseViewSet):
 
     @property
     def filterset_fields(self) -> dict:
+        """Return filterset field config for TemplateMetadata."""
         return {
             "template_id": ["exact", "in"],
             "template_name": ["exact", "icontains"],

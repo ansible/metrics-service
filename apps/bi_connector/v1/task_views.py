@@ -35,6 +35,7 @@ class BiTaskStatusView(BiConnectorEnabledMixin, APIView):
     versioning_class = None
 
     def get(self, request, task_id: int) -> Response:
+        """Return status and result for the given BI collection task ID."""
         from apps.tasks.models import Task
 
         try:

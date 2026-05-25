@@ -104,6 +104,7 @@ class BiConnectorConfig(AppConfig):
     verbose_name = "BI Connector"
 
     def ready(self):
+        """Connect the post_migrate signal to load bi_connector feature flags."""
         from django.apps import apps as django_apps
 
         try:

@@ -55,11 +55,13 @@ class DateRangeRequiredMixin:
     MAX_DAYS_SETTING: str = "BI_CONNECTOR_MAX_DAYS_DEFAULT"
 
     def _get_max_days(self) -> int:
+        """Return the configured max days window from Django settings."""
         from django.conf import settings
 
         return getattr(settings, self.MAX_DAYS_SETTING, 7)
 
     def validate_date_range(self, request: Any) -> tuple:
+        """Parse and validate since/until params; raise ValidationError on bad input."""
         since_str = request.query_params.get("since")
         until_str = request.query_params.get("until")
 
@@ -103,6 +105,7 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
     COLLECTOR_KEY: str = ""
 
     def get(self, request: Any) -> Response:
+        """Validate date range, deduplicate in-flight tasks, dispatch async collection."""
         since, until = self.validate_date_range(request)
 
         from apps.tasks.models import Task
@@ -240,6 +243,7 @@ class ControllerSnapshotView(BiConnectorEnabledMixin, APIView):
     DEFAULT_COLLECTORS = ["execution_environments", "controller_version_service", "table_metadata", "config"]
 
     def get(self, request: Any) -> Response:
+        """Run requested snapshot collectors synchronously and return combined results."""
         collectors_param = request.query_params.get("collectors")
         if collectors_param:
             requested = [c.strip() for c in collectors_param.split(",") if c.strip()]
@@ -248,16 +252,16 @@ class ControllerSnapshotView(BiConnectorEnabledMixin, APIView):
 
         try:
             conn = get_db_connection()
-        except Exception as e:
-            logger.error("AWX DB unavailable for controller/snapshot: %s", e, exc_info=True)
+        except Exception:
+            logger.exception("AWX DB unavailable for controller/snapshot")
             return Response({"error": "AWX database unavailable"}, status=503)
 
         try:
             from apps.tasks.collectors.collect_snapshot_metrics import get_snapshot_collectors
 
             registry = get_snapshot_collectors()
-        except Exception as e:
-            logger.error("Failed to load snapshot collectors: %s", e, exc_info=True)
+        except Exception:
+            logger.exception("Failed to load snapshot collectors")
             return Response({"error": "Snapshot collectors unavailable"}, status=500)
 
         results: dict = {}

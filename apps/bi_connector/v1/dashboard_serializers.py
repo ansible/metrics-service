@@ -12,7 +12,11 @@ from apps.dashboard_reports.models import JobData, TemplateMetadata
 
 
 class TemplateMetadataSerializer(serializers.ModelSerializer):
+    """Read-only serializer for TemplateMetadata billing data."""
+
     class Meta:
+        """Serializer field configuration for TemplateMetadataSerializer."""
+
         model = TemplateMetadata
         fields = [
             "id",
@@ -38,6 +42,8 @@ class JobDataListSerializer(serializers.ModelSerializer):
     template_time_automation_minutes = serializers.SerializerMethodField()
 
     class Meta:
+        """Serializer field configuration for JobDataListSerializer."""
+
         model = JobData
         fields = [
             "id",
@@ -64,9 +70,11 @@ class JobDataListSerializer(serializers.ModelSerializer):
         ]
 
     def get_template_time_manual_minutes(self, obj: JobData):
+        """Return manual execution time estimate from linked TemplateMetadata, or None."""
         return obj.template_metadata.time_taken_manually_execute_minutes if obj.template_metadata else None
 
     def get_template_time_automation_minutes(self, obj: JobData):
+        """Return automation creation time estimate from linked TemplateMetadata, or None."""
         return obj.template_metadata.time_taken_create_automation_minutes if obj.template_metadata else None
 
 
@@ -79,10 +87,14 @@ class JobDataDetailSerializer(JobDataListSerializer):
     host_summaries = serializers.SerializerMethodField()
 
     class Meta(JobDataListSerializer.Meta):
+        """Extends list serializer fields with label IDs and host summaries."""
+
         fields = JobDataListSerializer.Meta.fields + ["label_ids", "host_summaries"]
 
     def get_label_ids(self, obj: JobData) -> list:
+        """Return list of label IDs associated with this job."""
         return list(obj.labels.values_list("label_id", flat=True))
 
     def get_host_summaries(self, obj: JobData) -> list:
+        """Return list of host summary dicts for this job."""
         return list(obj.host_summaries.values("host_summary_id", "host_id", "host_name"))

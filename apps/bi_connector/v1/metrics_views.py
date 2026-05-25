@@ -41,12 +41,14 @@ class DailyMetricsSummaryViewSet(BiConnectorEnabledMixin, BaseViewSet):
 
     @property
     def filterset_fields(self) -> dict:
+        """Return filterset field config for DailyMetricsSummary."""
         return {
             "summary_date": ["exact", "gte", "lte"],
             "status": ["exact", "in"],
         }
 
     def get_serializer_class(self):
+        """Return detail serializer for retrieve, list serializer otherwise."""
         if self.action == "retrieve":
             return DailyMetricsSummaryDetailSerializer
         return DailyMetricsSummaryListSerializer
@@ -73,6 +75,7 @@ class HourlyMetricsCollectionViewSet(BiConnectorEnabledMixin, BaseViewSet):
 
     @property
     def filterset_fields(self) -> dict:
+        """Return filterset field config for HourlyMetricsCollection."""
         return {
             "collector_type": ["exact", "in"],
             "collection_timestamp": ["gte", "lte"],
@@ -80,6 +83,7 @@ class HourlyMetricsCollectionViewSet(BiConnectorEnabledMixin, BaseViewSet):
         }
 
     def get_serializer_class(self):
+        """Return detail serializer for retrieve, list serializer otherwise."""
         if self.action == "retrieve":
             return HourlyMetricsCollectionDetailSerializer
         return HourlyMetricsCollectionListSerializer

@@ -227,6 +227,16 @@ warn_no_return = true
 warn_unreachable = true
 ignore_missing_imports = true
 
+[tool.interrogate]
+ignore-init-module = true        # __init__.py files do not need docstrings
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-module = false
+ignore-nested-functions = false
+exclude = ["apps/bi_connector/migrations", "apps/tasks/migrations", "apps/core/migrations", "apps/dashboard_reports/migrations", "apps/dynamic_settings/migrations"]
+fail-under = 80
+
 [tool.django-stubs]
 django_settings_module = "metrics_service.settings"
 

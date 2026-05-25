@@ -50,7 +50,7 @@ def _resume_cursor(batch, since):
     return since
 
 
-def _collect_one_window(is_snapshot: bool, collector_type: str, current, window_end) -> None:
+def _collect_one_window(is_snapshot: bool, collector_type: str, current) -> None:
     """Dispatch a single collection window to the appropriate collector."""
     from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
     from apps.tasks.collectors.collect_snapshot_metrics import collect_snapshot_metrics
@@ -81,7 +81,7 @@ def _run_collection_loop(collector_type: str, since, until, batch) -> int:
 
     while current < until:
         window_end = min(current + step, until)
-        _collect_one_window(is_snapshot, collector_type, current, window_end)
+        _collect_one_window(is_snapshot, collector_type, current)
         periods_collected += 1
 
         if batch is not None:

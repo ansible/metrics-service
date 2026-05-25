@@ -102,6 +102,8 @@ def get_queue_for_function(function_name: str) -> str:
     return (metadata and metadata.get("queue", None)) or "maintenance"
 
 
+_BI_CONNECTOR_CATEGORY = "BI Connector"
+
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
     # Testing
@@ -408,7 +410,7 @@ TASK_METADATA = {
     },
     "collect_bi_controller_data": {
         "queue": "metrics",
-        "category": "BI Connector",
+        "category": _BI_CONNECTOR_CATEGORY,
         "description": "On-demand collection of live AWX data for a BI connector Layer 2 request",
         "parameters": {
             "collector_key": {
@@ -461,7 +463,7 @@ TASK_METADATA = {
     # BI connector billing collection
     "backfill_bi_collector": {
         "queue": "metrics",
-        "category": "BI Connector",
+        "category": _BI_CONNECTOR_CATEGORY,
         "description": "Backfill an existing hourly or snapshot collector over a historical date range",
         "parameters": {
             "collector_type": {
@@ -486,7 +488,7 @@ TASK_METADATA = {
     },
     "collect_bi_billing_data": {
         "queue": "metrics",
-        "category": "BI Connector",
+        "category": _BI_CONNECTOR_CATEGORY,
         "description": "Collect billing data from AWX into BI stored models using metrics-utility library collectors",
         "parameters": {
             "collector_type": {
@@ -508,7 +510,7 @@ TASK_METADATA = {
     },
     "cleanup_bi_collection_batches": {
         "queue": "maintenance",
-        "category": "BI Connector",
+        "category": _BI_CONNECTOR_CATEGORY,
         "description": "Delete CollectionBatch records older than retention_days (default 90)",
         "parameters": {
             "retention_days": {
@@ -526,7 +528,7 @@ TASK_METADATA = {
     },
     "cleanup_bi_stored_host_metrics": {
         "queue": "maintenance",
-        "category": "BI Connector",
+        "category": _BI_CONNECTOR_CATEGORY,
         "description": "Delete StoredHostMetric rows marked deleted in AWX and not automated in stale_days (default 365). Active hosts are never removed.",
         "parameters": {
             "stale_days": {

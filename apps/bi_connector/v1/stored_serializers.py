@@ -14,6 +14,8 @@ class CollectionBatchSerializer(serializers.ModelSerializer):
     """Read-only serializer for CollectionBatch — exposes all fields to BI consumers."""
 
     class Meta:
+        """Serializer field configuration for CollectionBatchSerializer."""
+
         model = CollectionBatch
         fields = [
             "id",
@@ -38,6 +40,8 @@ class StoredHostMetricSerializer(serializers.ModelSerializer):
     """Read-only serializer for StoredHostMetric billing data."""
 
     class Meta:
+        """Serializer field configuration for StoredHostMetricSerializer."""
+
         model = StoredHostMetric
         fields = [
             "id",
@@ -64,6 +68,8 @@ class StoredJobHostSummarySerializer(serializers.ModelSerializer):
     """Read-only serializer for StoredJobHostSummary billing data."""
 
     class Meta:
+        """Serializer field configuration for StoredJobHostSummarySerializer."""
+
         model = StoredJobHostSummary
         fields = [
             "id",
@@ -84,6 +90,8 @@ class StoredIndirectAuditSerializer(serializers.ModelSerializer):
     """Read-only serializer for StoredIndirectAudit billing data."""
 
     class Meta:
+        """Serializer field configuration for StoredIndirectAuditSerializer."""
+
         model = StoredIndirectAudit
         fields = [
             "id",

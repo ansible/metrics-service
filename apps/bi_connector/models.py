@@ -8,15 +8,22 @@ CollectionBatch tracks every collection run (scheduled or backfill) for the UI.
 
 from django.db import models
 
+# FK string reused across StoredHostMetric, StoredJobHostSummary, StoredIndirectAudit
+_COLLECTION_BATCH_FK = "bi_connector.CollectionBatch"
+
 try:
     from ansible_base.lib.abstract_models import CommonModel
 except ImportError:
 
     class CommonModel(models.Model):
+        """Minimal fallback base model used when django-ansible-base is not installed."""
+
         created = models.DateTimeField(auto_now_add=True)
         modified = models.DateTimeField(auto_now=True)
 
         class Meta:
+            """Mark as abstract so no DB table is created."""
+
             abstract = True
 
 
@@ -61,6 +68,8 @@ class CollectionBatch(CommonModel):
     error_message = models.TextField(blank=True)
 
     class Meta:
+        """Default ordering and DB indexes for CollectionBatch."""
+
         ordering = ["-created"]
         indexes = [
             models.Index(fields=["status", "-created"]),
@@ -68,6 +77,7 @@ class CollectionBatch(CommonModel):
         ]
 
     def __str__(self) -> str:
+        """Return a human-readable representation of this batch."""
         return f"CollectionBatch({self.collector_type}/{self.batch_type} status={self.status})"
 
 
@@ -93,13 +103,15 @@ class StoredHostMetric(CommonModel):
     ansible_host_variable = models.CharField(max_length=512, null=True, blank=True)
     ansible_connection_variable = models.CharField(max_length=512, null=True, blank=True)
     collection_batch = models.ForeignKey(
-        "bi_connector.CollectionBatch",
+        _COLLECTION_BATCH_FK,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
     )
 
     class Meta:
+        """DB indexes for StoredHostMetric to support BI query patterns."""
+
         indexes = [
             models.Index(fields=["last_automation"]),
             models.Index(fields=["first_automation"]),
@@ -107,6 +119,7 @@ class StoredHostMetric(CommonModel):
         ]
 
     def __str__(self) -> str:
+        """Return a human-readable representation of this host metric record."""
         return f"StoredHostMetric({self.hostname})"
 
 
@@ -126,13 +139,15 @@ class StoredJobHostSummary(CommonModel):
     inventory_id = models.IntegerField(null=True, blank=True)
     modified = models.DateTimeField(null=True, blank=True, db_index=True)
     collection_batch = models.ForeignKey(
-        "bi_connector.CollectionBatch",
+        _COLLECTION_BATCH_FK,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
     )
 
     class Meta:
+        """DB indexes for StoredJobHostSummary to support BI query patterns."""
+
         indexes = [
             models.Index(fields=["modified"]),
             models.Index(fields=["job_id"]),
@@ -140,6 +155,7 @@ class StoredJobHostSummary(CommonModel):
         ]
 
     def __str__(self) -> str:
+        """Return a human-readable representation of this job-host summary record."""
         return f"StoredJobHostSummary(summary_id={self.summary_id})"
 
 
@@ -158,17 +174,20 @@ class StoredIndirectAudit(CommonModel):
     organization_id = models.IntegerField(null=True, blank=True, db_index=True)
     created = models.DateTimeField(null=True, blank=True, db_index=True)
     collection_batch = models.ForeignKey(
-        "bi_connector.CollectionBatch",
+        _COLLECTION_BATCH_FK,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
     )
 
     class Meta:
+        """DB indexes for StoredIndirectAudit to support BI query patterns."""
+
         indexes = [
             models.Index(fields=["created"]),
             models.Index(fields=["job_id"]),
         ]
 
     def __str__(self) -> str:
+        """Return a human-readable representation of this indirect audit record."""
         return f"StoredIndirectAudit(audit_id={self.audit_id})"
