@@ -85,7 +85,7 @@ class TestBackfillBiCollectorExecution:
     def test_snapshot_collector_called_with_is_snapshot_true(self):
         captured = []
 
-        def capture_window(is_snapshot, collector_type, current, window_end):
+        def capture_window(is_snapshot, collector_type, current):
             captured.append(is_snapshot)
 
         with patch(_COLLECT_ONE_WINDOW_PATCH, side_effect=capture_window):
@@ -95,7 +95,7 @@ class TestBackfillBiCollectorExecution:
     def test_hourly_collector_called_with_is_snapshot_false(self):
         captured = []
 
-        def capture_window(is_snapshot, collector_type, current, window_end):
+        def capture_window(is_snapshot, collector_type, current):
             captured.append(is_snapshot)
 
         with patch(_COLLECT_ONE_WINDOW_PATCH, side_effect=capture_window):
