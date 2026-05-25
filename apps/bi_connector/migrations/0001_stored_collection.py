@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("tasks", "0004_remove_task_timeout_seconds"),
+        ("tasks", "0003_remove_anonymizedmetricspayload_unique_active_payload_per_summary_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
