@@ -97,10 +97,7 @@ class CollectorSettingsView(APIView):
         invalid_keys = [k for k in data if k not in AVAILABLE_BACKFILL_COLLECTORS]
         if invalid_keys:
             return Response(
-                {
-                    "detail": f"Unknown collector(s): {invalid_keys}. "
-                    f"Valid collectors: {AVAILABLE_BACKFILL_COLLECTORS}"
-                },
+                {"detail": f"Unknown collector(s): {invalid_keys}. Valid collectors: {AVAILABLE_BACKFILL_COLLECTORS}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -160,10 +157,7 @@ class AdminCollectionBatchViewSet(ListModelMixin, RetrieveModelMixin, CreateMode
 
         if collector_type not in AVAILABLE_BACKFILL_COLLECTORS:
             return Response(
-                {
-                    "detail": f"Unknown collector_type '{collector_type}'. "
-                    f"Valid values: {AVAILABLE_BACKFILL_COLLECTORS}"
-                },
+                {"detail": f"Unknown collector_type '{collector_type}'. Valid values: {AVAILABLE_BACKFILL_COLLECTORS}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

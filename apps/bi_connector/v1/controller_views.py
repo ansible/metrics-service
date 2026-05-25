@@ -115,13 +115,17 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
         # select_for_update() + atomic() prevent a TOCTOU race where two concurrent
         # callers both miss the existing task and each create a new one.
         with transaction.atomic():
-            existing = Task.objects.select_for_update().filter(
-                function_name="collect_bi_controller_data",
-                status__in=["pending", "running"],
-                task_data__collector_key=self.COLLECTOR_KEY,
-                task_data__since=since_iso,
-                task_data__until=until_iso,
-            ).first()
+            existing = (
+                Task.objects.select_for_update()
+                .filter(
+                    function_name="collect_bi_controller_data",
+                    status__in=["pending", "running"],
+                    task_data__collector_key=self.COLLECTOR_KEY,
+                    task_data__since=since_iso,
+                    task_data__until=until_iso,
+                )
+                .first()
+            )
 
             if existing:
                 return Response(

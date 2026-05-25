@@ -38,7 +38,9 @@ _bi_urlpatterns = [
     # Stored billing data — Layer 1 BI endpoints for DB-backed collector output
     path("stored/", include("apps.bi_connector.v1.stored_urls", namespace="stored")),
     # Admin collector configuration + backfill triggering (session/admin auth, not BI tokens)
-    path("collector-settings/", include("apps.bi_connector.v1.collector_settings_urls", namespace="collector-settings")),
+    path(
+        "collector-settings/", include("apps.bi_connector.v1.collector_settings_urls", namespace="collector-settings")
+    ),
     # Scoped task status endpoint — BI service accounts poll this instead of /api/v1/tasks/<id>/
     path("tasks/<int:task_id>/", BiTaskStatusView.as_view(), name="bi-task-detail"),
 ]

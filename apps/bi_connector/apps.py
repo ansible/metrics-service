@@ -64,9 +64,7 @@ def load_bi_connector_feature_flags(**kwargs) -> bool:
                         flag.save()
                 logger.debug("Loaded bi_connector feature flag: %s", flag_def["name"])
             except Exception:
-                logger.warning(
-                    "Failed to load bi_connector feature flag %s", flag_def.get("name", "?"), exc_info=True
-                )
+                logger.warning("Failed to load bi_connector feature flag %s", flag_def.get("name", "?"), exc_info=True)
         _seed_bi_connector_collectors()
     except Exception:
         logger.warning("Failed to load bi_connector feature flags into AAPFlag", exc_info=True)

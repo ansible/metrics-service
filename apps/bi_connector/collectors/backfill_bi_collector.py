@@ -18,13 +18,15 @@ from apps.tasks.utils import parse_datetime_string
 
 logger = logging.getLogger(__name__)
 
-SNAPSHOT_COLLECTORS = frozenset({
-    "execution_environments",
-    "config",
-    "controller_version_service",
-    "table_metadata",
-    "feature_flags_service",
-})
+SNAPSHOT_COLLECTORS = frozenset(
+    {
+        "execution_environments",
+        "config",
+        "controller_version_service",
+        "table_metadata",
+        "feature_flags_service",
+    }
+)
 
 
 def _load_batch(batch_id: int | None):

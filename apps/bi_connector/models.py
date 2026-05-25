@@ -46,7 +46,9 @@ class CollectionBatch(CommonModel):
     since = models.DateTimeField(null=True, blank=True)
     until = models.DateTimeField(null=True, blank=True)
     records_imported = models.PositiveIntegerField(default=0)
-    cursor = models.JSONField(default=dict)  # stores resume position e.g. {"last_committed": "2024-01-15T06:00:00+00:00"}
+    cursor = models.JSONField(
+        default=dict
+    )  # stores resume position e.g. {"last_committed": "2024-01-15T06:00:00+00:00"}
     task = models.ForeignKey(
         "tasks.Task",
         null=True,

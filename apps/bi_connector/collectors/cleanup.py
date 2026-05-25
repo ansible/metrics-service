@@ -7,6 +7,7 @@ Two separate cleanups because the data has different retention semantics:
   that were deleted in AWX and haven't been automated recently.
 - StoredJobHostSummary / StoredIndirectAudit are time-series — delete by date.
 """
+
 import logging
 from datetime import timedelta
 
