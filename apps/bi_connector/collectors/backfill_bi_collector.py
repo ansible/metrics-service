@@ -82,9 +82,7 @@ def _collect_one_window(is_snapshot: bool, collector_type: str, current: datetim
         )
 
 
-def _run_collection_loop(
-    collector_type: str, since: datetime, until: datetime, batch: "CollectionBatch | None"
-) -> int:
+def _run_collection_loop(collector_type: str, since: datetime, until: datetime, batch: "CollectionBatch | None") -> int:
     """
     Iterate over all time windows between *since* and *until*, calling the
     appropriate collector for each, and committing batch progress after each window.
@@ -132,8 +130,7 @@ def backfill_bi_collector(task_data: dict | None = None, **kwargs) -> dict:
         raise ValueError("collector_type is required in task_data")
     if collector_type not in ALLOWED_BACKFILL_COLLECTOR_TYPES:
         raise ValueError(
-            f"Unknown collector_type: {collector_type!r}. "
-            f"Valid types: {sorted(ALLOWED_BACKFILL_COLLECTOR_TYPES)}"
+            f"Unknown collector_type: {collector_type!r}. Valid types: {sorted(ALLOWED_BACKFILL_COLLECTOR_TYPES)}"
         )
     if not since_str or not until_str:
         raise ValueError("since and until are required in task_data")
