@@ -114,6 +114,91 @@ def _schedule_next_backfill_batch(
     )
 
 
+def _establish_backfill_cursor(
+    db_connection,
+    since: datetime,
+    until: datetime,
+    after_id: int | None,
+    max_id: int | None,
+    task_name: str,
+) -> tuple[int | None, int | None, dict[str, Any] | None]:
+    """Resolve cursor bounds on the first backfill call; return an early result when done or on error."""
+    if after_id is not None:
+        return after_id, max_id, None
+
+    try:
+        min_id, max_id = _get_backfill_bounds(db_connection, since, until)
+    except Exception as e:
+        return None, max_id, create_task_result("error", error=f"Failed to establish backfill bounds: {str(e)}")
+
+    if min_id is None:
+        log_task_execution(task_name=task_name, operation="completed", details="No jobs found in backfill window")
+        return None, max_id, _activate_incremental_task(
+            data={
+                "task_type": task_name,
+                "date_range": {"start": since.isoformat(), "end": until.isoformat()},
+                "job_count": 0,
+            }
+        )
+
+    return min_id - 1, max_id, None
+
+
+def _run_backfill_batch(
+    db_connection,
+    since: datetime,
+    until: datetime,
+    after_id: int,
+    max_id: int,
+    batch_size: int,
+    task_name: str,
+) -> dict[str, Any]:
+    """Collect, sync, and either schedule the next batch or activate incremental collection."""
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Collecting batch after_id={after_id} (max_id={max_id}) for {since.isoformat()} to {until.isoformat()}",
+    )
+
+    try:
+        jobs = _collect_jobs_batch(db_connection, since, until, after_id, batch_size)
+    except Exception as e:
+        logger.error(f"Error collecting backfill batch: {str(e)}")
+        return create_task_result("error", error=f"Batch collection failed: {str(e)}")
+
+    failed_jobs = _sync_jobs_atomically(jobs["results"])
+    if failed_jobs:
+        return create_task_result("error", error=f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}")
+
+    job_count = jobs["count"]
+    last_id = jobs["results"][-1]["id"] if jobs["results"] else after_id
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Synced {job_count} jobs, cursor now at {last_id}",
+    )
+
+    batch_data = {
+        "task_type": task_name,
+        "date_range": {"start": since.isoformat(), "end": until.isoformat()},
+        "job_count": job_count,
+        "cursor": last_id,
+        "max_id": max_id,
+    }
+
+    if job_count == 0 or last_id >= max_id:
+        return _activate_incremental_task(data=batch_data)
+
+    try:
+        _schedule_next_backfill_batch(since, until, last_id, max_id, batch_size)
+    except Exception as e:
+        logger.error(f"Error scheduling next backfill batch: {str(e)}")
+        return create_task_result("error", error=f"Failed to schedule next batch: {str(e)}")
+
+    return create_task_result("success", data={**batch_data, "batch_complete": False})
+
+
 def _activate_incremental_task(data: dict) -> dict[str, Any]:
     """Create the daily_dashboard_collection follow-up task if not already present.
 
@@ -304,70 +389,13 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     except Exception as e:
         return create_task_result("error", error=f"DB connection failed: {str(e)}")
 
-    # First call only — establish cursor bounds via min/max ID query.
-    if after_id is None:
-        try:
-            min_id, max_id = _get_backfill_bounds(db_connection, since, until)
-        except Exception as e:
-            return create_task_result("error", error=f"Failed to establish backfill bounds: {str(e)}")
-
-        if min_id is None:
-            log_task_execution(task_name=task_name, operation="completed", details="No jobs found in backfill window")
-            return _activate_incremental_task(
-                data={
-                    "task_type": task_name,
-                    "date_range": {"start": since.isoformat(), "end": until.isoformat()},
-                    "job_count": 0,
-                }
-            )
-
-        after_id = min_id - 1
-
-    log_task_execution(
-        task_name=task_name,
-        operation="processing",
-        details=f"Collecting batch after_id={after_id} (max_id={max_id}) for {since.isoformat()} to {until.isoformat()}",
+    after_id, max_id, early_result = _establish_backfill_cursor(
+        db_connection, since, until, after_id, max_id, task_name
     )
+    if early_result is not None:
+        return early_result
 
-    try:
-        jobs = _collect_jobs_batch(db_connection, since, until, after_id, batch_size)
-    except Exception as e:
-        logger.error(f"Error collecting backfill batch: {str(e)}")
-        return create_task_result("error", error=f"Batch collection failed: {str(e)}")
-
-    failed_jobs = _sync_jobs_atomically(jobs["results"])
-    if failed_jobs:
-        return create_task_result("error", error=f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}")
-
-    job_count = jobs["count"]
-    last_id = jobs["results"][-1]["id"] if jobs["results"] else after_id
-
-    log_task_execution(
-        task_name=task_name,
-        operation="processing",
-        details=f"Synced {job_count} jobs, cursor now at {last_id}",
-    )
-
-    batch_data = {
-        "task_type": task_name,
-        "date_range": {"start": since.isoformat(), "end": until.isoformat()},
-        "job_count": job_count,
-        "cursor": last_id,
-        "max_id": max_id,
-    }
-
-    # Backfill complete — empty batch or cursor has reached the end.
-    if job_count == 0 or last_id >= max_id:
-        return _activate_incremental_task(data=batch_data)
-
-    # More batches remain — schedule next Task and return success for this one.
-    try:
-        _schedule_next_backfill_batch(since, until, last_id, max_id, batch_size)
-    except Exception as e:
-        logger.error(f"Error scheduling next backfill batch: {str(e)}")
-        return create_task_result("error", error=f"Failed to schedule next batch: {str(e)}")
-
-    return create_task_result("success", data={**batch_data, "batch_complete": False})
+    return _run_backfill_batch(db_connection, since, until, after_id, max_id, batch_size, task_name)
 
 
 def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:

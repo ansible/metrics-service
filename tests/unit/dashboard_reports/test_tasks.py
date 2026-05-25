@@ -3,7 +3,7 @@
 #         _collect_data, collect_dashboard_reports_initial_data, collect_dashboard_reports_data
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import pytz
@@ -308,9 +308,7 @@ class TestDashboardReportsTasks:
     def test_initial_data_invalid_date_range(self):
         """Invalid date range (since >= until) returns error without touching the DB."""
         with patch("apps.dashboard_reports.tasks.get_db_connection") as mock_db:
-            result = collect_dashboard_reports_initial_data(
-                since="2024-02-01T00:00:00Z", until="2024-01-01T00:00:00Z"
-            )
+            result = collect_dashboard_reports_initial_data(since="2024-02-01T00:00:00Z", until="2024-01-01T00:00:00Z")
         mock_db.assert_not_called()
         assert result["status"] == "error"
 
