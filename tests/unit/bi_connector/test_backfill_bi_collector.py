@@ -12,15 +12,9 @@ from apps.bi_connector.collectors.backfill_bi_collector import (
 )
 from apps.bi_connector.models import CollectionBatch
 
-_COLLECT_HOURLY_PATCH = (
-    "apps.bi_connector.collectors.backfill_bi_collector.collect_hourly_metrics"
-)
-_COLLECT_SNAPSHOT_PATCH = (
-    "apps.bi_connector.collectors.backfill_bi_collector.collect_snapshot_metrics"
-)
-_COLLECT_ONE_WINDOW_PATCH = (
-    "apps.bi_connector.collectors.backfill_bi_collector._collect_one_window"
-)
+_COLLECT_HOURLY_PATCH = "apps.bi_connector.collectors.backfill_bi_collector.collect_hourly_metrics"
+_COLLECT_SNAPSHOT_PATCH = "apps.bi_connector.collectors.backfill_bi_collector.collect_snapshot_metrics"
+_COLLECT_ONE_WINDOW_PATCH = "apps.bi_connector.collectors.backfill_bi_collector._collect_one_window"
 
 SINCE = "2025-03-01T00:00:00Z"
 UNTIL = "2025-03-01T03:00:00Z"  # 3 hours
@@ -50,15 +44,11 @@ class TestBackfillBiCollectorValidation:
 
     def test_invalid_since_datetime_raises(self):
         with pytest.raises(ValueError, match="Invalid since datetime"):
-            backfill_bi_collector(
-                {"collector_type": "unified_jobs", "since": "not-a-date", "until": UNTIL}
-            )
+            backfill_bi_collector({"collector_type": "unified_jobs", "since": "not-a-date", "until": UNTIL})
 
     def test_invalid_until_datetime_raises(self):
         with pytest.raises(ValueError, match="Invalid until datetime"):
-            backfill_bi_collector(
-                {"collector_type": "unified_jobs", "since": SINCE, "until": "not-a-date"}
-            )
+            backfill_bi_collector({"collector_type": "unified_jobs", "since": SINCE, "until": "not-a-date"})
 
     def test_empty_task_data_raises(self):
         with pytest.raises(ValueError, match="collector_type is required"):
@@ -77,9 +67,7 @@ class TestBackfillBiCollectorExecution:
     def test_hourly_collector_iterates_by_hour(self):
         # 3-hour window should call _collect_one_window 3 times
         with patch(_COLLECT_ONE_WINDOW_PATCH) as mock_window:
-            result = backfill_bi_collector(
-                {"collector_type": "unified_jobs", "since": SINCE, "until": UNTIL}
-            )
+            result = backfill_bi_collector({"collector_type": "unified_jobs", "since": SINCE, "until": UNTIL})
         assert result["status"] == "success"
         assert mock_window.call_count == 3
         assert result["periods_collected"] == 3
@@ -101,9 +89,7 @@ class TestBackfillBiCollectorExecution:
             captured.append(is_snapshot)
 
         with patch(_COLLECT_ONE_WINDOW_PATCH, side_effect=capture_window):
-            backfill_bi_collector(
-                {"collector_type": "config", "since": SINCE_DAY, "until": UNTIL_DAY}
-            )
+            backfill_bi_collector({"collector_type": "config", "since": SINCE_DAY, "until": UNTIL_DAY})
         assert all(captured), "Expected is_snapshot=True for snapshot collector"
 
     def test_hourly_collector_called_with_is_snapshot_false(self):
@@ -113,9 +99,7 @@ class TestBackfillBiCollectorExecution:
             captured.append(is_snapshot)
 
         with patch(_COLLECT_ONE_WINDOW_PATCH, side_effect=capture_window):
-            backfill_bi_collector(
-                {"collector_type": "unified_jobs", "since": SINCE, "until": UNTIL}
-            )
+            backfill_bi_collector({"collector_type": "unified_jobs", "since": SINCE, "until": UNTIL})
         assert not any(captured), "Expected is_snapshot=False for time-series collector"
 
     def test_batch_marked_running_and_completed(self):
@@ -149,8 +133,9 @@ class TestBackfillBiCollectorExecution:
             "until": UNTIL,
             "batch_id": batch.id,
         }
-        with patch(_COLLECT_ONE_WINDOW_PATCH, side_effect=RuntimeError("boom")), pytest.raises(
-            RuntimeError, match="boom"
+        with (
+            patch(_COLLECT_ONE_WINDOW_PATCH, side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError, match="boom"),
         ):
             backfill_bi_collector(task_data)
         batch.refresh_from_db()
@@ -199,9 +184,7 @@ class TestBackfillBiCollectorExecution:
 
     def test_no_batch_id_still_runs_successfully(self):
         with patch(_COLLECT_ONE_WINDOW_PATCH) as mock_window:
-            result = backfill_bi_collector(
-                {"collector_type": "unified_jobs", "since": SINCE, "until": UNTIL}
-            )
+            result = backfill_bi_collector({"collector_type": "unified_jobs", "since": SINCE, "until": UNTIL})
         assert result["status"] == "success"
         assert mock_window.call_count == 3
 

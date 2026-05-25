@@ -68,7 +68,6 @@ class TestSafeDt:
         assert result is None
 
     def test_nan_float_returns_none(self):
-
         result = _safe_dt(float("nan"))
         assert result is None
 
@@ -161,9 +160,7 @@ class TestCollectBiBillingDataExecution:
             patch(_DB_PATCH, return_value=MagicMock()),
             patch(_REGISTRY_PATCH, mock_registry),
         ):
-            collect_bi_billing_data(
-                {"collector_type": "main_host", "batch_id": batch.id}
-            )
+            collect_bi_billing_data({"collector_type": "main_host", "batch_id": batch.id})
 
         batch.refresh_from_db()
         assert batch.status == "completed"
@@ -226,9 +223,7 @@ class TestCollectBiBillingDataExecution:
             patch(_DB_PATCH, return_value=mock_conn),
             patch(_REGISTRY_PATCH, mock_registry),
         ):
-            collect_bi_billing_data(
-                {"collector_type": "main_host", "batch_id": batch.id}
-            )
+            collect_bi_billing_data({"collector_type": "main_host", "batch_id": batch.id})
 
         call_args = mock_handler.call_args
         # batch is the 4th positional arg: handler(conn, since, until, batch)

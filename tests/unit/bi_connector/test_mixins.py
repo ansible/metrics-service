@@ -99,11 +99,13 @@ class TestIsBiCollectorEnabled:
     def test_multiple_collectors_returns_correct_value(self):
         Setting.objects.create(
             setting_key="BI_CONNECTOR_COLLECTORS",
-            current_value=json.dumps({
-                "main_host": True,
-                "unified_jobs": False,
-                "config": True,
-            }),
+            current_value=json.dumps(
+                {
+                    "main_host": True,
+                    "unified_jobs": False,
+                    "config": True,
+                }
+            ),
         )
         assert is_bi_collector_enabled("main_host") is True
         assert is_bi_collector_enabled("unified_jobs") is False

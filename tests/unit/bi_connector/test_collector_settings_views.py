@@ -96,9 +96,7 @@ class TestCollectorSettingsView(APITestCase):
 
     def test_patch_returns_updated_current_value(self):
         self.client.force_authenticate(user=self.user)
-        response = self.client.patch(
-            self.url, {"main_host": True, "unified_jobs": False}, format="json"
-        )
+        response = self.client.patch(self.url, {"main_host": True, "unified_jobs": False}, format="json")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["current_value"] == {"main_host": True, "unified_jobs": False}
 

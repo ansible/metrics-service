@@ -8,9 +8,7 @@ import pytest
 
 from apps.bi_connector.collectors.collect_bi_controller_data import collect_bi_controller_data
 
-_HOURLY_COLLECTORS_PATCH = (
-    "apps.bi_connector.collectors.collect_bi_controller_data.get_hourly_collectors"
-)
+_HOURLY_COLLECTORS_PATCH = "apps.bi_connector.collectors.collect_bi_controller_data.get_hourly_collectors"
 _DB_PATCH = "apps.bi_connector.collectors.collect_bi_controller_data.get_db_connection"
 _PARSE_DT_PATCH = "apps.bi_connector.collectors.collect_bi_controller_data.parse_datetime_string"
 
@@ -151,8 +149,6 @@ class TestCollectBiControllerData:
             patch(_DB_PATCH, return_value=mock_conn),
             patch(_HOURLY_COLLECTORS_PATCH, return_value=mock_collectors),
         ):
-            collect_bi_controller_data(
-                {"collector_key": "unified_jobs", "since": VALID_SINCE, "until": VALID_UNTIL}
-            )
+            collect_bi_controller_data({"collector_key": "unified_jobs", "since": VALID_SINCE, "until": VALID_UNTIL})
         assert "db" in captured_kwargs
         assert captured_kwargs["db"] is mock_conn
