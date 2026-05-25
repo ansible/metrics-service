@@ -47,7 +47,18 @@ def load_bi_connector_feature_flags(**kwargs) -> bool:
                     with no_reverse_sync():
                         existing.save()
                 else:
-                    flag = AAPFlag(**flag_def)
+                    flag = AAPFlag(
+                        name=flag_def["name"],
+                        condition=flag_def["condition"],
+                        value=flag_def.get("value", "False"),
+                        support_level=flag_def.get("support_level", "TECHNOLOGY_PREVIEW"),
+                        visibility=flag_def.get("visibility", True),
+                        ui_name=flag_def.get("ui_name", flag_def["name"]),
+                        description=flag_def.get("description", ""),
+                        labels=flag_def.get("labels", []),
+                        toggle_type=flag_def.get("toggle_type", "run-time"),
+                        support_url=flag_def.get("support_url", ""),
+                    )
                     flag.full_clean(exclude=["resource"])
                     with no_reverse_sync():
                         flag.save()

@@ -76,10 +76,15 @@ class DateRangeRequiredMixin:
         if until <= since:
             raise ValidationError({"detail": "'until' must be after 'since'."})
 
+        from datetime import timedelta as _timedelta
+
         max_days = self._get_max_days()
         delta = until - since
-        if delta.total_seconds() > max_days * 86400:
-            raise ValidationError({"detail": f"Date range cannot exceed {max_days} days. Requested {delta.days} days."})
+        if delta > _timedelta(days=max_days):
+            requested_days = delta.total_seconds() / 86400
+            raise ValidationError(
+                {"detail": f"Date range cannot exceed {max_days} days. Requested {requested_days:.2f} days."}
+            )
 
         return since, until
 
