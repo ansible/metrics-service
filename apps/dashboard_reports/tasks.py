@@ -133,12 +133,16 @@ def _establish_backfill_cursor(
 
     if min_id is None:
         log_task_execution(task_name=task_name, operation="completed", details="No jobs found in backfill window")
-        return None, max_id, _activate_incremental_task(
-            data={
-                "task_type": task_name,
-                "date_range": {"start": since.isoformat(), "end": until.isoformat()},
-                "job_count": 0,
-            }
+        return (
+            None,
+            max_id,
+            _activate_incremental_task(
+                data={
+                    "task_type": task_name,
+                    "date_range": {"start": since.isoformat(), "end": until.isoformat()},
+                    "job_count": 0,
+                }
+            ),
         )
 
     return min_id - 1, max_id, None
