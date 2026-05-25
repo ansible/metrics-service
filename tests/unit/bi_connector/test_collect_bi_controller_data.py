@@ -8,7 +8,7 @@ import pytest
 
 from apps.bi_connector.collectors.collect_bi_controller_data import collect_bi_controller_data
 
-_HOURLY_COLLECTORS_PATCH = "apps.bi_connector.collectors.collect_bi_controller_data.get_hourly_collectors"
+_HOURLY_COLLECTORS_PATCH = "apps.tasks.collectors.collect_hourly_metrics.get_hourly_collectors"
 _DB_PATCH = "apps.bi_connector.collectors.collect_bi_controller_data.get_db_connection"
 _PARSE_DT_PATCH = "apps.bi_connector.collectors.collect_bi_controller_data.parse_datetime_string"
 

@@ -16,7 +16,7 @@ from apps.core.models import User
 from apps.dynamic_settings.models import Setting
 from tests.test_utils import get_test_password
 
-_SUBMIT_PATCH = "apps.bi_connector.v1.collector_settings_views.submit_task_to_dispatcher"
+_SUBMIT_PATCH = "apps.tasks.tasks_system.submit_task_to_dispatcher"
 
 COLLECTOR_SETTINGS_URL = "bi_connector:collector-settings:collector-settings"
 ADMIN_BATCHES_URL = "bi_connector:collector-settings:admin-batches-list"
@@ -34,6 +34,8 @@ class TestCollectorSettingsView(APITestCase):
             password=get_test_password(),
         )
         self.url = reverse(COLLECTOR_SETTINGS_URL)
+        # Remove the auto-seeded BI_CONNECTOR_COLLECTORS setting so tests start clean
+        Setting.objects.filter(setting_key="BI_CONNECTOR_COLLECTORS").delete()
 
     def test_get_returns_settings_when_none_exist(self):
         self.client.force_authenticate(user=self.user)
@@ -43,9 +45,9 @@ class TestCollectorSettingsView(APITestCase):
         assert response.data["current_value"] is None
 
     def test_get_returns_settings_when_set(self):
-        Setting.objects.create(
+        Setting.objects.update_or_create(
             setting_key="BI_CONNECTOR_COLLECTORS",
-            current_value=json.dumps({"main_host": True}),
+            defaults={"current_value": json.dumps({"main_host": True})},
         )
         self.client.force_authenticate(user=self.user)
         response = self.client.get(self.url)
@@ -68,9 +70,9 @@ class TestCollectorSettingsView(APITestCase):
             assert collector in response.data["available_collectors"]
 
     def test_get_returns_null_for_corrupted_json_setting(self):
-        Setting.objects.create(
+        Setting.objects.update_or_create(
             setting_key="BI_CONNECTOR_COLLECTORS",
-            current_value="not-valid-json",
+            defaults={"current_value": "not-valid-json"},
         )
         self.client.force_authenticate(user=self.user)
         response = self.client.get(self.url)
@@ -85,9 +87,9 @@ class TestCollectorSettingsView(APITestCase):
         assert json.loads(setting.current_value) == {"main_host": True}
 
     def test_patch_updates_existing_setting(self):
-        Setting.objects.create(
+        Setting.objects.update_or_create(
             setting_key="BI_CONNECTOR_COLLECTORS",
-            current_value=json.dumps({"main_host": False}),
+            defaults={"current_value": json.dumps({"main_host": False})},
         )
         self.client.force_authenticate(user=self.user)
         self.client.patch(self.url, {"main_host": True}, format="json")
