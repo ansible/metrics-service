@@ -82,26 +82,26 @@ class DailyMetricsSummaryListSerializer(serializers.ModelSerializer):
             "modified",
         ]
 
-    def get_metrics_job_host_summary_service(self, obj: DailyMetricsSummary) -> dict:
-        return obj.aggregated_metrics.get("job_host_summary_service", {})
+    def get_metrics_job_host_summary_service(self, obj: DailyMetricsSummary) -> dict | None:
+        return obj.aggregated_metrics.get("job_host_summary_service")
 
-    def get_metrics_unified_jobs(self, obj: DailyMetricsSummary) -> dict:
-        return obj.aggregated_metrics.get("unified_jobs", {})
+    def get_metrics_unified_jobs(self, obj: DailyMetricsSummary) -> dict | None:
+        return obj.aggregated_metrics.get("unified_jobs")
 
-    def get_metrics_credentials_service(self, obj: DailyMetricsSummary) -> dict:
-        return obj.aggregated_metrics.get("credentials_service", {})
+    def get_metrics_credentials_service(self, obj: DailyMetricsSummary) -> dict | None:
+        return obj.aggregated_metrics.get("credentials_service")
 
-    def get_metrics_main_jobevent_service(self, obj: DailyMetricsSummary) -> dict:
-        return obj.aggregated_metrics.get("main_jobevent_service", {})
+    def get_metrics_main_jobevent_service(self, obj: DailyMetricsSummary) -> dict | None:
+        return obj.aggregated_metrics.get("main_jobevent_service")
 
-    def get_metrics_execution_environments(self, obj: DailyMetricsSummary) -> dict:
-        return obj.aggregated_metrics.get("execution_environments", {})
+    def get_metrics_execution_environments(self, obj: DailyMetricsSummary) -> dict | None:
+        return obj.aggregated_metrics.get("execution_environments")
 
-    def get_metrics_controller_version_service(self, obj: DailyMetricsSummary) -> dict:
-        return obj.aggregated_metrics.get("controller_version_service", {})
+    def get_metrics_controller_version_service(self, obj: DailyMetricsSummary) -> dict | None:
+        return obj.aggregated_metrics.get("controller_version_service")
 
-    def get_metrics_table_metadata(self, obj: DailyMetricsSummary) -> dict:
-        return obj.aggregated_metrics.get("table_metadata", {})
+    def get_metrics_table_metadata(self, obj: DailyMetricsSummary) -> dict | None:
+        return obj.aggregated_metrics.get("table_metadata")
 
 
 class DailyMetricsSummaryDetailSerializer(DailyMetricsSummaryListSerializer):

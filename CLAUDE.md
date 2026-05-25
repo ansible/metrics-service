@@ -10,6 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies (project uses uv)
 uv sync --dev
 
+# Configure local overrides (optional)
+cp settings.local.py.example settings.local.py
+
 # Run database migrations
 .venv/bin/python manage.py migrate
 
@@ -33,6 +36,12 @@ python manage.py runserver
 
 # With Docker (includes PostgreSQL)
 docker-compose up
+```
+
+To develop against a local `metrics-utility` checkout, add to `pyproject.toml`:
+```toml
+[tool.uv.sources]
+metrics-utility = { path = "../metrics-utility", editable = true }
 ```
 
 ### Testing
@@ -65,15 +74,15 @@ uv run poe check
 uv run poe format   # ruff format
 uv run poe lint     # ruff check
 uv run poe unit-test
-
-# Or directly
-.venv/bin/ruff format . && .venv/bin/ruff check . --fix
 ```
 
-### Running Django Commands with Imports
+### Debugging
 
 ```bash
-# For one-off commands that need Django context
+# Run a single task function directly (needs Django context)
+uv run ./scripts/run_task.py hello_world
+
+# Django shell one-liners
 python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(list(TASK_FUNCTIONS))"
 
 # Never use plain python -c for Django imports — it fails without Django setup
@@ -85,14 +94,26 @@ python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(li
 
 ```
 apps/
-  core/           # Custom User/Organization/Team models, DAB integration, RBAC
-  tasks/          # Background task system (models, scheduling, execution)
+  core/             # Custom User/Organization/Team models, DAB integration, RBAC
+  tasks/            # Background task system (models, scheduling, execution)
   dynamic_settings/ # Runtime DB-backed feature flags (Setting model)
-  settings/       # Dynaconf settings layering (see below)
-  dashboard/      # Web UI for task monitoring at /dashboard/
+  settings/         # Dynaconf settings layering (see below)
+  dashboard/        # Web UI for task monitoring at /dashboard/
+  bi_connector/     # BI tool API (Tableau, Power BI, Grafana) — token auth, per-user throttle
+  dashboard_reports/ # automation-reports integration: AWX job/template data, cost models
+  api/              # Thin shared API utilities
 metrics_service/
-  settings/       # Split Django settings (development, production, test)
+  settings/         # Split Django settings (development, production, test)
 ```
+
+Apps are registered in `apps/settings/defaults.py` under `project_applications`. The framework dynamically discovers URL patterns from each app by iterating `settings.LOADED_APPS` (apps starting with `apps.`) and importing their `urls.py`. URL loading order follows the order in `project_applications`; use `apps/urls.py` for patterns that must load before all app URLs.
+
+### Databases
+
+Two database connections are configured in `apps/settings/defaults.py`:
+
+- **`default`** — metrics-service's own PostgreSQL DB (models, task records, settings)
+- **`awx`** — read-only connection to the AWX/Controller PostgreSQL DB (BI connector Layer 2, metrics collectors). Configure via `METRICS_SERVICE_DATABASES__awx__HOST` etc. Host and password are required at runtime; they are blank by default.
 
 ### Settings Loading Order (Dynaconf)
 
@@ -122,7 +143,7 @@ The task system has several layers:
 - **`task_groups.py`** — `TASK_GROUPS` config: defines what tasks run, their cron schedules, args, and which feature flag controls them. This is the source of truth for scheduled tasks — edit here, then run `init-system-tasks` to sync to DB.
 - **`cron_scheduler.py`** — APScheduler integration for recurring tasks
 - **`dispatcherd_config.py`** — Dispatcherd worker configuration
-- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`)
+- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`, `collect_dashboard_reports_data`)
 - **`cleanup/`** — Cleanup functions (`cleanup_old_tasks`, `cleanup_activitystream`, `cleanup_metrics_data`)
 - **`simple/`** — Simple tasks (`hello_world`)
 - **`services/`** — Output formatting utilities
@@ -130,25 +151,58 @@ The task system has several layers:
 
 ### Task Groups and Feature Flags
 
-`task_groups.py` defines three groups:
+`task_groups.py` defines four groups in `TASK_GROUPS`:
 
-- **`SYSTEM_TASKS_GROUP`** — Always enabled. Runs `cleanup_old_tasks` (daily 5 AM) and `hello_world` (hourly).
-- **`METRICS_COLLECTION_GROUP`** — Always enabled (no feature flag). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`. Local metrics are collected regardless of the opt-out flag to prevent data gaps.
-- **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains only `daily_anonymize_and_prepare` and `send_anonymized_to_segment` — the tasks that transmit data to Red Hat.
+| Group | Feature Flag | Default | Purpose |
+|-------|-------------|---------|---------|
+| `SYSTEM_TASKS_GROUP` | none | always on | `cleanup_old_tasks` (daily 5 AM), `hello_world` (hourly) |
+| `METRICS_COLLECTION_GROUP` | none | always on | Hourly/daily collection, rollup, `cleanup_metrics_data`. Local metrics collected regardless of opt-out to prevent data gaps. |
+| `ANONYMIZATION_GROUP` | `ANONYMIZED_DATA_COLLECTION` | enabled (opt-out) | `daily_anonymize_and_prepare`, `send_anonymized_to_segment` — tasks that transmit data to Red Hat |
+| `DASHBOARD_COLLECTION_GROUP` | `DASHBOARD_COLLECTION` | disabled (opt-in) | `collect_dashboard_reports_initial_data` (once on enable), `collect_dashboard_reports_data` (every 6 hours incremental) |
 
-Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE_ENABLED` in Django settings if not in DB.
+Feature flag resolution order (first match wins): `Setting` DB row → `FEATURE_ENABLED[key]` in Django settings (incl. env overrides) → DAB `AAPFlag` boolean → function default.
 
 ```bash
 # Toggle at runtime without restart
 METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
+METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
 ```
+
+### BI Connector (`apps/bi_connector/`)
+
+Three-layer API for connecting BI tools (Tableau, Power BI, Grafana) to metrics data. All endpoints require **token authentication** (added via `bi_connector/settings.py`) and are subject to a per-user throttle of 30 req/hour (`BiConnectorThrottle`). Endpoints return 404 when the feature flag is off.
+
+**Token setup for service accounts:**
+```bash
+python manage.py drf_create_token <username>
+```
+
+| Layer | Mount | Source | Feature Flag Required |
+|-------|-------|--------|----------------------|
+| Layer 1 — metrics DB | `/api/v1/bi/metrics/` | metrics-service DB (`DailyMetricsSummary`, `HourlyMetricsCollection`) | `BI_CONNECTOR` |
+| Layer 2 — live AWX DB | `/api/v1/bi/controller/` | Read-only queries against the `awx` DB connection | `BI_CONNECTOR` |
+| Layer 3 — dashboard data | `/api/v1/bi/dashboard/` | `JobData`, `TemplateMetadata` models (local DB) | `BI_CONNECTOR` + `DASHBOARD_COLLECTION` |
+
+Layer 2 endpoints (`/controller/jobs/`, `/hosts/`, `/credentials/`, `/events/`) are **asynchronous**: they return `202 Accepted` with a `task_id`. Poll `GET /api/v1/tasks/<task_id>/` until `status == "completed"`, then read `result_data.data`. Date windows are enforced (default 7 days; 3 days for events) via `METRICS_SERVICE_BI_CONNECTOR_MAX_DAYS_DEFAULT`.
+
+Feature flag guard mixins live in `apps/bi_connector/v1/mixins.py`:
+- `BiConnectorEnabledMixin` — checks `BI_CONNECTOR` flag; also applies throttle
+- `DashboardCollectionMixin` — additionally checks `DASHBOARD_COLLECTION` flag
+
+Feature flags for BI connector are seeded from `apps/bi_connector/feature_flags.yaml` via a `post_migrate` signal on `dab_feature_flags`, so they survive DAB migration purge cycles without editing django-ansible-base's own YAML.
+
+### Dashboard Reports (`apps/dashboard_reports/`)
+
+Stores AWX job execution records locally for the automation-reports UI. Key models: `JobData`, `JobLabel`, `JobHostSummary`, `TemplateMetadata`, `SubscriptionCost`, `FilterSet`. Populated by `DASHBOARD_COLLECTION_GROUP` tasks. Exposes its own REST API at `/api/v1/dashboard_reports/`.
 
 ### API Structure
 
 Each app exposes its own versioned API under a `v1/` subdirectory:
 - `apps/tasks/v1/` — Task management endpoints (`/api/v1/tasks/`)
 - `apps/core/v1/` — Core resource endpoints
-- `apps/dynamic_settings/v1/` — Settings API
+- `apps/dynamic_settings/v1/` — Settings API (`/api/v1/feature_flags/`)
+- `apps/bi_connector/v1/` — BI connector endpoints (`/api/v1/bi/`)
+- `apps/dashboard_reports/` — Dashboard data endpoints (`/api/v1/dashboard_reports/`)
 
 All viewsets use `BaseViewSet` / `UserManagementMixin` base classes. OpenAPI docs at `/api/docs/`.
 

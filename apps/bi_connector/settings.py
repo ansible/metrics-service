@@ -1,17 +1,15 @@
 """
 BI Connector app settings.
 
-Adds token authentication and per-user rate limiting for BI tool service accounts.
-These settings merge into the global REST_FRAMEWORK config via Dynaconf.
+Adds token authentication app and per-user rate limiting for BI tool service accounts.
+Token auth is scoped to BI views via BiConnectorEnabledMixin.authentication_classes,
+NOT merged into the global DRF default — only /api/v1/bi/ endpoints accept tokens.
 """
 
-# Long-lived token auth for Tableau/Power BI/Grafana service accounts
+# rest_framework.authtoken is required for drf_create_token and TokenAuthentication,
+# but we deliberately do NOT merge TokenAuthentication into DEFAULT_AUTHENTICATION_CLASSES
+# here — that would expose token auth on every service endpoint.  See mixins.py.
 INSTALLED_APPS = ["dynaconf_merge_unique", "rest_framework.authtoken"]
-
-REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = [
-    "dynaconf_merge_unique",
-    "rest_framework.authentication.TokenAuthentication",
-]
 
 # Maximum date window (in days) for BI connector AWX queries.
 # Override via environment variable: METRICS_SERVICE_BI_CONNECTOR_MAX_DAYS_DEFAULT=14

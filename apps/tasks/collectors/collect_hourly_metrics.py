@@ -114,3 +114,8 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         collector_kwargs={"since": start_datetime, "until": end_datetime},
         task_execution_id=execution_id,
     )
+
+
+def get_hourly_collectors() -> dict:
+    """Public API for the hourly collector registry."""
+    return _get_hourly_collectors()

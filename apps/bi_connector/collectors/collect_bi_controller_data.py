@@ -6,7 +6,7 @@ Runs inside dispatcherd so the HTTP request returns immediately (202) while
 the potentially long-running AWX query executes in the background.
 
 Result stored in Task.result_data by the tasks_system machinery and readable
-via GET /api/v1/tasks/<task_id>/ once status == "completed".
+via GET /api/v1/bi/tasks/<task_id>/ once status == "completed".
 """
 
 import logging
@@ -21,7 +21,7 @@ def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
     Collect live AWX data for a single collector type over an explicit date range.
 
     task_data keys:
-        collector_key (str)  — matches a key in _get_hourly_collectors() registry
+        collector_key (str)  — matches a key in get_hourly_collectors() registry
         since         (str)  — ISO 8601 datetime string
         until         (str)  — ISO 8601 datetime string
 
@@ -43,23 +43,23 @@ def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
 
     try:
         conn = get_db_connection()
-    except Exception as e:
-        logger.error("AWX DB unavailable for bi_collect %s: %s", collector_key, e)
-        return {"status": "error", "error": f"AWX database unavailable: {e}"}
+    except Exception:
+        logger.exception("AWX DB unavailable for bi_collect %s", collector_key)
+        return {"status": "error", "error": "AWX database unavailable"}
 
     try:
-        from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
+        from apps.tasks.collectors.collect_hourly_metrics import get_hourly_collectors
 
-        collectors = _get_hourly_collectors()
+        collectors = get_hourly_collectors()
 
         if collector_key not in collectors:
             return {"status": "error", "error": f"Unknown collector_key: {collector_key!r}"}
 
         collector = collectors[collector_key]["collector_func"](db=conn, since=since, until=until)
         data = collector.gather()
-    except Exception as e:
-        logger.error("Collection failed for bi_collect %s: %s", collector_key, e)
-        return {"status": "error", "error": f"Collection failed: {e}"}
+    except Exception:
+        logger.exception("Collection failed for bi_collect %s", collector_key)
+        return {"status": "error", "error": "Collection failed"}
 
     logger.info("bi_collect %s completed: %d records", collector_key, len(data) if isinstance(data, list) else 1)
     return {

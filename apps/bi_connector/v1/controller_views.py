@@ -2,14 +2,16 @@
 BI connector Layer 2 views — live data queried directly from the AWX DB.
 
 Time-series endpoints (jobs, hosts, credentials, events) are asynchronous:
-  GET ?since=&until=  →  202 Accepted + {"task_id": N, "status_url": "/api/v1/tasks/N/"}
+  GET ?since=&until=  →  202 Accepted + {"task_id": N, "results_url": "/api/v1/bi/tasks/N/"}
 
 The collection runs inside dispatcherd so the HTTP request returns immediately.
-Poll GET /api/v1/tasks/<task_id>/ until status == "completed", then read
+Poll GET /api/v1/bi/tasks/<task_id>/ until status == "completed", then read
 result_data.data for the collected rows.
 
 Deduplication: a second identical request while the first is still pending/running
-returns the existing task_id rather than creating a duplicate AWX query.
+returns the existing task_id rather than creating a duplicate AWX query. The
+check-then-create is wrapped in transaction.atomic() + select_for_update() to
+prevent the TOCTOU race under concurrent requests.
 
 The snapshot endpoint remains synchronous — it is a fast point-in-time query
 with no date window, so an async round-trip would add latency for no benefit.
@@ -21,6 +23,7 @@ from breaking the module in environments where it is not installed.
 import logging
 from typing import Any
 
+from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -104,34 +107,38 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
         until_iso = until.isoformat()
 
         # Return the existing task if an identical collection is already in flight.
-        existing = Task.objects.filter(
-            function_name="collect_bi_controller_data",
-            status__in=["pending", "running"],
-            task_data__collector_key=self.COLLECTOR_KEY,
-            task_data__since=since_iso,
-            task_data__until=until_iso,
-        ).first()
+        # select_for_update() + atomic() prevent a TOCTOU race where two concurrent
+        # callers both miss the existing task and each create a new one.
+        with transaction.atomic():
+            existing = Task.objects.select_for_update().filter(
+                function_name="collect_bi_controller_data",
+                status__in=["pending", "running"],
+                task_data__collector_key=self.COLLECTOR_KEY,
+                task_data__since=since_iso,
+                task_data__until=until_iso,
+            ).first()
 
-        if existing:
-            return Response(
-                {
-                    "task_id": existing.id,
-                    "status": existing.status,
-                    "collector_type": self.COLLECTOR_KEY,
-                    "results_url": reverse("tasks:v1:task-detail", args=[existing.id]),
+            if existing:
+                return Response(
+                    {
+                        "task_id": existing.id,
+                        "status": existing.status,
+                        "collector_type": self.COLLECTOR_KEY,
+                        "results_url": reverse("bi_connector:bi-task-detail", args=[existing.id]),
+                    },
+                    status=202,
+                )
+
+            task = Task.objects.create(
+                name=f"bi_collect_{self.COLLECTOR_KEY}",
+                function_name="collect_bi_controller_data",
+                task_data={
+                    "collector_key": self.COLLECTOR_KEY,
+                    "since": since_iso,
+                    "until": until_iso,
                 },
-                status=202,
             )
 
-        task = Task.objects.create(
-            name=f"bi_collect_{self.COLLECTOR_KEY}",
-            function_name="collect_bi_controller_data",
-            task_data={
-                "collector_key": self.COLLECTOR_KEY,
-                "since": since_iso,
-                "until": until_iso,
-            },
-        )
         submit_task_to_dispatcher(task)
 
         return Response(
@@ -139,7 +146,7 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
                 "task_id": task.id,
                 "status": "pending",
                 "collector_type": self.COLLECTOR_KEY,
-                "results_url": reverse("tasks:v1:task-detail", args=[task.id]),
+                "results_url": reverse("bi_connector:bi-task-detail", args=[task.id]),
             },
             status=202,
         )
@@ -233,16 +240,16 @@ class ControllerSnapshotView(BiConnectorEnabledMixin, APIView):
         try:
             conn = get_db_connection()
         except Exception as e:
-            logger.error("AWX DB unavailable for controller/snapshot: %s", e)
-            return Response({"error": f"AWX database unavailable: {e}"}, status=503)
+            logger.error("AWX DB unavailable for controller/snapshot: %s", e, exc_info=True)
+            return Response({"error": "AWX database unavailable"}, status=503)
 
         try:
-            from apps.tasks.collectors.collect_snapshot_metrics import _get_snapshot_collectors
+            from apps.tasks.collectors.collect_snapshot_metrics import get_snapshot_collectors
 
-            registry = _get_snapshot_collectors()
+            registry = get_snapshot_collectors()
         except Exception as e:
-            logger.error("Failed to load snapshot collectors: %s", e)
-            return Response({"error": f"Snapshot collectors unavailable: {e}"}, status=500)
+            logger.error("Failed to load snapshot collectors: %s", e, exc_info=True)
+            return Response({"error": "Snapshot collectors unavailable"}, status=500)
 
         results: dict = {}
         errors: dict = {}

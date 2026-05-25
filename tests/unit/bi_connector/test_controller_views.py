@@ -30,7 +30,7 @@ VALID_UNTIL_3 = "2025-03-03T23:59:59Z"  # 2 days — within 3-day limit
 OVER_7_DAYS_UNTIL = "2025-03-10T00:00:00Z"  # 9 days — exceeds 7-day limit
 OVER_3_DAYS_UNTIL = "2025-03-05T00:00:00Z"  # 4 days — exceeds 3-day limit
 
-_SNAPSHOT_PATCH = "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors"
+_SNAPSHOT_PATCH = "apps.tasks.collectors.collect_snapshot_metrics.get_snapshot_collectors"
 _DB_PATCH = "apps.bi_connector.v1.controller_views.get_db_connection"
 _FLAG_PATCH = "apps.tasks.task_groups.get_feature_enabled_from_db"
 _SUBMIT_PATCH = "apps.tasks.tasks_system.submit_task_to_dispatcher"
@@ -133,7 +133,7 @@ class TestControllerJobsView(APITestCase):
         assert "results_url" in response.data
         assert response.data["status"] == "pending"
         assert response.data["collector_type"] == "unified_jobs"
-        assert f"/api/v1/tasks/{response.data['task_id']}/" == response.data["results_url"]
+        assert f"/api/v1/bi/tasks/{response.data['task_id']}/" == response.data["results_url"]
 
     def test_task_created_with_correct_task_data(self):
         self.client.force_authenticate(user=self.user)
@@ -371,3 +371,142 @@ class TestControllerSnapshotView(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert "nonexistent" in response.data["errors"]
+
+    def test_awx_db_error_response_is_generic(self):
+        """Raw exception text must not reach the client (security: no internal hostnames)."""
+        self.client.force_authenticate(user=self.user)
+        with patch(_DB_PATCH, side_effect=Exception("postgresql://secret-host:5432/awx")):
+            response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert "secret-host" not in str(response.data)
+        assert "AWX database unavailable" in str(response.data)
+
+
+# ---------------------------------------------------------------------------
+# BiTaskStatusView — scoped BI task polling endpoint
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestBiTaskStatusView(APITestCase):
+    """Tests for GET /api/v1/bi/tasks/<task_id>/ — BI-scoped task polling."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password=get_test_password()
+        )
+        flag_patcher = patch(_FLAG_PATCH, return_value=True)
+        self.flag_mock = flag_patcher.start()
+        self.addCleanup(flag_patcher.stop)
+
+    def _create_bi_task(self, status_val="pending"):
+        from apps.tasks.models import Task
+
+        return Task.objects.create(
+            name="bi_collect_unified_jobs",
+            function_name="collect_bi_controller_data",
+            status=status_val,
+            task_data={"collector_key": "unified_jobs", "since": VALID_SINCE, "until": VALID_UNTIL_7},
+        )
+
+    def test_returns_task_status_for_bi_task(self):
+        task = self._create_bi_task()
+        self.client.force_authenticate(user=self.user)
+        url = reverse("bi_connector:bi-task-detail", args=[task.id])
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["task_id"] == task.id
+        assert response.data["status"] == "pending"
+        assert response.data["collector_type"] == "unified_jobs"
+
+    def test_returns_404_for_non_bi_task(self):
+        from apps.tasks.models import Task
+
+        other_task = Task.objects.create(name="hello_world", function_name="hello_world")
+        self.client.force_authenticate(user=self.user)
+        url = reverse("bi_connector:bi-task-detail", args=[other_task.id])
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_returns_404_for_missing_task_id(self):
+        self.client.force_authenticate(user=self.user)
+        url = reverse("bi_connector:bi-task-detail", args=[999999])
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_unauthenticated_returns_401_or_403(self):
+        task = self._create_bi_task()
+        url = reverse("bi_connector:bi-task-detail", args=[task.id])
+        response = self.client.get(url)
+        assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
+
+    def test_flag_disabled_returns_404(self):
+        task = self._create_bi_task()
+        self.flag_mock.return_value = False
+        self.client.force_authenticate(user=self.user)
+        url = reverse("bi_connector:bi-task-detail", args=[task.id])
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_result_data_only_exposed_when_completed(self):
+        task = self._create_bi_task(status_val="pending")
+        self.client.force_authenticate(user=self.user)
+        url = reverse("bi_connector:bi-task-detail", args=[task.id])
+        response = self.client.get(url)
+        assert response.data["result_data"] is None
+
+    def test_error_message_only_exposed_when_failed(self):
+        task = self._create_bi_task(status_val="pending")
+        self.client.force_authenticate(user=self.user)
+        url = reverse("bi_connector:bi-task-detail", args=[task.id])
+        response = self.client.get(url)
+        assert response.data["error_message"] is None
+
+
+# ---------------------------------------------------------------------------
+# DashboardCollectionMixin — flag check order
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestDashboardCollectionMixinFlagOrder(APITestCase):
+    """
+    BI_CONNECTOR flag must be checked before DASHBOARD_COLLECTION.
+    When BI_CONNECTOR is off, 404 regardless of dashboard flag state.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password=get_test_password()
+        )
+        self.url = reverse("bi_connector:dashboard:dashboard-jobs-list")
+
+    def test_bi_connector_off_returns_404_regardless_of_dashboard_flag(self):
+        self.client.force_authenticate(user=self.user)
+
+        def flag_side_effect(name, default=False):
+            if name == "BI_CONNECTOR":
+                return False
+            if name == "DASHBOARD_COLLECTION":
+                return True
+            return default
+
+        with patch(_FLAG_PATCH, side_effect=flag_side_effect):
+            response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_bi_connector_on_dashboard_off_returns_404(self):
+        self.client.force_authenticate(user=self.user)
+
+        def flag_side_effect(name, default=False):
+            if name == "BI_CONNECTOR":
+                return True
+            if name == "DASHBOARD_COLLECTION":
+                return False
+            return default
+
+        with patch(_FLAG_PATCH, side_effect=flag_side_effect):
+            response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND

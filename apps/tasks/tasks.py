@@ -13,8 +13,13 @@ Queue routing is defined per-function in TASK_METADATA ("queue" field).
 
 import logging
 
-# BI connector on-demand collection
+# BI connector on-demand collection (triggered by Layer 2 API requests)
 from ..bi_connector.collectors.collect_bi_controller_data import collect_bi_controller_data
+
+# BI connector billing collection tasks
+from ..bi_connector.collectors.backfill_bi_collector import backfill_bi_collector
+from ..bi_connector.collectors.cleanup import cleanup_bi_collection_batches, cleanup_bi_stored_host_metrics
+from ..bi_connector.collectors.collect_bi_billing_data import collect_bi_billing_data
 
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
@@ -63,6 +68,11 @@ TASK_FUNCTIONS = {
     "send_anonymized_to_segment": send_anonymized_to_segment,
     # BI connector on-demand collection (triggered by Layer 2 API requests)
     "collect_bi_controller_data": collect_bi_controller_data,
+    # BI connector billing collection (scheduled + backfill into stored models)
+    "backfill_bi_collector": backfill_bi_collector,
+    "collect_bi_billing_data": collect_bi_billing_data,
+    "cleanup_bi_collection_batches": cleanup_bi_collection_batches,
+    "cleanup_bi_stored_host_metrics": cleanup_bi_stored_host_metrics,
     # Dashboard reports
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
@@ -81,6 +91,8 @@ TASK_LOCKS = {
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "collect_bi_billing_data",
+    "backfill_bi_collector",
 }
 
 

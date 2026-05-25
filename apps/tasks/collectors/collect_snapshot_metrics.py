@@ -121,3 +121,8 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
         collector_kwargs={"collection_time": collection_date},
         task_execution_id=execution_id,
     )
+
+
+def get_snapshot_collectors() -> dict:
+    """Public API for the snapshot collector registry."""
+    return _get_snapshot_collectors()

@@ -142,3 +142,6 @@ cachi2-output/
 # dev tooling outputs
 hourly_dumps/
 daily_dumps/
+
+# Local Docker Compose overrides (environment-specific, should not be committed)
+docker-compose.override.yml

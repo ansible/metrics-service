@@ -330,12 +330,61 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+BI_BILLING_COLLECTION_GROUP = TaskGroup(
+    name="bi_billing_collection",
+    description="Stores metrics-utility billing collector output in DB for BI Layer 1 API",
+    feature_flag="BI_CONNECTOR",
+    tasks=[
+        {
+            "task_id": "bi_daily_host_metrics",
+            "function": "collect_bi_billing_data",
+            "cron": "0 6 * * *",
+            "args": {"collector_type": "main_host_daily"},
+            "enabled": True,
+            "description": "Daily host metric collection from AWX main_host",
+        },
+        {
+            "task_id": "bi_daily_job_host_summary",
+            "function": "collect_bi_billing_data",
+            "cron": "0 7 * * *",
+            "args": {"collector_type": "job_host_summary"},
+            "enabled": True,
+            "description": "Daily raw job host summary collection from AWX",
+        },
+        {
+            "task_id": "bi_daily_indirect_audit",
+            "function": "collect_bi_billing_data",
+            "cron": "0 8 * * *",
+            "args": {"collector_type": "main_indirectmanagednodeaudit"},
+            "enabled": False,
+            "description": "Daily indirect managed node audit collection (AWX 2.6+)",
+        },
+        {
+            "task_id": "cleanup_bi_collection_batches",
+            "function": "cleanup_bi_collection_batches",
+            "cron": "0 4 * * *",
+            "args": {"retention_days": 90},
+            "enabled": True,
+            "description": "Remove CollectionBatch records older than retention_days",
+        },
+        {
+            "task_id": "cleanup_bi_stored_host_metrics",
+            "function": "cleanup_bi_stored_host_metrics",
+            "cron": "30 4 * * *",
+            "args": {"stale_days": 365},
+            "enabled": True,
+            "description": "Remove deleted StoredHostMetric records not automated in stale_days",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
+    BI_BILLING_COLLECTION_GROUP,
 ]
 
 

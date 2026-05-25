@@ -25,6 +25,8 @@ This file loads at step 3 in the URL loading order, before individual apps
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from apps.bi_connector.v1.task_views import BiTaskStatusView
+
 # BI Connector URL patterns assembled here (step 3) before the LOADED_APPS loop
 # (step 4) to guarantee the bi_connector namespace is always registered. The inner
 # URL confs are imported directly; bi_connector/urls.py has urlpatterns=[] so the
@@ -33,6 +35,12 @@ _bi_urlpatterns = [
     path("metrics/", include("apps.bi_connector.v1.metrics_urls", namespace="metrics")),
     path("controller/", include("apps.bi_connector.v1.controller_urls", namespace="controller")),
     path("dashboard/", include("apps.bi_connector.v1.dashboard_urls", namespace="dashboard")),
+    # Stored billing data — Layer 1 BI endpoints for DB-backed collector output
+    path("stored/", include("apps.bi_connector.v1.stored_urls", namespace="stored")),
+    # Admin collector configuration + backfill triggering (session/admin auth, not BI tokens)
+    path("collector-settings/", include("apps.bi_connector.v1.collector_settings_urls", namespace="collector-settings")),
+    # Scoped task status endpoint — BI service accounts poll this instead of /api/v1/tasks/<id>/
+    path("tasks/<int:task_id>/", BiTaskStatusView.as_view(), name="bi-task-detail"),
 ]
 
 urlpatterns = [

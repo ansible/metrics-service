@@ -33,28 +33,57 @@ def load_bi_connector_feature_flags(**kwargs) -> bool:
             flags = yaml.safe_load(f) or []
 
         for flag_def in flags:
-            existing = AAPFlag.objects.filter(name=flag_def["name"], condition=flag_def["condition"]).first()
-            if existing:
-                existing.support_level = flag_def.get("support_level", "TECHNOLOGY_PREVIEW")
-                existing.visibility = flag_def.get("visibility", True)
-                existing.ui_name = flag_def.get("ui_name", flag_def["name"])
-                existing.description = flag_def.get("description", "")
-                existing.labels = flag_def.get("labels", [])
-                existing.toggle_type = flag_def.get("toggle_type", "run-time")
-                existing.support_url = flag_def.get("support_url", "")
-                existing.full_clean(exclude=["resource"])
-                with no_reverse_sync():
-                    existing.save()
-            else:
-                flag = AAPFlag(**flag_def)
-                flag.full_clean(exclude=["resource"])
-                with no_reverse_sync():
-                    flag.save()
-            logger.debug("Loaded bi_connector feature flag: %s", flag_def["name"])
+            try:
+                existing = AAPFlag.objects.filter(name=flag_def["name"], condition=flag_def["condition"]).first()
+                if existing:
+                    existing.support_level = flag_def.get("support_level", "TECHNOLOGY_PREVIEW")
+                    existing.visibility = flag_def.get("visibility", True)
+                    existing.ui_name = flag_def.get("ui_name", flag_def["name"])
+                    existing.description = flag_def.get("description", "")
+                    existing.labels = flag_def.get("labels", [])
+                    existing.toggle_type = flag_def.get("toggle_type", "run-time")
+                    existing.support_url = flag_def.get("support_url", "")
+                    existing.full_clean(exclude=["resource"])
+                    with no_reverse_sync():
+                        existing.save()
+                else:
+                    flag = AAPFlag(**flag_def)
+                    flag.full_clean(exclude=["resource"])
+                    with no_reverse_sync():
+                        flag.save()
+                logger.debug("Loaded bi_connector feature flag: %s", flag_def["name"])
+            except Exception:
+                logger.warning(
+                    "Failed to load bi_connector feature flag %s", flag_def.get("name", "?"), exc_info=True
+                )
+        _seed_bi_connector_collectors()
     except Exception:
         logger.warning("Failed to load bi_connector feature flags into AAPFlag", exc_info=True)
         return False
     return True
+
+
+def _seed_bi_connector_collectors() -> None:
+    """Seed BI_CONNECTOR_COLLECTORS default setting if not already present."""
+    try:
+        from apps.dynamic_settings.models import Setting
+
+        if not Setting.objects.filter(setting_key="BI_CONNECTOR_COLLECTORS").exists():
+            import json
+
+            Setting.objects.create(
+                setting_key="BI_CONNECTOR_COLLECTORS",
+                current_value=json.dumps(
+                    {
+                        "main_host_daily": True,
+                        "job_host_summary": True,
+                        "main_indirectmanagednodeaudit": False,
+                    }
+                ),
+            )
+            logger.debug("Seeded BI_CONNECTOR_COLLECTORS default setting")
+    except Exception:
+        logger.warning("Failed to seed BI_CONNECTOR_COLLECTORS setting", exc_info=True)
 
 
 class BiConnectorConfig(AppConfig):
