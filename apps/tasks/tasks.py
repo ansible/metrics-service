@@ -458,6 +458,87 @@ TASK_METADATA = {
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },
+    # BI connector billing collection
+    "backfill_bi_collector": {
+        "queue": "metrics",
+        "category": "BI Connector",
+        "description": "Backfill an existing hourly or snapshot collector over a historical date range",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Collector type to backfill (e.g., job_host_summary_service, unified_jobs)",
+            },
+            "since": {"type": "string", "required": True, "description": "Start of range (ISO 8601 datetime)"},
+            "until": {"type": "string", "required": True, "description": "End of range (ISO 8601 datetime)"},
+            "batch_id": {"type": "integer", "description": "CollectionBatch PK for progress tracking (optional)"},
+        },
+        "examples": [
+            {
+                "name": "Backfill 1 year of job host summaries",
+                "data": {
+                    "collector_type": "job_host_summary_service",
+                    "since": "2024-01-01T00:00:00Z",
+                    "until": "2025-01-01T00:00:00Z",
+                },
+            },
+        ],
+    },
+    "collect_bi_billing_data": {
+        "queue": "metrics",
+        "category": "BI Connector",
+        "description": "Collect billing data from AWX into BI stored models using metrics-utility library collectors",
+        "parameters": {
+            "collector_type": {
+                "type": "string",
+                "required": True,
+                "description": "Billing collector type (main_host, main_host_daily, job_host_summary, main_indirectmanagednodeaudit)",
+            },
+            "since": {"type": "string", "description": "Start of range (ISO 8601) — required for time-series collectors"},
+            "until": {"type": "string", "description": "End of range (ISO 8601)"},
+            "batch_id": {"type": "integer", "description": "CollectionBatch PK for progress tracking (optional)"},
+        },
+        "examples": [
+            {"name": "Daily host metrics", "data": {"collector_type": "main_host_daily"}},
+            {"name": "Job host summary", "data": {"collector_type": "job_host_summary"}},
+        ],
+    },
+    "cleanup_bi_collection_batches": {
+        "queue": "maintenance",
+        "category": "BI Connector",
+        "description": "Delete CollectionBatch records older than retention_days (default 90)",
+        "parameters": {
+            "retention_days": {
+                "type": "integer",
+                "default": 90,
+                "description": "Number of days to retain CollectionBatch rows",
+                "min": 1,
+                "max": 730,
+            },
+        },
+        "examples": [
+            {"name": "Default retention (90 days)", "data": {}},
+            {"name": "Extended retention", "data": {"retention_days": 180}},
+        ],
+    },
+    "cleanup_bi_stored_host_metrics": {
+        "queue": "maintenance",
+        "category": "BI Connector",
+        "description": "Delete StoredHostMetric rows marked deleted in AWX and not automated in stale_days (default 365). Active hosts are never removed.",
+        "parameters": {
+            "stale_days": {
+                "type": "integer",
+                "default": 365,
+                "description": "Days since last_automation before a deleted host record is purged",
+                "min": 30,
+                "max": 3650,
+            },
+        },
+        "examples": [
+            {"name": "Default (365 days)", "data": {}},
+            {"name": "Aggressive cleanup", "data": {"stale_days": 180}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support

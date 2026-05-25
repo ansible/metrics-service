@@ -443,6 +443,9 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         """Test that _handle_remove_default_settings_command only removes unchanged default settings."""
         from apps.dynamic_settings.models import Setting
 
+        # Clear any settings auto-seeded by post_migrate signals during DB setup
+        Setting.objects.all().delete()
+
         # Create unchanged default setting (previous_value is None)
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
 
@@ -522,6 +525,9 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         """Test that _handle_remove_default_settings_command with --all-known removes even modified settings."""
         from apps.dynamic_settings.models import Setting
 
+        # Clear any settings auto-seeded by post_migrate signals during DB setup
+        Setting.objects.all().delete()
+
         # Create unchanged default setting
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", True, None)
 
@@ -549,6 +555,9 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
     def test_handle_remove_default_settings_with_all_settings(self):
         """Test that _handle_remove_default_settings_command with --all-settings removes all settings."""
         from apps.dynamic_settings.models import Setting
+
+        # Clear any settings auto-seeded by post_migrate signals during DB setup
+        Setting.objects.all().delete()
 
         # Create various settings
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)

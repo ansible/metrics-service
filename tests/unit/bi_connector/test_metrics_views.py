@@ -100,8 +100,8 @@ class TestDailyMetricsSummaryViewSet(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         result = response.data["results"][0]
-        assert result["metrics_unified_jobs"] == {}
-        assert result["metrics_table_metadata"] == {}
+        assert result["metrics_unified_jobs"] is None
+        assert result["metrics_table_metadata"] is None
 
     def test_list_does_not_include_raw_aggregated_metrics_blob(self):
         self.client.force_authenticate(user=self.user)
