@@ -11,7 +11,7 @@ A CollectionBatch tracks progress so backfills resume after failure.
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 from django.db import models
@@ -19,9 +19,29 @@ from django.utils.timezone import now
 
 from apps.tasks.utils import get_db_connection, parse_datetime_string
 
+if TYPE_CHECKING:
+    from apps.bi_connector.models import CollectionBatch
+
 logger = logging.getLogger(__name__)
 
 FLUSH_EVERY = 500_000
+
+# Constant field list reused by all StoredHostMetric upserts.
+_HOST_METRIC_UPDATE_FIELDS = [
+    "host_id",
+    "first_automation",
+    "last_automation",
+    "automated_counter",
+    "deleted_counter",
+    "last_deleted",
+    "deleted",
+    "ansible_product_serial",
+    "ansible_machine_id",
+    "ansible_host_variable",
+    "ansible_connection_variable",
+    "collection_batch_id",
+    "modified",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +70,66 @@ def _flush(
     )
     count = len(records)
     records.clear()
+    return count
+
+
+# ---------------------------------------------------------------------------
+# Batch lifecycle helpers (reduce complexity in public entry point)
+# ---------------------------------------------------------------------------
+
+
+def _parse_optional_dt(value: str | None, name: str) -> datetime | None:
+    """Parse an ISO 8601 string to a timezone-aware datetime, or return None for empty input."""
+    if not value:
+        return None
+    result = parse_datetime_string(value)
+    if result is None:
+        raise ValueError(f"Invalid {name!r} datetime string: {value!r}")
+    return result
+
+
+def _start_batch(batch_id: int | None) -> "CollectionBatch | None":
+    """Load a CollectionBatch by PK, set status='running', and return it (or None)."""
+    if batch_id is None:
+        return None
+    from apps.bi_connector.models import CollectionBatch
+
+    batch = CollectionBatch.objects.get(pk=batch_id)
+    batch.status = "running"
+    batch.started_at = now()
+    batch.save(update_fields=["status", "started_at", "modified"])
+    return batch
+
+
+def _fail_batch(batch: "CollectionBatch | None", exc: Exception) -> None:
+    """Mark batch as failed, recording the error message."""
+    if batch is None:
+        return
+    batch.status = "failed"
+    batch.error_message = str(exc)
+    batch.save(update_fields=["status", "error_message", "modified"])
+
+
+def _complete_batch(batch: "CollectionBatch | None", total_records: int) -> None:
+    """Mark batch as completed with the final record count."""
+    if batch is None:
+        return
+    batch.status = "completed"
+    batch.completed_at = now()
+    batch.records_imported = total_records
+    batch.save(update_fields=["status", "completed_at", "records_imported", "modified"])
+
+
+def _flush_host_metrics(pending: list, batch: "CollectionBatch | None", total_so_far: int) -> int:
+    """Flush pending StoredHostMetric records and update the batch cursor. Returns flushed count."""
+    from apps.bi_connector.models import StoredHostMetric
+
+    count = _flush(pending, StoredHostMetric, unique_fields=["hostname"], update_fields=_HOST_METRIC_UPDATE_FIELDS)
+    if batch is not None:
+        new_total = total_so_far + count
+        batch.cursor = {"flushed_rows": new_total}
+        batch.records_imported = new_total
+        batch.save(update_fields=["cursor", "records_imported", "modified"])
     return count
 
 
@@ -140,68 +220,15 @@ def _collect_host_metric_snapshot(conn, since, until, batch) -> int:
         df: pd.DataFrame = batch_data.get("host_metric")
         if df is None or df.empty:
             continue
-
         for _, row in df.iterrows():
             record = _df_row_to_host_metric(row, batch)
             if record is not None:
                 pending.append(record)
-
         if len(pending) >= FLUSH_EVERY:
-            flushed = _flush(
-                pending,
-                __import__("apps.bi_connector.models", fromlist=["StoredHostMetric"]).StoredHostMetric,
-                unique_fields=["hostname"],
-                update_fields=[
-                    "host_id",
-                    "first_automation",
-                    "last_automation",
-                    "automated_counter",
-                    "deleted_counter",
-                    "last_deleted",
-                    "deleted",
-                    "ansible_product_serial",
-                    "ansible_machine_id",
-                    "ansible_host_variable",
-                    "ansible_connection_variable",
-                    "collection_batch_id",
-                    "modified",
-                ],
-            )
-            total_flushed += flushed
-            if batch is not None:
-                batch.cursor = {"flushed_rows": total_flushed}
-                batch.records_imported = total_flushed
-                batch.save(update_fields=["cursor", "records_imported", "modified"])
+            total_flushed += _flush_host_metrics(pending, batch, total_flushed)
 
-    # Final flush of remaining records
     if pending:
-        from apps.bi_connector.models import StoredHostMetric
-
-        flushed = _flush(
-            pending,
-            StoredHostMetric,
-            unique_fields=["hostname"],
-            update_fields=[
-                "host_id",
-                "first_automation",
-                "last_automation",
-                "automated_counter",
-                "deleted_counter",
-                "last_deleted",
-                "deleted",
-                "ansible_product_serial",
-                "ansible_machine_id",
-                "ansible_host_variable",
-                "ansible_connection_variable",
-                "collection_batch_id",
-                "modified",
-            ],
-        )
-        total_flushed += flushed
-        if batch is not None:
-            batch.cursor = {"flushed_rows": total_flushed}
-            batch.records_imported = total_flushed
-            batch.save(update_fields=["cursor", "records_imported", "modified"])
+        total_flushed += _flush_host_metrics(pending, batch, total_flushed)
 
     return total_flushed
 
@@ -384,51 +411,22 @@ def collect_bi_billing_data(task_data: dict | None = None, **kwargs) -> dict:
 
     if not collector_type:
         raise ValueError("collector_type is required in task_data")
-
     if collector_type not in _COLLECTOR_REGISTRY:
         valid = ", ".join(sorted(_COLLECTOR_REGISTRY))
         raise ValueError(f"Unknown collector_type: {collector_type!r}. Valid types: {valid}")
 
-    if since_str:
-        since = parse_datetime_string(since_str)
-        if since is None:
-            raise ValueError(f"Invalid 'since' datetime string: {since_str!r}")
-    else:
-        since = None
-    if until_str:
-        until = parse_datetime_string(until_str)
-        if until is None:
-            raise ValueError(f"Invalid 'until' datetime string: {until_str!r}")
-    else:
-        until = None
-
-    # Load and initialise CollectionBatch if provided
-    batch = None
-    if batch_id is not None:
-        from apps.bi_connector.models import CollectionBatch
-
-        batch = CollectionBatch.objects.get(pk=batch_id)
-        batch.status = "running"
-        batch.started_at = now()
-        batch.save(update_fields=["status", "started_at", "modified"])
-
+    since = _parse_optional_dt(since_str, "since")
+    until = _parse_optional_dt(until_str, "until")
+    batch = _start_batch(batch_id)
     conn = get_db_connection()
-    handler = _COLLECTOR_REGISTRY[collector_type]
 
     try:
-        total_records = handler(conn, since, until, batch)
+        total_records = _COLLECTOR_REGISTRY[collector_type](conn, since, until, batch)
     except Exception as exc:
-        if batch is not None:
-            batch.status = "failed"
-            batch.error_message = str(exc)
-            batch.save(update_fields=["status", "error_message", "modified"])
+        _fail_batch(batch, exc)
         raise
 
-    if batch is not None:
-        batch.status = "completed"
-        batch.completed_at = now()
-        batch.records_imported = total_records
-        batch.save(update_fields=["status", "completed_at", "records_imported", "modified"])
+    _complete_batch(batch, total_records)
 
     logger.info(
         "collect_bi_billing_data: collector_type=%s total_records=%d",
