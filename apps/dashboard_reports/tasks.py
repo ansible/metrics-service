@@ -13,7 +13,11 @@ from typing import Any
 
 from django.conf import settings
 from django.db import transaction
-from metrics_utility.library.collectors.dashboard import DashboardJobsResultType, dashboard_jobs, get_min_max_job_id_query
+from metrics_utility.library.collectors.dashboard import (
+    DashboardJobsResultType,
+    dashboard_jobs,
+    get_min_max_job_id_query,
+)
 
 from apps.dashboard_reports.models import JobData
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
@@ -45,7 +49,9 @@ def _parse_dt(value: Any) -> datetime | None:
     raise TypeError(f"_parse_dt: expected str, datetime, or None; got {type(value).__name__!r}")
 
 
-def _collect_jobs(db_connection, since: datetime, until: datetime, after_id: int = None, batch_size: int = None) -> DashboardJobsResultType:
+def _collect_jobs(
+    db_connection, since: datetime, until: datetime, after_id: int = None, batch_size: int = None
+) -> DashboardJobsResultType:
     """
     Collect dashboard jobs data from the database for the specified date range.
 
@@ -97,6 +103,64 @@ def _sync_jobs_atomically(job_results: list) -> list:
     return failed_jobs
 
 
+def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, int]:
+    """Resolve db_name, since, until, and batch_size from task kwargs with defaults applied."""
+    dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
+    db_name = kwargs.get("database", DEFAULT_DB_NAME)
+    until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
+    since = _parse_dt(kwargs.get("since")) or JobData.last_timestamp()
+    if since is None:
+        backfill_days = int(dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90))
+        since = (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
+    batch_size = int(dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000))
+    return db_name, since, until, batch_size
+
+
+def _find_resume_cursor(min_id: int, max_id: int, task_name: str) -> int:
+    """Return the job_id cursor to resume batching from (exclusive), skipping already-synced records."""
+    from django.db.models import Max
+
+    max_synced = JobData.objects.filter(job_id__gte=min_id, job_id__lte=max_id).aggregate(Max("job_id"))["job_id__max"]
+    if max_synced is not None:
+        log_task_execution(
+            task_name=task_name,
+            operation="processing",
+            details=f"Resuming backfill from job_id {max_synced} (skipping already-synced records)",
+        )
+        return max_synced
+    return min_id - 1
+
+
+def _process_batches(
+    db_connection, since: datetime, until: datetime, max_id: int, after_id: int, batch_size: int, task_name: str
+) -> tuple[int, str | None]:
+    """Collect and sync jobs in cursor-paginated batches. Returns (total_synced, error_message_or_None)."""
+    total_synced = 0
+    while after_id < max_id:
+        try:
+            batch = _collect_jobs(db_connection, since=since, until=until, after_id=after_id, batch_size=batch_size)
+        except Exception as e:
+            logger.error(f"Error collecting jobs batch after id {after_id}: {str(e)}")
+            return total_synced, f"Collecting jobs failed: {str(e)}"
+
+        if not batch["results"]:
+            break
+
+        failed_jobs = _sync_jobs_atomically(batch["results"])
+        if failed_jobs:
+            return total_synced, f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}"
+
+        batch_count = batch["count"]
+        total_synced += batch_count
+        after_id = max(j["id"] for j in batch["results"])
+        log_task_execution(
+            task_name=task_name,
+            operation="processing",
+            details=f"Synced batch of {batch_count} jobs (total so far: {total_synced}, cursor id: {after_id})",
+        )
+    return total_synced, None
+
+
 def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     """
     Core data collection logic for dashboard reports.
@@ -111,20 +175,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         "message": "",
         "data": {"task_type": task_name, "date_range": {"start": None, "end": None}, "job_count": 0},
     }
-    db_name = kwargs.get("database", DEFAULT_DB_NAME)
-    until = _parse_dt(kwargs.get("until"))
-    since = _parse_dt(kwargs.get("since"))
-
-    if until is None:
-        until = datetime.now(tz=UTC)
-    if since is None:
-        since = JobData.last_timestamp()
-        if since is None:
-            dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-            backfill_days = int(dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90))
-            since = until - timedelta(days=backfill_days)
-            since = since.replace(hour=0, minute=0, second=0, microsecond=0)
-            since = since.astimezone(tz=UTC)
+    db_name, since, until, batch_size = _resolve_collection_params(kwargs)
 
     if since >= until:
         msg = f"Invalid date range: since ({since.isoformat()}) must be before until ({until.isoformat()})"
@@ -135,8 +186,6 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
 
     start_str = since.isoformat()
     end_str = until.isoformat()
-    dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-    batch_size = int(dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000))
 
     log_task_execution(
         task_name=task_name, operation="processing", details=f"Collecting dashboard data for: {start_str} to {end_str}"
@@ -156,48 +205,13 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         result["data"] = {"task_type": task_name, "date_range": {"start": start_str, "end": end_str}, "job_count": 0}
         return result
 
-    # Resume from the highest job_id already synced within this window so a
-    # failed/retried run skips records that were committed in earlier attempts.
-    from django.db.models import Max
-    max_synced = JobData.objects.filter(job_id__gte=min_id, job_id__lte=max_id).aggregate(Max("job_id"))["job_id__max"]
-    if max_synced is not None:
-        after_id = max_synced
-        log_task_execution(
-            task_name=task_name,
-            operation="processing",
-            details=f"Resuming backfill from job_id {after_id} (skipping already-synced records)",
-        )
-    else:
-        after_id = min_id - 1
+    after_id = _find_resume_cursor(min_id, max_id, task_name)
+    total_synced, error_msg = _process_batches(db_connection, since, until, max_id, after_id, batch_size, task_name)
 
-    total_synced = 0
-
-    while after_id < max_id:
-        try:
-            batch = _collect_jobs(db_connection, since=since, until=until, after_id=after_id, batch_size=batch_size)
-        except Exception as e:
-            logger.error(f"Error collecting jobs batch after id {after_id}: {str(e)}")
-            result["error"] = True
-            result["message"] = f"Collecting jobs failed: {str(e)}"
-            return result
-
-        if not batch["results"]:
-            break
-
-        failed_jobs = _sync_jobs_atomically(batch["results"])
-        if failed_jobs:
-            result["error"] = True
-            result["message"] = f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}"
-            return result
-
-        batch_count = batch["count"]
-        total_synced += batch_count
-        after_id = max(j["id"] for j in batch["results"])
-        log_task_execution(
-            task_name=task_name,
-            operation="processing",
-            details=f"Synced batch of {batch_count} jobs (total so far: {total_synced}, cursor id: {after_id})",
-        )
+    if error_msg:
+        result["error"] = True
+        result["message"] = error_msg
+        return result
 
     log_task_execution(
         task_name=task_name,
@@ -274,28 +288,30 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     for row in raw_jobs:
         label_ids_raw = row.get("label_ids")
         labels = [int(x) for x in label_ids_raw.split(",") if x] if label_ids_raw else []
-        assembled.append({
-            "id": row["id"],
-            "name": row["name"],
-            "unified_job_template_id": row.get("unified_job_template_id"),
-            "organization_id": row.get("organization_id"),
-            "organization_name": row.get("organization_name"),
-            "started": _parse_dt(row.get("started")),
-            "finished": _parse_dt(row.get("finished")),
-            "status": row["status"],
-            "elapsed": row["elapsed"],
-            "launched_by_id": row.get("launched_by_id"),
-            "launched_by_username": row.get("launched_by_username"),
-            "project_id": row.get("project_id"),
-            "project_name": row.get("project_name"),
-            "created": _parse_dt(row.get("created")),
-            "modified": _parse_dt(row.get("modified")),
-            "labels": labels,
-            # host_summaries=None signals create_or_update_from_awx to leave
-            # existing JobHostSummary records intact (created by initial backfill).
-            "host_summaries": None,
-            "num_hosts": row.get("num_hosts", 0),
-        })
+        assembled.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "unified_job_template_id": row.get("unified_job_template_id"),
+                "organization_id": row.get("organization_id"),
+                "organization_name": row.get("organization_name"),
+                "started": _parse_dt(row.get("started")),
+                "finished": _parse_dt(row.get("finished")),
+                "status": row["status"],
+                "elapsed": row["elapsed"],
+                "launched_by_id": row.get("launched_by_id"),
+                "launched_by_username": row.get("launched_by_username"),
+                "project_id": row.get("project_id"),
+                "project_name": row.get("project_name"),
+                "created": _parse_dt(row.get("created")),
+                "modified": _parse_dt(row.get("modified")),
+                "labels": labels,
+                # host_summaries=None signals create_or_update_from_awx to leave
+                # existing JobHostSummary records intact (created by initial backfill).
+                "host_summaries": None,
+                "num_hosts": row.get("num_hosts", 0),
+            }
+        )
 
     failed_jobs = _sync_jobs_atomically(assembled)
 
@@ -307,7 +323,9 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
         operation="completed",
         details=f"Synced {len(assembled)} job records for {hour_timestamp}",
     )
-    return create_task_result("success", data={"task_type": task_name, "job_count": len(assembled), "hour_timestamp": hour_timestamp})
+    return create_task_result(
+        "success", data={"task_type": task_name, "job_count": len(assembled), "hour_timestamp": hour_timestamp}
+    )
 
 
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:

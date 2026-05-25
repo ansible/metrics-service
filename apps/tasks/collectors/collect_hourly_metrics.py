@@ -147,9 +147,23 @@ def _build_dashboard_sync_hook(hour_timestamp):
         # unified_jobs_dashboard guarantees these columns; guard with available
         # in case a future schema change temporarily drops one.
         dashboard_columns = [
-            "id", "name", "unified_job_template_id", "organization_id", "organization_name",
-            "started", "finished", "status", "elapsed", "launched_by_id", "launched_by_username",
-            "project_id", "project_name", "created", "modified", "label_ids", "num_hosts",
+            "id",
+            "name",
+            "unified_job_template_id",
+            "organization_id",
+            "organization_name",
+            "started",
+            "finished",
+            "status",
+            "elapsed",
+            "launched_by_id",
+            "launched_by_username",
+            "project_id",
+            "project_name",
+            "created",
+            "modified",
+            "label_ids",
+            "num_hosts",
         ]
         available = [c for c in dashboard_columns if c in filtered.columns]
         records = filtered[available].where(filtered[available].notna(), other=None).to_dict("records")
