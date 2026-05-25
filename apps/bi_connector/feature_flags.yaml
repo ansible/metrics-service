@@ -6,7 +6,8 @@
   support_level: TECHNOLOGY_PREVIEW
   description: >-
     Enable the BI connector REST API endpoints for Tableau, Power BI, Grafana, and
-    other BI tools. When enabled, exposes /api/v1/metrics/ and /api/v1/controller/
+    other BI tools. When enabled, exposes /api/v1/bi/metrics/, /api/v1/bi/controller/,
+    /api/v1/bi/stored/, and (when DASHBOARD_COLLECTION is also on) /api/v1/bi/dashboard/
     endpoints with token-based authentication. Requires running
     'manage.py drf_create_token <username>' to generate a service account token.
   support_url: ''

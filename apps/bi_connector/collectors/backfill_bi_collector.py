@@ -10,11 +10,15 @@ new billing storage models. Use collect_bi_billing_data for billing collectors.
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 from django.utils.timezone import now
 
 from apps.tasks.utils import parse_datetime_string
+
+if TYPE_CHECKING:
+    from apps.bi_connector.models import CollectionBatch
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +32,19 @@ SNAPSHOT_COLLECTORS = frozenset(
     }
 )
 
+# All collector types accepted by backfill_bi_collector.
+ALLOWED_BACKFILL_COLLECTOR_TYPES = SNAPSHOT_COLLECTORS | frozenset(
+    {
+        "job_host_summary_service",
+        "unified_jobs",
+        "credentials_service",
+        "main_jobevent_service",
+        "task_executions_service",
+    }
+)
 
-def _load_batch(batch_id: int | None):
+
+def _load_batch(batch_id: int | None) -> "CollectionBatch | None":
     """Load a CollectionBatch by PK, mark it running, and return it (or None)."""
     if batch_id is None:
         return None
@@ -42,7 +57,7 @@ def _load_batch(batch_id: int | None):
     return batch
 
 
-def _resume_cursor(batch, since):
+def _resume_cursor(batch: "CollectionBatch | None", since: datetime) -> datetime:
     """Return the datetime to resume from, honoring batch.cursor if set."""
     if batch and batch.cursor and "last_committed" in batch.cursor:
         resumed = parse_datetime_string(batch.cursor["last_committed"])
@@ -50,7 +65,7 @@ def _resume_cursor(batch, since):
     return since
 
 
-def _collect_one_window(is_snapshot: bool, collector_type: str, current) -> None:
+def _collect_one_window(is_snapshot: bool, collector_type: str, current: datetime) -> None:
     """Dispatch a single collection window to the appropriate collector."""
     from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
     from apps.tasks.collectors.collect_snapshot_metrics import collect_snapshot_metrics
@@ -67,7 +82,9 @@ def _collect_one_window(is_snapshot: bool, collector_type: str, current) -> None
         )
 
 
-def _run_collection_loop(collector_type: str, since, until, batch) -> int:
+def _run_collection_loop(
+    collector_type: str, since: datetime, until: datetime, batch: "CollectionBatch | None"
+) -> int:
     """
     Iterate over all time windows between *since* and *until*, calling the
     appropriate collector for each, and committing batch progress after each window.
@@ -113,6 +130,11 @@ def backfill_bi_collector(task_data: dict | None = None, **kwargs) -> dict:
 
     if not collector_type:
         raise ValueError("collector_type is required in task_data")
+    if collector_type not in ALLOWED_BACKFILL_COLLECTOR_TYPES:
+        raise ValueError(
+            f"Unknown collector_type: {collector_type!r}. "
+            f"Valid types: {sorted(ALLOWED_BACKFILL_COLLECTOR_TYPES)}"
+        )
     if not since_str or not until_str:
         raise ValueError("since and until are required in task_data")
 
@@ -122,6 +144,8 @@ def backfill_bi_collector(task_data: dict | None = None, **kwargs) -> dict:
         raise ValueError(f"Invalid since datetime: {since_str!r}")
     if until is None:
         raise ValueError(f"Invalid until datetime: {until_str!r}")
+    if since >= until:
+        raise ValueError(f"'since' must be before 'until', got since={since!r}, until={until!r}")
 
     batch = _load_batch(batch_id)
 

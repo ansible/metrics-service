@@ -18,7 +18,12 @@ logger = logging.getLogger(__name__)
 
 def cleanup_bi_collection_batches(task_data: dict | None = None, **kwargs) -> dict:
     """Delete CollectionBatch records older than retention_days (default 90)."""
-    retention_days = (task_data or {}).get("retention_days", 90)
+    _default_retention = 90
+    try:
+        retention_days = int((task_data or {}).get("retention_days", _default_retention))
+    except (TypeError, ValueError):
+        logger.warning("Invalid retention_days value; falling back to %d", _default_retention)
+        retention_days = _default_retention
     cutoff = now() - timedelta(days=retention_days)
     from apps.bi_connector.models import CollectionBatch
 
@@ -32,7 +37,12 @@ def cleanup_bi_stored_host_metrics(task_data: dict | None = None, **kwargs) -> d
     Delete StoredHostMetric rows that are both deleted=True in AWX AND have not
     been automated in the past stale_days (default 365). Active hosts are never removed.
     """
-    stale_days = (task_data or {}).get("stale_days", 365)
+    _default_stale = 365
+    try:
+        stale_days = int((task_data or {}).get("stale_days", _default_stale))
+    except (TypeError, ValueError):
+        logger.warning("Invalid stale_days value; falling back to %d", _default_stale)
+        stale_days = _default_stale
     cutoff = now() - timedelta(days=stale_days)
     from apps.bi_connector.models import StoredHostMetric
 

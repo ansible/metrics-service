@@ -11,8 +11,10 @@ A CollectionBatch tracks progress so backfills resume after failure.
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 import pandas as pd
+from django.db import models
 from django.utils.timezone import now
 
 from apps.tasks.utils import get_db_connection, parse_datetime_string
@@ -27,7 +29,12 @@ FLUSH_EVERY = 500_000
 # ---------------------------------------------------------------------------
 
 
-def _flush(records: list, model_class, unique_fields: list[str], update_fields: list[str]) -> int:
+def _flush(
+    records: list,
+    model_class: type[models.Model],
+    unique_fields: list[str],
+    update_fields: list[str],
+) -> int:
     """
     Bulk-upsert *records* into *model_class* using update_conflicts=True.
 
@@ -51,7 +58,7 @@ def _flush(records: list, model_class, unique_fields: list[str], update_fields: 
 # ---------------------------------------------------------------------------
 
 
-def _safe_dt(value):
+def _safe_dt(value: Any) -> datetime | None:
     """
     Coerce a pandas value to a timezone-aware datetime, or None.
 
@@ -77,12 +84,21 @@ def _safe_dt(value):
     return None
 
 
-def _df_row_to_host_metric(row: "pd.Series", batch) -> "StoredHostMetric":  # noqa: F821
-    """Convert a pandas Series from a host-metric DataFrame to a StoredHostMetric instance."""
+def _df_row_to_host_metric(row: "pd.Series", batch) -> "StoredHostMetric | None":  # noqa: F821
+    """Convert a pandas Series from a host-metric DataFrame to a StoredHostMetric instance.
+
+    Returns None and logs a warning when hostname is missing (empty hostname would
+    collapse all bad rows onto the same unique key).
+    """
     from apps.bi_connector.models import StoredHostMetric
 
+    hostname = row.get("hostname") or row.get("name") or None
+    if not hostname:
+        logger.warning("Skipping host metric row with missing hostname; row keys: %s", list(row.index))
+        return None
+
     return StoredHostMetric(
-        hostname=row.get("hostname") or row.get("name") or "",
+        hostname=hostname,
         host_id=row.get("id"),
         first_automation=_safe_dt(row.get("first_automation")),
         last_automation=_safe_dt(row.get("last_automation")),
@@ -126,7 +142,9 @@ def _collect_host_metric_snapshot(conn, since, until, batch) -> int:
             continue
 
         for _, row in df.iterrows():
-            pending.append(_df_row_to_host_metric(row, batch))
+            record = _df_row_to_host_metric(row, batch)
+            if record is not None:
+                pending.append(record)
 
         if len(pending) >= FLUSH_EVERY:
             flushed = _flush(
@@ -200,7 +218,7 @@ def _collect_host_metric_daily(conn, since, until, batch) -> int:
     if df is None or df.empty:
         return 0
 
-    pending = [_df_row_to_host_metric(row, batch) for _, row in df.iterrows()]
+    pending = [r for _, row in df.iterrows() if (r := _df_row_to_host_metric(row, batch)) is not None]
     total_flushed = 0
     while pending:
         chunk, pending = pending[:FLUSH_EVERY], pending[FLUSH_EVERY:]
@@ -371,8 +389,18 @@ def collect_bi_billing_data(task_data: dict | None = None, **kwargs) -> dict:
         valid = ", ".join(sorted(_COLLECTOR_REGISTRY))
         raise ValueError(f"Unknown collector_type: {collector_type!r}. Valid types: {valid}")
 
-    since = parse_datetime_string(since_str) if since_str else None
-    until = parse_datetime_string(until_str) if until_str else None
+    if since_str:
+        since = parse_datetime_string(since_str)
+        if since is None:
+            raise ValueError(f"Invalid 'since' datetime string: {since_str!r}")
+    else:
+        since = None
+    if until_str:
+        until = parse_datetime_string(until_str)
+        if until is None:
+            raise ValueError(f"Invalid 'until' datetime string: {until_str!r}")
+    else:
+        until = None
 
     # Load and initialise CollectionBatch if provided
     batch = None

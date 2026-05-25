@@ -203,13 +203,13 @@ BEGIN
      used_in_inventories
  ) VALUES
  ('default_host_hostmetric_1'|| '_' || random_suffix, '2025-06-01T08:00:00+00', '2025-06-10T14:30:00+00', NULL, 12, 0, false, 3),
- ('default_host_hostmetric_2'|| '_' || random_suffix, '2025-06-28T09:15:00+00', '2025-06-12T16:00:00+00', '2025-06-20T10:00:00+00', 5, 1, true, 1),
+ ('default_host_hostmetric_2'|| '_' || random_suffix, '2025-06-01T09:15:00+00', '2025-06-12T16:00:00+00', '2025-06-20T10:00:00+00', 5, 1, true, 1),
  ('default_host_hostmetric_3'|| '_' || random_suffix, '2025-06-03T12:00:00+00', '2025-06-11T13:45:00+00', NULL, 7, 0, false, 2),
  ('default_host_hostmetric_4'|| '_' || random_suffix, '2025-06-02T07:30:00+00', '2025-06-09T15:30:00+00', NULL, 10, 0, false, 5),
- ('default_host_hostmetric_5'|| '_' || random_suffix, '2025-06-30T10:00:00+00', '2025-06-08T11:00:00+00', '2025-06-15T12:00:00+00', 3, 2, true, 0),
+ ('default_host_hostmetric_5'|| '_' || random_suffix, '2025-06-05T10:00:00+00', '2025-06-08T11:00:00+00', '2025-06-15T12:00:00+00', 3, 2, true, 0),
  ('default_host_hostmetric_6'|| '_' || random_suffix, '2025-06-01T06:45:00+00', '2025-06-06T13:15:00+00', NULL, 6, 1, true, 1),
  ('default_host_hostmetric_7'|| '_' || random_suffix, '2025-06-04T10:30:00+00', '2025-06-10T12:30:00+00', NULL, 8, 0, false, 4),
- ('default_host_hostmetric_8'|| '_' || random_suffix, '2025-06-29T09:45:00+00', '2025-06-07T14:00:00+00', '2025-06-13T09:30:00+00', 4, 1, true, 2),
+ ('default_host_hostmetric_8'|| '_' || random_suffix, '2025-06-04T09:45:00+00', '2025-06-07T14:00:00+00', '2025-06-13T09:30:00+00', 4, 1, true, 2),
  ('default_host_hostmetric_9'|| '_' || random_suffix, '2025-06-05T08:30:00+00', '2025-06-10T16:00:00+00', NULL, 9, 0, false, 3);
 END
 $$;

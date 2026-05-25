@@ -183,7 +183,13 @@ class AdminCollectionBatchViewSet(ListModelMixin, RetrieveModelMixin, CreateMode
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        batch_type = request.data.get("batch_type", "on_demand")
+        _allowed_batch_types = {"scheduled", "backfill"}
+        batch_type = request.data.get("batch_type", "backfill")
+        if batch_type not in _allowed_batch_types:
+            return Response(
+                {"detail": f"Invalid batch_type '{batch_type}'. Allowed: {sorted(_allowed_batch_types)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         batch = CollectionBatch.objects.create(
             collector_type=collector_type,

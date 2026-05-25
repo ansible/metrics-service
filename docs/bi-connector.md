@@ -137,13 +137,13 @@ These query the AWX database directly. Because a 7-day collection can take tens 
   "task_id": 42,
   "status": "pending",
   "collector_type": "unified_jobs",
-  "results_url": "/api/v1/tasks/42/"
+  "results_url": "/api/v1/bi/tasks/42/"
 }
 ```
 
 **Deduplication:** if an identical collection (same endpoint + same `since`/`until`) is already running, the existing `task_id` is returned — no duplicate AWX query is started.
 
-**Polling:** `GET /api/v1/tasks/<task_id>/` returns the task status and, once complete, the result data:
+**Polling:** `GET /api/v1/bi/tasks/<task_id>/` returns the task status and, once complete, the result data:
 
 ```json
 {
@@ -241,7 +241,7 @@ TASK_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdi
 
 # Step 2 — poll until complete
 curl -H "Authorization: Token $TOKEN" \
-  "http://localhost:8000/api/v1/tasks/$TASK_ID/"
+  "http://localhost:8000/api/v1/bi/tasks/$TASK_ID/"
 # Repeat until "status": "completed", then read result_data.data
 
 # Snapshot (synchronous, no polling needed)
@@ -357,7 +357,7 @@ For enterprise BI tools (Tableau, Power BI) that require a native connector:
 2. **Layer 1 & 3** — Call with date range filters, handle the paginated `results` array; declare flat column schemas
 3. **Layer 2 (async)** — Implement a request/poll loop:
    - `GET /api/v1/bi/controller/<type>/?since=...&until=...` → capture `task_id`
-   - Poll `GET /api/v1/tasks/<task_id>/` until `status == "completed"`
+   - Poll `GET /api/v1/bi/tasks/<task_id>/` until `status == "completed"`
    - Read rows from `result_data.data`
 4. **Schema** — Map flat fields from Layer 1/3 and `result_data.data` from Layer 2 to typed columns
 
