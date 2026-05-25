@@ -494,7 +494,10 @@ TASK_METADATA = {
                 "required": True,
                 "description": "Billing collector type (main_host, main_host_daily, job_host_summary, main_indirectmanagednodeaudit)",
             },
-            "since": {"type": "string", "description": "Start of range (ISO 8601) — required for time-series collectors"},
+            "since": {
+                "type": "string",
+                "description": "Start of range (ISO 8601) — required for time-series collectors",
+            },
             "until": {"type": "string", "description": "End of range (ISO 8601)"},
             "batch_id": {"type": "integer", "description": "CollectionBatch PK for progress tracking (optional)"},
         },
