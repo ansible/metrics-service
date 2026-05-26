@@ -702,9 +702,7 @@ class TestProcessBatches:
         batch1 = {"results": [{"id": 101}, {"id": 105}], "count": 2}
         empty = {"results": [], "count": 0}
 
-        _, mock_collect, _ = self._call(
-            after_id=99, max_id=200, collect_side_effect=[batch1, empty], sync_return=[]
-        )
+        _, mock_collect, _ = self._call(after_id=99, max_id=200, collect_side_effect=[batch1, empty], sync_return=[])
 
         assert mock_collect.call_count == 2
         second_call_kwargs = mock_collect.call_args_list[1][1]
