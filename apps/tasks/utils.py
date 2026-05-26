@@ -420,8 +420,8 @@ def generic_collect_metrics(
         if post_collect_hook is not None:
             try:
                 post_collect_hook(raw_data)
-            except Exception as hook_exc:
-                logger.error(f"post_collect_hook failed for {collector_type}: {hook_exc}")
+            except Exception:
+                logger.exception(f"post_collect_hook failed for {collector_type}")
                 raise
 
         # Process rollup if processor provided, otherwise use raw data

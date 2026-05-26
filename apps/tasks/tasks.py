@@ -87,6 +87,8 @@ def get_queue_for_function(function_name: str) -> str:
     return (metadata and metadata.get("queue", None)) or "maintenance"
 
 
+_DASHBOARD_REPORTS_CATEGORY = "Dashboard Reports"
+
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
     # Testing
@@ -344,7 +346,7 @@ TASK_METADATA = {
     },
     "collect_dashboard_reports_data": {
         "queue": "dashboard",
-        "category": "Dashboard Reports",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
         "description": "Collect data for automation-reports dashboard (job templates, top projects/users) with configurable date range",
         "parameters": {
             "since": {
@@ -369,7 +371,7 @@ TASK_METADATA = {
     },
     "collect_dashboard_reports_initial_data": {
         "queue": "dashboard",
-        "category": "Dashboard Reports",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
         "description": "Collect up to 90 days of historical AWX job data and schedule the recurring incremental task",
         "parameters": {
             "since": {
@@ -393,7 +395,7 @@ TASK_METADATA = {
     },
     "sync_dashboard_job_records": {
         "queue": "dashboard",
-        "category": "Dashboard Reports",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
         "description": "Write unified_jobs data collected during the hourly rollup to the dashboard JobData table",
         "parameters": {
             "hour_timestamp": {

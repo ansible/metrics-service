@@ -121,6 +121,37 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     )
 
 
+_DASHBOARD_COLUMNS = [
+    "id",
+    "name",
+    "unified_job_template_id",
+    "organization_id",
+    "organization_name",
+    "started",
+    "finished",
+    "status",
+    "elapsed",
+    "launched_by_id",
+    "launched_by_username",
+    "project_id",
+    "project_name",
+    "created",
+    "modified",
+    "label_ids",
+    "num_hosts",
+]
+
+
+def _serialize_dashboard_record(row: dict) -> None:
+    """Coerce datetime fields to ISO strings and num_hosts to int in-place."""
+    for field in ("started", "finished", "created", "modified"):
+        val = row.get(field)
+        if val is not None and hasattr(val, "isoformat"):
+            row[field] = val.isoformat()
+    if row.get("num_hosts") is not None:
+        row["num_hosts"] = int(row["num_hosts"])
+
+
 def _build_dashboard_sync_hook(hour_timestamp):
     """
     Return a post_collect_hook that schedules a sync_dashboard_job_records task.
@@ -145,35 +176,10 @@ def _build_dashboard_sync_hook(hour_timestamp):
 
         # unified_jobs_dashboard guarantees these columns; guard with available
         # in case a future schema change temporarily drops one.
-        dashboard_columns = [
-            "id",
-            "name",
-            "unified_job_template_id",
-            "organization_id",
-            "organization_name",
-            "started",
-            "finished",
-            "status",
-            "elapsed",
-            "launched_by_id",
-            "launched_by_username",
-            "project_id",
-            "project_name",
-            "created",
-            "modified",
-            "label_ids",
-            "num_hosts",
-        ]
-        available = [c for c in dashboard_columns if c in filtered.columns]
+        available = [c for c in _DASHBOARD_COLUMNS if c in filtered.columns]
         records = filtered[available].where(filtered[available].notna(), other=None).to_dict("records")
-
         for row in records:
-            for field in ("started", "finished", "created", "modified"):
-                val = row.get(field)
-                if val is not None and hasattr(val, "isoformat"):
-                    row[field] = val.isoformat()
-            if row.get("num_hosts") is not None:
-                row["num_hosts"] = int(row["num_hosts"])
+            _serialize_dashboard_record(row)
 
         from apps.tasks.models import Task
 

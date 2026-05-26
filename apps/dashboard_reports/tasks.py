@@ -128,7 +128,7 @@ def _process_batches(
         try:
             batch = _collect_jobs(db_connection, since=since, until=until, after_id=after_id, batch_size=batch_size)
         except Exception as e:
-            logger.error(f"Error collecting jobs batch after id {after_id}: {str(e)}")
+            logger.exception(f"Error collecting jobs batch after id {after_id}")
             return total_synced, f"Collecting jobs failed: {str(e)}"
 
         if not batch["results"]:
@@ -183,7 +183,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         db_connection = get_db_connection(db_name)
         min_id, max_id = _get_job_id_range(db_connection, since, until)
     except Exception as e:
-        logger.error(f"Error connecting to database: {str(e)}")
+        logger.exception("Error connecting to database")
         result["error"] = True
         result["message"] = f"Database connection failed: {str(e)}"
         return result
