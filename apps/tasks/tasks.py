@@ -412,18 +412,18 @@ TASK_METADATA = {
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
-        "description": "Delete dashboard report JobData records older than the retention period",
+        "description": "Delete dashboard report JobData records older than the retention period (defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS)",
         "parameters": {
             "retention_period_days": {
                 "type": "integer",
-                "default": 90,
-                "description": "Number of days to retain dashboard report data",
+                "default": None,
+                "description": "Number of days to retain dashboard report data. Defaults to DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS (or 90 if unset).",
                 "min": 0,
                 "max": 365,
             },
         },
         "examples": [
-            {"name": "Default retention (90 days)", "data": {}},
+            {"name": "Default (matches INITIAL_BACKFILL_DAYS)", "data": {}},
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },

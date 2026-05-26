@@ -320,11 +320,15 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
 
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     """
-    Delete JobData records with a finished date older than retention_period_days (default: 90).
+    Delete JobData records with a finished date older than retention_period_days.
 
+    Defaults to settings.DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS'] so the
+    retention window always matches the backfill window, falling back to 90 days.
     Returns a task result dict with the number of deleted records, cutoff date, and any error details.
     """
-    retention_period_days = kwargs.get("retention_period_days", 90)
+    dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
+    default_retention = int(dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90))
+    retention_period_days = kwargs.get("retention_period_days", default_retention)
     try:
         retention_period_days = int(retention_period_days)
     except (TypeError, ValueError):

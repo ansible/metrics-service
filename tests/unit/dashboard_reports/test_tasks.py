@@ -393,7 +393,6 @@ class TestCollectDataConnectionHandling:
 
 # --- Cleanup tests ---
 @pytest.mark.unit
-@pytest.mark.django_db
 class TestCleanupDashboardReportsOldData:
     @pytest.fixture
     def mock_jobdata_objects(self):
@@ -436,6 +435,30 @@ class TestCleanupDashboardReportsOldData:
         assert args[0] == "error"
         assert "Cleanup failed" in kwargs["error"]
 
+    def test_cleanup_defaults_to_initial_backfill_days_setting(
+        self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """When retention_period_days is omitted, INITIAL_BACKFILL_DAYS from settings is used."""
+        from django.test import override_settings
+
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
+        with override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": 60}):
+            cleanup_dashboard_reports_old_data()
+        _, kwargs = mock_create_task_result_cleanup.call_args
+        assert kwargs["data"]["retention_period_days"] == 60
+
+    def test_cleanup_defaults_to_90_when_no_setting(
+        self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """Falls back to 90 when DASHBOARD_COLLECTION is not configured."""
+        from django.test import override_settings
+
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
+        with override_settings(DASHBOARD_COLLECTION=None):
+            cleanup_dashboard_reports_old_data()
+        _, kwargs = mock_create_task_result_cleanup.call_args
+        assert kwargs["data"]["retention_period_days"] == 90
+
     def test_cleanup_custom_retention(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
@@ -469,6 +492,7 @@ class TestCleanupDashboardReportsOldData:
         assert args[0] == "success"
         assert kwargs["data"]["retention_period_days"] == 0
 
+    @pytest.mark.django_db
     def test_cleanup_with_db_data(self, db):
         """Test cleanup_dashboard_reports_old_data with real JobData records in the database."""
         cutoff = datetime.now().astimezone(pytz.utc) - timedelta(days=90)
