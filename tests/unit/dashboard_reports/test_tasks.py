@@ -247,12 +247,11 @@ class TestCollectDashboardReportsInitialData:
         with (
             patch("apps.dashboard_reports.tasks._collect_data") as mock_collect,
             patch("apps.dashboard_reports.tasks.create_task_result"),
+            patch("apps.tasks.models.Task") as mock_task,
         ):
             mock_collect.return_value = {"error": False, "data": {}}
-            # If Task were imported it would be accessible; verify no Task ORM calls happen
             collect_dashboard_reports_initial_data()
-            # No assertion needed — test passes if the above doesn't raise AttributeError
-            # (Task is no longer imported in tasks.py)
+            mock_task.objects.get_or_create.assert_not_called()
 
 
 @pytest.mark.unit
@@ -697,3 +696,16 @@ class TestProcessBatches:
         )
         assert err is None
         assert total == 3
+
+    def test_cursor_advances_to_max_id_of_previous_batch(self):
+        """The second _collect_jobs call receives after_id = max(ids) from the first batch."""
+        batch1 = {"results": [{"id": 101}, {"id": 105}], "count": 2}
+        empty = {"results": [], "count": 0}
+
+        _, mock_collect, _ = self._call(
+            after_id=99, max_id=200, collect_side_effect=[batch1, empty], sync_return=[]
+        )
+
+        assert mock_collect.call_count == 2
+        second_call_kwargs = mock_collect.call_args_list[1][1]
+        assert second_call_kwargs["after_id"] == 105  # max id from batch1, not batch1["count"]

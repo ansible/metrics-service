@@ -49,7 +49,7 @@ def _parse_dt(value: Any) -> datetime | None:
 
 
 def _collect_jobs(
-    db_connection, since: datetime, until: datetime, after_id: int = None, batch_size: int = None
+    db_connection, since: datetime, until: datetime, after_id: int | None = None, batch_size: int | None = None
 ) -> DashboardJobsResultType:
     """
     Collect dashboard jobs data from the database for the specified date range.
@@ -64,6 +64,8 @@ def _collect_jobs(
 
 def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
     """Return (min_id, max_id) for jobs matching the backfill filter, or (None, None) if empty."""
+    # Lazy import: keeps metrics_utility optional at module level so unrelated tasks
+    # (hello_world, cleanup_old_tasks) can be registered without the dependency installed.
     from metrics_utility.library.collectors.dashboard import get_min_max_job_id_query
 
     query, params = get_min_max_job_id_query(since, until)

@@ -130,6 +130,31 @@ class TestBuildDashboardSyncHook:
         assert task_data["raw_jobs"][0]["num_hosts"] == 7
         assert isinstance(task_data["raw_jobs"][0]["num_hosts"], int)
 
+    def test_hook_chunks_large_batches(self):
+        """Records exceeding _SYNC_TASK_CHUNK_SIZE are split across multiple tasks."""
+        from apps.tasks.collectors.collect_hourly_metrics import _SYNC_TASK_CHUNK_SIZE
+
+        # Build a DataFrame with chunk_size + 1 terminal jobs to force two chunks.
+        rows = [{"id": i, "status": "successful", "launch_type": "manual"} for i in range(_SYNC_TASK_CHUNK_SIZE + 1)]
+        df = _make_df(rows)
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.get_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        assert mock_task.objects.get_or_create.call_count == 2
+
+        first_call = mock_task.objects.get_or_create.call_args_list[0]
+        second_call = mock_task.objects.get_or_create.call_args_list[1]
+
+        # Names must carry chunk index so get_or_create is idempotent on retry.
+        assert first_call[1]["name"].endswith("_0")
+        assert second_call[1]["name"].endswith("_1")
+
+        # First chunk is full, second has the remainder.
+        assert len(first_call[1]["defaults"]["task_data"]["raw_jobs"]) == _SYNC_TASK_CHUNK_SIZE
+        assert len(second_call[1]["defaults"]["task_data"]["raw_jobs"]) == 1
+
 
 @pytest.mark.unit
 class TestSerializeDashboardRecord:
@@ -193,13 +218,10 @@ class TestGenericCollectMetricsHook:
 
     @patch("apps.tasks.models.HourlyMetricsCollection")
     @patch("apps.tasks.utils.log_task_execution")
-    def test_hook_exception_causes_error_result(self, mock_log, mock_hmc):
-        """A hook that raises causes the collection to return an error result (not swallow silently)."""
+    def test_hook_exception_does_not_abort_collection(self, mock_log, mock_hmc):
+        """A failing hook is logged and swallowed — the rollup pipeline still returns success."""
         from apps.tasks.utils import generic_collect_metrics
 
-        # The re-raised exception is caught by generic_collect_metrics' outer handler,
-        # so the function returns error rather than propagating. The outer handler also
-        # attempts to write a failed-collection record — suppress any mock side effects.
         mock_hmc.objects.update_or_create.return_value = (MagicMock(), True)
         registry = self._make_registry()
 
@@ -214,7 +236,9 @@ class TestGenericCollectMetricsHook:
             db_connection=MagicMock(),
             post_collect_hook=bad_hook,
         )
-        assert result.get("status") == "error"
+        # Hook failure must not propagate to the caller — dashboard sync is secondary to
+        # the anonymisation rollup pipeline that follows in the same collection task.
+        assert result.get("status") == "success"
 
     @patch("apps.tasks.models.HourlyMetricsCollection")
     @patch("apps.tasks.utils.log_task_execution")

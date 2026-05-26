@@ -372,7 +372,7 @@ TASK_METADATA = {
     "collect_dashboard_reports_initial_data": {
         "queue": "dashboard",
         "category": _DASHBOARD_REPORTS_CATEGORY,
-        "description": "Collect up to 90 days of historical AWX job data and schedule the recurring incremental task",
+        "description": "One-time backfill of historical AWX job data (window controlled by DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS'], default 90 days). Ongoing incremental sync is driven automatically by the hourly_unified_jobs hook after this completes.",
         "parameters": {
             "since": {
                 "type": "string",

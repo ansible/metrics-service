@@ -44,9 +44,13 @@ def _get_hourly_collectors():
             "description": "Job host summary metrics (partition-optimized)",
         },
         "unified_jobs": {
+            # unified_jobs_dashboard extends the base unified_jobs query with dashboard-specific
+            # fields (project_id/name, launched_by, label_ids, num_hosts); the registry key is
+            # kept as "unified_jobs" for backwards-compat with task scheduling and API references.
             "collector_func": unified_jobs_dashboard,
             "rollup_processor": JobsAnonymizedRollup,
             "description": "Unified jobs metrics",
+            "post_collect_hook_factory": _build_dashboard_sync_hook,
         },
         "credentials_service": {
             "collector_func": credentials_service,
@@ -104,14 +108,14 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     # Get database connection
     db_connection = get_db_connection()
 
-    post_collect_hook = None
-    if collector_type == "unified_jobs":
-        post_collect_hook = _build_dashboard_sync_hook(start_datetime)
+    collector_registry = _get_hourly_collectors()
+    hook_factory = collector_registry.get(collector_type, {}).get("post_collect_hook_factory")
+    post_collect_hook = hook_factory(start_datetime) if hook_factory else None
 
     # Use generic collector with hourly-specific time window
     return generic_collect_metrics(
         collector_type=collector_type,
-        collector_registry=_get_hourly_collectors(),
+        collector_registry=collector_registry,
         collection_mode="hourly",
         timestamp=start_datetime,
         db_connection=db_connection,
@@ -120,6 +124,8 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         post_collect_hook=post_collect_hook,
     )
 
+
+_SYNC_TASK_CHUNK_SIZE = 500  # max records per sync_dashboard_job_records task
 
 _DASHBOARD_COLUMNS = [
     "id",
@@ -160,6 +166,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
     follow-up task can write to JobData without re-querying the Controller DB.
     Only schedules the task when the DASHBOARD_COLLECTION feature flag is enabled.
     """
+    # Lazy import: circular dependency (collect_hourly_metrics → task_groups → tasks → collect_hourly_metrics).
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
     if not get_feature_enabled_from_db("DASHBOARD_COLLECTION"):
@@ -181,20 +188,25 @@ def _build_dashboard_sync_hook(hour_timestamp):
         for row in records:
             _serialize_dashboard_record(row)
 
+        # Lazy import inside closure: Task must be resolved at call time so tests can
+        # patch apps.tasks.models.Task after the hook is built (same circular-import reason).
         from apps.tasks.models import Task
 
-        Task.objects.get_or_create(
-            name=f"sync_dashboard_jobs_{hour_timestamp.isoformat()}",
-            defaults={
-                "description": f"Sync dashboard job records from unified_jobs for {hour_timestamp.isoformat()}",
-                "function_name": "sync_dashboard_job_records",
-                "task_data": {
-                    "raw_jobs": records,
-                    "hour_timestamp": hour_timestamp.isoformat(),
-                    "_feature_flag": "DASHBOARD_COLLECTION",
+        hour_ts_str = hour_timestamp.isoformat()
+        for chunk_index, start in enumerate(range(0, len(records), _SYNC_TASK_CHUNK_SIZE)):
+            chunk = records[start : start + _SYNC_TASK_CHUNK_SIZE]
+            Task.objects.get_or_create(
+                name=f"sync_dashboard_jobs_{hour_ts_str}_{chunk_index}",
+                defaults={
+                    "description": f"Sync dashboard job records from unified_jobs for {hour_ts_str} (chunk {chunk_index})",
+                    "function_name": "sync_dashboard_job_records",
+                    "task_data": {
+                        "raw_jobs": chunk,
+                        "hour_timestamp": hour_ts_str,
+                        "_feature_flag": "DASHBOARD_COLLECTION",
+                    },
+                    "is_system_task": False,
                 },
-                "is_system_task": False,
-            },
-        )
+            )
 
     return hook
