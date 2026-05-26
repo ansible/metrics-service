@@ -10,7 +10,10 @@ from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.tasks import (
     _collect_data,
     _collect_jobs,
+    _get_job_id_range,
     _parse_dt,
+    _process_batches,
+    _resolve_collection_params,
     _sync_jobs_atomically,
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
@@ -489,3 +492,182 @@ class TestCleanupDashboardReportsOldData:
         assert old_job2.id not in remaining_ids
         assert new_job1.id in remaining_ids
         assert new_job2.id in remaining_ids
+
+
+# ---------------------------------------------------------------------------
+# _resolve_collection_params
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+class TestResolveCollectionParams:
+    """Tests for _resolve_collection_params — all branches, no DB needed."""
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_explicit_since_until_used_directly(self, mock_jobdata):
+        """When since and until are provided they are used without touching DB."""
+        since = datetime(2024, 1, 1, tzinfo=UTC)
+        until = datetime(2024, 2, 1, tzinfo=UTC)
+        db_name, got_since, got_until, batch_size = _resolve_collection_params(
+            {"since": since.isoformat(), "until": until.isoformat()}
+        )
+        assert got_since == since
+        assert got_until == until
+        assert db_name == "awx"
+        mock_jobdata.last_timestamp.assert_not_called()
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_since_falls_back_to_last_timestamp(self, mock_jobdata):
+        """When since is absent and last_timestamp() has a value, it is used as since."""
+        ts = datetime(2024, 3, 15, tzinfo=UTC)
+        mock_jobdata.last_timestamp.return_value = ts
+        _, got_since, _, _ = _resolve_collection_params({})
+        assert got_since == ts
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_since_computed_from_backfill_days_when_no_timestamp(self, mock_jobdata):
+        """When since is absent and last_timestamp() is None, compute since from INITIAL_BACKFILL_DAYS."""
+        from django.test import override_settings
+
+        mock_jobdata.last_timestamp.return_value = None
+        until = datetime(2024, 6, 1, tzinfo=UTC)
+
+        with override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": 30, "BACKFILL_BATCH_SIZE": 500}):
+            _, got_since, _, batch_size = _resolve_collection_params({"until": until.isoformat()})
+
+        expected_since = (until - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
+        assert got_since == expected_since
+        assert batch_size == 500
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_custom_database_kwarg(self, mock_jobdata):
+        """The 'database' kwarg overrides the DEFAULT_DB_NAME."""
+        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        db_name, *_ = _resolve_collection_params({"database": "custom_db"})
+        assert db_name == "custom_db"
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_default_batch_size_applied(self, mock_jobdata):
+        """BACKFILL_BATCH_SIZE defaults to 10_000 when not set."""
+        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        _, _, _, batch_size = _resolve_collection_params({})
+        assert batch_size == 10_000
+
+
+# ---------------------------------------------------------------------------
+# _get_job_id_range
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+class TestGetJobIdRange:
+    """Tests for _get_job_id_range — mocks both the query builder and DB cursor."""
+
+    def _mock_db(self, fetchone_return):
+        db = MagicMock()
+        cursor_ctx = MagicMock()
+        cursor_ctx.__enter__ = MagicMock(return_value=cursor_ctx)
+        cursor_ctx.__exit__ = MagicMock(return_value=False)
+        cursor_ctx.fetchone.return_value = fetchone_return
+        db.cursor.return_value = cursor_ctx
+        return db
+
+    def test_returns_min_max_when_row_exists(self):
+        """_get_job_id_range returns (min_id, max_id) from the cursor row."""
+        since = datetime(2024, 1, 1, tzinfo=UTC)
+        until = datetime(2024, 2, 1, tzinfo=UTC)
+        db = self._mock_db(fetchone_return=(100, 999))
+
+        with patch("metrics_utility.library.collectors.dashboard.get_min_max_job_id_query", create=True, return_value=("SELECT 1", [])):
+            result = _get_job_id_range(db, since, until)
+
+        assert result == (100, 999)
+
+    def test_returns_none_none_when_no_rows(self):
+        """_get_job_id_range returns (None, None) when cursor returns nothing."""
+        since = datetime(2024, 1, 1, tzinfo=UTC)
+        until = datetime(2024, 2, 1, tzinfo=UTC)
+        db = self._mock_db(fetchone_return=None)
+
+        with patch("metrics_utility.library.collectors.dashboard.get_min_max_job_id_query", create=True, return_value=("SELECT 1", [])):
+            result = _get_job_id_range(db, since, until)
+
+        assert result == (None, None)
+
+
+# ---------------------------------------------------------------------------
+# _process_batches
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+class TestProcessBatches:
+    """Tests for _process_batches — mocks _collect_jobs and _sync_jobs_atomically."""
+
+    _since = datetime(2024, 1, 1, tzinfo=UTC)
+    _until = datetime(2024, 2, 1, tzinfo=UTC)
+
+    def _call(self, after_id, max_id, collect_side_effect=None, sync_return=None):
+        db = MagicMock()
+        with (
+            patch("apps.dashboard_reports.tasks._collect_jobs") as mock_collect,
+            patch("apps.dashboard_reports.tasks._sync_jobs_atomically") as mock_sync,
+            patch("apps.dashboard_reports.tasks.log_task_execution"),
+        ):
+            if collect_side_effect is not None:
+                mock_collect.side_effect = collect_side_effect
+            if sync_return is not None:
+                mock_sync.return_value = sync_return
+            result = _process_batches(db, self._since, self._until, max_id, after_id, 100, "test_task")
+        return result, mock_collect, mock_sync
+
+    def test_never_loops_when_cursor_at_max(self):
+        """No collection happens when after_id >= max_id."""
+        (total, err), mock_collect, _ = self._call(after_id=500, max_id=500)
+        assert total == 0
+        assert err is None
+        mock_collect.assert_not_called()
+
+    def test_single_successful_batch(self):
+        """A single batch with results commits and returns (count, None)."""
+        batch = {"results": [{"id": 101}, {"id": 102}], "count": 2}
+        collect_side_effects = [batch, {"results": [], "count": 0}]
+
+        (total, err), _, _ = self._call(
+            after_id=99, max_id=200, collect_side_effect=collect_side_effects, sync_return=[]
+        )
+        assert err is None
+        assert total == 2
+
+    def test_empty_batch_breaks_loop(self):
+        """An empty results list causes the loop to break without error."""
+        batch = {"results": [], "count": 0}
+        (total, err), mock_collect, _ = self._call(
+            after_id=99, max_id=200, collect_side_effect=[batch]
+        )
+        assert err is None
+        assert total == 0
+        mock_collect.assert_called_once()
+
+    def test_collect_exception_returns_error(self):
+        """An exception from _collect_jobs returns an error tuple."""
+        (total, err), _, _ = self._call(
+            after_id=99, max_id=200, collect_side_effect=Exception("timeout")
+        )
+        assert err is not None
+        assert "Collecting jobs failed" in err
+
+    def test_failed_sync_returns_error(self):
+        """Failed jobs from _sync_jobs_atomically returns an error tuple."""
+        batch = {"results": [{"id": 101}], "count": 1}
+        (total, err), _, _ = self._call(
+            after_id=99, max_id=200, collect_side_effect=[batch], sync_return=[101]
+        )
+        assert err is not None
+        assert "Failed to sync" in err
+
+    def test_multi_batch_accumulates_count(self):
+        """Two successful batches accumulate total_synced correctly."""
+        batch1 = {"results": [{"id": 101}, {"id": 102}], "count": 2}
+        batch2 = {"results": [{"id": 103}], "count": 1}
+        empty = {"results": [], "count": 0}
+
+        (total, err), _, _ = self._call(
+            after_id=99, max_id=200, collect_side_effect=[batch1, batch2, empty], sync_return=[]
+        )
+        assert err is None
+        assert total == 3
