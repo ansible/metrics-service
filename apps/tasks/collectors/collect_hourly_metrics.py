@@ -148,14 +148,28 @@ _DASHBOARD_COLUMNS = [
 ]
 
 
+_INT_FIELDS = ("id", "organization_id", "unified_job_template_id", "launched_by_id", "project_id", "num_hosts")
+
+
 def _serialize_dashboard_record(row: dict) -> None:
-    """Coerce datetime fields to ISO strings and num_hosts to int in-place."""
+    """Coerce all non-serializable numpy/pandas types to Python natives in-place.
+
+    pandas .to_dict("records") preserves numpy dtypes (numpy.int64, numpy.float64) for
+    columns with no NaN values. DjangoJSONEncoder does not handle these, so storing raw
+    records in Task.task_data would raise TypeError. This function converts every field
+    that could carry a numpy type before the record is written to the JSONField.
+    """
     for field in ("started", "finished", "created", "modified"):
         val = row.get(field)
         if val is not None and hasattr(val, "isoformat"):
             row[field] = val.isoformat()
-    if row.get("num_hosts") is not None:
-        row["num_hosts"] = int(row["num_hosts"])
+    for field in _INT_FIELDS:
+        val = row.get(field)
+        if val is not None:
+            row[field] = int(val)
+    val = row.get("elapsed")
+    if val is not None:
+        row["elapsed"] = float(val)
 
 
 def _build_dashboard_sync_hook(hour_timestamp):
@@ -190,7 +204,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
         missing = set(_DASHBOARD_COLUMNS) - set(available)
         if missing:
             logger.warning(
-                "unified_jobs_dashboard is missing expected columns: %s — affected records will have None values",
+                "unified_jobs_dashboard is missing expected columns: %s",
                 sorted(missing),
             )
         records = filtered[available].where(filtered[available].notna(), other=None).to_dict("records")
