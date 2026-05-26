@@ -391,6 +391,22 @@ TASK_METADATA = {
             },
         ],
     },
+    "sync_dashboard_job_records": {
+        "queue": "dashboard",
+        "category": "Dashboard Reports",
+        "description": "Write unified_jobs data collected during the hourly rollup to the dashboard JobData table",
+        "parameters": {
+            "hour_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp of the hour being synced",
+            },
+            "raw_jobs": {
+                "type": "array",
+                "description": "Serialised unified_jobs rows from the hourly collector hook",
+            },
+        },
+        "examples": [],
+    },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
