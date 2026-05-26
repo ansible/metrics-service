@@ -129,10 +129,9 @@ def _build_dashboard_sync_hook(hour_timestamp):
     follow-up task can write to JobData without re-querying the Controller DB.
     Only schedules the task when the DASHBOARD_COLLECTION feature flag is enabled.
     """
-    from django.conf import settings
+    from apps.tasks.task_groups import get_feature_enabled_from_db
 
-    dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-    if not dashboard_cfg.get("enabled", False):
+    if not get_feature_enabled_from_db("DASHBOARD_COLLECTION"):
         return None
 
     def hook(raw_data):

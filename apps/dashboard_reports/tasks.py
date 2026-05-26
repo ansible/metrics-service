@@ -16,7 +16,6 @@ from django.db import transaction
 from metrics_utility.library.collectors.dashboard import (
     DashboardJobsResultType,
     dashboard_jobs,
-    get_min_max_job_id_query,
 )
 
 from apps.dashboard_reports.models import JobData
@@ -65,6 +64,8 @@ def _collect_jobs(
 
 def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
     """Return (min_id, max_id) for jobs matching the backfill filter, or (None, None) if empty."""
+    from metrics_utility.library.collectors.dashboard import get_min_max_job_id_query
+
     query, params = get_min_max_job_id_query(since, until)
     with db_connection.cursor() as cursor:
         cursor.execute(query, params)
@@ -114,21 +115,6 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
         since = (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
     batch_size = int(dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000))
     return db_name, since, until, batch_size
-
-
-def _find_resume_cursor(min_id: int, max_id: int, task_name: str) -> int:
-    """Return the job_id cursor to resume batching from (exclusive), skipping already-synced records."""
-    from django.db.models import Max
-
-    max_synced = JobData.objects.filter(job_id__gte=min_id, job_id__lte=max_id).aggregate(Max("job_id"))["job_id__max"]
-    if max_synced is not None:
-        log_task_execution(
-            task_name=task_name,
-            operation="processing",
-            details=f"Resuming backfill from job_id {max_synced} (skipping already-synced records)",
-        )
-        return max_synced
-    return min_id - 1
 
 
 def _process_batches(
@@ -205,7 +191,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         result["data"] = {"task_type": task_name, "date_range": {"start": start_str, "end": end_str}, "job_count": 0}
         return result
 
-    after_id = _find_resume_cursor(min_id, max_id, task_name)
+    after_id = min_id - 1
     total_synced, error_msg = _process_batches(db_connection, since, until, max_id, after_id, batch_size, task_name)
 
     if error_msg:
@@ -309,7 +295,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
                 # host_summaries=None signals create_or_update_from_awx to leave
                 # existing JobHostSummary records intact (created by initial backfill).
                 "host_summaries": None,
-                "num_hosts": row.get("num_hosts", 0),
+                "num_hosts": row.get("num_hosts") or 0,
             }
         )
 
