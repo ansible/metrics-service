@@ -112,7 +112,9 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
     since = _parse_dt(kwargs.get("since")) or JobData.last_timestamp()
     if since is None:
         backfill_days = int(dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90))
-        since = (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
+        since = (
+            (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
+        )
     batch_size = int(dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000))
     return db_name, since, until, batch_size
 
