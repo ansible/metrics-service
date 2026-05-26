@@ -574,7 +574,11 @@ class TestGetJobIdRange:
         until = datetime(2024, 2, 1, tzinfo=UTC)
         db = self._mock_db(fetchone_return=(100, 999))
 
-        with patch("metrics_utility.library.collectors.dashboard.get_min_max_job_id_query", create=True, return_value=("SELECT 1", [])):
+        with patch(
+            "metrics_utility.library.collectors.dashboard.get_min_max_job_id_query",
+            create=True,
+            return_value=("SELECT 1", []),
+        ):
             result = _get_job_id_range(db, since, until)
 
         assert result == (100, 999)
@@ -585,7 +589,11 @@ class TestGetJobIdRange:
         until = datetime(2024, 2, 1, tzinfo=UTC)
         db = self._mock_db(fetchone_return=None)
 
-        with patch("metrics_utility.library.collectors.dashboard.get_min_max_job_id_query", create=True, return_value=("SELECT 1", [])):
+        with patch(
+            "metrics_utility.library.collectors.dashboard.get_min_max_job_id_query",
+            create=True,
+            return_value=("SELECT 1", []),
+        ):
             result = _get_job_id_range(db, since, until)
 
         assert result == (None, None)
@@ -636,27 +644,21 @@ class TestProcessBatches:
     def test_empty_batch_breaks_loop(self):
         """An empty results list causes the loop to break without error."""
         batch = {"results": [], "count": 0}
-        (total, err), mock_collect, _ = self._call(
-            after_id=99, max_id=200, collect_side_effect=[batch]
-        )
+        (total, err), mock_collect, _ = self._call(after_id=99, max_id=200, collect_side_effect=[batch])
         assert err is None
         assert total == 0
         mock_collect.assert_called_once()
 
     def test_collect_exception_returns_error(self):
         """An exception from _collect_jobs returns an error tuple."""
-        (total, err), _, _ = self._call(
-            after_id=99, max_id=200, collect_side_effect=Exception("timeout")
-        )
+        (total, err), _, _ = self._call(after_id=99, max_id=200, collect_side_effect=Exception("timeout"))
         assert err is not None
         assert "Collecting jobs failed" in err
 
     def test_failed_sync_returns_error(self):
         """Failed jobs from _sync_jobs_atomically returns an error tuple."""
         batch = {"results": [{"id": 101}], "count": 1}
-        (total, err), _, _ = self._call(
-            after_id=99, max_id=200, collect_side_effect=[batch], sync_return=[101]
-        )
+        (total, err), _, _ = self._call(after_id=99, max_id=200, collect_side_effect=[batch], sync_return=[101])
         assert err is not None
         assert "Failed to sync" in err
 

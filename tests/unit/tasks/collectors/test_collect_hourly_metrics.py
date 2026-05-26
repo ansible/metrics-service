@@ -77,10 +77,12 @@ class TestBuildDashboardSyncHook:
 
     def test_hook_returns_early_when_no_terminal_jobs(self):
         """If all jobs are pending/running or are sync launches, no Task is created."""
-        df = _make_df([
-            {"status": "running", "launch_type": "manual"},
-            {"id": 2, "status": "successful", "launch_type": "sync"},
-        ])
+        df = _make_df(
+            [
+                {"status": "running", "launch_type": "manual"},
+                {"id": 2, "status": "successful", "launch_type": "sync"},
+            ]
+        )
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
             hook(df)
@@ -88,10 +90,12 @@ class TestBuildDashboardSyncHook:
 
     def test_hook_creates_task_for_terminal_non_sync_jobs(self):
         """Terminal non-sync jobs cause get_or_create to be called."""
-        df = _make_df([
-            {"status": "successful", "launch_type": "manual"},
-            {"id": 2, "status": "failed", "launch_type": "scheduled"},
-        ])
+        df = _make_df(
+            [
+                {"status": "successful", "launch_type": "manual"},
+                {"id": 2, "status": "failed", "launch_type": "scheduled"},
+            ]
+        )
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
             mock_task.objects.get_or_create.return_value = (MagicMock(), True)
