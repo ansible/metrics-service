@@ -113,11 +113,23 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
     until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
     since = _parse_dt(kwargs.get("since")) or JobData.last_timestamp()
     if since is None:
-        backfill_days = int(dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90))
+        raw_backfill_days = dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90)
+        try:
+            backfill_days = int(raw_backfill_days)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS must be a positive integer, got {raw_backfill_days!r}"
+            )
         since = (
             (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         )
-    batch_size = int(dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000))
+    raw_batch_size = dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000)
+    try:
+        batch_size = int(raw_batch_size)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"DASHBOARD_COLLECTION.BACKFILL_BATCH_SIZE must be a positive integer, got {raw_batch_size!r}"
+        )
     if batch_size <= 0:
         raise ValueError("DASHBOARD_COLLECTION.BACKFILL_BATCH_SIZE must be > 0")
     return db_name, since, until, batch_size
@@ -167,7 +179,12 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         "message": "",
         "data": {"task_type": task_name, "date_range": {"start": None, "end": None}, "job_count": 0},
     }
-    db_name, since, until, batch_size = _resolve_collection_params(kwargs)
+    try:
+        db_name, since, until, batch_size = _resolve_collection_params(kwargs)
+    except ValueError as e:
+        result["error"] = True
+        result["message"] = str(e)
+        return result
 
     if since >= until:
         msg = f"Invalid date range: since ({since.isoformat()}) must be before until ({until.isoformat()})"
@@ -245,6 +262,11 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
     """
     Incrementally collect AWX job data since the last known JobData timestamp.
 
+    .. deprecated::
+        No longer registered as a scheduled system task. Ongoing incremental sync is driven
+        automatically by the hourly_unified_jobs hook (see _build_dashboard_sync_hook).
+        This function remains available for manual operator-triggered collection via the task API.
+
     Falls back to 90 days ago if no previous records exist.
     Returns a task result dict with status, date range, job count, and any error details.
     """
@@ -279,7 +301,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     assembled = []
     for row in raw_jobs:
         label_ids_raw = row.get("label_ids")
-        labels = [int(x) for x in label_ids_raw.split(",") if x] if label_ids_raw else []
+        labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()] if label_ids_raw else []
         assembled.append(
             {
                 "id": row["id"],

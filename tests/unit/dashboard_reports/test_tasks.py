@@ -207,6 +207,16 @@ class TestCollectData:
         assert result["error"] is True
         assert "Collecting jobs failed" in result["message"]
 
+    def test_invalid_settings_produce_clean_error(self, mock_collect_data_deps):
+        """A ValueError from _resolve_collection_params is caught and returned as a task error."""
+        mock_params, *_ = mock_collect_data_deps
+        mock_params.side_effect = ValueError("BACKFILL_BATCH_SIZE must be a positive integer, got 'oops'")
+
+        result = _collect_data("test_task")
+
+        assert result["error"] is True
+        assert "BACKFILL_BATCH_SIZE" in result["message"]
+
     def test_cursor_starts_at_min_id_minus_one(self, mock_collect_data_deps):
         """_collect_data always starts batching from min_id - 1 (safe cursor for concurrent writes)."""
         _, _, mock_id_range, mock_batches, *_ = mock_collect_data_deps
@@ -340,6 +350,16 @@ class TestSyncDashboardJobRecords:
     def test_label_ids_parsed_from_csv(self, mock_result, mock_log, mock_sync):
         """label_ids CSV string is parsed into a list of ints."""
         raw_jobs = [self._raw_job(label_ids="3,7,12")]
+        sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["labels"] == [3, 7, 12]
+
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_label_ids_with_spaces_parsed_correctly(self, mock_result, mock_log, mock_sync):
+        """label_ids CSV with spaces around values (e.g. '3, 7, 12') is parsed without ValueError."""
+        raw_jobs = [self._raw_job(label_ids="3, 7, 12")]
         sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
         assembled = mock_sync.call_args[0][0]
         assert assembled[0]["labels"] == [3, 7, 12]
@@ -573,6 +593,26 @@ class TestResolveCollectionParams:
         mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
         _, _, _, batch_size = _resolve_collection_params({})
         assert batch_size == 10_000
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_invalid_batch_size_raises_value_error(self, mock_jobdata):
+        """A non-integer BACKFILL_BATCH_SIZE raises ValueError with a descriptive message."""
+        from django.test import override_settings
+
+        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        with override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": "not-a-number"}):
+            with pytest.raises(ValueError, match="BACKFILL_BATCH_SIZE"):
+                _resolve_collection_params({})
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_invalid_backfill_days_raises_value_error(self, mock_jobdata):
+        """A non-integer INITIAL_BACKFILL_DAYS raises ValueError with a descriptive message."""
+        from django.test import override_settings
+
+        mock_jobdata.last_timestamp.return_value = None
+        with override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": "not-a-number"}):
+            with pytest.raises(ValueError, match="INITIAL_BACKFILL_DAYS"):
+                _resolve_collection_params({})
 
 
 # ---------------------------------------------------------------------------

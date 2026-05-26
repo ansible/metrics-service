@@ -169,6 +169,9 @@ def _build_dashboard_sync_hook(hour_timestamp):
     # Lazy import: circular dependency (collect_hourly_metrics → task_groups → tasks → collect_hourly_metrics).
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
+    # The flag is intentionally evaluated at hook-build time (when the hourly task starts),
+    # not when the hook executes after gather(). A flag change mid-task takes effect on the
+    # next collection cycle. This is acceptable — the window is the duration of one gather() call.
     if not get_feature_enabled_from_db("DASHBOARD_COLLECTION"):
         return None
 
