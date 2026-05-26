@@ -6,7 +6,10 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from apps.tasks.collectors.collect_hourly_metrics import _build_dashboard_sync_hook
+from apps.tasks.collectors.collect_hourly_metrics import (
+    _build_dashboard_sync_hook,
+    _serialize_dashboard_record,
+)
 
 
 def _make_df(rows: list[dict]) -> pd.DataFrame:
@@ -126,6 +129,31 @@ class TestBuildDashboardSyncHook:
         task_data = mock_task.objects.get_or_create.call_args[1]["defaults"]["task_data"]
         assert task_data["raw_jobs"][0]["num_hosts"] == 7
         assert isinstance(task_data["raw_jobs"][0]["num_hosts"], int)
+
+
+@pytest.mark.unit
+class TestSerializeDashboardRecord:
+    """Branch-coverage tests for _serialize_dashboard_record."""
+
+    def test_datetime_field_none_left_unchanged(self):
+        """When a datetime field value is None the field is not modified (covers val-is-None branch)."""
+        row = {"started": None, "finished": None, "created": None, "modified": None, "num_hosts": 5}
+        _serialize_dashboard_record(row)
+        assert row["started"] is None
+        assert row["num_hosts"] == 5
+
+    def test_num_hosts_none_left_unchanged(self):
+        """When num_hosts is None the field is not modified (covers is-not-None False branch)."""
+        row = {"started": datetime(2024, 1, 1, tzinfo=UTC), "num_hosts": None}
+        _serialize_dashboard_record(row)
+        assert row["num_hosts"] is None
+        assert row["started"] == datetime(2024, 1, 1, tzinfo=UTC).isoformat()
+
+    def test_datetime_already_a_string_has_no_isoformat(self):
+        """A non-datetime value without isoformat is left unchanged (covers hasattr False branch)."""
+        row = {"started": "2024-01-01T00:00:00+00:00", "num_hosts": 3}
+        _serialize_dashboard_record(row)
+        assert row["started"] == "2024-01-01T00:00:00+00:00"
 
 
 @pytest.mark.unit
