@@ -116,20 +116,20 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
         raw_backfill_days = dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90)
         try:
             backfill_days = int(raw_backfill_days)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
             raise ValueError(
                 f"DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS must be a positive integer, got {raw_backfill_days!r}"
-            )
+            ) from e
         since = (
             (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         )
     raw_batch_size = dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000)
     try:
         batch_size = int(raw_batch_size)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
         raise ValueError(
             f"DASHBOARD_COLLECTION.BACKFILL_BATCH_SIZE must be a positive integer, got {raw_batch_size!r}"
-        )
+        ) from e
     if batch_size <= 0:
         raise ValueError("DASHBOARD_COLLECTION.BACKFILL_BATCH_SIZE must be > 0")
     return db_name, since, until, batch_size

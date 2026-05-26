@@ -600,9 +600,11 @@ class TestResolveCollectionParams:
         from django.test import override_settings
 
         mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        with override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": "not-a-number"}):
-            with pytest.raises(ValueError, match="BACKFILL_BATCH_SIZE"):
-                _resolve_collection_params({})
+        with (
+            override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": "not-a-number"}),
+            pytest.raises(ValueError, match="BACKFILL_BATCH_SIZE"),
+        ):
+            _resolve_collection_params({})
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_invalid_backfill_days_raises_value_error(self, mock_jobdata):
@@ -610,9 +612,11 @@ class TestResolveCollectionParams:
         from django.test import override_settings
 
         mock_jobdata.last_timestamp.return_value = None
-        with override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": "not-a-number"}):
-            with pytest.raises(ValueError, match="INITIAL_BACKFILL_DAYS"):
-                _resolve_collection_params({})
+        with (
+            override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": "not-a-number"}),
+            pytest.raises(ValueError, match="INITIAL_BACKFILL_DAYS"),
+        ):
+            _resolve_collection_params({})
 
 
 # ---------------------------------------------------------------------------
