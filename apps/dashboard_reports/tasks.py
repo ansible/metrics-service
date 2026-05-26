@@ -116,6 +116,8 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
             (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         )
     batch_size = int(dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000))
+    if batch_size <= 0:
+        raise ValueError("DASHBOARD_COLLECTION.BACKFILL_BATCH_SIZE must be > 0")
     return db_name, since, until, batch_size
 
 
