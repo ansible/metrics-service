@@ -8,6 +8,7 @@ import pytest
 
 from apps.tasks.collectors.collect_hourly_metrics import (
     _build_dashboard_sync_hook,
+    _get_hourly_collectors,
     _serialize_dashboard_record,
 )
 
@@ -258,3 +259,19 @@ class TestGenericCollectMetricsHook:
             post_collect_hook=None,
         )
         assert result.get("status") == "success"
+
+
+@pytest.mark.unit
+class TestHourlyCollectorRegistry:
+    """Pin the registry wiring so a key rename doesn't silently drop the hook."""
+
+    def test_unified_jobs_uses_dashboard_collector_and_has_hook_factory(self):
+        """unified_jobs entry must use unified_jobs_dashboard and register a post_collect_hook_factory."""
+        with patch("metrics_utility.library.collectors.controller.unified_jobs_dashboard", create=True):
+            registry = _get_hourly_collectors()
+
+        entry = registry.get("unified_jobs")
+        assert entry is not None, "unified_jobs key missing from hourly collector registry"
+        assert entry.get("post_collect_hook_factory") is _build_dashboard_sync_hook, (
+            "unified_jobs registry entry must wire _build_dashboard_sync_hook as post_collect_hook_factory"
+        )

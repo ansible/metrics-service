@@ -187,6 +187,9 @@ def _build_dashboard_sync_hook(hour_timestamp):
         # unified_jobs_dashboard guarantees these columns; guard with available
         # in case a future schema change temporarily drops one.
         available = [c for c in _DASHBOARD_COLUMNS if c in filtered.columns]
+        missing = set(_DASHBOARD_COLUMNS) - set(available)
+        if missing:
+            logger.warning("unified_jobs_dashboard is missing expected columns: %s — affected records will have None values", sorted(missing))
         records = filtered[available].where(filtered[available].notna(), other=None).to_dict("records")
         for row in records:
             _serialize_dashboard_record(row)

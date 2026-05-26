@@ -120,6 +120,8 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
             raise ValueError(
                 f"DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS must be a positive integer, got {raw_backfill_days!r}"
             ) from e
+        if backfill_days <= 0:
+            raise ValueError("DASHBOARD_COLLECTION.INITIAL_BACKFILL_DAYS must be > 0")
         since = (
             (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         )
@@ -204,9 +206,9 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         db_connection = get_db_connection(db_name)
         min_id, max_id = _get_job_id_range(db_connection, since, until)
     except Exception as e:
-        logger.exception("Error connecting to database")
+        logger.exception("Database error during collection setup")
         result["error"] = True
-        result["message"] = f"Database connection failed: {str(e)}"
+        result["message"] = f"Database error: {str(e)}"
         return result
 
     if min_id is None:
@@ -351,7 +353,15 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     Returns a task result dict with the number of deleted records, cutoff date, and any error details.
     """
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-    default_retention = int(dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90))
+    raw_default_retention = dashboard_cfg.get("INITIAL_BACKFILL_DAYS", 90)
+    try:
+        default_retention = int(raw_default_retention)
+    except (TypeError, ValueError):
+        logger.warning(
+            "cleanup_dashboard_reports_old_data: INITIAL_BACKFILL_DAYS=%r is not a valid integer; falling back to 90",
+            raw_default_retention,
+        )
+        default_retention = 90
     retention_period_days = kwargs.get("retention_period_days", default_retention)
     try:
         retention_period_days = int(retention_period_days)

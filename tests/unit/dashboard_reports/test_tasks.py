@@ -185,7 +185,7 @@ class TestCollectData:
         result = _collect_data("test_task")
 
         assert result["error"] is True
-        assert "Database connection failed" in result["message"]
+        assert "Database error" in result["message"]
 
     def test_no_jobs_in_range_returns_zero_count(self, mock_collect_data_deps):
         """_collect_data returns job_count=0 when min_id is None (no jobs in window)."""
