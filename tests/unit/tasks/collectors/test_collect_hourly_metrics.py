@@ -70,14 +70,14 @@ class TestBuildDashboardSyncHook:
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
             hook(None)
-        mock_task.objects.get_or_create.assert_not_called()
+        mock_task.objects.update_or_create.assert_not_called()
 
     def test_hook_returns_early_when_dataframe_empty(self):
         """hook(empty_df) exits without creating a Task."""
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
             hook(pd.DataFrame())
-        mock_task.objects.get_or_create.assert_not_called()
+        mock_task.objects.update_or_create.assert_not_called()
 
     def test_hook_returns_early_when_no_terminal_jobs(self):
         """If all jobs are pending/running or are sync launches, no Task is created."""
@@ -90,10 +90,10 @@ class TestBuildDashboardSyncHook:
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
             hook(df)
-        mock_task.objects.get_or_create.assert_not_called()
+        mock_task.objects.update_or_create.assert_not_called()
 
     def test_hook_creates_task_for_terminal_non_sync_jobs(self):
-        """Terminal non-sync jobs cause get_or_create to be called."""
+        """Terminal non-sync jobs cause update_or_create to be called."""
         df = _make_df(
             [
                 {"status": "successful", "launch_type": "manual"},
@@ -102,10 +102,10 @@ class TestBuildDashboardSyncHook:
         )
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
-            mock_task.objects.get_or_create.return_value = (MagicMock(), True)
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
             hook(df)
-        mock_task.objects.get_or_create.assert_called_once()
-        call_kwargs = mock_task.objects.get_or_create.call_args[1]
+        mock_task.objects.update_or_create.assert_called_once()
+        call_kwargs = mock_task.objects.update_or_create.call_args[1]
         assert call_kwargs["defaults"]["function_name"] == "sync_dashboard_job_records"
 
     def test_hook_serialises_datetime_fields_to_iso(self):
@@ -114,9 +114,9 @@ class TestBuildDashboardSyncHook:
         df = _make_df([{"status": "successful", "launch_type": "manual", "started": started}])
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
-            mock_task.objects.get_or_create.return_value = (MagicMock(), True)
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
             hook(df)
-        task_data = mock_task.objects.get_or_create.call_args[1]["defaults"]["task_data"]
+        task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
         raw_jobs = task_data["raw_jobs"]
         assert raw_jobs[0]["started"] == started.isoformat()
 
@@ -125,9 +125,9 @@ class TestBuildDashboardSyncHook:
         df = _make_df([{"status": "successful", "launch_type": "manual", "num_hosts": 7.0}])
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
-            mock_task.objects.get_or_create.return_value = (MagicMock(), True)
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
             hook(df)
-        task_data = mock_task.objects.get_or_create.call_args[1]["defaults"]["task_data"]
+        task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
         assert task_data["raw_jobs"][0]["num_hosts"] == 7
         assert isinstance(task_data["raw_jobs"][0]["num_hosts"], int)
 
@@ -140,15 +140,15 @@ class TestBuildDashboardSyncHook:
         df = _make_df(rows)
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
-            mock_task.objects.get_or_create.return_value = (MagicMock(), True)
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
             hook(df)
 
-        assert mock_task.objects.get_or_create.call_count == 2
+        assert mock_task.objects.update_or_create.call_count == 2
 
-        first_call = mock_task.objects.get_or_create.call_args_list[0]
-        second_call = mock_task.objects.get_or_create.call_args_list[1]
+        first_call = mock_task.objects.update_or_create.call_args_list[0]
+        second_call = mock_task.objects.update_or_create.call_args_list[1]
 
-        # Names must carry chunk index so get_or_create is idempotent on retry.
+        # Names must carry chunk index so update_or_create is idempotent on retry.
         assert first_call[1]["name"].endswith("_0")
         assert second_call[1]["name"].endswith("_1")
 

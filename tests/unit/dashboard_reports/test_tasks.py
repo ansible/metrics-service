@@ -134,7 +134,7 @@ class TestCollectJobs:
         result = _collect_jobs(db_connection, since, until, after_id=50, batch_size=100)
 
         mock_dashboard_jobs.assert_called_once_with(
-            db=db_connection, since=since, until=until, after_id=50, batch_size=100
+            db=db_connection, since=since, until=until, after_id=50, batch_size=100, date_field="finished"
         )
         mock_dashboard_jobs.return_value.gather.assert_called_once()
         assert result == expected_result
@@ -150,7 +150,7 @@ class TestCollectJobs:
         _collect_jobs(db_connection, since, until)
 
         mock_dashboard_jobs.assert_called_once_with(
-            db=db_connection, since=since, until=until, after_id=None, batch_size=None
+            db=db_connection, since=since, until=until, after_id=None, batch_size=None, date_field="finished"
         )
 
 
@@ -590,10 +590,10 @@ class TestResolveCollectionParams:
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_default_batch_size_applied(self, mock_jobdata):
-        """BACKFILL_BATCH_SIZE defaults to 10_000 when not set."""
+        """BACKFILL_BATCH_SIZE defaults to 5_000 when not set."""
         mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
         _, _, _, batch_size = _resolve_collection_params({})
-        assert batch_size == 10_000
+        assert batch_size == 5_000
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_invalid_batch_size_raises_value_error(self, mock_jobdata):
