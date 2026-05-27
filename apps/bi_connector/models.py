@@ -52,7 +52,7 @@ class CollectionBatch(CommonModel):
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="pending", db_index=True)
     since = models.DateTimeField(null=True, blank=True)
     until = models.DateTimeField(null=True, blank=True)
-    records_imported = models.PositiveIntegerField(default=0)
+    records_imported = models.PositiveBigIntegerField(default=0)
     cursor = models.JSONField(
         default=dict
     )  # stores resume position e.g. {"last_committed": "2024-01-15T06:00:00+00:00"}
@@ -91,7 +91,7 @@ class StoredHostMetric(CommonModel):
     """
 
     hostname = models.CharField(max_length=512, unique=True, db_index=True)
-    host_id = models.IntegerField(default=0)
+    host_id = models.BigIntegerField(null=True, blank=True)
     first_automation = models.DateTimeField(null=True, blank=True)
     last_automation = models.DateTimeField(null=True, blank=True)
     automated_counter = models.PositiveIntegerField(default=0)
@@ -131,12 +131,12 @@ class StoredJobHostSummary(CommonModel):
     key — rows are upserted via update_or_create(summary_id=...).
     """
 
-    summary_id = models.IntegerField(unique=True, db_index=True)  # AWX main_jobhostsummary.id
-    host_id = models.IntegerField(null=True, blank=True)
-    job_id = models.IntegerField(null=True, blank=True, db_index=True)
+    summary_id = models.BigIntegerField(unique=True, db_index=True)  # AWX main_jobhostsummary.id
+    host_id = models.BigIntegerField(null=True, blank=True)
+    job_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     host_name = models.CharField(max_length=512, null=True, blank=True)
-    organization_id = models.IntegerField(null=True, blank=True, db_index=True)
-    inventory_id = models.IntegerField(null=True, blank=True)
+    organization_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    inventory_id = models.BigIntegerField(null=True, blank=True)
     modified = models.DateTimeField(null=True, blank=True, db_index=True)
     collection_batch = models.ForeignKey(
         _COLLECTION_BATCH_FK,
@@ -168,10 +168,10 @@ class StoredIndirectAudit(CommonModel):
     Available from AWX 2.6+.
     """
 
-    audit_id = models.IntegerField(unique=True, db_index=True)  # AWX main_indirectmanagednodeaudit.id
-    host_id = models.IntegerField(null=True, blank=True)
-    job_id = models.IntegerField(null=True, blank=True, db_index=True)
-    organization_id = models.IntegerField(null=True, blank=True, db_index=True)
+    audit_id = models.BigIntegerField(unique=True, db_index=True)  # AWX main_indirectmanagednodeaudit.id
+    host_id = models.BigIntegerField(null=True, blank=True)
+    job_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    organization_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     created = models.DateTimeField(null=True, blank=True, db_index=True)
     collection_batch = models.ForeignKey(
         _COLLECTION_BATCH_FK,

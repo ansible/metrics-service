@@ -54,6 +54,13 @@ class JobDataViewSet(DashboardCollectionMixin, BaseViewSet):
             "project_id": ["exact", "in"],
         }
 
+    def get_queryset(self):
+        """Prefetch related objects for retrieve to avoid N+1 queries."""
+        qs = super().get_queryset()
+        if self.action == "retrieve":
+            qs = qs.prefetch_related("labels", "host_summaries")
+        return qs
+
     def get_serializer_class(self):
         """Return detail serializer for retrieve, list serializer otherwise."""
         if self.action == "retrieve":

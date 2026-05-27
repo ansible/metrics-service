@@ -10,7 +10,7 @@ A CollectionBatch tracks progress so backfills resume after failure.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -211,7 +211,7 @@ def _collect_host_metric_snapshot(conn, since, until, batch) -> int:
     )
 
     opt_since = since if since is not None else datetime(2000, 1, 1, tzinfo=UTC)
-    extractor = ExtractorControllerDB({"opt_since": opt_since})
+    extractor = ExtractorControllerDB({"opt_since": opt_since, "db": conn})
 
     pending: list = []
     total_flushed = 0
@@ -224,8 +224,8 @@ def _collect_host_metric_snapshot(conn, since, until, batch) -> int:
             record = _df_row_to_host_metric(row, batch)
             if record is not None:
                 pending.append(record)
-        if len(pending) >= FLUSH_EVERY:
-            total_flushed += _flush_host_metrics(pending, batch, total_flushed)
+            if len(pending) >= FLUSH_EVERY:
+                total_flushed += _flush_host_metrics(pending, batch, total_flushed)
 
     if pending:
         total_flushed += _flush_host_metrics(pending, batch, total_flushed)
@@ -239,39 +239,21 @@ def _collect_host_metric_daily(conn, since, until, batch) -> int:
     """
     from metrics_utility.library.collectors.controller import main_host_daily
 
-    from apps.bi_connector.models import StoredHostMetric
-
     df: pd.DataFrame = main_host_daily(db=conn, since=since, until=until)
     if df is None or df.empty:
         return 0
 
-    pending = [r for _, row in df.iterrows() if (r := _df_row_to_host_metric(row, batch)) is not None]
+    pending: list = []
     total_flushed = 0
-    while pending:
-        chunk, pending = pending[:FLUSH_EVERY], pending[FLUSH_EVERY:]
-        total_flushed += _flush(
-            chunk,
-            StoredHostMetric,
-            unique_fields=["hostname"],
-            update_fields=[
-                "host_id",
-                "first_automation",
-                "last_automation",
-                "automated_counter",
-                "deleted_counter",
-                "last_deleted",
-                "deleted",
-                "ansible_product_serial",
-                "ansible_machine_id",
-                "ansible_host_variable",
-                "ansible_connection_variable",
-                "collection_batch_id",
-                "modified",
-            ],
-        )
-        if batch is not None:
-            batch.records_imported = total_flushed
-            batch.save(update_fields=["records_imported", "modified"])
+    for _, row in df.iterrows():
+        record = _df_row_to_host_metric(row, batch)
+        if record is not None:
+            pending.append(record)
+        if len(pending) >= FLUSH_EVERY:
+            total_flushed += _flush_host_metrics(pending, batch, total_flushed)
+
+    if pending:
+        total_flushed += _flush_host_metrics(pending, batch, total_flushed)
 
     return total_flushed
 
@@ -288,7 +270,8 @@ def _collect_job_host_summary(conn, since, until, batch) -> int:
     if df is None or df.empty:
         return 0
 
-    pending = []
+    pending: list = []
+    total_flushed = 0
     for _, row in df.iterrows():
         pending.append(
             StoredJobHostSummary(
@@ -302,24 +285,16 @@ def _collect_job_host_summary(conn, since, until, batch) -> int:
                 collection_batch=batch,
             )
         )
+        if len(pending) >= FLUSH_EVERY:
+            count = _flush(pending, StoredJobHostSummary, unique_fields=["summary_id"], update_fields=_JOB_HOST_SUMMARY_UPDATE_FIELDS)
+            total_flushed += count
+            if batch is not None:
+                batch.records_imported = total_flushed
+                batch.save(update_fields=["records_imported", "modified"])
 
-    total_flushed = 0
-    while pending:
-        chunk, pending = pending[:FLUSH_EVERY], pending[FLUSH_EVERY:]
-        total_flushed += _flush(
-            chunk,
-            StoredJobHostSummary,
-            unique_fields=["summary_id"],
-            update_fields=[
-                "host_id",
-                "job_id",
-                "host_name",
-                "organization_id",
-                "inventory_id",
-                "modified",
-                "collection_batch_id",
-            ],
-        )
+    if pending:
+        count = _flush(pending, StoredJobHostSummary, unique_fields=["summary_id"], update_fields=_JOB_HOST_SUMMARY_UPDATE_FIELDS)
+        total_flushed += count
         if batch is not None:
             batch.records_imported = total_flushed
             batch.save(update_fields=["records_imported", "modified"])
@@ -378,6 +353,18 @@ def _collect_indirect_audit(conn, since, until, batch) -> int:
 # Collector registry
 # ---------------------------------------------------------------------------
 
+_TIME_SERIES_COLLECTOR_TYPES = frozenset({"main_host_daily", "job_host_summary", "main_indirectmanagednodeaudit"})
+
+_JOB_HOST_SUMMARY_UPDATE_FIELDS = [
+    "host_id",
+    "job_id",
+    "host_name",
+    "organization_id",
+    "inventory_id",
+    "modified",
+    "collection_batch_id",
+]
+
 _COLLECTOR_REGISTRY: dict[str, callable] = {
     "main_host": _collect_host_metric_snapshot,
     "main_host_daily": _collect_host_metric_daily,
@@ -415,10 +402,30 @@ def collect_bi_billing_data(task_data: dict | None = None, **kwargs) -> dict:
         valid = ", ".join(sorted(_COLLECTOR_REGISTRY))
         raise ValueError(f"Unknown collector_type: {collector_type!r}. Valid types: {valid}")
 
+    from apps.bi_connector.v1.mixins import is_bi_collector_enabled
+
+    if not is_bi_collector_enabled(collector_type, default=True):
+        logger.info("Collector %s disabled; skipping", collector_type)
+        return {"status": "skipped", "collector_type": collector_type, "records_imported": 0}
+
     since = _parse_optional_dt(since_str, "since")
     until = _parse_optional_dt(until_str, "until")
-    batch = _start_batch(batch_id)
+
+    if since is None and collector_type in _TIME_SERIES_COLLECTOR_TYPES:
+        from apps.bi_connector.models import CollectionBatch
+
+        _last = (
+            CollectionBatch.objects.filter(collector_type=collector_type, status="completed")
+            .order_by("-completed_at")
+            .values_list("completed_at", flat=True)
+            .first()
+        )
+        since = _last if _last else now() - timedelta(hours=24)
+        if until is None:
+            until = now()
+
     conn = get_db_connection()
+    batch = _start_batch(batch_id)
 
     try:
         total_records = _COLLECTOR_REGISTRY[collector_type](conn, since, until, batch)

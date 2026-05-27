@@ -11,6 +11,7 @@ Two separate cleanups because the data has different retention semantics:
 import logging
 from datetime import timedelta
 
+from django.db.models import Q
 from django.utils.timezone import now
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,8 @@ def cleanup_bi_stored_host_metrics(task_data: dict | None = None, **kwargs) -> d
     cutoff = now() - timedelta(days=stale_days)
     from apps.bi_connector.models import StoredHostMetric
 
-    count, _ = StoredHostMetric.objects.filter(deleted=True, last_automation__lt=cutoff).delete()
+    count, _ = StoredHostMetric.objects.filter(
+        Q(deleted=True) & (Q(last_automation__lt=cutoff) | Q(last_automation__isnull=True))
+    ).delete()
     logger.info("Deleted %d stale deleted StoredHostMetric records", count)
     return {"status": "success", "deleted": count}

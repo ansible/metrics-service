@@ -1,4 +1,4 @@
-- name: FEATURE_BI_CONNECTOR_ENABLED
+- name: BI_CONNECTOR
   ui_name: BI Connector
   visibility: true
   condition: boolean

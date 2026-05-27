@@ -80,12 +80,12 @@ class BiConnectorEnabledMixin:
     throttle_classes = [BiConnectorThrottle]
 
     def initial(self, request, *args, **kwargs):
-        """Raise NotFound if BI_CONNECTOR flag is disabled; otherwise delegate to DRF."""
+        """Run DRF auth/throttle first, then raise NotFound if BI_CONNECTOR flag is disabled."""
+        super().initial(request, *args, **kwargs)
         from apps.tasks.task_groups import get_feature_enabled_from_db
 
         if not get_feature_enabled_from_db("BI_CONNECTOR", default=False):
             raise NotFound()
-        super().initial(request, *args, **kwargs)
 
 
 class DashboardCollectionMixin(BiConnectorEnabledMixin):

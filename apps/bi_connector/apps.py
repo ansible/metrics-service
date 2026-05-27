@@ -75,21 +75,23 @@ def load_bi_connector_feature_flags(**kwargs) -> bool:
 def _seed_bi_connector_collectors() -> None:
     """Seed BI_CONNECTOR_COLLECTORS default setting if not already present."""
     try:
+        import json
+
         from apps.dynamic_settings.models import Setting
 
-        if not Setting.objects.filter(setting_key="BI_CONNECTOR_COLLECTORS").exists():
-            import json
-
-            Setting.objects.create(
-                setting_key="BI_CONNECTOR_COLLECTORS",
-                current_value=json.dumps(
+        _, created = Setting.objects.get_or_create(
+            setting_key="BI_CONNECTOR_COLLECTORS",
+            defaults={
+                "current_value": json.dumps(
                     {
                         "main_host_daily": True,
                         "job_host_summary": True,
                         "main_indirectmanagednodeaudit": False,
                     }
-                ),
-            )
+                )
+            },
+        )
+        if created:
             logger.debug("Seeded BI_CONNECTOR_COLLECTORS default setting")
     except Exception:
         logger.warning("Failed to seed BI_CONNECTOR_COLLECTORS setting", exc_info=True)

@@ -13,6 +13,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+from django.db import transaction
 from django.utils.timezone import now
 
 from apps.tasks.utils import parse_datetime_string
@@ -96,14 +97,13 @@ def _run_collection_loop(collector_type: str, since: datetime, until: datetime, 
 
     while current < until:
         window_end = min(current + step, until)
-        _collect_one_window(is_snapshot, collector_type, current)
+        with transaction.atomic():
+            _collect_one_window(is_snapshot, collector_type, current)
+            if batch is not None:
+                batch.cursor = {"last_committed": window_end.isoformat()}
+                batch.records_imported = (batch.records_imported or 0) + 1
+                batch.save(update_fields=["cursor", "records_imported", "modified"])
         periods_collected += 1
-
-        if batch is not None:
-            batch.cursor = {"last_committed": window_end.isoformat()}
-            batch.records_imported = (batch.records_imported or 0) + 1
-            batch.save(update_fields=["cursor", "records_imported", "modified"])
-
         current = window_end
 
     return periods_collected

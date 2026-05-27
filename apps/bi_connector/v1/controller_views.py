@@ -126,6 +126,7 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
                     task_data__collector_key=self.COLLECTOR_KEY,
                     task_data__since=since_iso,
                     task_data__until=until_iso,
+                    created_by=request.user,
                 )
                 .first()
             )
@@ -144,6 +145,7 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
             task = Task.objects.create(
                 name=f"bi_collect_{self.COLLECTOR_KEY}",
                 function_name="collect_bi_controller_data",
+                created_by=request.user,
                 task_data={
                     "collector_key": self.COLLECTOR_KEY,
                     "since": since_iso,
@@ -151,7 +153,14 @@ class ControllerTimeSeriesView(BiConnectorEnabledMixin, DateRangeRequiredMixin, 
                 },
             )
 
-        submit_task_to_dispatcher(task)
+        try:
+            submit_task_to_dispatcher(task)
+        except Exception:
+            logger.exception("Failed to dispatch BI task %s", task.id)
+            task.status = "failed"
+            task.error_message = "Failed to dispatch task to worker"
+            task.save(update_fields=["status", "error_message"])
+            return Response({"error": "Failed to dispatch task to worker"}, status=503)
 
         return Response(
             {
@@ -275,9 +284,9 @@ class ControllerSnapshotView(BiConnectorEnabledMixin, APIView):
                 entry = registry[collector_type]
                 collector = entry["collector_func"](db=conn)
                 results[collector_type] = collector.gather()
-            except Exception as e:
-                logger.warning("Snapshot collector %s failed: %s", collector_type, e)
-                errors[collector_type] = str(e)
+            except Exception:
+                logger.exception("BI snapshot collector %r failed", collector_type)
+                errors[collector_type] = f"Collection failed for {collector_type!r} — see service logs"
 
         return Response(
             {

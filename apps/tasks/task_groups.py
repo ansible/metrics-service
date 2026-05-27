@@ -151,6 +151,22 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "enabled": True,
             "description": "Hourly system health check",
         },
+        {
+            "task_id": "cleanup_bi_collection_batches",
+            "function": "cleanup_bi_collection_batches",
+            "cron": "0 4 * * *",
+            "args": {"retention_days": 90},
+            "enabled": True,
+            "description": "Remove CollectionBatch records older than retention_days",
+        },
+        {
+            "task_id": "cleanup_bi_stored_host_metrics",
+            "function": "cleanup_bi_stored_host_metrics",
+            "cron": "30 4 * * *",
+            "args": {"stale_days": 365},
+            "enabled": True,
+            "description": "Remove deleted StoredHostMetric records not automated in stale_days",
+        },
     ],
 )
 
@@ -358,22 +374,6 @@ BI_BILLING_COLLECTION_GROUP = TaskGroup(
             "args": {"collector_type": "main_indirectmanagednodeaudit"},
             "enabled": False,
             "description": "Daily indirect managed node audit collection (AWX 2.6+)",
-        },
-        {
-            "task_id": "cleanup_bi_collection_batches",
-            "function": "cleanup_bi_collection_batches",
-            "cron": "0 4 * * *",
-            "args": {"retention_days": 90},
-            "enabled": True,
-            "description": "Remove CollectionBatch records older than retention_days",
-        },
-        {
-            "task_id": "cleanup_bi_stored_host_metrics",
-            "function": "cleanup_bi_stored_host_metrics",
-            "cron": "30 4 * * *",
-            "args": {"stale_days": 365},
-            "enabled": True,
-            "description": "Remove deleted StoredHostMetric records not automated in stale_days",
         },
     ],
 )

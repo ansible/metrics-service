@@ -14,6 +14,7 @@ Endpoints:
 
 import json
 import logging
+from datetime import timedelta
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from rest_framework import status
@@ -24,6 +25,7 @@ from rest_framework.viewsets import GenericViewSet
 
 from apps.bi_connector.models import CollectionBatch
 from apps.bi_connector.v1.stored_serializers import CollectionBatchSerializer
+from apps.tasks.utils import parse_datetime_string
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,29 @@ AVAILABLE_BACKFILL_COLLECTORS = [
 ]
 
 BILLING_COLLECTORS = frozenset({"main_host", "main_host_daily", "job_host_summary", "main_indirectmanagednodeaudit"})
+
+
+def _parse_and_validate_date_range(since_str, until_str):
+    """Parse and validate since/until strings. Returns (since, until) or raises ValueError."""
+    since = None
+    until = None
+    if since_str:
+        since = parse_datetime_string(since_str)
+        if since is None:
+            raise ValueError(f"Invalid 'since' datetime: {since_str!r}. Use ISO 8601 format.")
+    if until_str:
+        until = parse_datetime_string(until_str)
+        if until is None:
+            raise ValueError(f"Invalid 'until' datetime: {until_str!r}. Use ISO 8601 format.")
+    if since is not None and until is not None:
+        if until <= since:
+            raise ValueError("'until' must be after 'since'.")
+        from django.conf import settings as django_settings
+
+        max_backfill_days = getattr(django_settings, "BI_CONNECTOR_MAX_BACKFILL_DAYS", 365)
+        if (until - since) > timedelta(days=max_backfill_days):
+            raise ValueError(f"Date range cannot exceed {max_backfill_days} days.")
+    return since, until
 
 
 class CollectorSettingsView(APIView):
@@ -108,16 +133,26 @@ class CollectorSettingsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        validated = dict(data)
+        existing_setting = Setting.objects.filter(setting_key="BI_CONNECTOR_COLLECTORS").first()
+        existing = {}
+        if existing_setting and existing_setting.current_value:
+            try:
+                parsed = json.loads(existing_setting.current_value)
+                if isinstance(parsed, dict):
+                    existing = parsed
+            except json.JSONDecodeError:
+                pass
+
+        merged = {**existing, **dict(data)}
         Setting.objects.update_or_create(
             setting_key="BI_CONNECTOR_COLLECTORS",
-            defaults={"current_value": json.dumps(validated)},
+            defaults={"current_value": json.dumps(merged)},
         )
 
         return Response(
             {
                 "setting_key": "BI_CONNECTOR_COLLECTORS",
-                "current_value": validated,
+                "current_value": merged,
                 "available_collectors": AVAILABLE_BACKFILL_COLLECTORS,
             }
         )
@@ -161,8 +196,8 @@ class AdminCollectionBatchViewSet(ListModelMixin, RetrieveModelMixin, CreateMode
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        since = request.data.get("since")
-        until = request.data.get("until")
+        since_str = request.data.get("since")
+        until_str = request.data.get("until")
 
         # Time-series collectors require a date range; snapshot collectors do not.
         time_series_collectors = {
@@ -182,6 +217,11 @@ class AdminCollectionBatchViewSet(ListModelMixin, RetrieveModelMixin, CreateMode
                     {"detail": f"Fields {missing} are required for time-series collector '{collector_type}'."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+
+        try:
+            since, until = _parse_and_validate_date_range(since_str, until_str)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         _allowed_batch_types = {"scheduled", "backfill"}
         batch_type = request.data.get("batch_type", "backfill")
@@ -207,8 +247,8 @@ class AdminCollectionBatchViewSet(ListModelMixin, RetrieveModelMixin, CreateMode
             function_name=function_name,
             task_data={
                 "collector_type": collector_type,
-                "since": since,
-                "until": until,
+                "since": since.isoformat() if since else None,
+                "until": until.isoformat() if until else None,
                 "batch_id": batch.id,
             },
         )

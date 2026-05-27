@@ -39,7 +39,7 @@ class BiTaskStatusView(BiConnectorEnabledMixin, APIView):
         from apps.tasks.models import Task
 
         try:
-            task = Task.objects.get(pk=task_id, function_name=_BI_FUNCTION_NAME)
+            task = Task.objects.get(pk=task_id, function_name=_BI_FUNCTION_NAME, created_by=request.user)
         except Task.DoesNotExist as exc:
             from rest_framework.exceptions import NotFound
 
