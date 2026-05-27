@@ -32,4 +32,6 @@ class JsonFormatter(logging.Formatter):
             log_obj["exception"] = self.formatException(record.exc_info)
         if getattr(record, "request_id", None):
             log_obj["request_id"] = record.request_id
+        if getattr(record, "trace_id", None):
+            log_obj["trace_id"] = record.trace_id
         return json.dumps(log_obj)

@@ -46,6 +46,7 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
             "id",
             "url",
             "name",
+            "trace_id",
             "function_name",
             "task_data",
             "scheduled_time",
@@ -73,6 +74,7 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
         read_only_fields = [
             "id",
             "url",
+            "trace_id",
             "created_by_username",
             "executions_count",
             "duration",

@@ -6,6 +6,7 @@ and FIXME: split out - also models for collects, rollups and anonymized
 """
 
 import logging
+import uuid
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -68,6 +69,15 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         ("failed", "Failed"),
         ("cancelled", "Cancelled"),
     ]
+
+    # Distributed tracing — generated once at task creation, propagated through
+    # task_data into dispatcherd and included in every log line during execution.
+    trace_id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        db_index=True,
+        help_text="Unique trace identifier for correlating logs across scheduler → dispatcherd → collector",
+    )
 
     # Task identification and metadata
     description = models.TextField(blank=True, default="", help_text="Task description")

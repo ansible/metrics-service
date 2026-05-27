@@ -327,7 +327,9 @@ class UnifiedTaskScheduler:
 
             # Handle recurring tasks by creating a new execution record
             if task.cron_expression:
-                # Create a new task record for this execution
+                # Create a new task record for this execution.
+                # trace_id is left as the model default (uuid4) so each execution
+                # gets its own unique identifier, enabling per-run log correlation.
                 execution_task = Task.objects.create(
                     name=f"{task.name} (Execution {timezone.now().strftime('%Y-%m-%d %H:%M:%S')})",
                     function_name=task.function_name,
@@ -340,7 +342,8 @@ class UnifiedTaskScheduler:
                 )
 
                 logger.info(
-                    f"Created execution record for recurring task: {task.name} → {execution_task.name} (ID: {execution_task.id})"
+                    f"Created execution record for recurring task: {task.name} → {execution_task.name} "
+                    f"(ID: {execution_task.id}, trace_id: {execution_task.trace_id})"
                 )
 
                 # Submit the execution task (not the original recurring task)

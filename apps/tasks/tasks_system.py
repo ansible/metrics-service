@@ -6,6 +6,7 @@ communication, and testing tasks with proper error handling and status tracking.
 """
 
 import logging
+import uuid
 from typing import Any
 
 from django.db import models, transaction
@@ -14,7 +15,6 @@ from .utils import (
     create_task_result,
     ensure_django_setup,
     handle_task_error,
-    log_task_execution,
     run_with_lock,
     update_task_status,
 )
@@ -22,6 +22,17 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 ERROR_DJANGO_NOT_READY = "ERROR_DJANGO_NOT_READY"
+
+
+def _trace_logger(trace_id: str | None) -> logging.LoggerAdapter:
+    """Return a LoggerAdapter that injects ``trace_id`` into every log record.
+
+    The adapter attaches ``trace_id`` as an ``extra`` key so that
+    :class:`~apps.core.logging_config.JsonFormatter` (and any other formatter
+    that inspects ``LogRecord`` attributes) can include it in structured output.
+    """
+    return logging.LoggerAdapter(logger, {"trace_id": trace_id or ""})
+
 
 RETRY_BASE_DELAY_SECONDS = 600  # 10 minutes - delay used for the first retry
 RETRY_MAX_DELAY_SECONDS = 28800  # 8 hours - upper cap on any single retry delay
@@ -129,13 +140,18 @@ def execute_claimed(task, execution):
     # This import happens at runtime, not module load time
     from .tasks import TASK_FUNCTIONS, TASK_LOCKS
 
+    # Bind trace_id to all log lines emitted during this execution so that logs
+    # from the scheduler, dispatcherd worker, and collector can be correlated.
+    trace_id = str(task.trace_id) if task.trace_id else str(uuid.uuid4())
+    tlog = _trace_logger(trace_id)
+
     # Validate task function exists
     if task.function_name not in TASK_FUNCTIONS:
         error_msg = f"Task function '{task.function_name}' not found in TASK_FUNCTIONS"
         return handle_task_error(task, execution, error_msg)
 
-    log_task_execution(task.function_name, "start", f"Starting {task.function_name} task")
-    log_task_execution(task.name, "running", f"Executing function: {task.function_name}")
+    tlog.info(f"Starting {task.function_name} task", extra={"trace_id": trace_id})
+    tlog.info(f"Executing function: {task.function_name}", extra={"trace_id": trace_id})
 
     # Execute the actual task function, with advisory lock if required
     # Forwarding execution_id the task can link collections back to TaskExecution
@@ -150,11 +166,11 @@ def execute_claimed(task, execution):
     update_task_status(task, execution, status=status, result_data=result, error_message=error_message)
 
     if status == "completed":
-        log_task_execution(task.function_name, "complete", f"Task {task.function_name} completed successfully")
+        tlog.info(f"Task {task.function_name} completed successfully", extra={"trace_id": trace_id})
     else:
         error_msg = f"{task.function_name} task failed: {error_message}"
-        log_task_execution(task.function_name, "error", error_msg, level="error")
-    log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
+        tlog.error(error_msg, extra={"trace_id": trace_id})
+    tlog.info(f"Task execution finished with status: {status}", extra={"trace_id": trace_id})
 
     if status == "failed":
         _schedule_retry(task)
@@ -185,6 +201,15 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
     if not task_id:
         return create_task_result("error", error="task_id is required")
 
+    # trace_id is forwarded by submit_task_to_dispatcher so that the very first
+    # log line in the dispatcherd worker process already carries the right ID.
+    # Once the Task row is fetched, task.trace_id is the authoritative value.
+    early_trace_id = kwargs.get("trace_id", "")
+    if early_trace_id:
+        _trace_logger(early_trace_id).info(
+            f"execute_db_task: received task_id={task_id}", extra={"trace_id": early_trace_id}
+        )
+
     task = None
     execution = None
 
@@ -198,6 +223,15 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
 
             logger.warning(f"Task {task_id} already claimed by another worker, skipping")
             return create_task_result("error", error="Task already claimed by another worker")
+
+        # Log the entry point with trace_id so the dispatcherd worker's first
+        # log line is already correlated with the scheduler's submission log.
+        trace_id = str(task.trace_id) if task.trace_id else ""
+        tlog = _trace_logger(trace_id)
+        tlog.info(
+            f"execute_db_task: claimed task_id={task_id} function={task.function_name}",
+            extra={"trace_id": trace_id},
+        )
 
         return execute_claimed(task, execution)
 
@@ -235,11 +269,19 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
         queue = get_queue_for_function(task.function_name)
 
-        # Submit to dispatcherd using execute_db_task as the entry point
-        # TaskExecution is created inside _claim_task to avoid orphaned records
-        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
+        # Submit to dispatcherd using execute_db_task as the entry point.
+        # trace_id is included in the kwargs payload so the dispatcherd worker
+        # process can emit its first log line with the correct trace_id even
+        # before the Task row is re-fetched from the database.
+        # TaskExecution is created inside _claim_task to avoid orphaned records.
+        trace_id = str(task.trace_id) if task.trace_id else ""
+        submit_task(execute_db_task, kwargs={"task_id": task.id, "trace_id": trace_id}, queue=queue)
 
-        logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
+        tlog = _trace_logger(trace_id)
+        tlog.info(
+            f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}",
+            extra={"trace_id": trace_id},
+        )
 
     except Exception as e:
         logger.error(f"Error submitting task to dispatcher: {str(e)}")
