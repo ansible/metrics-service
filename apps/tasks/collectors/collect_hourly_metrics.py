@@ -113,4 +113,5 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         db_connection=db_connection,
         collector_kwargs={"since": start_datetime, "until": end_datetime},
         task_execution_id=execution_id,
+        collection_window="hourly",
     )

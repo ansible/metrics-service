@@ -380,13 +380,25 @@ def generic_collect_metrics(
     db_connection: Any,
     collector_kwargs: dict[str, Any] | None = None,
     task_execution_id: int | None = None,
+    collection_window: str | None = None,
 ) -> dict[str, Any]:
-    """Generic metrics collection for hourly/snapshot collectors with optional rollup processing."""
+    """Generic metrics collection for hourly/snapshot collectors with optional rollup processing.
+
+    Args:
+        collection_window: Explicit window type ('hourly', 'snapshot', 'daily'). When provided,
+            this value is stored on the HourlyMetricsCollection record so that the daily rollup
+            can filter by type rather than relying on timestamp placement. Falls back to
+            collection_mode when not supplied (for backward compatibility).
+    """
     from apps.tasks.models import HourlyMetricsCollection
 
     if collector_type not in collector_registry:
         valid = ", ".join(sorted(collector_registry.keys()))
         return create_task_result("error", error=f"Unknown collector_type: {collector_type}. Valid types: {valid}")
+
+    # Resolve the window value to store on the record.
+    # collection_window takes precedence; fall back to collection_mode for backward compat.
+    resolved_window = collection_window if collection_window is not None else collection_mode
 
     config = collector_registry[collector_type]
     log_task_execution(f"collect_{collector_type}", "processing", f"Collecting {collector_type} ({collection_mode})")
@@ -429,6 +441,7 @@ def generic_collect_metrics(
                     "error_message": "",
                     "collection_parameters": collection_params,
                     "task_execution": task_execution_instance,
+                    "collection_window": resolved_window,
                 },
             )
         except IntegrityError:
@@ -478,6 +491,7 @@ def generic_collect_metrics(
                     "error_message": str(e),
                     "collection_parameters": collection_params,
                     "task_execution": task_execution_instance,
+                    "collection_window": resolved_window,
                 },
             )
 

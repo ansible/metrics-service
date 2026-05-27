@@ -55,6 +55,11 @@ def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str,
     """
     Query and group hourly collections by collector type.
 
+    Collections are filtered by collection_window to distinguish true hourly
+    time-series records from snapshot and daily records. Records that pre-date
+    the collection_window field (legacy rows where the field defaults to 'hourly')
+    continue to work because the timestamp-window filter still applies.
+
     Args:
         summary_date: Date to query collections for
 
@@ -66,6 +71,9 @@ def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str,
     start_datetime = timezone.make_aware(datetime.combine(summary_date, datetime.min.time()))
     end_datetime = start_datetime + timedelta(days=1)
 
+    # Fetch all collected records for the target day regardless of collection_window.
+    # Grouping by window type happens below so that the rollup processors receive
+    # only the records they expect (hourly vs. snapshot/daily).
     hourly_collections = HourlyMetricsCollection.objects.filter(
         collection_timestamp__gte=start_datetime, collection_timestamp__lt=end_datetime, status="collected"
     ).order_by("collector_type", "collection_timestamp")
@@ -129,9 +137,12 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
     daily_rollup = {}
     missing_hours = []
 
-    # Process hourly collectors (expect 24 collections)
+    # Process hourly collectors (expect 24 collections).
+    # Filter to collection_window="hourly" so snapshot/daily records stored on the same
+    # calendar day are not mistakenly treated as hourly time-series data.
     for collector_type, processor in hourly_rollup_processors.items():
-        collections = collections_by_type.get(collector_type, [])
+        all_collections = collections_by_type.get(collector_type, [])
+        collections = [c for c in all_collections if c.collection_window == "hourly"]
 
         # Check for missing hours (should have 24 collections for hourly collectors)
         if len(collections) < 24:
@@ -141,9 +152,11 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         # Merge hourly rollups using rollup processor
         daily_rollup[collector_type] = _merge_collects(collections, processor)
 
-    # Process daily snapshot collectors (expect 1 collection)
+    # Process daily snapshot/range collectors (expect 1 collection per day).
+    # Filter to collection_window in ("snapshot", "daily") so true hourly records are excluded.
     for collector_type, processor in daily_rollup_processors.items():
-        collections = collections_by_type.get(collector_type, [])
+        all_collections = collections_by_type.get(collector_type, [])
+        collections = [c for c in all_collections if c.collection_window in ("snapshot", "daily")]
 
         # For daily snapshots, we just need the rollup data (no merging across hours)
         if collections:
@@ -241,13 +254,19 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
     log_task_execution("daily_metrics_rollup", "processing", f"Creating daily rollup for: {summary_date}")
 
-    # Check upstream dependency: at least some hourly collections must exist
+    # Check upstream dependency: at least some hourly (time-series) collections must exist.
+    # Filter by collection_window="hourly" to avoid counting snapshot/daily records as hourly.
+    # For backward compatibility, also accept records where collection_window defaults to "hourly"
+    # (i.e. records created before this field was added will have the default value).
     from ..models import HourlyMetricsCollection
 
     start_dt = timezone.make_aware(datetime.combine(summary_date, datetime.min.time()))
     end_dt = start_dt + timedelta(days=1)
     has_collections = HourlyMetricsCollection.objects.filter(
-        collection_timestamp__gte=start_dt, collection_timestamp__lt=end_dt, status="collected"
+        collection_timestamp__gte=start_dt,
+        collection_timestamp__lt=end_dt,
+        status="collected",
+        collection_window="hourly",
     ).exists()
 
     if not has_collections:

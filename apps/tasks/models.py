@@ -356,6 +356,12 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         ("processed", "Processed"),  # Included in daily rollup
     ]
 
+    COLLECTION_WINDOW_CHOICES = [
+        ("hourly", "Hourly"),
+        ("snapshot", "Snapshot"),
+        ("daily", "Daily"),
+    ]
+
     # Identification
     collector_type = models.CharField(
         max_length=50, choices=COLLECTOR_TYPE_CHOICES, help_text="Type of metrics collector"
@@ -363,6 +369,13 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
 
     collection_timestamp = models.DateTimeField(
         db_index=True, help_text="When this collection occurred (rounded to hour)"
+    )
+
+    collection_window = models.CharField(
+        max_length=10,
+        choices=COLLECTION_WINDOW_CHOICES,
+        default="hourly",
+        help_text="Type of collection window: hourly (time-series), snapshot (point-in-time), or daily (full-day range)",
     )
 
     # Data

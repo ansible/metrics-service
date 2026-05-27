@@ -50,9 +50,9 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
     (current state, no time window), daily collectors run once per day and cover
     the previous full calendar day.
 
-    The collection is stored with a timestamp of yesterday 23:00 UTC so that
-    the daily_metrics_rollup task finds it within its query window alongside
-    snapshot collections.
+    The collection is stored at midnight of the target day and identified by
+    collection_window="daily" so that the daily_metrics_rollup task can filter
+    it by type rather than relying on a 23:00 UTC timestamp trick.
 
     Args:
         **kwargs: Task data containing:
@@ -98,9 +98,10 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
     else:
         until = today_midnight
 
-    # Store at yesterday 23:00 UTC so the daily_metrics_rollup query window
-    # (yesterday 00:00 → today 00:00) picks this up alongside snapshot collections.
-    collection_timestamp = since.replace(hour=23, minute=0, second=0, microsecond=0)
+    # Store at midnight of the target day (since = yesterday 00:00 UTC).
+    # The daily_metrics_rollup identifies these records via collection_window="daily",
+    # so no 23:00 UTC timestamp trick is needed.
+    collection_timestamp = since.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # task_executions_service queries the metrics-service DB, not the AWX DB
     db_connection = get_db_connection("default")
@@ -113,4 +114,5 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
         db_connection=db_connection,
         collector_kwargs={"since": since, "until": until},
         task_execution_id=execution_id,
+        collection_window="daily",
     )

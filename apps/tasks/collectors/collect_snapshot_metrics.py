@@ -80,7 +80,7 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
         **kwargs: Task data containing:
             - collector_type (str): Type of collector (required)
             - database (str): Database name (default: 'awx')
-            - collection_timestamp (str): default yesterday 23:00
+            - collection_timestamp (str): ISO timestamp for the target day (defaults to yesterday midnight UTC)
 
     Returns:
         dict: Task result with collection status and record ID
@@ -92,23 +92,25 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
     # Extract optional execution_id for linking to TaskExecution
     execution_id = kwargs.get("execution_id")  # Available when called via execute_db_task
 
-    # Determine hour to collect (default to previous full hour)
+    # Determine the collection date (default to previous day).
+    # The timestamp is stored at midnight (00:00 UTC) of the target date.
+    # The daily rollup filters snapshot records by collection_window="snapshot" rather
+    # than relying on a 23:00 UTC timestamp trick, so any timestamp within the day is valid.
     collection_timestamp_str = kwargs.get("collection_timestamp")
     if collection_timestamp_str:
         collection_timestamp = parse_datetime_string(collection_timestamp_str)
         if collection_timestamp is None:
             return create_task_result("error", error=f"Invalid collection_timestamp format: {collection_timestamp_str}")
+        # Normalize to start of day for consistent unique_together constraint matching
+        collection_timestamp = collection_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
     else:
-        # Snapshot collections belong to the previous day (the day being summarized)
-        # Use 23:00 of the previous day to ensure they fall within the daily rollup's query window
-        collection_timestamp = timezone.now().replace(hour=23, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        # Use midnight of the previous day as a stable, auditable anchor timestamp.
+        # The daily rollup identifies these records via collection_window="snapshot" —
+        # no implicit 23:00 UTC trick needed.
+        collection_timestamp = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
 
     # Get database connection
     db_connection = get_db_connection()
-
-    # For auditing, store collection date at start of day (not the 23:00 trick used for rollup query)
-    # This makes auditing clearer - snapshots represent "state at end of this day"
-    collection_date = collection_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Use generic collector without time window (snapshot = current state)
     # Pass collection_time in collector_kwargs for audit - it gets filtered out before calling collector
@@ -118,6 +120,7 @@ def collect_snapshot_metrics(**kwargs) -> dict[str, Any]:
         collection_mode="snapshot",
         timestamp=collection_timestamp,
         db_connection=db_connection,
-        collector_kwargs={"collection_time": collection_date},
+        collector_kwargs={"collection_time": collection_timestamp},
         task_execution_id=execution_id,
+        collection_window="snapshot",
     )
