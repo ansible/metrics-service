@@ -367,6 +367,16 @@ class TestSyncDashboardJobRecords:
     @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
     @patch("apps.dashboard_reports.tasks.log_task_execution")
     @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_label_ids_zero_is_not_treated_as_empty(self, mock_result, mock_log, mock_sync):
+        """label_ids=0 (falsy but valid scalar) must not be collapsed to an empty list."""
+        raw_jobs = [self._raw_job(label_ids=0)]
+        sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["labels"] == [0]
+
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
     def test_empty_raw_jobs(self, mock_result, mock_log, mock_sync):
         """sync_dashboard_job_records handles empty raw_jobs gracefully."""
         sync_dashboard_job_records(raw_jobs=[], hour_timestamp="2024-01-01T00:00:00")

@@ -307,7 +307,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     assembled = []
     for row in raw_jobs:
         label_ids_raw = row.get("label_ids")
-        if not label_ids_raw or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
+        if label_ids_raw is None or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
             labels = []
         elif isinstance(label_ids_raw, str):
             labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]

@@ -287,6 +287,65 @@ class TestGenericCollectMetricsHook:
         # the anonymisation rollup pipeline that follows in the same collection task.
         assert result.get("status") == "success"
 
+    @patch("apps.tasks.models.TaskExecution")
+    @patch("apps.tasks.models.HourlyMetricsCollection")
+    @patch("apps.tasks.utils.log_task_execution")
+    def test_hook_exception_emits_warning_and_creates_task_execution(self, mock_log, mock_hmc, mock_te):
+        """A failing hook emits a logger.warning and persists a failed TaskExecution when an execution is linked."""
+        from apps.tasks.utils import generic_collect_metrics
+
+        mock_hmc.objects.update_or_create.return_value = (MagicMock(), True)
+        registry = self._make_registry()
+
+        task_execution = MagicMock()
+
+        def bad_hook(_):
+            raise RuntimeError("scheduling error")
+
+        with patch("apps.tasks.utils.logger") as mock_logger:
+            with patch("apps.tasks.models.TaskExecution.objects.get", return_value=task_execution):
+                generic_collect_metrics(
+                    collector_type="test_collector",
+                    collector_registry=registry,
+                    collection_mode="hourly",
+                    timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                    db_connection=MagicMock(),
+                    task_execution_id=42,
+                    post_collect_hook=bad_hook,
+                )
+
+        mock_logger.warning.assert_called()
+        warning_msg = mock_logger.warning.call_args_list[0][0][0]
+        assert "post_collect_hook failed" in warning_msg
+        assert "scheduling error" in warning_msg
+        mock_te.objects.create.assert_called_once()
+        create_kwargs = mock_te.objects.create.call_args[1]
+        assert create_kwargs["status"] == "failed"
+        assert "scheduling error" in create_kwargs["error_message"]
+
+    @patch("apps.tasks.models.HourlyMetricsCollection")
+    @patch("apps.tasks.utils.log_task_execution")
+    def test_hook_exception_skips_task_execution_when_no_execution_linked(self, mock_log, mock_hmc):
+        """No TaskExecution is created when task_execution_id is not provided (task_execution_instance is None)."""
+        from apps.tasks.utils import generic_collect_metrics
+
+        mock_hmc.objects.update_or_create.return_value = (MagicMock(), True)
+        registry = self._make_registry()
+
+        def bad_hook(_):
+            raise RuntimeError("hook failed")
+
+        with patch("apps.tasks.models.TaskExecution") as mock_te:
+            generic_collect_metrics(
+                collector_type="test_collector",
+                collector_registry=registry,
+                collection_mode="hourly",
+                timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                db_connection=MagicMock(),
+                post_collect_hook=bad_hook,
+            )
+        mock_te.objects.create.assert_not_called()
+
     @patch("apps.tasks.models.HourlyMetricsCollection")
     @patch("apps.tasks.utils.log_task_execution")
     def test_no_hook_skips_hook_block(self, mock_log, mock_hmc):

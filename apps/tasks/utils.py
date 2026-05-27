@@ -420,10 +420,23 @@ def generic_collect_metrics(
         if post_collect_hook is not None:
             try:
                 post_collect_hook(raw_data)
-            except Exception:
-                # Log but do not re-raise: a dashboard sync scheduling failure must not
-                # abort the anonymisation rollup pipeline that follows.
-                logger.exception(f"post_collect_hook failed for {collector_type}")
+            except Exception as hook_exc:
+                # Swallow: a dashboard sync scheduling failure must not abort the
+                # anonymisation rollup pipeline that follows.
+                error_msg = f"post_collect_hook failed for {collector_type}: {hook_exc}"
+                logger.warning(error_msg)
+                if task_execution_instance is not None:
+                    try:
+                        from apps.tasks.models import TaskExecution
+
+                        TaskExecution.objects.create(
+                            task=task_execution_instance.task,
+                            status="failed",
+                            error_message=error_msg,
+                            completed_at=timezone.now(),
+                        )
+                    except Exception:
+                        logger.warning("Failed to persist hook failure as TaskExecution")
 
         # Process rollup if processor provided, otherwise use raw data
         rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
