@@ -233,11 +233,68 @@ class TestParseDatetimeString(TestCase):
         self.assertEqual(result.tzinfo, UTC)
 
 
+class TestCloseConnectionsExcept(TestCase):
+    """Test close_connections_except function."""
+
+    def test_skips_preserved_alias(self):
+        """Connections for the preserved alias are not touched."""
+        mock_default_conn = MagicMock()
+        mock_other_conn = MagicMock()
+
+        mock_connections = MagicMock()
+        mock_connections.__iter__ = MagicMock(return_value=iter(["default", "awx"]))
+        mock_connections.__getitem__.side_effect = lambda alias: (
+            mock_default_conn if alias == "default" else mock_other_conn
+        )
+
+        with patch("apps.tasks.utils.connections", mock_connections):
+            utils.close_connections_except(preserve_alias="default")
+
+        mock_default_conn.close_if_unusable_or_obsolete.assert_not_called()
+        mock_other_conn.close_if_unusable_or_obsolete.assert_called_once()
+
+    def test_closes_non_preserved_aliases(self):
+        """All aliases except the preserved one have close_if_unusable_or_obsolete called."""
+        mock_conn_a = MagicMock()
+        mock_conn_b = MagicMock()
+        mock_conn_c = MagicMock()
+
+        aliases = {"alpha": mock_conn_a, "beta": mock_conn_b, "gamma": mock_conn_c}
+        mock_connections = MagicMock()
+        mock_connections.__iter__ = MagicMock(return_value=iter(aliases))
+        mock_connections.__getitem__.side_effect = aliases.__getitem__
+
+        with patch("apps.tasks.utils.connections", mock_connections):
+            utils.close_connections_except(preserve_alias="beta")
+
+        mock_conn_a.close_if_unusable_or_obsolete.assert_called_once()
+        mock_conn_b.close_if_unusable_or_obsolete.assert_not_called()
+        mock_conn_c.close_if_unusable_or_obsolete.assert_called_once()
+
+    def test_default_preserve_alias_is_default(self):
+        """Default preserve_alias is 'default'."""
+        mock_default_conn = MagicMock()
+        mock_awx_conn = MagicMock()
+
+        mock_connections = MagicMock()
+        mock_connections.__iter__ = MagicMock(return_value=iter(["default", "awx"]))
+        mock_connections.__getitem__.side_effect = lambda alias: (
+            mock_default_conn if alias == "default" else mock_awx_conn
+        )
+
+        with patch("apps.tasks.utils.connections", mock_connections):
+            utils.close_connections_except()
+
+        mock_default_conn.close_if_unusable_or_obsolete.assert_not_called()
+        mock_awx_conn.close_if_unusable_or_obsolete.assert_called_once()
+
+
 class TestGetDbConnection(TestCase):
     """Test get_db_connection function."""
 
+    @patch("apps.tasks.utils.close_connections_except")
     @patch("django.db.connections")
-    def test_get_db_connection_default(self, mock_connections):
+    def test_get_db_connection_default(self, mock_connections, mock_close_except):
         """Test getting default AWX database connection."""
         mock_raw_conn = MagicMock()
         mock_django_conn = MagicMock()
@@ -250,8 +307,9 @@ class TestGetDbConnection(TestCase):
         mock_django_conn.ensure_connection.assert_called_once()
         self.assertEqual(result, mock_raw_conn)
 
+    @patch("apps.tasks.utils.close_connections_except")
     @patch("django.db.connections")
-    def test_get_db_connection_custom_db(self, mock_connections):
+    def test_get_db_connection_custom_db(self, mock_connections, mock_close_except):
         """Test getting custom database connection."""
         mock_raw_conn = MagicMock()
         mock_django_conn = MagicMock()
@@ -264,15 +322,16 @@ class TestGetDbConnection(TestCase):
         self.assertEqual(result, mock_raw_conn)
 
     @patch("django.db.close_old_connections")
+    @patch("apps.tasks.utils.close_connections_except")
     @patch("django.db.connections")
-    def test_get_db_connection_does_not_call_close_old_connections(self, mock_connections, mock_close_old):
-        """Test that get_db_connection does NOT call close_old_connections.
+    def test_get_db_connection_calls_close_connections_except(
+        self, mock_connections, mock_close_except, mock_close_old
+    ):
+        """Test that get_db_connection calls close_connections_except, not close_old_connections.
 
-        close_old_connections() closes ALL Django connections, not just one.
-        If called during task execution, it can close connections holding advisory locks,
-        causing lock release failures.
-
-        close_old_connections() should only be called at task entry points like run_with_lock().
+        close_old_connections() closes ALL Django connections including the "default"
+        connection that may hold a PostgreSQL advisory lock in run_with_lock().
+        close_connections_except() safely skips the lock-holding connection.
         """
         mock_raw_conn = MagicMock()
         mock_django_conn = MagicMock()
@@ -281,9 +340,11 @@ class TestGetDbConnection(TestCase):
 
         result = utils.get_db_connection()
 
-        # Verify close_old_connections was NOT called
+        # close_connections_except must be called, preserving "default"
+        mock_close_except.assert_called_once_with(preserve_alias="default")
+        # The global close_old_connections must NOT be called
         mock_close_old.assert_not_called()
-        # Verify ensure_connection was still called
+        # ensure_connection is still called
         mock_django_conn.ensure_connection.assert_called_once()
         self.assertEqual(result, mock_raw_conn)
 

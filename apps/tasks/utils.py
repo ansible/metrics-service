@@ -279,6 +279,29 @@ def parse_datetime_string(date_str: str | None) -> Any:
         return None
 
 
+def close_connections_except(preserve_alias: str = "default") -> None:
+    """
+    Close stale/unusable connections for all DB aliases except the one specified.
+
+    This is used to clean up idle connections in long-running workers without
+    disturbing the connection that holds a PostgreSQL advisory lock.
+
+    Django's ``close_old_connections()`` closes ALL connections, which would
+    release advisory locks held on the default connection by ``run_with_lock()``.
+    This helper closes only the non-lock-holding connections.
+
+    Args:
+        preserve_alias: The DB alias whose connection must not be closed
+                        (default: "default", which is the advisory-lock connection).
+    """
+    from django.db import connections
+
+    for alias in connections:
+        if alias == preserve_alias:
+            continue
+        connections[alias].close_if_unusable_or_obsolete()
+
+
 def get_db_connection(db_name: str = "awx"):
     """
     Get a raw database connection that supports PostgreSQL COPY commands.
@@ -287,8 +310,10 @@ def get_db_connection(db_name: str = "awx"):
     to use the raw connection for metrics-utility collectors that use COPY
     for efficient data extraction.
 
-    This function ensures the connection is healthy by calling close_old_connections()
-    which closes stale/unusable connections and respects CONN_MAX_AGE settings.
+    Closes stale/unusable connections on all aliases except the "default"
+    connection, which may be holding a PostgreSQL advisory lock acquired by
+    ``run_with_lock()``.  This prevents idle connections from accumulating
+    across task executions in long-running workers.
 
     Args:
         db_name: Database name from Django settings (default: 'awx')
@@ -302,10 +327,14 @@ def get_db_connection(db_name: str = "awx"):
     """
     from django.db import connections
 
+    # Close stale connections on all aliases except "default" (the advisory-lock
+    # connection).  Calling the global close_old_connections() is intentionally
+    # avoided here because it would close the default connection and release any
+    # advisory lock held by run_with_lock().
+    close_connections_except(preserve_alias="default")
+
     # Get the raw connection to bypass Django's cursor wrapper
     # This is necessary for PostgreSQL COPY commands used by metrics-utility
-    # NOTE: Do not call close_old_connections() here as it closes ALL connections
-    # including the default connection that may be holding advisory locks in run_with_lock()
     django_connection = connections[db_name]
 
     # Ensure the connection is open
