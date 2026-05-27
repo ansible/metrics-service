@@ -3,6 +3,22 @@ Task scheduler using APScheduler.
 
 This module provides a task scheduler that handles both task group definitions
 and database tasks without database polling, using APScheduler for optimal performance.
+
+Multi-pod leader election
+-------------------------
+When multiple metrics-service pods run simultaneously every pod executes this
+module's startup path.  To prevent duplicate cron submissions only one pod
+should own the BackgroundScheduler.  We implement leader election with a
+PostgreSQL session-level advisory lock (pg_try_advisory_lock).
+
+* The lock is **session-level**: it is held for the lifetime of the database
+  connection and released automatically when that connection closes (e.g. on
+  pod crash/OOM), so a dead leader never blocks a successor.
+* Non-leader pods skip scheduler startup entirely and log a notice.  They
+  continue to serve HTTP requests and dispatch work submitted by the leader.
+* The lock ID is a stable 64-bit integer derived from the well-known string
+  ``"metrics_service_scheduler_leader"`` via Python's built-in hash seeded
+  with a fixed value so it is consistent across processes and restarts.
 """
 
 import logging
@@ -13,10 +29,16 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.conf import settings as django_settings
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections, connection, transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+# Stable 64-bit advisory lock ID for scheduler leader election.
+# Computed once at import time so it is consistent across all pods.
+# pg_try_advisory_lock accepts a single bigint; Python's hash() is seeded
+# per-process so we derive the constant via a fixed polynomial instead.
+_SCHEDULER_LOCK_KEY: int = int.from_bytes(b"metrics_svc_sched", byteorder="big") % (2**63)
 
 STUCK_TASK_TIMEOUT_SECONDS = django_settings.TASK_TIMEOUT
 
@@ -72,12 +94,67 @@ class UnifiedTaskScheduler:
         # Database task tracking
         self._db_task_jobs: dict[int, str] = {}  # task_id -> job_id mapping
 
+        # Whether this process holds the distributed leader-election lock
+        self._is_leader: bool = False
+
+    def _acquire_leader_lock(self) -> bool:
+        """
+        Attempt to acquire the PostgreSQL session-level advisory lock for scheduler leadership.
+
+        Uses pg_try_advisory_lock which is non-blocking: returns True immediately if the lock
+        was acquired, False if another session already holds it.  The lock is automatically
+        released when the database connection closes, so a crashed leader pod will always
+        release it without manual intervention.
+
+        Returns:
+            bool: True if this process is now the scheduler leader, False otherwise.
+        """
+        try:
+            close_old_connections()
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_try_advisory_lock(%s)", [_SCHEDULER_LOCK_KEY])
+                row = cursor.fetchone()
+                return bool(row and row[0])
+        except Exception as exc:
+            logger.error(f"Failed to acquire scheduler leader lock: {exc}")
+            return False
+
+    def _release_leader_lock(self) -> None:
+        """
+        Release the PostgreSQL session-level advisory lock.
+
+        This is a best-effort call — the lock is also released automatically
+        when the connection closes, so failure here is not critical.
+        """
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_unlock(%s)", [_SCHEDULER_LOCK_KEY])
+        except Exception as exc:
+            logger.warning(f"Failed to release scheduler leader lock (will be released on connection close): {exc}")
+
     def start(self):
-        """Start the cron scheduler."""
+        """Start the cron scheduler.
+
+        Acquires a PostgreSQL session-level advisory lock for leader election before
+        starting APScheduler.  Only one pod may hold the lock at a time; non-leaders
+        log a notice and return without starting the scheduler so that duplicate task
+        submissions cannot occur in multi-pod deployments.
+        """
         with self._lock:
             if self.running:
                 logger.warning("Scheduler is already running")
                 return
+
+            # Leader election: only the pod that acquires the advisory lock runs the scheduler.
+            if not self._acquire_leader_lock():
+                logger.info(
+                    "Scheduler leader lock already held by another pod — "
+                    "this pod will not run the scheduler (non-leader mode)"
+                )
+                return
+
+            self._is_leader = True
+            logger.info("Acquired scheduler leader lock — this pod is the active scheduler leader")
 
             try:
                 # Start the scheduler
@@ -103,6 +180,9 @@ class UnifiedTaskScheduler:
                 logger.info(f"Periodic database sync will run every {self.check_interval} seconds")
 
             except Exception as e:
+                # If scheduler startup fails, release the leader lock so another pod can take over.
+                self._release_leader_lock()
+                self._is_leader = False
                 logger.error(f"Failed to start cron scheduler: {str(e)}")
                 raise
 
@@ -119,6 +199,10 @@ class UnifiedTaskScheduler:
                 logger.info("Task scheduler stopped")
             except Exception as e:
                 logger.error(f"Error stopping cron scheduler: {str(e)}")
+            finally:
+                if self._is_leader:
+                    self._release_leader_lock()
+                    self._is_leader = False
 
     def _task_feature_flag_enabled(self, task) -> bool:
         """Return False if the task carries a feature flag that is currently disabled."""

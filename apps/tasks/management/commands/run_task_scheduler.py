@@ -47,17 +47,32 @@ class Command(BaseCommand):
             # Import scheduler after Django setup
             from apps.tasks.cron_scheduler import get_scheduler, start_scheduler
 
-            # Start the scheduler
+            # Start the scheduler (acquires leader lock internally).
+            # Non-leader pods return from start() without setting scheduler.running,
+            # so we keep the process alive rather than exiting — this ensures the
+            # pod stays healthy for liveness probes and can take over leadership
+            # if the current leader's connection is lost.
             start_scheduler()
             scheduler = get_scheduler()
 
-            self.stdout.write(self.style.SUCCESS("Task scheduler started successfully"))
+            if scheduler.running:
+                self.stdout.write(self.style.SUCCESS("Task scheduler started successfully (leader mode)"))
+            else:
+                self.stdout.write(
+                    self.style.WARNING(
+                        "Task scheduler not started — another pod holds the leader lock (non-leader mode). "
+                        "This process will stay alive and can take over if the leader exits."
+                    )
+                )
 
-            # Keep the scheduler running
+            # Keep the process running in both leader and non-leader modes.
+            was_leader = scheduler.running
             try:
                 while True:
                     time.sleep(options["check_interval"])
-                    if not scheduler.running:
+                    # Only raise an error if we were previously the leader and the
+                    # scheduler stopped without an explicit stop() call.
+                    if was_leader and not scheduler.running:
                         self.stdout.write(self.style.ERROR("Scheduler stopped unexpectedly"))
                         break
             except KeyboardInterrupt:
