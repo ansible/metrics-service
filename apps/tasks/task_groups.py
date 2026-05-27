@@ -20,6 +20,14 @@ from typing import Any
 from django.conf import settings
 
 SEGMENT_MAX_ATTEMPTS = 7  # Extended window for Segment transmission (~10.5h with exponential backoff)
+# AWX_COLLECTOR_MAX_ATTEMPTS: Extended retry window for collectors that read the AWX (controller)
+# database via the ms_awx_readonly user.  On fresh installs the operator's
+# grant_metrics_readonly_on_controller step may not have completed by the time the first
+# collection fires.  5 attempts with RETRY_BASE_DELAY_SECONDS=600 and exponential backoff
+# (base 2) gives coverage of ~0min, ~10min, ~20min, ~40min, ~80min — ≈2.5h total, which is
+# well beyond observed operator reconcile times.  Tasks that succeed on the first attempt are
+# unaffected.
+AWX_COLLECTOR_MAX_ATTEMPTS = 5
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +189,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {"collector_type": "job_host_summary_service"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
         },
@@ -189,6 +198,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "10 * * * *",  # Every hour at XX:10
             "args": {"collector_type": "unified_jobs"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
         },
@@ -197,6 +207,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "15 * * * *",  # Every hour at XX:15
             "args": {"collector_type": "credentials_service"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect credentials metrics every hour",
         },
@@ -205,6 +216,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {"collector_type": "main_jobevent_service"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": False,  # NOT enabled by default, for performance
             "description": "Collect job events (event modules) metrics every hour",
         },
@@ -214,6 +226,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_snapshot_metrics",
             "cron": "0 1 * * *",  # Daily at 1:00 AM
             "args": {"collector_type": "execution_environments"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect execution environments snapshot daily",
         },
@@ -222,6 +235,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_snapshot_metrics",
             "cron": "30 1 * * *",  # Daily at 1:30 AM
             "args": {"collector_type": "config"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect system configuration snapshot daily",
         },
@@ -230,6 +244,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_snapshot_metrics",
             "cron": "35 1 * * *",  # Daily at 1:35 AM
             "args": {"collector_type": "controller_version_service"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect controller version snapshot daily",
         },
@@ -238,6 +253,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_snapshot_metrics",
             "cron": "40 1 * * *",  # Daily at 1:40 AM
             "args": {"collector_type": "table_metadata"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect table metadata snapshot daily",
         },
@@ -246,6 +262,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_snapshot_metrics",
             "cron": "45 1 * * *",  # Daily at 1:45 AM
             "args": {"collector_type": "feature_flags_service"},
+            "max_attempts": AWX_COLLECTOR_MAX_ATTEMPTS,
             "enabled": True,
             "description": "Collect feature flags snapshot daily",
         },

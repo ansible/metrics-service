@@ -12,6 +12,62 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+class AwxDbNotReadyError(Exception):
+    """
+    Raised when the AWX (controller) database connection exists but the
+    ms_awx_readonly user does not yet hold SELECT privileges on controller
+    tables.
+
+    This is a transient condition that occurs during fresh installs or
+    post-migration reconciles, before the operator's
+    grant_metrics_readonly_on_controller step has completed.  The caller
+    should treat this as a retriable error rather than a permanent data
+    failure.
+    """
+
+
+def check_awx_db_grant(db_connection: Any) -> None:
+    """
+    Probe whether the current user has SELECT access on the AWX database.
+
+    Runs a minimal ``SELECT 1 FROM main_unifiedjob LIMIT 1`` sentinel query
+    against *db_connection* (a raw psycopg2 connection).  If the query
+    succeeds the function returns without raising.
+
+    Raises:
+        AwxDbNotReadyError: if the query fails with a PostgreSQL
+            ``insufficient_privilege`` (or equivalent) error.  This signals
+            that the operator grant has not yet been applied and the task
+            should be retried later.
+
+    The function is intentionally a no-op (returns without raising) when
+    *db_connection* is ``None`` or when the AWX database is not configured
+    (``configure_centralized_db_controller: false``).  In those cases the
+    existing error path in ``generic_collect_metrics`` handles any subsequent
+    failure appropriately.
+    """
+    if db_connection is None:
+        return
+
+    try:
+        cursor = db_connection.cursor()
+        try:
+            cursor.execute("SELECT 1 FROM main_unifiedjob LIMIT 1")
+        finally:
+            cursor.close()
+    except Exception as exc:
+        exc_str = str(exc).lower()
+        # PostgreSQL SQLSTATE 42501 = insufficient_privilege; also catch the
+        # common human-readable forms surfaced by psycopg2 and Django wrappers.
+        if "permission denied" in exc_str or "insufficient_privilege" in exc_str or "42501" in exc_str:
+            raise AwxDbNotReadyError(
+                f"AWX database SELECT grant not yet available — will retry. Original error: {exc}"
+            ) from exc
+        # Any other exception (table not found, connection error, etc.) is
+        # re-raised as-is so the caller's existing error handling applies.
+        raise
+
+
 def ensure_django_setup():
     """
     Ensure Django is properly configured for dispatcherd workers.
@@ -406,6 +462,21 @@ def generic_collect_metrics(
             logger.debug(f"TaskExecution {task_execution_id} not found, proceeding without link")
 
     from django.db import IntegrityError
+
+    # Guard: probe AWX db grant before dispatching the collector.  This
+    # distinguishes a transient "grant not yet applied" condition (retriable,
+    # no audit record written) from a permanent data error (audit record
+    # written, human intervention needed).  The probe is skipped for non-AWX
+    # connections (db_connection is None or the awx alias is absent).
+    try:
+        check_awx_db_grant(db_connection)
+    except AwxDbNotReadyError as exc:
+        logger.warning(str(exc))
+        return create_task_result(
+            "error",
+            {"task_type": f"collect_{collector_type}", "collector_type": collector_type},
+            error=str(exc),
+        )
 
     try:
         # For snapshot collectors, filter out collection_time (audit-only param, not used by collector)
