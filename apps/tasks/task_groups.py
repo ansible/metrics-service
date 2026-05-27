@@ -154,7 +154,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
         {
             "task_id": "cleanup_bi_collection_batches",
             "function": "cleanup_bi_collection_batches",
-            "cron": "0 4 * * *",
+            "cron": "15 4 * * *",
             "args": {"retention_days": 90},
             "enabled": True,
             "description": "Remove CollectionBatch records older than retention_days",

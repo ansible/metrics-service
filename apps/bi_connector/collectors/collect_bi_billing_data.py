@@ -286,14 +286,21 @@ def _collect_job_host_summary(conn, since, until, batch) -> int:
             )
         )
         if len(pending) >= FLUSH_EVERY:
-            count = _flush(pending, StoredJobHostSummary, unique_fields=["summary_id"], update_fields=_JOB_HOST_SUMMARY_UPDATE_FIELDS)
+            count = _flush(
+                pending,
+                StoredJobHostSummary,
+                unique_fields=["summary_id"],
+                update_fields=_JOB_HOST_SUMMARY_UPDATE_FIELDS,
+            )
             total_flushed += count
             if batch is not None:
                 batch.records_imported = total_flushed
                 batch.save(update_fields=["records_imported", "modified"])
 
     if pending:
-        count = _flush(pending, StoredJobHostSummary, unique_fields=["summary_id"], update_fields=_JOB_HOST_SUMMARY_UPDATE_FIELDS)
+        count = _flush(
+            pending, StoredJobHostSummary, unique_fields=["summary_id"], update_fields=_JOB_HOST_SUMMARY_UPDATE_FIELDS
+        )
         total_flushed += count
         if batch is not None:
             batch.records_imported = total_flushed

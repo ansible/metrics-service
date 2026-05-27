@@ -407,6 +407,7 @@ class TestBiTaskStatusView(APITestCase):
             name="bi_collect_unified_jobs",
             function_name="collect_bi_controller_data",
             status=status_val,
+            created_by=self.user,
             task_data={"collector_key": "unified_jobs", "since": VALID_SINCE, "until": VALID_UNTIL_7},
         )
 
