@@ -319,6 +319,144 @@ class TestTaskRegistry(TestCase):
             assert queue, f"{func_name} has no queue in TASK_METADATA"
             assert queue in valid_queues, f"{func_name} has unknown queue {queue!r} (valid: {valid_queues})"
 
+    def test_task_metadata_has_all_required_fields(self):
+        """Every TASK_METADATA entry must contain all required TaskMetaDict fields."""
+        from apps.tasks.tasks import TASK_METADATA
+
+        required_keys = {"queue", "category", "description", "parameters", "examples"}
+        for func_name, meta in TASK_METADATA.items():
+            missing = required_keys - set(meta.keys())
+            assert not missing, f"TASK_METADATA[{func_name!r}] is missing fields: {sorted(missing)}"
+
+    def test_task_metadata_queues_are_in_allowed_queues(self):
+        """Every TASK_METADATA entry must use a queue from ALLOWED_QUEUES."""
+        from apps.tasks.tasks import ALLOWED_QUEUES, TASK_METADATA
+
+        for func_name, meta in TASK_METADATA.items():
+            queue = meta.get("queue")
+            assert queue in ALLOWED_QUEUES, (
+                f"TASK_METADATA[{func_name!r}] has unknown queue {queue!r}. Allowed: {sorted(ALLOWED_QUEUES)}"
+            )
+
+    def test_allowed_queues_is_frozenset(self):
+        """ALLOWED_QUEUES must be a frozenset containing the expected queue names."""
+        from apps.tasks.tasks import ALLOWED_QUEUES
+
+        assert isinstance(ALLOWED_QUEUES, frozenset)
+        assert "dashboard" in ALLOWED_QUEUES
+        assert "maintenance" in ALLOWED_QUEUES
+        assert "metrics" in ALLOWED_QUEUES
+
+
+# =============================================================================
+# TaskMetaDict and _validate_task_metadata Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestTaskMetadataValidation(TestCase):
+    """Test the TaskMetaDict type and _validate_task_metadata validation helper."""
+
+    def _make_valid_meta(self, **overrides):
+        """Return a minimal valid TaskMetaDict entry."""
+        entry = {
+            "queue": "maintenance",
+            "category": "Testing",
+            "description": "A test task",
+            "parameters": {},
+            "examples": [],
+        }
+        entry.update(overrides)
+        return entry
+
+    def test_validate_passes_for_valid_metadata(self):
+        """_validate_task_metadata should not raise for well-formed entries."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        metadata = {"good_task": self._make_valid_meta()}
+        # Must not raise
+        _validate_task_metadata(metadata)
+
+    def test_validate_raises_for_missing_queue(self):
+        """_validate_task_metadata should raise ValueError when 'queue' is absent."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        bad_entry = self._make_valid_meta()
+        del bad_entry["queue"]
+        with pytest.raises(ValueError, match="missing required fields"):
+            _validate_task_metadata({"bad_task": bad_entry})
+
+    def test_validate_raises_for_missing_category(self):
+        """_validate_task_metadata should raise ValueError when 'category' is absent."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        bad_entry = self._make_valid_meta()
+        del bad_entry["category"]
+        with pytest.raises(ValueError, match="missing required fields"):
+            _validate_task_metadata({"bad_task": bad_entry})
+
+    def test_validate_raises_for_missing_description(self):
+        """_validate_task_metadata should raise ValueError when 'description' is absent."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        bad_entry = self._make_valid_meta()
+        del bad_entry["description"]
+        with pytest.raises(ValueError, match="missing required fields"):
+            _validate_task_metadata({"bad_task": bad_entry})
+
+    def test_validate_raises_for_missing_parameters(self):
+        """_validate_task_metadata should raise ValueError when 'parameters' is absent."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        bad_entry = self._make_valid_meta()
+        del bad_entry["parameters"]
+        with pytest.raises(ValueError, match="missing required fields"):
+            _validate_task_metadata({"bad_task": bad_entry})
+
+    def test_validate_raises_for_missing_examples(self):
+        """_validate_task_metadata should raise ValueError when 'examples' is absent."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        bad_entry = self._make_valid_meta()
+        del bad_entry["examples"]
+        with pytest.raises(ValueError, match="missing required fields"):
+            _validate_task_metadata({"bad_task": bad_entry})
+
+    def test_validate_raises_for_unknown_queue(self):
+        """_validate_task_metadata should raise ValueError for a queue not in ALLOWED_QUEUES."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        bad_entry = self._make_valid_meta(queue="nonexistent_queue")
+        with pytest.raises(ValueError, match="unknown queue"):
+            _validate_task_metadata({"bad_task": bad_entry})
+
+    def test_validate_accepts_all_allowed_queues(self):
+        """_validate_task_metadata should pass for each value in ALLOWED_QUEUES."""
+        from apps.tasks.tasks import ALLOWED_QUEUES, _validate_task_metadata
+
+        for queue in ALLOWED_QUEUES:
+            entry = self._make_valid_meta(queue=queue)
+            # Must not raise
+            _validate_task_metadata({f"task_{queue}": entry})
+
+    def test_validate_reports_task_name_in_error(self):
+        """ValueError message must identify the offending task by name."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        bad_entry = self._make_valid_meta(queue="bad_queue")
+        with pytest.raises(ValueError, match="my_task"):
+            _validate_task_metadata({"my_task": bad_entry})
+
+    def test_validate_empty_metadata_passes(self):
+        """_validate_task_metadata must succeed for an empty dict."""
+        from apps.tasks.tasks import _validate_task_metadata
+
+        _validate_task_metadata({})
+
+    def test_task_meta_dict_is_exportable(self):
+        """TaskMetaDict must be importable from apps.tasks.tasks."""
+        from apps.tasks.tasks import TaskMetaDict  # noqa: F401 -- import-only test
+
 
 # =============================================================================
 # System Task Creation Tests

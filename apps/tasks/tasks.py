@@ -12,6 +12,7 @@ Queue routing is defined per-function in TASK_METADATA ("queue" field).
 """
 
 import logging
+from typing import Any, TypedDict
 
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
@@ -39,6 +40,43 @@ from .simple.hello_world import hello_world
 from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
+
+# Valid queue names as defined in apps/settings/dispatcherd.yaml
+ALLOWED_QUEUES: frozenset[str] = frozenset({"dashboard", "maintenance", "metrics"})
+
+
+class TaskMetaDict(TypedDict):
+    """Typed structure for entries in TASK_METADATA.
+
+    All fields are required. Using TypedDict preserves dict-at-runtime
+    compatibility so callers using .get() continue to work unchanged.
+    """
+
+    queue: str
+    category: str
+    description: str
+    parameters: dict[str, Any]
+    examples: list[dict[str, Any]]
+
+
+def _validate_task_metadata(metadata: "dict[str, TaskMetaDict]") -> None:
+    """Validate all TASK_METADATA entries at module load time.
+
+    Raises ValueError immediately (fail-fast) if any entry is missing a
+    required field or specifies an unknown queue.  This catches
+    misconfigurations before the first request is served.
+    """
+    required_keys = {"queue", "category", "description", "parameters", "examples"}
+    for task_name, meta in metadata.items():
+        missing = required_keys - set(meta.keys())
+        if missing:
+            raise ValueError(f"TASK_METADATA[{task_name!r}] is missing required fields: {sorted(missing)}")
+        queue = meta["queue"]
+        if queue not in ALLOWED_QUEUES:
+            raise ValueError(
+                f"TASK_METADATA[{task_name!r}] has unknown queue {queue!r}. Allowed queues: {sorted(ALLOWED_QUEUES)}"
+            )
+
 
 # Task configuration for dispatcherd
 TASK_FUNCTIONS = {
@@ -83,7 +121,7 @@ def get_queue_for_function(function_name: str) -> str:
 
 
 # Enhanced task metadata for dashboard display
-TASK_METADATA = {
+TASK_METADATA: dict[str, TaskMetaDict] = {
     # Testing
     "hello_world": {
         "queue": "maintenance",
@@ -401,6 +439,9 @@ TASK_METADATA = {
     },
 }
 
+# Validate metadata at module load time — catches misconfiguration before first request
+_validate_task_metadata(TASK_METADATA)
+
 # Explicit exports for better IDE support
 __all__ = [
     # System tasks
@@ -419,9 +460,11 @@ __all__ = [
     "daily_anonymize_and_prepare",
     "send_anonymized_to_segment",
     # Configuration
+    "ALLOWED_QUEUES",
     "TASK_FUNCTIONS",
     "TASK_LOCKS",
     "TASK_METADATA",
+    "TaskMetaDict",
     "get_queue_for_function",
     # Dashboard reports
     "collect_dashboard_reports_data",
