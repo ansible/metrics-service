@@ -62,6 +62,7 @@ class TestBuildDashboardSyncHook:
         assert callable(hook)
 
     def _enabled_hook(self):
+        """Build a hook with DASHBOARD_COLLECTION enabled."""
         with patch(FEATURE_FLAG_PATH, return_value=True):
             return _build_dashboard_sync_hook(HOUR_TS)
 
@@ -233,6 +234,7 @@ class TestGenericCollectMetricsHook:
     """Tests for the post_collect_hook try/except block in generic_collect_metrics."""
 
     def _make_registry(self):
+        """Return a minimal collector registry with a no-rollup test collector."""
         collector = MagicMock()
         collector.gather.return_value = MagicMock()
         return {
@@ -273,6 +275,7 @@ class TestGenericCollectMetricsHook:
         registry = self._make_registry()
 
         def bad_hook(_):
+            """Always raises to simulate a hook failure."""
             raise RuntimeError("hook failed")
 
         result = generic_collect_metrics(
@@ -300,6 +303,7 @@ class TestGenericCollectMetricsHook:
         task_execution = MagicMock()
 
         def bad_hook(_):
+            """Always raises to simulate a hook scheduling failure."""
             raise RuntimeError("scheduling error")
 
         with patch("apps.tasks.utils.logger") as mock_logger:
@@ -333,6 +337,7 @@ class TestGenericCollectMetricsHook:
         registry = self._make_registry()
 
         def bad_hook(_):
+            """Always raises to simulate a hook failure."""
             raise RuntimeError("hook failed")
 
         with patch("apps.tasks.models.TaskExecution") as mock_te:

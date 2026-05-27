@@ -91,12 +91,14 @@ class TestSyncJobsAtomically:
 # --- Fixtures ---
 @pytest.fixture
 def mock_collect_data():
+    """Patch _collect_data for dashboard_reports tasks."""
     with patch("apps.dashboard_reports.tasks._collect_data") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_create_task_result():
+    """Patch create_task_result for dashboard_reports tasks."""
     with patch("apps.dashboard_reports.tasks.create_task_result") as mock:
         yield mock
 
@@ -122,6 +124,8 @@ def mock_collect_data_deps():
 
 @pytest.mark.unit
 class TestCollectJobs:
+    """Tests for the _collect_jobs helper."""
+
     @patch("apps.dashboard_reports.tasks.dashboard_jobs")
     def test_passes_all_args_to_dashboard_jobs(self, mock_dashboard_jobs):
         """_collect_jobs forwards all keyword args including pagination params."""
@@ -156,6 +160,8 @@ class TestCollectJobs:
 
 @pytest.mark.unit
 class TestCollectData:
+    """Tests for the _collect_data core logic."""
+
     def test_success_returns_job_count(self, mock_collect_data_deps):
         """_collect_data returns correct job_count on success."""
         _, _, _, _, _, since, until = mock_collect_data_deps
@@ -232,6 +238,8 @@ class TestCollectData:
 
 @pytest.mark.unit
 class TestCollectDashboardReportsInitialData:
+    """Tests for collect_dashboard_reports_initial_data."""
+
     def test_error_from_collect_data_propagates(self):
         """collect_dashboard_reports_initial_data returns error when _collect_data fails."""
         with (
@@ -266,22 +274,28 @@ class TestCollectDashboardReportsInitialData:
 
 @pytest.mark.unit
 class TestCollectDashboardReportsData:
+    """Tests for the deprecated collect_dashboard_reports_data task."""
+
     def test_error_in_collect_data(self, mock_collect_data, mock_create_task_result):
+        """Returns error result when _collect_data reports failure."""
         mock_collect_data.return_value = {"error": True, "message": "fail"}
         collect_dashboard_reports_data()
         mock_create_task_result.assert_called_with("error", error="fail")
 
     def test_success_in_collect_data(self, mock_collect_data, mock_create_task_result):
+        """Returns success result with data when _collect_data succeeds."""
         mock_collect_data.return_value = {"error": False, "data": {"foo": "bar"}}
         collect_dashboard_reports_data()
         mock_create_task_result.assert_called_with("success", data={"foo": "bar"})
 
     def test_missing_data_key(self, mock_collect_data, mock_create_task_result):
+        """Returns success with empty dict when data key is absent from _collect_data result."""
         mock_collect_data.return_value = {"error": False}
         collect_dashboard_reports_data()
         mock_create_task_result.assert_called_with("success", data={})
 
     def test_error_message_fallback(self, mock_collect_data, mock_create_task_result):
+        """Uses a generic error message when _collect_data returns no message."""
         mock_collect_data.return_value = {"error": True}
         collect_dashboard_reports_data()
         args, kwargs = mock_create_task_result.call_args
@@ -291,7 +305,10 @@ class TestCollectDashboardReportsData:
 
 @pytest.mark.unit
 class TestSyncDashboardJobRecords:
+    """Tests for sync_dashboard_job_records — the hourly hook-driven sync task."""
+
     def _raw_job(self, job_id=1, num_hosts=5, label_ids=None):
+        """Return a minimal raw job dict suitable for passing as raw_jobs input."""
         return {
             "id": job_id,
             "name": "Test Job",
@@ -400,6 +417,7 @@ class TestCollectDataConnectionHandling:
     """Connection must never be closed by _collect_data (shared singleton)."""
 
     def test_does_not_close_connection_on_success(self, mock_collect_data_deps):
+        """Connection is not closed after a successful collection (shared singleton must remain open)."""
         _, mock_db_conn, _, mock_batches, *_ = mock_collect_data_deps
         mock_connection = MagicMock()
         mock_db_conn.return_value = mock_connection
@@ -410,6 +428,7 @@ class TestCollectDataConnectionHandling:
         mock_connection.close.assert_not_called()
 
     def test_does_not_close_connection_on_batch_error(self, mock_collect_data_deps):
+        """Connection is not closed even when a batch error is reported."""
         _, mock_db_conn, _, mock_batches, *_ = mock_collect_data_deps
         mock_connection = MagicMock()
         mock_db_conn.return_value = mock_connection
@@ -423,22 +442,28 @@ class TestCollectDataConnectionHandling:
 # --- Cleanup tests ---
 @pytest.mark.unit
 class TestCleanupDashboardReportsOldData:
+    """Tests for cleanup_dashboard_reports_old_data."""
+
     @pytest.fixture
     def mock_jobdata_objects(self):
+        """Patch JobData ORM calls."""
         with patch("apps.dashboard_reports.tasks.JobData") as mock_jobdata:
             yield mock_jobdata
 
     @pytest.fixture
     def mock_log_task_execution(self):
+        """Patch log_task_execution."""
         with patch("apps.dashboard_reports.tasks.log_task_execution") as mock_log:
             yield mock_log
 
     @pytest.fixture
     def mock_create_task_result_cleanup(self):
+        """Patch create_task_result for cleanup tests."""
         with patch("apps.dashboard_reports.tasks.create_task_result") as mock:
             yield mock
 
     def test_cleanup_success(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
+        """Successful deletion returns a success result with the correct record count."""
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 5
         mock_create_task_result_cleanup.return_value = {"result": "success"}
         result = cleanup_dashboard_reports_old_data()
@@ -450,6 +475,7 @@ class TestCleanupDashboardReportsOldData:
         assert "retention_period_days" in kwargs["data"]
 
     def test_cleanup_no_records(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
+        """Returns success with deleted_records=0 when nothing falls outside the retention window."""
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
         cleanup_dashboard_reports_old_data()
         args, kwargs = mock_create_task_result_cleanup.call_args
@@ -457,6 +483,7 @@ class TestCleanupDashboardReportsOldData:
         assert kwargs["data"]["deleted_records"] == 0
 
     def test_cleanup_exception(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
+        """Returns an error result when the delete call raises."""
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 3
         mock_jobdata_objects.objects.filter.return_value.delete.side_effect = Exception("db error")
         cleanup_dashboard_reports_old_data()
@@ -491,12 +518,14 @@ class TestCleanupDashboardReportsOldData:
     def test_cleanup_custom_retention(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
+        """An explicit retention_period_days kwarg overrides the settings default."""
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 2
         cleanup_dashboard_reports_old_data(retention_period_days=30)
         args, kwargs = mock_create_task_result_cleanup.call_args
         assert kwargs["data"]["retention_period_days"] == 30
 
     def test_cleanup_cutoff_date(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
+        """Cutoff date in the result is midnight on the expected day."""
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 1
         cleanup_dashboard_reports_old_data(retention_period_days=1)
         _, kwargs = mock_create_task_result_cleanup.call_args
@@ -507,6 +536,7 @@ class TestCleanupDashboardReportsOldData:
     def test_cleanup_invalid_retention_string(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
+        """Non-integer retention_period_days returns an error result."""
         cleanup_dashboard_reports_old_data(retention_period_days="not-a-number")
         args, kwargs = mock_create_task_result_cleanup.call_args
         assert args[0] == "error"
@@ -515,6 +545,7 @@ class TestCleanupDashboardReportsOldData:
     def test_cleanup_negative_retention_clamped(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
+        """Negative retention_period_days is clamped to 0 (deletes everything up to now)."""
         mock_jobdata_objects.objects.filter.return_value.delete.return_value = (10, {})
         cleanup_dashboard_reports_old_data(retention_period_days=-5)
         args, kwargs = mock_create_task_result_cleanup.call_args
@@ -638,6 +669,7 @@ class TestGetJobIdRange:
     """Tests for _get_job_id_range — mocks both the query builder and DB cursor."""
 
     def _mock_db(self, fetchone_return):
+        """Return a mock DB connection whose cursor context manager yields fetchone_return."""
         db = MagicMock()
         cursor_ctx = MagicMock()
         cursor_ctx.__enter__ = MagicMock(return_value=cursor_ctx)
@@ -688,6 +720,7 @@ class TestProcessBatches:
     _until = datetime(2024, 2, 1, tzinfo=UTC)
 
     def _call(self, after_id, max_id, collect_side_effect=None, sync_return=None):
+        """Invoke _process_batches with mocked _collect_jobs and _sync_jobs_atomically."""
         db = MagicMock()
         with (
             patch("apps.dashboard_reports.tasks._collect_jobs") as mock_collect,
