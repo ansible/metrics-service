@@ -11,5 +11,10 @@ When True, appends '_Test' to all Segment event names to separate end-to-end
 test data from real customer data. Override with METRICS_SERVICE_SEGMENT_TEST_MODE
 environment variable."""
 
+SEGMENT_MAX_PAYLOADS = 5
+"""Maximum number of AnonymizedMetricsPayload records processed per send_anonymized_to_segment
+task execution. Increase this value if the queue grows faster than the default batch size
+can drain it. Override with METRICS_SERVICE_SEGMENT_MAX_PAYLOADS environment variable."""
+
 # SEGMENT_WRITE_KEY = "test-segment-write-key-change-in-production"
 # """Segment Write Key this needs to be set in environment variables to run locally in producitoon its mounted as a file"""

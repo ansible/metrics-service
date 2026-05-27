@@ -30,6 +30,7 @@ router.register(r"executions", TaskExecutionViewSet, basename="taskexecution")
 # /api/v1/tasks/{id}/cancel/ - Cancel task (manage_tasks cancel)
 # /api/v1/tasks/cleanup/ - Cleanup old tasks (manage_tasks cleanup)
 # /api/v1/tasks/available_functions/ - Get available task functions
+# /api/v1/tasks/requeue_failed_payloads/ - Requeue failed Segment payloads (DLQ recovery)
 router.register(r"", TaskViewSet, basename="task")
 
 urlpatterns = [
@@ -54,3 +55,4 @@ urlpatterns = [
 # POST   /api/v1/tasks/{id}/cancel/         - Cancel task (manage_tasks cancel)
 # POST   /api/v1/tasks/cleanup/             - Cleanup old tasks (manage_tasks cleanup)
 # GET    /api/v1/tasks/available_functions/ - Get available task functions
+# POST   /api/v1/tasks/requeue_failed_payloads/ - Requeue failed Segment payloads (DLQ recovery, AAP-75687)

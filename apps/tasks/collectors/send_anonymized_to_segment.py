@@ -5,6 +5,7 @@ This task fetches pending anonymized payloads from the database and sends them
 to Segment.com, handling retries and stale payload recovery.
 """
 
+import json
 import logging
 from datetime import timedelta
 from typing import Any
@@ -19,6 +20,45 @@ from ..utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _log_dead_letter(payload) -> None:
+    """
+    Emit a structured ERROR log for a payload that has exhausted all retries.
+
+    This serves as a lightweight dead-letter-queue (DLQ) substitute: the log
+    record contains enough information for operators (and log-based alerting
+    rules) to identify, diagnose, and manually recover the payload without
+    requiring an external queue.
+
+    The log entry includes the full anonymized_data so that the payload can be
+    reconstructed and re-submitted if needed.
+
+    Args:
+        payload: AnonymizedMetricsPayload that has reached ``status='failed'``
+    """
+    try:
+        payload_json = json.dumps(payload.anonymized_data)
+    except (TypeError, ValueError):
+        payload_json = "<serialization error>"
+
+    logger.error(
+        "SEGMENT_DLQ payload exhausted all retries and will not be resent automatically. "
+        "Manual intervention required.",
+        extra={
+            "dlq_event": "segment_payload_exhausted",
+            "payload_id": payload.id,
+            "summary_date": str(payload.summary_date),
+            "retry_count": payload.retry_count,
+            "max_retries": payload.max_retries,
+            "last_error": payload.error_message,
+            "segment_event_name": payload.segment_event_name,
+            "segment_user_id": payload.segment_user_id,
+            "payload_size_bytes": payload.payload_size_bytes,
+            "created": payload.created.isoformat() if payload.created else None,
+            "anonymized_data": payload_json,
+        },
+    )
 
 
 def _get_payloads_to_send(payload_id: int | None, max_payloads: int, stale_threshold) -> list:
@@ -92,6 +132,10 @@ def _handle_failed_send(payload, segment_result: dict, results: dict) -> None:
         # Log an error if we are past the maximum retry limit, else, log a warning about the retry
         payload.status = "failed"
         logger.error("Segment send failed, not retrying", extra=details)
+        # Emit DLQ-style structured log so the lost payload can be recovered and
+        # log-based alerting (e.g. Prometheus loki rule or ELK alert on
+        # dlq_event=segment_payload_exhausted) fires immediately.
+        _log_dead_letter(payload)
     else:
         payload.status = "retry"
         logger.warning("Segment send failed, retrying", extra=details)
@@ -138,6 +182,8 @@ def _process_single_payload(payload, results: dict) -> None:
         payload.status = "failed"
         payload.error_message = "Max retries exceeded"
         payload.save()
+        # Emit DLQ structured log so operators can recover the payload
+        _log_dead_letter(payload)
         results["skipped"] += 1
         return
 
@@ -263,7 +309,8 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result with send statistics
     """
-    max_payloads = kwargs.get("max_payloads", 5)
+    default_max_payloads = getattr(settings, "SEGMENT_MAX_PAYLOADS", 5)
+    max_payloads = kwargs.get("max_payloads", default_max_payloads)
     payload_id = kwargs.get("payload_id")
     stale_minutes = kwargs.get("stale_minutes", 10)
 

@@ -38,7 +38,7 @@ from rest_framework.response import Response
 
 from apps.core.permissions import DeveloperModeRequired
 from apps.tasks.api_utils import build_error_response
-from apps.tasks.models import Task, TaskExecution
+from apps.tasks.models import AnonymizedMetricsPayload, Task, TaskExecution
 
 from .base_views import BaseViewSet
 from .serializers import (
@@ -415,6 +415,66 @@ class TaskViewSet(BaseViewSet):
             return Response({"message": "Task scheduled for immediate execution", "task_id": str(task.id)})
         except Exception as e:
             error_response = build_error_response(f"Failed to schedule task: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=["post"])
+    def requeue_failed_payloads(self, request: HttpRequest) -> Response:
+        """
+        Reset AnonymizedMetricsPayload records that are in ``failed`` status back to
+        ``pending`` so they will be picked up on the next ``send_anonymized_to_segment``
+        run.
+
+        This is the lightweight dead-letter-queue (DLQ) recovery mechanism for
+        AAP-75687.  Operators call this endpoint after investigating why payloads
+        failed (see the ``SEGMENT_DLQ`` log entries) and deciding it is safe to
+        retry them.
+
+        Optionally accepts a JSON body with:
+            - ``payload_ids`` (list[int]): Limit requeue to specific payload IDs.
+              When omitted, all ``failed`` payloads are requeued.
+            - ``reset_retry_count`` (bool, default false): When ``true``, also
+              reset ``retry_count`` to 0 so the payload gets a full fresh set of
+              retries.  Use this when the underlying Segment connectivity issue has
+              been resolved.
+
+        Returns:
+            Response: Count of requeued payloads and their IDs.
+        """
+        payload_ids = request.data.get("payload_ids")
+        reset_retry_count = bool(request.data.get("reset_retry_count", False))
+
+        try:
+            qs = AnonymizedMetricsPayload.objects.filter(status="failed")
+            if payload_ids:
+                qs = qs.filter(id__in=payload_ids)
+
+            ids_to_requeue = list(qs.values_list("id", flat=True))
+
+            if not ids_to_requeue:
+                return Response(
+                    {
+                        "message": "No failed payloads found matching the given criteria.",
+                        "requeued_count": 0,
+                        "requeued_ids": [],
+                    }
+                )
+
+            update_fields = {"status": "pending", "error_message": ""}
+            if reset_retry_count:
+                update_fields["retry_count"] = 0
+
+            AnonymizedMetricsPayload.objects.filter(id__in=ids_to_requeue).update(**update_fields)
+
+            return Response(
+                {
+                    "message": f"Requeued {len(ids_to_requeue)} failed payload(s) for retransmission.",
+                    "requeued_count": len(ids_to_requeue),
+                    "requeued_ids": ids_to_requeue,
+                    "reset_retry_count": reset_retry_count,
+                }
+            )
+        except Exception as e:
+            error_response = build_error_response(f"Failed to requeue payloads: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"])
