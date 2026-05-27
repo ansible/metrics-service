@@ -2,6 +2,7 @@
 Utility functions for task management and execution.
 """
 
+import contextlib
 import logging
 from datetime import UTC
 from typing import Any
@@ -450,6 +451,11 @@ def generic_collect_metrics(
         action = "Created" if created else "Updated"
         log_task_execution(f"collect_{collector_type}", "completed", f"{action} {collection_mode} ID: {collection.id}")
 
+        with contextlib.suppress(Exception):
+            from apps.tasks.prom_metrics import COLLECTOR_SUCCESS_TOTAL
+
+            COLLECTOR_SUCCESS_TOTAL.labels(collector_type=collector_type, collection_mode=collection_mode).inc()
+
         return create_task_result(
             "success",
             {
@@ -466,8 +472,6 @@ def generic_collect_metrics(
 
         # Store failed collection for audit trail (critical for diagnosing missing rollup data)
         # Use contextlib.suppress to avoid secondary exception if database write fails
-        import contextlib
-
         with contextlib.suppress(Exception):
             HourlyMetricsCollection.objects.update_or_create(
                 collector_type=collector_type,
@@ -480,6 +484,11 @@ def generic_collect_metrics(
                     "task_execution": task_execution_instance,
                 },
             )
+
+        with contextlib.suppress(Exception):
+            from apps.tasks.prom_metrics import COLLECTOR_FAILURE_TOTAL
+
+            COLLECTOR_FAILURE_TOTAL.labels(collector_type=collector_type, collection_mode=collection_mode).inc()
 
         return create_task_result(
             "error",

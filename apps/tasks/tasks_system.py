@@ -6,6 +6,7 @@ communication, and testing tasks with proper error handling and status tracking.
 """
 
 import logging
+import time
 from typing import Any
 
 from django.db import models, transaction
@@ -190,6 +191,10 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
 
     try:
         from .models import Task
+        from .prom_metrics import (
+            TASK_EXECUTION_DURATION_SECONDS,
+            refresh_queue_depth_gauge,
+        )
 
         task, execution = _claim_task(task_id)
         if task is None:
@@ -199,7 +204,20 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
             logger.warning(f"Task {task_id} already claimed by another worker, skipping")
             return create_task_result("error", error="Task already claimed by another worker")
 
-        return execute_claimed(task, execution)
+        # Refresh queue depth gauge now that this task has been claimed (moved to "running").
+        refresh_queue_depth_gauge()
+
+        start_time = time.monotonic()
+        result = execute_claimed(task, execution)
+        elapsed = time.monotonic() - start_time
+
+        # Record execution duration labelled by the concrete function name.
+        TASK_EXECUTION_DURATION_SECONDS.labels(function_name=task.function_name).observe(elapsed)
+
+        # Refresh queue depth again after execution completes.
+        refresh_queue_depth_gauge()
+
+        return result
 
     except Exception as e:
         return handle_task_error(

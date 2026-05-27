@@ -268,6 +268,15 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
     stale_minutes = kwargs.get("stale_minutes", 10)
 
     try:
+        # Refresh Segment backlog gauge before processing so the metric reflects
+        # the queue depth at the start of this run (including any newly created payloads).
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            from apps.tasks.prom_metrics import refresh_segment_backlog_gauge
+
+            refresh_segment_backlog_gauge()
+
         stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
 
         # Check for pending payloads early to avoid unnecessary work
@@ -298,6 +307,12 @@ def send_anonymized_to_segment(**kwargs) -> dict[str, Any]:
             f"Sent: {results['sent']}, Failed: {results['failed']}, "
             f"Skipped: {results['skipped']}, Recovered: {results['recovered']}",
         )
+
+        # Refresh backlog gauge after processing to reflect sent payloads being removed.
+        with contextlib.suppress(Exception):
+            from apps.tasks.prom_metrics import refresh_segment_backlog_gauge
+
+            refresh_segment_backlog_gauge()
 
         return create_task_result(
             "success",
