@@ -6,6 +6,7 @@ and stores in HourlyMetricsCollection.
 """
 
 import logging
+import math
 from datetime import timedelta
 from typing import Any
 
@@ -158,6 +159,10 @@ def _serialize_dashboard_record(row: dict) -> None:
     columns with no NaN values. DjangoJSONEncoder does not handle these, so storing raw
     records in Task.task_data would raise TypeError. This function converts every field
     that could carry a numpy type before the record is written to the JSONField.
+
+    Nullable FK columns (organization_id, project_id, etc.) are upcast to float64 by pandas
+    when NaN coexists with integers; .where(notna(), other=None) leaves NaN as float nan
+    rather than None, so int(nan) would raise ValueError without the explicit nan guard here.
     """
     for field in ("started", "finished", "created", "modified"):
         val = row.get(field)
@@ -165,10 +170,14 @@ def _serialize_dashboard_record(row: dict) -> None:
             row[field] = val.isoformat()
     for field in _INT_FIELDS:
         val = row.get(field)
-        if val is not None:
+        if val is None or (isinstance(val, float) and math.isnan(val)):
+            row[field] = None
+        else:
             row[field] = int(val)
     val = row.get("elapsed")
-    if val is not None:
+    if val is None or (isinstance(val, float) and math.isnan(val)):
+        row["elapsed"] = None
+    else:
         row["elapsed"] = float(val)
 
 
@@ -218,7 +227,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
         hour_ts_str = hour_timestamp.isoformat()
         for chunk_index, start in enumerate(range(0, len(records), _SYNC_TASK_CHUNK_SIZE)):
             chunk = records[start : start + _SYNC_TASK_CHUNK_SIZE]
-            Task.objects.get_or_create(
+            Task.objects.update_or_create(
                 name=f"sync_dashboard_jobs_{hour_ts_str}_{chunk_index}",
                 defaults={
                     "description": f"Sync dashboard job records from unified_jobs for {hour_ts_str} (chunk {chunk_index})",

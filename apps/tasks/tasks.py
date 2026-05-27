@@ -75,9 +75,9 @@ TASK_LOCKS = {
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",
     "send_anonymized_to_segment",
-    "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "sync_dashboard_job_records",
 }
 
 

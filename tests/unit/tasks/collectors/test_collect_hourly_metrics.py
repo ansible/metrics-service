@@ -181,6 +181,52 @@ class TestSerializeDashboardRecord:
         _serialize_dashboard_record(row)
         assert row["started"] == "2024-01-01T00:00:00+00:00"
 
+    def test_numpy_int_fields_coerced_to_python_int(self):
+        """numpy.int64 values in integer fields are coerced to Python int without raising."""
+        import numpy as np
+
+        row = {
+            "id": np.int64(5),
+            "organization_id": np.int64(3),
+            "unified_job_template_id": np.int64(7),
+            "launched_by_id": np.int64(1),
+            "project_id": np.int64(2),
+            "num_hosts": np.float64(4.0),
+            "elapsed": np.float64(60.5),
+            "started": None,
+            "finished": None,
+            "created": None,
+            "modified": None,
+        }
+        _serialize_dashboard_record(row)
+        for field in ("id", "organization_id", "unified_job_template_id", "launched_by_id", "project_id", "num_hosts"):
+            assert isinstance(row[field], int), f"{field}: expected int, got {type(row[field])}"
+        assert isinstance(row["elapsed"], float)
+
+    def test_nan_in_nullable_int_fields_becomes_none(self):
+        """NaN in nullable FK columns (from pandas float64 upcast) is converted to None, not int(nan) ValueError."""
+
+        row = {
+            "id": 1,
+            "organization_id": float("nan"),
+            "unified_job_template_id": float("nan"),
+            "launched_by_id": None,
+            "project_id": float("nan"),
+            "num_hosts": 0,
+            "elapsed": float("nan"),
+            "started": None,
+            "finished": None,
+            "created": None,
+            "modified": None,
+        }
+        _serialize_dashboard_record(row)
+        assert row["organization_id"] is None
+        assert row["unified_job_template_id"] is None
+        assert row["launched_by_id"] is None
+        assert row["project_id"] is None
+        assert row["elapsed"] is None
+        assert row["id"] == 1  # non-NaN int field unchanged
+
 
 @pytest.mark.unit
 class TestGenericCollectMetricsHook:

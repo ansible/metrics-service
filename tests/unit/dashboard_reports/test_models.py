@@ -683,17 +683,17 @@ class TestCreateOrUpdateFromAwxHostSummaries:
     @patch("apps.dashboard_reports.models.JobData._sync_host_summaries")
     @patch("apps.dashboard_reports.models.TemplateMetadata.get_by_awx_id_or_name", return_value=None)
     @pytest.mark.django_db
-    def test_host_summaries_none_skips_sync(self, _mock_template, mock_sync_summaries):
+    def test_host_summaries_none_skips_sync(self, _mock_template_metadata, mock_sync_host_summaries):
         """When host_summaries=None, _sync_host_summaries is never called."""
         job = {**self._AWX_JOB, "host_summaries": None}
         JobData.create_or_update_from_awx(job)
-        mock_sync_summaries.assert_not_called()
+        mock_sync_host_summaries.assert_not_called()
 
     @patch("apps.dashboard_reports.models.JobData._sync_host_summaries")
     @patch("apps.dashboard_reports.models.TemplateMetadata.get_by_awx_id_or_name", return_value=None)
     @pytest.mark.django_db
-    def test_host_summaries_list_calls_sync(self, _mock_template, mock_sync_summaries):
+    def test_host_summaries_list_calls_sync(self, _mock_template_metadata, mock_sync_host_summaries):
         """When host_summaries is a non-None list, _sync_host_summaries is called."""
         job = {**self._AWX_JOB, "id": 9002, "host_summaries": []}
         JobData.create_or_update_from_awx(job)
-        mock_sync_summaries.assert_called_once()
+        mock_sync_host_summaries.assert_called_once()

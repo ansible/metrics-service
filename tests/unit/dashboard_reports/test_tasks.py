@@ -511,6 +511,7 @@ class TestCleanupDashboardReportsOldData:
         assert args[0] == "success"
         assert kwargs["data"]["retention_period_days"] == 0
 
+    @pytest.mark.integration
     @pytest.mark.django_db
     def test_cleanup_with_db_data(self, db):
         """Test cleanup_dashboard_reports_old_data with real JobData records in the database."""

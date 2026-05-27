@@ -9,6 +9,7 @@ Provides four dispatcherd tasks:
 """
 
 import logging
+import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -60,7 +61,9 @@ def _collect_jobs(
     labels/host-summaries are fetched by the returned job IDs rather than the
     full date range, which is far more efficient for large backfills.
     """
-    return dashboard_jobs(db=db_connection, since=since, until=until, after_id=after_id, batch_size=batch_size).gather()
+    return dashboard_jobs(
+        db=db_connection, since=since, until=until, after_id=after_id, batch_size=batch_size, date_field="finished"
+    ).gather()
 
 
 def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
@@ -69,7 +72,7 @@ def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
     # (hello_world, cleanup_old_tasks) can be registered without the dependency installed.
     from metrics_utility.library.collectors.dashboard import get_min_max_job_id_query
 
-    query, params = get_min_max_job_id_query(since, until)
+    query, params = get_min_max_job_id_query(since, until, date_field="finished")
     with db_connection.cursor() as cursor:
         cursor.execute(query, params)
         row = cursor.fetchone()
@@ -126,7 +129,7 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
         since = (
             (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         )
-    raw_batch_size = dashboard_cfg.get("BACKFILL_BATCH_SIZE", 10_000)
+    raw_batch_size = dashboard_cfg.get("BACKFILL_BATCH_SIZE", 5_000)
     try:
         batch_size = int(raw_batch_size)
     except (TypeError, ValueError) as e:
@@ -304,7 +307,12 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     assembled = []
     for row in raw_jobs:
         label_ids_raw = row.get("label_ids")
-        labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()] if label_ids_raw else []
+        if not label_ids_raw or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
+            labels = []
+        elif isinstance(label_ids_raw, str):
+            labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]
+        else:
+            labels = [int(label_ids_raw)]
         assembled.append(
             {
                 "id": row["id"],
