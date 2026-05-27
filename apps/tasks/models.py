@@ -291,6 +291,14 @@ class TaskExecution(CommonModel, AuditableModel):
         null=True, blank=True, help_text="Time taken to execute the task in seconds"
     )
 
+    idempotency_key = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Idempotency key supplied by the caller to prevent duplicate retry executions",
+    )
+
     def __str__(self):
         """
         Return string representation of the task execution.

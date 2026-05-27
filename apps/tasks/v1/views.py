@@ -39,6 +39,7 @@ from rest_framework.response import Response
 from apps.core.permissions import DeveloperModeRequired
 from apps.tasks.api_utils import build_error_response
 from apps.tasks.models import Task, TaskExecution
+from apps.tasks.settings import IDEMPOTENCY_WINDOW_SECONDS
 
 from .base_views import BaseViewSet
 from .serializers import (
@@ -147,6 +148,12 @@ class TaskViewSet(BaseViewSet):
         This endpoint replicates the functionality of:
         python manage.py manage_tasks retry <task_id>
 
+        Callers may supply an ``Idempotency-Key`` request header to guard
+        against duplicate retries caused by client-side timeouts or network
+        retransmissions.  When the same key is received within the configured
+        ``IDEMPOTENCY_WINDOW_SECONDS`` window, the original success response
+        is returned without creating a new execution record.
+
         Args:
             request: HTTP request
             pk: Primary key of the task
@@ -155,6 +162,25 @@ class TaskViewSet(BaseViewSet):
             Response: Success or error response
         """
         task = self.get_object()
+
+        idempotency_key = request.headers.get("Idempotency-Key")
+
+        if idempotency_key:
+            window_start = timezone.now() - timedelta(seconds=IDEMPOTENCY_WINDOW_SECONDS)
+            duplicate = (
+                TaskExecution.objects.filter(
+                    task=task,
+                    idempotency_key=idempotency_key,
+                    started_at__gte=window_start,
+                )
+                .order_by("-started_at")
+                .first()
+            )
+            if duplicate is not None:
+                return Response(
+                    {"message": f"Task '{task.name}' queued for retry", "idempotent": True},
+                    status=status.HTTP_200_OK,
+                )
 
         if not task.can_retry():
             error_response = build_error_response(
@@ -169,6 +195,13 @@ class TaskViewSet(BaseViewSet):
         task.started_at = None
         task.completed_at = None
         task.save(update_fields=["status", "error_message", "started_at", "completed_at", "modified"])
+
+        # Record the execution with the idempotency key so that subsequent
+        # identical requests within the window are detected as duplicates.
+        execution_kwargs: dict[str, Any] = {"task": task, "status": "pending"}
+        if idempotency_key:
+            execution_kwargs["idempotency_key"] = idempotency_key
+        TaskExecution.objects.create(**execution_kwargs)
 
         return Response({"message": f"Task '{task.name}' queued for retry"})
 

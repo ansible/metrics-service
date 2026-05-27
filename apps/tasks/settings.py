@@ -13,3 +13,10 @@ environment variable."""
 
 # SEGMENT_WRITE_KEY = "test-segment-write-key-change-in-production"
 # """Segment Write Key this needs to be set in environment variables to run locally in producitoon its mounted as a file"""
+
+IDEMPOTENCY_WINDOW_SECONDS = 600
+"""Idempotency window for task retry requests (seconds).
+When a caller supplies an Idempotency-Key header on POST /api/v1/tasks/{id}/retry/,
+a duplicate request carrying the same key within this window returns the original
+response without creating a new execution record. Defaults to 10 minutes (600 s).
+Override with METRICS_SERVICE_IDEMPOTENCY_WINDOW_SECONDS environment variable."""
