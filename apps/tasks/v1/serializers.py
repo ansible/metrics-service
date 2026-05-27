@@ -186,6 +186,64 @@ class TaskCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(f"Invalid JSON data: {e}") from e
         return value
 
+    def validate(self, attrs):
+        """Cross-field validation: check task_data parameters against the function schema."""
+        attrs = super().validate(attrs)
+        function_name = attrs.get("function_name")
+        task_data = attrs.get("task_data", {})
+
+        # Only proceed if we have a valid function_name (field-level validate already
+        # confirmed it exists in TASK_FUNCTIONS; skip if missing due to earlier error).
+        if not function_name or not isinstance(task_data, dict):
+            return attrs
+
+        from apps.tasks.tasks import TASK_METADATA
+
+        metadata = TASK_METADATA.get(function_name)
+        if not metadata:
+            # No schema defined for this function — nothing to validate against.
+            return attrs
+
+        parameters = metadata.get("parameters", {})
+        errors = {}
+
+        # Check for required parameters that are absent from task_data.
+        for param_name, param_schema in parameters.items():
+            if param_schema.get("required") and param_name not in task_data:
+                errors[param_name] = f"This field is required for function '{function_name}'."
+
+        # Validate types and bounds for each provided key.
+        type_map = {"integer": int, "boolean": bool, "string": str}
+        for key, val in task_data.items():
+            if key not in parameters:
+                errors[key] = f"Unknown parameter '{key}' for function '{function_name}'."
+                continue
+
+            param_schema = parameters[key]
+            expected_type_str = param_schema.get("type")
+            expected_type = type_map.get(expected_type_str)
+
+            if expected_type is not None and not isinstance(val, expected_type):
+                # bool is a subclass of int in Python; reject booleans for integer fields.
+                if expected_type is int and isinstance(val, bool):
+                    errors[key] = "Expected an integer, got boolean."
+                    continue
+                errors[key] = f"Expected type '{expected_type_str}', got '{type(val).__name__}'."
+                continue
+
+            if expected_type is int:
+                minimum = param_schema.get("min")
+                maximum = param_schema.get("max")
+                if minimum is not None and val < minimum:
+                    errors[key] = f"Value {val} is below the minimum of {minimum}."
+                elif maximum is not None and val > maximum:
+                    errors[key] = f"Value {val} exceeds the maximum of {maximum}."
+
+        if errors:
+            raise serializers.ValidationError({"task_data": errors})
+
+        return attrs
+
     def validate_user(self, value):
         """Validate user exists if provided."""
         if value:
