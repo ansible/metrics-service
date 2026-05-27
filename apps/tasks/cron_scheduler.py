@@ -158,11 +158,44 @@ class UnifiedTaskScheduler:
         except Exception as e:
             logger.error(f"Error synchronizing database tasks: {e}")
 
+    def _reconcile_recurring_feature_flags(self):
+        """Remove APScheduler jobs for recurring tasks whose feature flag has been disabled.
+
+        Iterates over a snapshot of the current tracking dict so that
+        _remove_database_task can safely mutate self._db_task_jobs during iteration.
+        Unflagged recurring tasks are left untouched — they are always enabled.
+        """
+        from .models import Task
+
+        for task_id, job_id in list(self._db_task_jobs.items()):
+            if not job_id.startswith("db_recurring_"):
+                continue
+            try:
+                task = Task.objects.get(id=task_id)
+            except Task.DoesNotExist:
+                # Stale entry — remove so the re-add loop cannot resurrect it.
+                self._remove_database_task(task_id)
+                continue
+            # Only act on tasks that carry a feature flag; unflagged tasks
+            # are always enabled and must never be removed here.
+            if not (task.task_data and task.task_data.get("_feature_flag")):
+                continue
+            if not self._task_feature_flag_enabled(task):
+                logger.info(
+                    f"Feature flag disabled for recurring task '{task.name}' (ID: {task_id}) — removing APScheduler job"
+                )
+                self._remove_database_task(task_id)
+
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
         close_old_connections()
         try:
             from .models import Task
+
+            # Reconcile feature-flag state for already-tracked recurring tasks before
+            # running new-task detection so that re-enabled tasks are picked up in the
+            # same sync cycle.
+            self._reconcile_recurring_feature_flags()
 
             # Get all pending database tasks (immediate, scheduled, or recurring)
             immediate_tasks = Task.immediate_tasks()

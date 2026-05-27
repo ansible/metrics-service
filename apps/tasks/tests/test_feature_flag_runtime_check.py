@@ -157,3 +157,119 @@ class TestFeatureFlagRuntimeCheck:
         scheduler._execute_database_task(42)
 
         mock_submit.assert_not_called()
+
+
+@pytest.mark.unit
+class TestPeriodicSyncFlagReconciliation:
+    """Test that _periodic_database_sync reconciles APScheduler jobs with live feature-flag state.
+
+    AC#2/AC#3 requirement: recurring APScheduler jobs must be canceled when the associated
+    feature flag is disabled, and automatically re-added on the next sync when re-enabled.
+    """
+
+    def _make_scheduler_with_recurring_job(self, task_id=99, job_id=None):
+        """Return a scheduler with one recurring job pre-registered in _db_task_jobs."""
+        scheduler = UnifiedTaskScheduler()
+        scheduler._db_task_jobs[task_id] = job_id or f"db_recurring_{task_id}"
+        return scheduler
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
+    @patch("apps.tasks.models.Task")
+    def test_periodic_sync_removes_job_when_flag_disabled(self, mock_task_cls, mock_get_feature, mock_close):
+        """_periodic_database_sync removes APScheduler job when feature flag is disabled at runtime."""
+        task_id = 99
+        mock_task = _make_mock_task(task_id=task_id, task_data={"_feature_flag": "METRICS_COLLECTION"})
+        mock_task_cls.objects.get.return_value = mock_task
+        # Return empty querysets so the new-task detection loops are no-ops.
+        mock_task_cls.immediate_tasks.return_value = []
+        mock_task_cls.scheduled_tasks.return_value = []
+        mock_task_cls.recurring_tasks.return_value = []
+        mock_task_cls.objects.filter.return_value = []
+        mock_get_feature.return_value = False
+
+        scheduler = self._make_scheduler_with_recurring_job(task_id)
+        # Stub out remove_job so APScheduler is not actually invoked.
+        scheduler.scheduler.remove_job = MagicMock()
+
+        scheduler._periodic_database_sync()
+
+        assert task_id not in scheduler._db_task_jobs
+        scheduler.scheduler.remove_job.assert_called_once_with(f"db_recurring_{task_id}")
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
+    @patch("apps.tasks.models.Task")
+    def test_periodic_sync_readds_job_when_flag_reenabled(self, mock_task_cls, mock_get_feature, mock_close):
+        """After a job has been removed, the next sync re-adds it when the flag is re-enabled."""
+        task_id = 88
+        mock_task = _make_mock_task(task_id=task_id, task_data={"_feature_flag": "METRICS_COLLECTION"})
+        # recurring_tasks returns the task so the new-task detection loop sees it.
+        mock_task_cls.immediate_tasks.return_value = []
+        mock_task_cls.scheduled_tasks.return_value = []
+        mock_task_cls.recurring_tasks.return_value = [mock_task]
+        mock_task_cls.objects.filter.return_value = []
+        mock_get_feature.return_value = True
+
+        scheduler = UnifiedTaskScheduler()
+        # task_id is NOT in _db_task_jobs — simulates a previously removed job.
+        assert task_id not in scheduler._db_task_jobs
+        scheduler.scheduler.add_job = MagicMock()
+
+        scheduler._periodic_database_sync()
+
+        assert task_id in scheduler._db_task_jobs
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
+    @patch("apps.tasks.models.Task")
+    def test_periodic_sync_leaves_unflagged_tasks_alone(self, mock_task_cls, mock_get_feature, mock_close):
+        """Recurring tasks without _feature_flag are never removed by the reconciliation loop."""
+        task_id = 77
+        mock_task = _make_mock_task(task_id=task_id, task_data={})  # No feature flag
+        mock_task_cls.objects.get.return_value = mock_task
+        mock_task_cls.immediate_tasks.return_value = []
+        mock_task_cls.scheduled_tasks.return_value = []
+        mock_task_cls.recurring_tasks.return_value = []
+        mock_task_cls.objects.filter.return_value = []
+
+        scheduler = self._make_scheduler_with_recurring_job(task_id)
+        scheduler.scheduler.remove_job = MagicMock()
+
+        scheduler._periodic_database_sync()
+
+        # Job must still be tracked — reconciliation must not touch unflagged tasks.
+        assert task_id in scheduler._db_task_jobs
+        scheduler.scheduler.remove_job.assert_not_called()
+        # get_feature_enabled_from_db should never be called for unflagged tasks.
+        mock_get_feature.assert_not_called()
+
+    @patch("apps.tasks.cron_scheduler.close_old_connections")
+    @patch("apps.tasks.task_groups.get_feature_enabled_from_db")
+    @patch("apps.tasks.models.Task")
+    def test_periodic_sync_flag_disabled_then_reenabled_cycle(self, mock_task_cls, mock_get_feature, mock_close):
+        """Full disable → re-enable cycle: two sync calls remove then re-add the APScheduler job."""
+        task_id = 66
+        mock_task = _make_mock_task(task_id=task_id, task_data={"_feature_flag": "ANONYMIZED_DATA_COLLECTION"})
+        mock_task_cls.objects.get.return_value = mock_task
+        mock_task_cls.immediate_tasks.return_value = []
+        mock_task_cls.scheduled_tasks.return_value = []
+        mock_task_cls.objects.filter.return_value = []
+
+        # --- Cycle 1: flag is disabled ---
+        mock_task_cls.recurring_tasks.return_value = []
+        mock_get_feature.return_value = False
+
+        scheduler = self._make_scheduler_with_recurring_job(task_id)
+        scheduler.scheduler.remove_job = MagicMock()
+        scheduler.scheduler.add_job = MagicMock()
+
+        scheduler._periodic_database_sync()
+        assert task_id not in scheduler._db_task_jobs
+
+        # --- Cycle 2: flag is re-enabled; recurring_tasks returns the task again ---
+        mock_task_cls.recurring_tasks.return_value = [mock_task]
+        mock_get_feature.return_value = True
+
+        scheduler._periodic_database_sync()
+        assert task_id in scheduler._db_task_jobs
