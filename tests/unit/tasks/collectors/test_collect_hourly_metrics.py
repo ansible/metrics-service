@@ -306,17 +306,19 @@ class TestGenericCollectMetricsHook:
             """Always raises to simulate a hook scheduling failure."""
             raise RuntimeError("scheduling error")
 
-        with patch("apps.tasks.utils.logger") as mock_logger:
-            with patch("apps.tasks.models.TaskExecution.objects.get", return_value=task_execution):
-                generic_collect_metrics(
-                    collector_type="test_collector",
-                    collector_registry=registry,
-                    collection_mode="hourly",
-                    timestamp=datetime(2024, 1, 1, tzinfo=UTC),
-                    db_connection=MagicMock(),
-                    task_execution_id=42,
-                    post_collect_hook=bad_hook,
-                )
+        with (
+            patch("apps.tasks.utils.logger") as mock_logger,
+            patch("apps.tasks.models.TaskExecution.objects.get", return_value=task_execution),
+        ):
+            generic_collect_metrics(
+                collector_type="test_collector",
+                collector_registry=registry,
+                collection_mode="hourly",
+                timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                db_connection=MagicMock(),
+                task_execution_id=42,
+                post_collect_hook=bad_hook,
+            )
 
         mock_logger.warning.assert_called()
         warning_msg = mock_logger.warning.call_args_list[0][0][0]
