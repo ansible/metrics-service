@@ -502,8 +502,13 @@ def generic_collect_metrics(
         rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
 
         return _persist_collection(
-            HourlyMetricsCollection, collector_type, collection_mode, timestamp,
-            rollup_data, collection_params, task_execution_instance,
+            HourlyMetricsCollection,
+            collector_type,
+            collection_mode,
+            timestamp,
+            rollup_data,
+            collection_params,
+            task_execution_instance,
         )
 
     except Exception as e:
