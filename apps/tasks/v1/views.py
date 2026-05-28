@@ -32,12 +32,14 @@ from typing import Any
 
 from django.http import HttpRequest
 from django.utils import timezone
-from rest_framework import status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.core.permissions import DeveloperModeRequired
-from apps.tasks.api_utils import build_error_response
+from apps.tasks.api_utils import ErrorResponseSerializer, build_error_response
 from apps.tasks.models import Task, TaskExecution
 
 from .base_views import BaseViewSet
@@ -50,6 +52,33 @@ from .serializers import (
 )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List all tasks.",
+        description="Returns a list of all task.",
+    ),
+    retrieve=extend_schema(
+        summary="Get specific task by ID.",
+        description="Returns a specific task by ID.",
+    ),
+    create=extend_schema(
+        summary="Create a task.",
+        description="Create a new task object.",
+        request=TaskSerializer,
+    ),
+    update=extend_schema(
+        summary="Update a specific task by ID.",
+        description="Update a specific task by ID.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a specific task by ID.",
+        description="Partially update a specific task by ID.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a specific task by ID.",
+        description="Delete a specific task record by ID.",
+    ),
+)
 class TaskViewSet(BaseViewSet):
     """
     ViewSet for Task model with comprehensive task management functionality.
@@ -90,6 +119,25 @@ class TaskViewSet(BaseViewSet):
             return TaskListSerializer
         return self.serializer_class
 
+    @extend_schema(
+        summary="List tasks with filtering, similar to manage_tasks list command.",
+        description="This endpoint replicates the functionality of: 'python manage.py manage-tasks list --status=pending --limit=20'",
+        parameters=[
+            OpenApiParameter(
+                name="status",
+                description="Filter by task status (e.g. pending, running, completed)",
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+            OpenApiParameter(
+                name="limit",
+                description="Limit the number of tasks returned (default 20)",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
+        responses={200: TaskListSerializer(many=True)},
+    )
     @action(detail=False, methods=["get"], url_path="list")
     def list_filtered(self, request: HttpRequest) -> Response:
         """
@@ -115,6 +163,11 @@ class TaskViewSet(BaseViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        summary="Get list of currently running tasks.",
+        description="This endpoint returns a list of currently running tasks.",
+        responses={200: TaskListSerializer(many=True)},
+    )
     @action(detail=False, methods=["get"])
     def running(self, request: HttpRequest) -> Response:
         """
@@ -127,6 +180,11 @@ class TaskViewSet(BaseViewSet):
         serializer = self.get_serializer(running_tasks, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        summary="Get list of pending tasks waiting to run.",
+        description="This endpoint returns a list of pending tasks waiting to run.",
+        responses={200: TaskListSerializer(many=True)},
+    )
     @action(detail=False, methods=["get"])
     def pending(self, request: HttpRequest) -> Response:
         """
@@ -139,6 +197,14 @@ class TaskViewSet(BaseViewSet):
         serializer = self.get_serializer(pending_tasks, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        summary="Retry a failed task.",
+        description="This endpoint replicates the functionality of: 'python manage.py manage_tasks retry <task_id>'",
+        responses={
+            200: inline_serializer(name="TaskRetryResponse", fields={"message": serializers.CharField()}),
+            400: inline_serializer(name="TaskRetryErrorResponse", fields={"error": serializers.CharField()}),
+        },
+    )
     @action(detail=True, methods=["post"])
     def retry(self, request: HttpRequest, pk: Any = None) -> Response:
         """
@@ -172,6 +238,14 @@ class TaskViewSet(BaseViewSet):
 
         return Response({"message": f"Task '{task.name}' queued for retry"})
 
+    @extend_schema(
+        summary="Cancel a pending or running task.",
+        description="This endpoint replicates the functionality of: 'python manage.py manage_tasks cancel <task_id>'",
+        responses={
+            200: inline_serializer(name="TaskCancelResponse", fields={"message": serializers.CharField()}),
+            400: inline_serializer(name="TaskCancelErrorResponse", fields={"error": serializers.CharField()}),
+        },
+    )
     @action(detail=True, methods=["post"])
     def cancel(self, request: HttpRequest, pk: Any = None) -> Response:
         """
@@ -198,6 +272,22 @@ class TaskViewSet(BaseViewSet):
 
         return Response({"message": f"Task '{task.name}' cancelled"})
 
+    @extend_schema(
+        summary="Clean up old completed tasks",
+        description="This endpoint replicates the functionality of: 'python manage.py manage_tasks cleanup --days=30 --dry-run'",
+        request=TaskCleanupSerializer,
+        responses={
+            200: inline_serializer(
+                name="TaskCleanupResponse",
+                fields={
+                    "message": serializers.CharField(),
+                    "count": serializers.IntegerField(),
+                    "preview": serializers.ListField(child=serializers.DictField(), required=False, allow_empty=True),
+                    "showing_preview_of": serializers.IntegerField(required=False, allow_null=True, default=None),
+                },
+            ),
+        },
+    )
     @action(detail=False, methods=["post"])
     def cleanup(self, request: HttpRequest) -> Response:
         """
@@ -248,6 +338,28 @@ class TaskViewSet(BaseViewSet):
             old_tasks.delete()
             return Response({"message": f"Deleted {count} old tasks", "count": count})
 
+    @extend_schema(
+        summary="Get list of available task functions with enhanced metadata for dashboard.",
+        description="Get list of available task functions with enhanced metadata for dashboard.",
+        responses={
+            200: inline_serializer(
+                name="TaskFunctionResponse",
+                fields={
+                    "functions": inline_serializer(
+                        name="FunctionInfoSerializers",
+                        many=True,
+                        fields={
+                            "name": serializers.CharField(),
+                            "description": serializers.CharField(),
+                            "category": serializers.CharField(),
+                            "parameters": serializers.DictField(),
+                            "examples": serializers.ListField(),
+                        },
+                    )
+                },
+            ),
+        },
+    )
     @action(detail=False, methods=["get"])
     def available_functions(self, request: HttpRequest) -> Response:
         """
@@ -316,6 +428,45 @@ class TaskViewSet(BaseViewSet):
 
         super().perform_update(serializer)
 
+    @extend_schema(
+        summary="Force delete a system task (admin only).",
+        description="This endpoint allows administrators to delete system tasks if absolutely necessary. Use with extreme caution as it may break system functionality.",
+        request=inline_serializer(
+            name="ForceDeleteRequest",
+            fields={
+                "force_confirm": serializers.BooleanField(required=False, default=False),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="DeleteWarningResponse",
+                fields={
+                    "message": serializers.CharField(),
+                    "warning": serializers.CharField(),
+                },
+            ),
+            204: inline_serializer(
+                name="DeleteResponse",
+                fields={},
+            ),
+            400: inline_serializer(
+                name="DeletErrorResponse",
+                fields={
+                    "error": serializers.CharField(),
+                    "message": serializers.CharField(),
+                    "warning": serializers.CharField(),
+                    "task": inline_serializer(
+                        name="TaskResponse",
+                        fields={
+                            "name": serializers.CharField(),
+                            "function_name": serializers.CharField(),
+                            "is_system_task": serializers.BooleanField(),
+                        },
+                    ),
+                },
+            ),
+        },
+    )
     @action(detail=True, methods=["delete"])
     def force_delete(self, request, pk=None):
         """
@@ -360,6 +511,28 @@ class TaskViewSet(BaseViewSet):
             task.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @extend_schema(
+        summary="Get the status of the simple scheduler and all scheduled tasks",
+        description="Returns Scheduler's and scheduled tasks' status",
+        responses={
+            200: inline_serializer(
+                name="SchedulerStatusResponse",
+                fields={
+                    "scheduler": inline_serializer(
+                        name="Scheduler",
+                        fields={
+                            "running": serializers.BooleanField(),
+                            "check_interval": serializers.IntegerField(),
+                            "scheduled_tasks": serializers.IntegerField(),
+                            "recurring_tasks": serializers.IntegerField(),
+                        },
+                    ),
+                    "message": serializers.CharField(),
+                },
+            ),
+            500: ErrorResponseSerializer,
+        },
+    )
     @action(detail=False, methods=["get"])
     def scheduler_status(self, request: HttpRequest) -> Response:
         """
@@ -390,6 +563,21 @@ class TaskViewSet(BaseViewSet):
             error_response = build_error_response(f"Failed to get scheduler status: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @extend_schema(
+        summary="Schedule a task to run immediately using the simple scheduler.",
+        description="Schedule a task to run immediately using the simple scheduler.",
+        request=TaskCreateSerializer,
+        responses={
+            200: inline_serializer(
+                name="ScheduleImmediateResponse",
+                fields={
+                    "message": serializers.CharField(),
+                    "task_id": serializers.CharField(),
+                },
+            ),
+            500: ErrorResponseSerializer,
+        },
+    )
     @action(detail=False, methods=["post"])
     def schedule_immediate(self, request: HttpRequest) -> Response:
         """
@@ -417,6 +605,33 @@ class TaskViewSet(BaseViewSet):
             error_response = build_error_response(f"Failed to schedule task: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @extend_schema(
+        summary="Schedule a recurring task using cron expression.",
+        description="Schedule a recurring task using cron expression.",
+        request=inline_serializer(
+            name="ScheduleRecurringRequest",
+            fields={
+                "name": serializers.CharField(required=False),
+                "function_name": serializers.CharField(),
+                "task_data": serializers.DictField(required=False),
+                "cron_expression": serializers.CharField(),
+                "max_attempts": serializers.IntegerField(required=False),
+                "timeout_seconds": serializers.IntegerField(required=False),
+                "user": serializers.CharField(required=False),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="ScheduleRecurringResponse",
+                fields={
+                    "message": serializers.CharField(),
+                    "task_id": serializers.CharField(),
+                },
+            ),
+            400: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+    )
     @action(detail=False, methods=["post"])
     def schedule_recurring(self, request: HttpRequest) -> Response:
         """
@@ -450,6 +665,33 @@ class TaskViewSet(BaseViewSet):
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List task executions.",
+        description="Returns a list of task executions.",
+    ),
+    retrieve=extend_schema(
+        summary="Get specific task execution by ID.",
+        description="Returns a specific task execution by ID.",
+    ),
+    create=extend_schema(
+        summary="Create a task execution.",
+        description="Create a new task execution object.",
+        request=TaskExecutionSerializer,
+    ),
+    update=extend_schema(
+        summary="Update a specific task execution by ID.",
+        description="Update a specific task execution by ID.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a specific task execution by ID.",
+        description="Partially update a specific task execution by ID.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a specific task execution by ID.",
+        description="Delete a specific task execution record by ID.",
+    ),
+)
 class TaskExecutionViewSet(BaseViewSet):
     """
     ViewSet for TaskExecution model to monitor task execution history.

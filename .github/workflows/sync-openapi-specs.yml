@@ -1,0 +1,107 @@
+---
+name: Sync OpenAPI Spec
+
+on:
+  push:
+    branches:
+      - devel
+    paths:
+      - "apps/**/*.py"
+      - "apps/**/serializers.py"
+      - "apps/**/viewsets/**"
+      - "apps/**/views/**"
+  workflow_dispatch:  # allow manual trigger
+
+jobs:
+  sync-openapi-spec:
+    name: Generate and sync OpenAPI spec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout metrics-service
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-build
+
+      - name: Generate OpenAPI schema
+        env:
+          # drf-spectacular needs a minimal Django setup; adjust vars as needed
+          DJANGO_SETTINGS_MODULE: apps.core.settings
+          SECRET_KEY: "ci-placeholder-not-secret"
+          DATABASE_URL: "sqlite://:memory:"
+        run: |
+          uv run --frozen --no-build python manage.py spectacular \
+            --color \
+            --file openapi-schema.yaml \
+            --validate
+          # Produce both YAML and JSON for downstream consumers
+          uv run --frozen --no-build python manage.py spectacular \
+            --color \
+            --file openapi-schema.json \
+            --validate \
+            --format openapi-json
+
+      - name: Checkout aap-openapi-specs
+        uses: actions/checkout@v4
+        with:
+          repository: ansible-automation-platform/aap-openapi-specs
+          token: ${{ secrets.AAP_OPENAPI_SPECS_PAT }}
+          path: aap-openapi-specs
+          persist-credentials: false
+
+      - name: Copy generated schema into downstream repo
+        run: |
+          mkdir -p aap-openapi-specs/metrics-service
+          cp openapi-schema.yaml aap-openapi-specs/metrics-service/openapi-schema.yaml
+          cp openapi-schema.json aap-openapi-specs/metrics-service/openapi-schema.json
+
+      - name: Check for changes in downstream repo
+        id: check_changes
+        working-directory: aap-openapi-specs
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create PR branch in aap-openapi-specs
+        if: steps.check_changes.outputs.has_changes == 'true'
+        working-directory: aap-openapi-specs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/sync-metrics-service-openapi-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH"
+          git add metrics-service/
+          git commit -m "chore(sync): update metrics-service OpenAPI spec
+
+          Automated sync from ansible/metrics-service@${{ github.sha }}"
+          git push origin "$BRANCH"
+          echo "SYNC_BRANCH=$BRANCH" >> $GITHUB_ENV
+
+      - name: Open PR in aap-openapi-specs
+        if: steps.check_changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AAP_OPENAPI_SPECS_PAT }}
+          GH_REPO: ansible-automation-platform/aap-openapi-specs
+        run: |
+          gh pr create \
+            --repo "$GH_REPO" \
+            --title "chore(sync): update metrics-service OpenAPI spec" \
+            --body "## Summary
+
+          This PR syncs the latest OpenAPI spec from [ansible/metrics-service](https://github.com/ansible/metrics-service) into this repository.
+
+          **Source commit:** ansible/metrics-service@${{ github.sha }}
+          **Triggered by:** push to \`devel\`
+
+          > 🤖 Automated sync via GitHub Actions ([workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))" \
+            --base main \
+            --head "$SYNC_BRANCH"
