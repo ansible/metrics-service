@@ -10,6 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies (project uses uv)
 uv sync --dev
 
+# Install pre-commit hooks
+pre-commit install
+
 # Configure local overrides (optional)
 cp settings.local.py.example settings.local.py
 
@@ -74,6 +77,9 @@ uv run poe check
 uv run poe format   # ruff format
 uv run poe lint     # ruff check
 uv run poe unit-test
+
+# Type checking (gradual adoption — not enforced in CI)
+mypy .
 ```
 
 ### Debugging
@@ -84,6 +90,10 @@ uv run ./scripts/run_task.py hello_world
 
 # Django shell one-liners
 python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(list(TASK_FUNCTIONS))"
+
+# Inspect Dynaconf settings loading (useful for diagnosing env var precedence)
+uv run dynaconf inspect -m debug -f yaml    # full loading history
+uv run dynaconf inspect -k VARIABLE_NAME    # single variable
 
 # Never use plain python -c for Django imports — it fails without Django setup
 ```
@@ -139,11 +149,12 @@ DATABASES__default__PORT = 5433
 The task system has several layers:
 
 - **`models.py`** — `Task`, `TaskExecution`, `TaskChain` DB models
-- **`tasks.py`** — `TASK_FUNCTIONS` registry mapping function names to callables
+- **`tasks.py`** — `TASK_FUNCTIONS` registry mapping function names to callables; also `TASK_METADATA` (queue, category, parameters) and `TASK_LOCKS`
+- **`tasks_system.py`** — execution machinery: wraps function calls, writes `result_data`, manages task lifecycle state
 - **`task_groups.py`** — `TASK_GROUPS` config: defines what tasks run, their cron schedules, args, and which feature flag controls them. This is the source of truth for scheduled tasks — edit here, then run `init-system-tasks` to sync to DB.
 - **`cron_scheduler.py`** — APScheduler integration for recurring tasks
 - **`dispatcherd_config.py`** — Dispatcherd worker configuration
-- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`, `collect_dashboard_reports_data`)
+- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `collect_daily_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`, `collect_dashboard_reports_data`)
 - **`cleanup/`** — Cleanup functions (`cleanup_old_tasks`, `cleanup_activitystream`, `cleanup_metrics_data`)
 - **`simple/`** — Simple tasks (`hello_world`)
 - **`services/`** — Output formatting utilities
@@ -151,26 +162,29 @@ The task system has several layers:
 
 ### Task Groups and Feature Flags
 
-`task_groups.py` defines four groups in `TASK_GROUPS`:
+`task_groups.py` defines five groups in `TASK_GROUPS`:
 
 | Group | Feature Flag | Default | Purpose |
 |-------|-------------|---------|---------|
-| `SYSTEM_TASKS_GROUP` | none | always on | `cleanup_old_tasks` (daily 5 AM), `hello_world` (hourly) |
-| `METRICS_COLLECTION_GROUP` | none | always on | Hourly/daily collection, rollup, `cleanup_metrics_data`. Local metrics collected regardless of opt-out to prevent data gaps. |
-| `ANONYMIZATION_GROUP` | `ANONYMIZED_DATA_COLLECTION` | enabled (opt-out) | `daily_anonymize_and_prepare`, `send_anonymized_to_segment` — tasks that transmit data to Red Hat |
-| `DASHBOARD_COLLECTION_GROUP` | `DASHBOARD_COLLECTION` | disabled (opt-in) | `collect_dashboard_reports_initial_data` (once on enable), `collect_dashboard_reports_data` (every 6 hours incremental) |
+| `SYSTEM_TASKS_GROUP` | none | always on | `cleanup_old_tasks` (daily 5 AM), `hello_world` (hourly), `cleanup_bi_collection_batches` (daily 4:15 AM), `cleanup_bi_stored_host_metrics` (daily 4:30 AM) |
+| `METRICS_COLLECTION_GROUP` | `METRICS_COLLECTION` | enabled (opt-out) | Hourly/daily collection, rollup, `cleanup_metrics_data`. Disabling stops local scheduled collection; re-enable to backfill. |
+| `ANONYMIZATION_GROUP` | `ANONYMIZED_DATA_COLLECTION` | enabled (opt-out) | `daily_anonymize_and_prepare` — anonymizes data for Red Hat. `send_anonymized_to_segment` exists in `TASK_FUNCTIONS` but is not scheduled via a task group. |
+| `DASHBOARD_COLLECTION_GROUP` | `DASHBOARD_COLLECTION` | disabled (opt-in) | `collect_dashboard_reports_initial_data` (once on enable), `collect_dashboard_reports_data` (every 6 hours incremental), `cleanup_dashboard_reports_old_data` |
+| `BI_BILLING_COLLECTION_GROUP` | `BI_CONNECTOR` | disabled (opt-in) | Runs metrics-utility billing collectors and stores output in DB for BI Layer 1 stored endpoints (`main_host_daily`, `job_host_summary`) |
 
 Feature flag resolution order (first match wins): `Setting` DB row → `FEATURE_ENABLED[key]` in Django settings (incl. env overrides) → DAB `AAPFlag` boolean → function default.
 
 ```bash
 # Toggle at runtime without restart
+METRICS_SERVICE_FEATURE_ENABLED__METRICS_COLLECTION=false
 METRICS_SERVICE_FEATURE_ENABLED__ANONYMIZED_DATA_COLLECTION=false
 METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION=true
+METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR=true
 ```
 
 ### BI Connector (`apps/bi_connector/`)
 
-Three-layer API for connecting BI tools (Tableau, Power BI, Grafana) to metrics data. All endpoints require **token authentication** (added via `bi_connector/settings.py`) and are subject to a per-user throttle of 30 req/hour (`BiConnectorThrottle`). Endpoints return 404 when the feature flag is off.
+Multi-layer API for connecting BI tools (Tableau, Power BI, Grafana) to metrics data. All endpoints require **token authentication** (added via `bi_connector/settings.py`) and are subject to a per-user throttle of 30 req/hour (`BiConnectorThrottle`). Endpoints return 404 when the feature flag is off.
 
 **Token setup for service accounts:**
 ```bash
@@ -180,10 +194,18 @@ python manage.py drf_create_token <username>
 | Layer | Mount | Source | Feature Flag Required |
 |-------|-------|--------|----------------------|
 | Layer 1 — metrics DB | `/api/v1/bi/metrics/` | metrics-service DB (`DailyMetricsSummary`, `HourlyMetricsCollection`) | `BI_CONNECTOR` |
+| Layer 1 — stored billing | `/api/v1/bi/stored/` | `StoredHostMetric`, `StoredJobHostSummary`, `StoredIndirectAudit`, `CollectionBatch` (populated by `BI_BILLING_COLLECTION_GROUP`) | `BI_CONNECTOR` |
 | Layer 2 — live AWX DB | `/api/v1/bi/controller/` | Read-only queries against the `awx` DB connection | `BI_CONNECTOR` |
 | Layer 3 — dashboard data | `/api/v1/bi/dashboard/` | `JobData`, `TemplateMetadata` models (local DB) | `BI_CONNECTOR` + `DASHBOARD_COLLECTION` |
+| Admin | `/api/v1/bi/collector-settings/` | `CollectorSettings` config and `CollectionBatch` admin | `BI_CONNECTOR` |
 
 Layer 2 endpoints (`/controller/jobs/`, `/hosts/`, `/credentials/`, `/events/`) are **asynchronous**: they return `202 Accepted` with a `task_id`. Poll `GET /api/v1/tasks/<task_id>/` until `status == "completed"`, then read `result_data.data`. Date windows are enforced (default 7 days; 3 days for events) via `METRICS_SERVICE_BI_CONNECTOR_MAX_DAYS_DEFAULT`.
+
+**`bi_connector/collectors/`** contains the BI-specific collection logic:
+- `collect_bi_controller_data.py` — invoked by Layer 2 async views; queries the AWX DB for live data
+- `collect_bi_billing_data.py` — invoked by `BI_BILLING_COLLECTION_GROUP`; runs metrics-utility billing collectors and stores results in `StoredHostMetric` / `StoredJobHostSummary`
+- `backfill_bi_collector.py` — manually triggered backfill for billing collector data
+- `cleanup.py` — cleanup utilities for `CollectionBatch` and `StoredHostMetric` records
 
 Feature flag guard mixins live in `apps/bi_connector/v1/mixins.py`:
 - `BiConnectorEnabledMixin` — checks `BI_CONNECTOR` flag; also applies throttle
@@ -231,7 +253,8 @@ Provides a DB-backed `Setting` model for runtime configuration. Feature flags ch
 
 ### Test Organization
 
-- `tests/unit/` and `apps/core/tests/` — unit tests (both are testpaths)
+- `tests/unit/` and `apps/core/tests/` — unit tests (both are testpaths in `pytest.ini_options`)
 - `tests/integration/` — integration tests
-- `apps/dynamic_settings/tests/` — app-local tests
+- `apps/dynamic_settings/tests/` — app-local dynamic settings tests
+- `apps/tasks/tests/` — app-local task system tests
 - Markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`

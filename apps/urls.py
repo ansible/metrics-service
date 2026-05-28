@@ -25,6 +25,7 @@ This file loads at step 3 in the URL loading order, before individual apps
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from apps.bi_connector.admin_views import BiAdminView
 from apps.bi_connector.v1.task_views import BiTaskStatusView
 
 # BI Connector URL patterns assembled here (step 3) before the LOADED_APPS loop
@@ -52,4 +53,6 @@ urlpatterns = [
     path("api/v1/feature_flags/", RedirectView.as_view(url="/api/v1/feature_flags/states/", permanent=True)),
     # BI Connector — /api/v1/bi/metrics/, /api/v1/bi/controller/, /api/v1/bi/dashboard/
     path("api/v1/bi/", include((_bi_urlpatterns, "bi_connector"), namespace="bi_connector")),
+    # BI Connector admin UI — no Django login required; auth is handled in-page
+    path("bi-admin/", BiAdminView.as_view(), name="bi-admin"),
 ]

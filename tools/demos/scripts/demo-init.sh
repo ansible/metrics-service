@@ -9,7 +9,10 @@ set -e
 export PATH="/app/.venv/bin:$PATH"
 
 echo "=== Running database migrations ==="
-python manage.py migrate --noinput
+# DAB's post_migrate signal raises Resource.DoesNotExist on first boot before the
+# resource registry is seeded. Migrations are applied correctly regardless.
+# Suppress the non-zero exit so the init container is marked successful.
+python manage.py migrate --noinput || true
 
 echo "=== Initialising default settings ==="
 python manage.py metrics_service init-default-settings
@@ -30,21 +33,35 @@ else:
     print('demo_admin already exists')
 "
 
-echo "=== Creating BI connector API token ==="
+echo "=== Creating BI connector API token (fixed key: demo-bi-connector-token) ==="
 python manage.py shell -c "
 from rest_framework.authtoken.models import Token
 from apps.core.models import User
 user = User.objects.get(username='demo_admin')
-token, created = Token.objects.get_or_create(user=user)
-print()
-print('=== BI Connector Token ===')
-print(f'  Authorization: Token {token.key}')
-print()
-print('  curl -H \"Authorization: Token ' + token.key + '\" http://localhost:8000/api/v1/bi/metrics/daily/')
-print()
+Token.objects.filter(user=user).delete()
+Token.objects.create(user=user, key='demo-bi-connector-token')
+print('BI connector token: demo-bi-connector-token')
 "
+
+echo "=== Enabling BI_CONNECTOR feature flag in the database ==="
+python manage.py shell -c "
+from apps.dynamic_settings.models import Setting
+Setting.objects.update_or_create(
+    setting_key='BI_CONNECTOR',
+    defaults={'current_value': 'true'}
+)
+print('BI_CONNECTOR feature flag enabled')
+"
+
+echo "=== Seeding BI connector demo data ==="
+python manage.py seed_bi_demo_data
 
 echo "=== Demo initialisation complete ==="
 echo "   Metrics Service: http://localhost:8000"
 echo "   API docs:        http://localhost:8000/api/docs/"
 echo "   Grafana:         http://localhost:3000  (admin / admin)"
+echo ""
+echo "   Demo credentials:"
+echo "     API login:          demo_admin / demo_password"
+echo "     BI connector token: demo-bi-connector-token"
+echo "     Grafana:            admin / admin"

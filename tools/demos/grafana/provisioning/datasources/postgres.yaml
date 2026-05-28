@@ -10,6 +10,7 @@ datasources:
     secureJsonData:
       password: metrics_service
     jsonData:
+      database: metrics_service
       sslmode: disable
       postgresVersion: 1500
       timescaledb: false
@@ -24,6 +25,7 @@ datasources:
     secureJsonData:
       password: awx
     jsonData:
+      database: awx
       sslmode: disable
       postgresVersion: 1500
       timescaledb: false

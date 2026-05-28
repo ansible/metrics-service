@@ -1,0 +1,278 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Total Jobs (Latest Day)",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "metrics_unified_jobs.total_jobs", "text": "Total Jobs", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Successful Jobs (Latest Day)",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "metrics_unified_jobs.successful", "text": "Successful Jobs", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Failed Jobs (Latest Day)",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "metrics_unified_jobs.failed", "text": "Failed Jobs", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Total Credentials (Latest Day)",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "metrics_credentials_service.total", "text": "Total Credentials", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 4},
+      "id": 5,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "30-Day Unified Jobs Trends",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=30",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "summary_date", "text": "Date", "type": "string"},
+            {"selector": "metrics_unified_jobs.total_jobs", "text": "Total Jobs", "type": "number"},
+            {"selector": "metrics_unified_jobs.successful", "text": "Successful", "type": "number"},
+            {"selector": "metrics_unified_jobs.failed", "text": "Failed", "type": "number"},
+            {"selector": "metrics_unified_jobs.canceled", "text": "Canceled", "type": "number"},
+            {"selector": "hourly_collections_count", "text": "Hourly Collections", "type": "number"},
+            {"selector": "status", "text": "Status", "type": "string"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 16},
+      "id": 6,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "30-Day Job Host Summary Trends",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=30",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "summary_date", "text": "Date", "type": "string"},
+            {"selector": "metrics_job_host_summary_service.total_hosts", "text": "Hosts", "type": "number"},
+            {"selector": "metrics_job_host_summary_service.total_summaries", "text": "Summaries", "type": "number"},
+            {"selector": "metrics_job_host_summary_service.success_count", "text": "Success", "type": "number"},
+            {"selector": "metrics_job_host_summary_service.failed_count", "text": "Failed", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 16},
+      "id": 7,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "30-Day Credential Trends",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=30",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "summary_date", "text": "Date", "type": "string"},
+            {"selector": "metrics_credentials_service.total", "text": "Total", "type": "number"},
+            {"selector": "metrics_credentials_service.by_type.ssh", "text": "SSH", "type": "number"},
+            {"selector": "metrics_credentials_service.by_type.vault", "text": "Vault", "type": "number"},
+            {"selector": "metrics_credentials_service.by_type.aws", "text": "AWS", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "tags": ["bi-connector", "metrics", "trends", "demo"],
+  "templating": {"list": []},
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BI — Metrics Trends",
+  "uid": "bi-metrics-trends",
+  "version": 1,
+  "weekStart": ""
+}

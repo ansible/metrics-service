@@ -9,6 +9,7 @@ Result stored in Task.result_data by the tasks_system machinery and readable
 via GET /api/v1/bi/tasks/<task_id>/ once status == "completed".
 """
 
+import json
 import logging
 
 from apps.tasks.utils import get_db_connection, parse_datetime_string
@@ -16,11 +17,16 @@ from apps.tasks.utils import get_db_connection, parse_datetime_string
 logger = logging.getLogger(__name__)
 
 
-def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
+def collect_bi_controller_data(
+    collector_key: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    **kwargs,
+) -> dict:
     """
     Collect live AWX data for a single collector type over an explicit date range.
 
-    task_data keys:
+    Called by tasks_system with unpacked task_data kwargs:
         collector_key (str)  — matches a key in get_hourly_collectors() registry
         since         (str)  — ISO 8601 datetime string
         until         (str)  — ISO 8601 datetime string
@@ -28,9 +34,8 @@ def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
     Returns a dict compatible with the tasks_system success/error convention:
         {"status": "success", "collector_type": ..., "since": ..., "until": ..., "data": [...]}
     """
-    collector_key = task_data.get("collector_key") if task_data else None
-    since_str = task_data.get("since") if task_data else None
-    until_str = task_data.get("until") if task_data else None
+    since_str = since
+    until_str = until
 
     if not all([collector_key, since_str, until_str]):
         return {"status": "error", "error": "task_data must contain collector_key, since, and until"}
@@ -56,12 +61,21 @@ def collect_bi_controller_data(task_data: dict | None = None, **kwargs) -> dict:
             return {"status": "error", "error": f"Unknown collector_key: {collector_key!r}"}
 
         collector = collectors[collector_key]["collector_func"](db=conn, since=since, until=until)
-        data = collector.gather()
+        raw = collector.gather()
+        # Collectors return a pandas DataFrame which may contain Timestamp/Decimal
+        # objects that are not JSON-serialisable. Use pandas' own JSON serialiser
+        # (round-trips through a string) to normalise all types to plain Python.
+        if hasattr(raw, "to_json"):
+            data = json.loads(raw.to_json(orient="records", date_format="iso"))
+        elif isinstance(raw, list):
+            data = raw
+        else:
+            data = [raw] if raw is not None else []
     except Exception:
         logger.exception("Collection failed for bi_collect %s", collector_key)
         return {"status": "error", "error": "Collection failed"}
 
-    logger.info("bi_collect %s completed: %d records", collector_key, len(data) if isinstance(data, list) else 1)
+    logger.info("bi_collect %s completed: %d records", collector_key, len(data))
     return {
         "status": "success",
         "collector_type": collector_key,

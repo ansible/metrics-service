@@ -293,17 +293,24 @@ def get_db_connection(db_name: str = "awx"):
     Returns:
         Raw database connection object (psycopg2 connection)
     """
-    from django.db import connections
+    from django.conf import settings as django_settings
 
-    # Get the raw connection to bypass Django's cursor wrapper
-    # This is necessary for PostgreSQL COPY commands used by metrics-utility
-    django_connection = connections[db_name]
+    db_conf = django_settings.DATABASES.get(db_name, {})
+    if not db_conf:
+        raise RuntimeError(f"No database configuration found for '{db_name}'")
 
-    # Ensure the connection is open
-    django_connection.ensure_connection()
+    # Create a fresh connection directly — bypasses Django's per-thread connection
+    # pool, which becomes stale in long-running dispatcherd worker processes.
+    import psycopg
 
-    # Return the raw psycopg2 connection
-    return django_connection.connection
+    conn = psycopg.connect(
+        host=db_conf.get("HOST") or "localhost",
+        port=int(db_conf.get("PORT") or 5432),
+        dbname=db_conf.get("NAME") or db_name,
+        user=db_conf.get("USER") or "",
+        password=db_conf.get("PASSWORD") or "",
+    )
+    return conn
 
 
 def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):

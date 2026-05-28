@@ -1,0 +1,310 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Total Job Executions",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Total Job Executions", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Host Records",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Host Records", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Collection Batches",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/batches/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Collection Batches", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Daily Summaries",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Daily Summaries", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 4},
+      "id": 5,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "Job Execution Detail",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?limit=200",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "summary_id", "text": "Summary ID", "type": "number"},
+            {"selector": "job_id", "text": "Job ID", "type": "number"},
+            {"selector": "host_name", "text": "Host Name", "type": "string"},
+            {"selector": "organization_id", "text": "Organization ID", "type": "number"},
+            {"selector": "inventory_id", "text": "Inventory ID", "type": "number"},
+            {"selector": "modified", "text": "Modified", "type": "timestamp"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 16},
+      "id": 6,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "Job Executions — Org 1",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?organization_id=1&limit=200",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "summary_id", "text": "Summary ID", "type": "number"},
+            {"selector": "job_id", "text": "Job ID", "type": "number"},
+            {"selector": "host_name", "text": "Host Name", "type": "string"},
+            {"selector": "inventory_id", "text": "Inventory ID", "type": "number"},
+            {"selector": "modified", "text": "Modified", "type": "timestamp"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 16},
+      "id": 7,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "Job Executions — Org 2",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?organization_id=2&limit=200",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "summary_id", "text": "Summary ID", "type": "number"},
+            {"selector": "job_id", "text": "Job ID", "type": "number"},
+            {"selector": "host_name", "text": "Host Name", "type": "string"},
+            {"selector": "inventory_id", "text": "Inventory ID", "type": "number"},
+            {"selector": "modified", "text": "Modified", "type": "timestamp"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 26},
+      "id": 8,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "Job Executions — Org 3",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?organization_id=3&limit=200",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "summary_id", "text": "Summary ID", "type": "number"},
+            {"selector": "job_id", "text": "Job ID", "type": "number"},
+            {"selector": "host_name", "text": "Host Name", "type": "string"},
+            {"selector": "inventory_id", "text": "Inventory ID", "type": "number"},
+            {"selector": "modified", "text": "Modified", "type": "timestamp"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "tags": ["bi-connector", "jobs", "demo"],
+  "templating": {"list": []},
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BI — Job Execution Analytics",
+  "uid": "bi-job-execution",
+  "version": 1,
+  "weekStart": ""
+}

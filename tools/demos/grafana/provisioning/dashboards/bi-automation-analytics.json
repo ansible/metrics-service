@@ -1,0 +1,1775 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "3.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "description": "Compute hours, module-level stats and org breakdown from the new analytics endpoints",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "",
+      "type": "text",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Automation Compute Time\nDerived from `module_stats.total_duration_seconds` in `main_jobevent_service` collections \u2014 the same field metrics-utility populates from AWX task durations."
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Total Automation Hours",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 2
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794f2"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794f2",
+                "value": null
+              }
+            ]
+          },
+          "unit": "h"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/compute-hours/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_automation_hours",
+              "text": "Compute Hours",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Person-Work-Days (8 hr)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 2
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73bf69"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73bf69",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/compute-hours/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "person_work_days_8hr",
+              "text": "Person-Work-Days",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Person-Years (240 days/yr)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 2
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73bf69"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73bf69",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/compute-hours/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "person_years_240days",
+              "text": "Person-Years",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Avg Hours / Collection",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 2
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794f2"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794f2",
+                "value": null
+              }
+            ]
+          },
+          "unit": "h"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/compute-hours/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "avg_hours_per_collection",
+              "text": "Avg Hrs/Collection",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "",
+      "type": "text",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Module-Level Compute Breakdown\nAggregated from `main_jobevent_service` raw_data across all hourly collections. Mirrors the BHP forensic report's 'Top 15 Modules by Automation Hours'."
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Total Modules Tracked",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#b877d9"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#b877d9",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/modules/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_modules",
+              "text": "Modules",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Total Compute Hours",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794f2"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794f2",
+                "value": null
+              }
+            ]
+          },
+          "unit": "h"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/modules/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_compute_hours",
+              "text": "Compute Hours",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Person-Work-Days",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73bf69"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73bf69",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/modules/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_person_work_days",
+              "text": "Person-Work-Days",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Person-Years",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73bf69"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73bf69",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/modules/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_person_years",
+              "text": "Person-Years",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Compute Hours by Module",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 12,
+        "w": 14,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/modules/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "module",
+              "text": "Module",
+              "type": "string"
+            },
+            {
+              "selector": "total_duration_hours",
+              "text": "Compute Hours",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Module Detail",
+      "type": "table",
+      "gridPos": {
+        "h": 12,
+        "w": 10,
+        "x": 14,
+        "y": 12
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/modules/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "module",
+              "text": "Module",
+              "type": "string"
+            },
+            {
+              "selector": "task_runs",
+              "text": "Task Runs",
+              "type": "number"
+            },
+            {
+              "selector": "unique_hosts",
+              "text": "Unique Hosts",
+              "type": "number"
+            },
+            {
+              "selector": "total_duration_hours",
+              "text": "Compute Hours",
+              "type": "number"
+            },
+            {
+              "selector": "pct_of_total_hours",
+              "text": "% of Total",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "",
+      "type": "text",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Organization Breakdown\nAggregated from `unified_jobs` raw_data \u2014 `organizations[]` field populated by metrics-utility per-org job tracking."
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "title": "Total Organizations",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#b877d9"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#b877d9",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/organizations/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_organizations",
+              "text": "Organizations",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Total Jobs",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 26
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794f2"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794f2",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/organizations/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_jobs",
+              "text": "Total Jobs",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Total Tasks",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 26
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794f2"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794f2",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/organizations/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "total_tasks",
+              "text": "Total Tasks",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Task Volume by Organization",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/organizations/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "org_name",
+              "text": "Organization",
+              "type": "string"
+            },
+            {
+              "selector": "task_count",
+              "text": "Tasks",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Job Count by Organization",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/organizations/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "org_name",
+              "text": "Organization",
+              "type": "string"
+            },
+            {
+              "selector": "job_count",
+              "text": "Jobs",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Organization Summary",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/organizations/",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "org_name",
+              "text": "Organization",
+              "type": "string"
+            },
+            {
+              "selector": "job_count",
+              "text": "Jobs",
+              "type": "number"
+            },
+            {
+              "selector": "task_count",
+              "text": "Tasks",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "",
+      "type": "text",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Credential Analytics\nFrom `credentials_service` raw_data \u2014 SSH, Vault, AWS, Azure breakdown collected per hourly window."
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 21,
+      "title": "Total Credentials (Latest Day)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 50
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794f2"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794f2",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "metrics_credentials_service.total",
+              "text": "Total Creds",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "SSH Credentials",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 50
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73bf69"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73bf69",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "metrics_credentials_service.by_type.ssh",
+              "text": "SSH",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "title": "Vault Credentials",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 50
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#e0b400"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#e0b400",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "metrics_credentials_service.by_type.vault",
+              "text": "Vault",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "title": "AWS Credentials",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 50
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#ff9830"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#ff9830",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "metrics_credentials_service.by_type.aws",
+              "text": "AWS",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "title": "30-Day Credential Trend (from /api/v1/bi/metrics/daily/)",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=30",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "summary_date",
+              "text": "Date",
+              "type": "string"
+            },
+            {
+              "selector": "metrics_credentials_service.total",
+              "text": "Total",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_credentials_service.by_type.ssh",
+              "text": "SSH",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_credentials_service.by_type.vault",
+              "text": "Vault",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_credentials_service.by_type.aws",
+              "text": "AWS",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": [
+    "bi-connector",
+    "analytics",
+    "modules",
+    "compute",
+    "demo"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BI \u2014 Automation Analytics",
+  "uid": "bi-automation-analytics",
+  "version": 1
+}

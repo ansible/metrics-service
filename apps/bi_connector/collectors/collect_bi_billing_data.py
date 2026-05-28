@@ -385,23 +385,25 @@ _COLLECTOR_REGISTRY: dict[str, callable] = {
 # ---------------------------------------------------------------------------
 
 
-def collect_bi_billing_data(task_data: dict | None = None, **kwargs) -> dict:
+def collect_bi_billing_data(
+    collector_type: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    batch_id: int | None = None,
+    **kwargs,
+) -> dict:
     """
     Collect billing data for a single collector type and store in the DB.
 
-    task_data keys:
+    Called by tasks_system with unpacked task_data kwargs:
         collector_type (str)  — one of: main_host, main_host_daily,
                                 job_host_summary, main_indirectmanagednodeaudit
         since          (str)  — ISO 8601 start datetime (used by time-series collectors)
         until          (str)  — ISO 8601 end datetime
         batch_id       (int)  — optional CollectionBatch PK
     """
-    task_data = task_data or {}
-
-    collector_type: str | None = task_data.get("collector_type")
-    since_str: str | None = task_data.get("since")
-    until_str: str | None = task_data.get("until")
-    batch_id: int | None = task_data.get("batch_id")
+    since_str: str | None = since
+    until_str: str | None = until
 
     if not collector_type:
         raise ValueError("collector_type is required in task_data")

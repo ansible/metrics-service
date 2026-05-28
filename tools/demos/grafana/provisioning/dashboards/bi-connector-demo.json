@@ -1,0 +1,179 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.6.0" },
+    { "type": "datasource", "id": "yesoreyeram-infinity-datasource", "name": "Infinity", "version": "3.0.0" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "BI Connector Demo — live REST API data via Infinity datasource",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/",
+          "url_options": { "method": "GET", "data": "" },
+          "root_selector": "results",
+          "columns": [
+            { "selector": "summary_date", "text": "Date", "type": "string" },
+            { "selector": "status", "text": "Status", "type": "string" },
+            { "selector": "hourly_collections_count", "text": "Hourly Collections", "type": "number" },
+            { "selector": "daily_rollup_count", "text": "Daily Rollups", "type": "number" }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" }
+        }
+      ],
+      "title": "Daily Metrics Summary",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "id": 2,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/",
+          "url_options": { "method": "GET", "data": "" },
+          "root_selector": "results",
+          "columns": [
+            { "selector": "hostname", "text": "Hostname", "type": "string" },
+            { "selector": "first_automation", "text": "First Automation", "type": "string" },
+            { "selector": "last_automation", "text": "Last Automation", "type": "string" },
+            { "selector": "automated_counter", "text": "Automation Count", "type": "number" },
+            { "selector": "deleted", "text": "Deleted", "type": "boolean" }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" }
+        }
+      ],
+      "title": "Host Automation",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "id": 3,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/batches/",
+          "url_options": { "method": "GET", "data": "" },
+          "root_selector": "results",
+          "columns": [
+            { "selector": "collector_type", "text": "Collector", "type": "string" },
+            { "selector": "batch_type", "text": "Batch Type", "type": "string" },
+            { "selector": "status", "text": "Status", "type": "string" },
+            { "selector": "records_imported", "text": "Records", "type": "number" },
+            { "selector": "started_at", "text": "Started", "type": "string" },
+            { "selector": "completed_at", "text": "Completed", "type": "string" }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" }
+        }
+      ],
+      "title": "Collection Batches",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "id": 4,
+      "options": { "footer": { "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/hourly/",
+          "url_options": { "method": "GET", "data": "" },
+          "root_selector": "results",
+          "columns": [
+            { "selector": "collection_timestamp", "text": "Timestamp", "type": "string" },
+            { "selector": "collector_type", "text": "Collector", "type": "string" },
+            { "selector": "status", "text": "Status", "type": "string" },
+            { "selector": "data_size_bytes", "text": "Data Size (bytes)", "type": "number" }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector" }
+        }
+      ],
+      "title": "Hourly Collections",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["bi-connector", "demo"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BI Connector Demo",
+  "uid": "bi-connector-demo",
+  "version": 2
+}

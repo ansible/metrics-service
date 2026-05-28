@@ -34,9 +34,7 @@ x-ms-common: &ms-common
   volumes:
     - "../../:/app:z"
     - "/app/.venv"
-    - type: tmpfs
-      target: /app/metrics_service.egg-info
-      tmpfs: { mode: 0o01777 }
+    - "/app/metrics_service.egg-info"
   networks:
     - demo
   environment: &ms-env
@@ -58,6 +56,12 @@ x-ms-common: &ms-common
     METRICS_SERVICE_FEATURE_ENABLED__DASHBOARD_COLLECTION: "true"
     METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR: "true"
     METRICS_SERVICE_DASHBOARD_COLLECTION__COLLECTION_SCHEDULE_CRON: "*/5 * * * *"
+
+    # Allow Django to serve requests from the Grafana container, which uses
+    # the container hostname (demo-metrics-web) as the HTTP Host header.
+    # settings.local.py overrides the framework default ALLOWED_HOSTS=["*"] to a
+    # narrower list; this env var re-adds the internal hostname for the demo.
+    METRICS_SERVICE_ALLOWED_HOSTS: '["localhost","127.0.0.1","0.0.0.0","demo-metrics-web"]'
 
 services:
   # ---------------------------------------------------------------------------
@@ -96,6 +100,7 @@ services:
       - ./awx-db/init-5-main_instance.sql:/docker-entrypoint-initdb.d/init-5-main_instance.sql:ro
       - ./awx-db/init-6-main_jobhostsummary.sql:/docker-entrypoint-initdb.d/init-6-main_jobhostsummary.sql:ro
       - ./awx-db/init-7-dab_feature_flags.sql:/docker-entrypoint-initdb.d/init-7-dab_feature_flags.sql:ro
+      - ./awx-db/init-8-redash.sql:/docker-entrypoint-initdb.d/init-8-redash.sql:ro
 
   # ---------------------------------------------------------------------------
   # Metrics Service — one-time initialisation (migrations, seed, demo user)
@@ -153,6 +158,109 @@ services:
     networks:
       - demo
     restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redis — required by Redash for job queuing
+  # ---------------------------------------------------------------------------
+  demo-redash-redis:
+    image: "mirror.gcr.io/redis:7-alpine"
+    container_name: demo-redash-redis
+    networks:
+      - demo
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redash — open-source BI tool with HTTP data source for REST API queries
+  # ---------------------------------------------------------------------------
+  demo-redash:
+    image: "redash/redash:latest"
+    container_name: demo-redash
+    command: server
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+      demo-redash-redis:
+        condition: service_started
+    environment:
+      REDASH_DATABASE_URL: "postgresql://redash:redash@demo-postgres/redash"
+      REDASH_REDIS_URL: "redis://demo-redash-redis:6379/0"
+      REDASH_SECRET_KEY: "demo-redash-secret-key-not-for-production"
+      REDASH_COOKIE_SECRET: "demo-redash-cookie-secret"
+      REDASH_WEB_WORKERS: "2"
+      PYTHONUNBUFFERED: "0"
+    ports:
+      - "${DEMO_REDASH_PORT:-5002}:5000"
+    networks:
+      - demo
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:5000/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    volumes:
+      # Patch: allow queries to Docker-internal hostnames (private IPs)
+      - ./redash/json_ds.py:/app/redash/query_runner/json_ds.py:ro
+
+  demo-redash-worker:
+    image: "redash/redash:latest"
+    container_name: demo-redash-worker
+    command: worker
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+      demo-redash-redis:
+        condition: service_started
+    environment:
+      REDASH_DATABASE_URL: "postgresql://redash:redash@demo-postgres/redash"
+      REDASH_REDIS_URL: "redis://demo-redash-redis:6379/0"
+      REDASH_SECRET_KEY: "demo-redash-secret-key-not-for-production"
+      REDASH_COOKIE_SECRET: "demo-redash-cookie-secret"
+      PYTHONUNBUFFERED: "0"
+      QUEUES: "queries,scheduled_queries,celery,schemas"
+      WORKERS_COUNT: "2"
+    networks:
+      - demo
+    restart: unless-stopped
+    volumes:
+      # Same patch as server — worker runs the actual queries
+      - ./redash/json_ds.py:/app/redash/query_runner/json_ds.py:ro
+
+  # One-shot: initialise Redash DB tables, admin user, and HTTP data source
+  demo-redash-init:
+    image: "redash/redash:latest"
+    container_name: demo-redash-init
+    command: create_db
+    depends_on:
+      demo-postgres:
+        condition: service_healthy
+      demo-redash-redis:
+        condition: service_started
+    environment:
+      REDASH_DATABASE_URL: "postgresql://redash:redash@demo-postgres/redash"
+      REDASH_REDIS_URL: "redis://demo-redash-redis:6379/0"
+      REDASH_SECRET_KEY: "demo-redash-secret-key-not-for-production"
+      REDASH_COOKIE_SECRET: "demo-redash-cookie-secret"
+    networks:
+      - demo
+    restart: "no"
+
+  # Setup queries + data source (runs after DB init + server is healthy)
+  demo-redash-setup:
+    image: "mirror.gcr.io/python:3.12-slim"
+    container_name: demo-redash-setup
+    entrypoint: ["/scripts/redash-setup.sh"]
+    depends_on:
+      demo-redash:
+        condition: service_healthy
+      demo-redash-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./scripts:/scripts:ro
+    networks:
+      - demo
+    restart: "no"
 
 volumes:
   demo_postgres_data:

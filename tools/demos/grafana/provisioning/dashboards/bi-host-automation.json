@@ -1,0 +1,276 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Total Hosts",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Total Hosts", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Active Hosts",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/?deleted=false&limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Active Hosts", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Deleted Hosts",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/?deleted=true&limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Deleted Hosts", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "title": "Job Summaries",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?limit=1",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "",
+          "columns": [
+            {"selector": "count", "text": "Job Summaries", "type": "number"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 4},
+      "id": 5,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "Host Inventory",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/?limit=200",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "hostname", "text": "Hostname", "type": "string"},
+            {"selector": "automated_counter", "text": "Automation Count", "type": "number"},
+            {"selector": "deleted_counter", "text": "Deleted Count", "type": "number"},
+            {"selector": "deleted", "text": "Deleted", "type": "boolean"},
+            {"selector": "first_automation", "text": "First Automation", "type": "timestamp"},
+            {"selector": "last_automation", "text": "Last Automation", "type": "timestamp"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 16},
+      "id": 6,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "Deleted Hosts",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/?deleted=true&limit=200",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "hostname", "text": "Hostname", "type": "string"},
+            {"selector": "automated_counter", "text": "Automation Count", "type": "number"},
+            {"selector": "deleted_counter", "text": "Deleted Count", "type": "number"},
+            {"selector": "last_automation", "text": "Last Automation", "type": "timestamp"},
+            {"selector": "last_deleted", "text": "Last Deleted", "type": "timestamp"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "mappings": [], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 16},
+      "id": 7,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "title": "Most Active Hosts (Top 25)",
+      "type": "table",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "metrics-bi-connector"},
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/host-metrics/?deleted=false&limit=25",
+          "url_options": {"method": "GET", "data": ""},
+          "root_selector": "results",
+          "columns": [
+            {"selector": "hostname", "text": "Hostname", "type": "string"},
+            {"selector": "automated_counter", "text": "Automation Count", "type": "number"},
+            {"selector": "first_automation", "text": "First Automation", "type": "timestamp"},
+            {"selector": "last_automation", "text": "Last Automation", "type": "timestamp"}
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "tags": ["bi-connector", "hosts", "demo"],
+  "templating": {"list": []},
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BI — Host Automation Analytics",
+  "uid": "bi-host-automation",
+  "version": 1,
+  "weekStart": ""
+}

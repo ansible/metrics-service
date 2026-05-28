@@ -1,0 +1,1067 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Job Events Analytics via BI Connector REST API \u2014 powered by the Infinity datasource",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Events (Latest Day)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "metrics_main_jobevent_service.total_events",
+              "text": "Total Events",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Successful Events (Latest Day)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_ok",
+              "text": "Successful Events",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Failed Events (Latest Day)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_failed",
+              "text": "Failed Events",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Skipped Events (Latest Day)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_skipped",
+              "text": "Skipped Events",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Hourly Collections (Event Type)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/hourly/?collector_type=main_jobevent_service&limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "count",
+              "text": "Hourly Collections",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Daily Summaries Available",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "count",
+              "text": "Daily Summaries",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Job Executions (Latest Day)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "dark-blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=1",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "metrics_unified_jobs.total_jobs",
+              "text": "Job Executions",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Job-Host Summaries",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "teal"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "teal",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?limit=1${org}",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "count",
+              "text": "Job-Host Summaries",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "90-Day Event Trend",
+      "type": "table",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=90",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "summary_date",
+              "text": "Date",
+              "type": "string"
+            },
+            {
+              "selector": "metrics_main_jobevent_service.total_events",
+              "text": "Total Events",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_ok",
+              "text": "OK",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_failed",
+              "text": "Failed",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_skipped",
+              "text": "Skipped",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_unified_jobs.total_jobs",
+              "text": "Jobs Run",
+              "type": "number"
+            },
+            {
+              "selector": "hourly_collections_count",
+              "text": "Hourly Collections",
+              "type": "number"
+            },
+            {
+              "selector": "status",
+              "text": "Status",
+              "type": "string"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Hourly Event Collection Log",
+      "type": "table",
+      "gridPos": {
+        "h": 12,
+        "w": 14,
+        "x": 0,
+        "y": 22
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/hourly/?collector_type=main_jobevent_service&limit=50",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "collection_timestamp",
+              "text": "Timestamp",
+              "type": "timestamp"
+            },
+            {
+              "selector": "status",
+              "text": "Status",
+              "type": "string"
+            },
+            {
+              "selector": "data_size_bytes",
+              "text": "Data Size (bytes)",
+              "type": "number"
+            },
+            {
+              "selector": "error_message",
+              "text": "Error",
+              "type": "string"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Job Executions with Host Detail",
+      "type": "table",
+      "gridPos": {
+        "h": 12,
+        "w": 10,
+        "x": 14,
+        "y": 22
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/stored/job-host-summaries/?limit=100${org}",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "job_id",
+              "text": "Job ID",
+              "type": "number"
+            },
+            {
+              "selector": "host_name",
+              "text": "Host",
+              "type": "string"
+            },
+            {
+              "selector": "organization_id",
+              "text": "Org",
+              "type": "number"
+            },
+            {
+              "selector": "modified",
+              "text": "Executed At",
+              "type": "timestamp"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Event Outcome Breakdown (Last 30 Days)",
+      "type": "table",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "url",
+          "url": "/api/v1/bi/metrics/daily/?limit=30",
+          "url_options": {
+            "method": "GET",
+            "data": ""
+          },
+          "root_selector": "results",
+          "columns": [
+            {
+              "selector": "summary_date",
+              "text": "Date",
+              "type": "string"
+            },
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_ok",
+              "text": "Runner OK",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_failed",
+              "text": "Runner Failed",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_main_jobevent_service.runner_on_skipped",
+              "text": "Runner Skipped",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_unified_jobs.successful",
+              "text": "Jobs Successful",
+              "type": "number"
+            },
+            {
+              "selector": "metrics_unified_jobs.failed",
+              "text": "Jobs Failed",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "bi-connector",
+    "events",
+    "demo"
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "org",
+        "label": "Organization",
+        "description": "Filter job-host data by organisation ID",
+        "query": "All : , Org 1 : &organization_id=1, Org 2 : &organization_id=2, Org 3 : &organization_id=3",
+        "current": {
+          "text": "All",
+          "value": ""
+        },
+        "options": [
+          {
+            "text": "All",
+            "value": "",
+            "selected": true
+          },
+          {
+            "text": "Org 1",
+            "value": "&organization_id=1",
+            "selected": false
+          },
+          {
+            "text": "Org 2",
+            "value": "&organization_id=2",
+            "selected": false
+          },
+          {
+            "text": "Org 3",
+            "value": "&organization_id=3",
+            "selected": false
+          }
+        ],
+        "includeAll": false,
+        "multi": false,
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BI \u2014 Job Events Analytics",
+  "uid": "bi-events",
+  "version": 1,
+  "weekStart": ""
+}

@@ -1,0 +1,1724 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "3.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "description": "BHP AAP Forensic Analysis \u2014 static report recreated as Grafana dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "refresh": false,
+  "schemaVersion": 38,
+  "tags": [
+    "bi-connector",
+    "bhp",
+    "forensic",
+    "demo"
+  ],
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "BHP \u2014 AAP Forensic Analysis (NOT LIVE \u2014 HARDCODED)",
+  "uid": "bi-bhp-forensic",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Report Header",
+      "type": "text",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## BHP Ansible Automation Platform \u2014 Forensic Usage Analysis\n\n**Timeline:** 10 months (July 2025 \u2013 April 2026) &nbsp;&nbsp; **SKU:** ESA0016 Red Hat Ansible Automation Platform, Premium &nbsp;&nbsp; **Licensed Entitlement:** 10,000 Managed Nodes &nbsp;&nbsp; **Analysis Date:** 13 May 2026"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Job Runs (10 months)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 3
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 434668}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Job Runs (10 months)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Task Runs (10 months)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 3
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 38316704}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Task Runs (10 months)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Compute Hours (10 months)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 3
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 22032}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Compute Hours (10 months)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Person-Work-Days Automated",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 3
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 2754}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Person-Work-Days Automated",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Unique Job Templates",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 7
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 466}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Unique Job Templates",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Unique Managed Hosts (Combined)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 7
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 5679}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Unique Managed Hosts (Combined)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Inventory Scope (Combined)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 7
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 8069}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Inventory Scope (Combined)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Organizations",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 7
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 11}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Organizations",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "1. Metrics Over Time",
+      "type": "text",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 1. Metrics Over Time\n\n| Metric | Jul 2025\u2013Mar 2026 | Apr 2026 | Combined / Change |\n|---|---|---|---|\n| Metrics Utility nodes | 4,016 | 4,675 | 5,679 unique (+16.4%) |\n| Inventory Scope hosts | 6,396 | 7,285 | 8,069 unique (+13.9%) |\n| Nodes outside inventory | 155 | 70 | Dynamic (add_host) |\n| Job runs | 339,462 (42,433/mo) | 95,206 | Apr = 2.24\u00d7 monthly avg |\n| Task runs | 30.65M (3.83M/mo) | 7.67M | Apr = 2.0\u00d7 monthly avg |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "Nodes in Both Periods",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 21
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 3012}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Nodes in Both Periods",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Decommissioned / Idle",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 21
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 1004}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Decommissioned / Idle",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "New in April 2026",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 21
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "teal"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "teal",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 1663}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "New in April 2026",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Section 2 Header",
+      "type": "text",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 2. Automation Landscape by Domain \u2014 22,032 Total Compute Hours"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "title": "Compute Hours by Domain",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 27
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "Compute Hours",
+          "values": true
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"domain\":\"Windows Server Operations (26 nodes)\",\"hours\":8121,\"pct\":36.9},{\"domain\":\"API / Cloud Orchestration (2,752 nodes)\",\"hours\":4808,\"pct\":21.8},{\"domain\":\"Network Device Mgmt (3,948 nodes)\",\"hours\":4122,\"pct\":18.7},{\"domain\":\"Data Processing\",\"hours\":1991,\"pct\":9.0},{\"domain\":\"File / Config Management\",\"hours\":1030,\"pct\":4.7},{\"domain\":\"All Other\",\"hours\":960,\"pct\":4.4}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "domain",
+              "text": "Domain",
+              "type": "string"
+            },
+            {
+              "selector": "hours",
+              "text": "Compute Hours",
+              "type": "number"
+            },
+            {
+              "selector": "pct",
+              "text": "% of Total",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Domain Detail",
+      "type": "text",
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 27
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "| Domain | Peak Nodes | Task Runs | Compute Hrs | Key Modules |\n|---|---|---|---|---|\n| Network Device Mgmt | 3,948 | 326,076 | 4,122 | cisco.ios.ios_command, cisco.nxos, aireos_command |\n| Windows Server Ops | 26 | 476,567 | 8,121 | win_shell, win_copy, win_file, win_find |\n| API / Cloud Orchestration | 2,752 | 6,582,786 | 4,808 | ansible.builtin.uri, azure.azcollection |\n| Identity and Access Mgmt | 5 | 22,859 | 73 | microsoft.ad.user, .group, .computer |\n| ITSM / ServiceNow | 2 | 6,006 | 1 | servicenow.itsm.api_info, change_request |\n| Notifications | 95 | 350,495 | 157 | community.general.mail, cisco_webex |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 17,
+      "title": "Key Observation",
+      "type": "text",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "> **26 Windows nodes consumed 8,121 hours** \u2014 more than the 3,948 network devices (4,122 hrs). `win_shell` alone: 23 nodes, 178,250 task runs, 7,082 hours."
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 18,
+      "title": "Total Automation Hours",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 40
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 22032}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Total Automation Hours",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Person-Work-Days (8hr)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 40
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 2754}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Person-Work-Days (8hr)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Person-Years (240 days/yr)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 40
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 11.5}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Person-Years (240 days/yr)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Avg Hours Per Month",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 40
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 2203}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Avg Hours Per Month",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "3. Top 15 Modules by Compute Hours",
+      "type": "text",
+      "gridPos": {
+        "h": 20,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 3. Top 15 Modules by Compute Hours\n\n| Module | Unique Nodes | Task Runs | Hours | % of Total |\n|---|---|---|---|---|\n| ansible.windows.win_shell | 23 | 178,250 | 7,082 | 32.1% |\n| ansible.builtin.uri | 2,752 | 6,214,167 | 4,526 | 20.5% |\n| cisco.ios.ios_command | 3,948 | 161,133 | 3,220 | 14.6% |\n| ansible.builtin.set_fact | 2,958 | 51,800,290 | 1,639 | 7.4% |\n| ansible.builtin.pause | 5 | 22,922 | 762 | 3.5% |\n| ansible.windows.win_copy | 11 | 117,361 | 603 | 2.7% |\n| cisco.ios.ios | 3,281 | 55,980 | 686 | 3.1% |\n| ansible.builtin.gather_facts | 27 | 140,642 | 664 | 3.0% |\n| ansible.builtin.lineinfile | 3,392 | 368,168 | 321 | 1.5% |\n| ansible.builtin.shell | 281 | 743,761 | 284 | 1.3% |\n| azure.azcollection.azure_rm_virtualnetwork_info | 1 | 327,616 | 255 | 1.2% |\n| ansible.builtin.command | 19 | 25,983 | 217 | 1.0% |\n| ansible.windows.win_file | 26 | 107,474 | 179 | 0.8% |\n| community.network.aireos_command | 2,445 | 17,407 | 160 | 0.7% |\n| community.general.mail | 14 | 296,088 | 153 | 0.7% |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 23,
+      "title": "4. Time Saved by Organization (April 2026)",
+      "type": "text",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 4. Time Saved by Organization (April 2026)\n\n| Organization | April Tasks | Est. April Hours | Annualised Hours | Primary Workload |\n|---|---|---|---|---|\n| Networks | 3,447,955 | ~2,600 | ~31,200 | Device reboots, WAP closure, SDWAN traceroute |\n| EUC & IDM | 3,044,297 | ~2,100 | ~25,200 | Intune monitoring, guest user lifecycle, MFA, AVD |\n| Technical Automation | 855,976 | ~600 | ~7,200 | SmartPlant, CoPilot, Atlassian, ServiceNow |\n| ECM | 244,016 | ~180 | ~2,160 | Documentum account/document/security management |\n| Hybrid Cloud | 62,513 | ~50 | ~600 | Terraform workspace creation, cloud access |\n| All Others | 11,169 | ~20 | ~240 | PDA, Integrated Ops, Mobility, Network LAN/Int |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 24,
+      "title": "Metrics Utility (Apr 2026)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 74
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"v\": 4675}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "v",
+              "text": "Metrics Utility (Apr 2026)",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "title": "Tier 1 Indirect (API-Managed)",
+      "type": "text",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 74
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "<div style=\"text-align:center;background:#1f1f1f;padding:8px;border-radius:4px;height:100%;display:flex;flex-direction:column;justify-content:center\"><div style=\"font-size:14px;color:#ccc\">Tier 1 Indirect (API-Managed)</div><div style=\"font-size:32px;font-weight:bold;color:#ff9900\">8,500 \u2013 17,300</div><div style=\"font-size:12px;color:#888\">estimated nodes</div></div>"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 26,
+      "title": "Tier 1 Total (Direct + Indirect)",
+      "type": "text",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 74
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "<div style=\"text-align:center;background:#1f1f1f;padding:8px;border-radius:4px;height:100%;display:flex;flex-direction:column;justify-content:center\"><div style=\"font-size:14px;color:#ccc\">Tier 1 Total (Direct + Indirect)</div><div style=\"font-size:32px;font-weight:bold;color:#ff9900\">13,175 \u2013 21,975</div><div style=\"font-size:12px;color:#888\">estimated nodes</div></div>"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 27,
+      "title": "5. Directly Managed Nodes",
+      "type": "text",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 78
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 5. Directly Managed Nodes\n\n| Category | Count | Data Source |\n|---|---|---|\n| Cisco IOS routers and switches | 3,948 | cisco.ios.ios_command peak unique nodes |\n| Cisco NX-OS data centre switches | 3,298 | cisco.nxos peak unique |\n| Wireless controllers (AireOS) | 2,445 | aireos_command peak unique |\n| Windows servers | 26 | ansible.windows.win_file peak unique |\n| Linux servers | 281 | ansible.builtin.shell peak unique |\n| All managed (deduplicated) | 4,016 to 4,675 | Metrics Utility per-period totals |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 28,
+      "title": "Tier 1 Indirect Managed Nodes",
+      "type": "text",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 78
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Tier 1 Indirect Managed Nodes\n\n| Category | Low | High | Data Evidence |\n|---|---|---|---|\n| Intune-enrolled devices | 7,500 | 14,200 | MultipleDevicesDeployedAlert: 42,678 tasks/run, 152 runs |\n| Azure Virtual Desktops | 200 | 600 | CloudAVD_Migration: 1,345 runs; Azure_Virtual_Desktop: 3,259 runs |\n| Cloud VMs / VNets | 300 | 1,000 | azure_rm_virtualnetwork_info: 327,616 tasks; TF_WorkspaceCreation: 151 runs |\n| Wireless APs behind WLCs | 500 | 1,500 | WAP_Down_Auto_closure: 77,001 runs |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 29,
+      "title": "6. License vs Reality",
+      "type": "text",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 6. License vs Reality \u2014 Managed Node Count Comparison"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 30,
+      "title": "Managed Node Estimates vs Licensed Entitlement",
+      "type": "bargauge",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 90
+      },
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "metrics-bi-connector"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10000
+              },
+              {
+                "color": "red",
+                "value": 22175
+              }
+            ]
+          },
+          "max": 45000
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "Nodes",
+          "values": true
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "metrics-bi-connector"
+          },
+          "type": "json",
+          "source": "inline",
+          "data": "[{\"tier\":\"Full Estimate (high)\",\"nodes\":40975},{\"tier\":\"Full Estimate (low)\",\"nodes\":22175},{\"tier\":\"Tier 1 Only (high)\",\"nodes\":21975},{\"tier\":\"Tier 1 Only (low)\",\"nodes\":13175},{\"tier\":\"Licensed Entitlement\",\"nodes\":10000},{\"tier\":\"Inventory Scope (combined)\",\"nodes\":8069},{\"tier\":\"Metrics Utility (April 2026)\",\"nodes\":4675}]",
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "tier",
+              "text": "Tier",
+              "type": "string"
+            },
+            {
+              "selector": "nodes",
+              "text": "Nodes",
+              "type": "number"
+            }
+          ],
+          "filters": [],
+          "format": "table",
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "title": "Not Countable Categories",
+      "type": "text",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 100
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Not Countable as Managed Nodes\n\n| Category | Why Excluded |\n|---|---|\n| SharePoint / CoPilot records | Data records, not physical/virtual/software instances |\n| Distribution lists (AD) | Organisational groupings, not managed instances |\n| Email / Webex notifications (350K tasks) | Notification delivery. No infrastructure managed. |\n| ServiceNow CI sync (60K+ tasks) | Records about devices already counted in network fleet |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 32,
+      "title": "Section 7 Header",
+      "type": "text",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 106
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 7. Top 25 Automations by Task Volume"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 33,
+      "title": "Top 25 Automations",
+      "type": "text",
+      "gridPos": {
+        "h": 30,
+        "w": 24,
+        "x": 0,
+        "y": 108
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "| Job Template | Org | Total Runs | Total Tasks | Tasks/Run |\n|---|---|---|---|---|\n| Intune_DynamicDeviceGroup_alert | EUC & IDM | 450 | 8,449,531 | 18,777 |\n| Intune_MultipleDevicesDeployedAlert | EUC & IDM | 152 | 6,343,762 | 41,735 |\n| BA_Smartplant_Int_Org_Update | Tech Automation | 29 | 1,995,462 | 68,809 |\n| Intune_AppProtectionAlert | EUC & IDM | 447 | 1,889,018 | 4,226 |\n| DCTM_Account_Management | ECM | 2,353 | 1,813,587 | 771 |\n| WAP_Down_Auto_closure_Brisbane | Networks | 39,962 | 1,809,743 | 45 |\n| Tech_Device_Reboot_Brisbane | Networks | 18,182 | 1,405,284 | 77 |\n| WAP_Down_Auto_closure_Perth | Networks | 30,821 | 1,382,059 | 45 |\n| Tech_Device_Reboot_Perth | Networks | 13,249 | 1,242,335 | 94 |\n| ManageBEIMGuestUsers | EUC & IDM | 821 | 1,227,410 | 1,495 |\n| RegisterAzureMFA | EUC & IDM | 1,350 | 991,268 | 734 |\n| Tech_Device_Down_Perth | Networks | 9,141 | 644,145 | 71 |\n| Tech_Device_Down_Brisbane | Networks | 8,652 | 545,356 | 63 |\n| Intune_LOBAppsExpiryNotification | EUC & IDM | 225 | 452,061 | 2,009 |\n| ModifyDLMembers_AD | EUC & IDM | 27,566 | 443,885 | 16 |\n| Atlassian_License_Harvesting | Tech Automation | 34 | 407,552 | 11,987 |\n| SDWAN_Tracert | Networks | 105 | 403,310 | 3,841 |\n| Modify_BEIM_GuestUser | EUC & IDM | 7,997 | 340,996 | 43 |\n| TA_SF_APIM_Position_Sync | Tech Automation | 35 | 268,489 | 7,671 |\n| Disable_BEIMGuestUser | EUC & IDM | 18,581 | 241,490 | 13 |\n| SmartPlant-user-creation | Tech Automation | 2,202 | 211,584 | 96 |\n| BA_SF_APIM_Position_Sync | PDA | 10 | 198,664 | 19,866 |\n| Create_BEIM_GuestUser | EUC & IDM | 4,623 | 198,659 | 43 |\n| WAP_Down_Auto_closure | Networks | 2,204 | 192,624 | 87 |\n| CoPilot_Daily_Update_Remove_SP | Tech Automation | 32 | 183,044 | 5,720 |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 34,
+      "title": "8. Summary of Facts",
+      "type": "text",
+      "gridPos": {
+        "h": 22,
+        "w": 24,
+        "x": 0,
+        "y": 138
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## 8. Summary of Facts\n\n| Fact | Value |\n|---|---|\n| Licensed managed node entitlement | 10,000 |\n| Metrics Utility count (latest, Apr 2026) | 4,675 |\n| Metrics Utility count (prior, Jul\u2013Mar) | 4,016 |\n| Unique nodes across full timeline | 5,679 |\n| Inventory Scope (combined unique) | 8,069 |\n| Total job runs (10 months) | 434,668 |\n| Total task runs (10 months) | 38,316,704 |\n| Total automation compute hours | 22,032 |\n| Person-work-days automated | 2,754 |\n| Person-years automated | 11.5 |\n| Job templates with max 1 unique node | 418 of 466 (89.7%) |\n| Intune tasks/run (stable over 10 months) | 37,737 to 42,678 |\n| Guest user lifecycle ops (10 months) | 47,663 |\n| ansible.builtin.uri total calls | 6,214,167 |\n| ansible.builtin.uri total duration | 4,526 hours |\n| Node growth rate (single period) | +16.4% |\n| New nodes in April | 1,663 |\n| New organisations in April | 2 |"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 35,
+      "title": "Conclusion",
+      "type": "text",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 160
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Conclusion\n\nOver 10 months, BHP's Ansible Automation Platform executed **434,668 jobs** comprising **38.3 million tasks** across **22,032 hours** of compute time \u2014 equivalent to **11.5 person-years** of automated work. The Metrics Utility counts 4,675 directly-managed nodes. Applying Red Hat's managed node definition to API-orchestrated workloads, the estimated managed node count is **13,175 to 21,975** (Tier 1 only) or **22,175 to 40,975** (including Tier 2). At the conservative Tier 1 low end, this exceeds the 10,000 licensed entitlement by **31.8%**."
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

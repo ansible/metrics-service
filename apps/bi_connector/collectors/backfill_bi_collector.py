@@ -109,22 +109,24 @@ def _run_collection_loop(collector_type: str, since: datetime, until: datetime, 
     return periods_collected
 
 
-def backfill_bi_collector(task_data: dict | None = None, **kwargs) -> dict:
+def backfill_bi_collector(
+    collector_type: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    batch_id: int | None = None,
+    **kwargs,
+) -> dict:
     """
     Backfill an existing collector over a historical date range.
 
-    task_data keys:
+    Called by tasks_system with unpacked task_data kwargs:
         collector_type (str)  — must be a key in TASK_FUNCTIONS (hourly or snapshot)
         since          (str)  — ISO 8601 start datetime (inclusive)
         until          (str)  — ISO 8601 end datetime (exclusive)
         batch_id       (int)  — optional CollectionBatch PK for progress tracking
     """
-    task_data = task_data or {}
-
-    collector_type: str | None = task_data.get("collector_type")
-    since_str: str | None = task_data.get("since")
-    until_str: str | None = task_data.get("until")
-    batch_id: int | None = task_data.get("batch_id")
+    since_str: str | None = since
+    until_str: str | None = until
 
     if not collector_type:
         raise ValueError("collector_type is required in task_data")

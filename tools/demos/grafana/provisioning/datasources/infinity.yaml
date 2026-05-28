@@ -3,21 +3,27 @@ apiVersion: 1
 # Infinity datasource for the BI Connector REST API.
 # Requires: METRICS_SERVICE_FEATURE_ENABLED__BI_CONNECTOR=true (already set in docker-compose)
 #
-# To add your token after first boot:
-#   docker exec demo-metrics-service-init python manage.py drf_create_token demo_admin
-# Then update the Authorization header below and run:
-#   docker compose restart grafana
+# Uses a fixed demo token pre-seeded in docker-compose via DEMO_BI_TOKEN=demo-bi-connector-token.
+# The token is created by the init container on first boot.
+#
+# Field-name notes (Infinity v3+ uses camelCase in jsonData, not snake_case):
+#   - allowedHosts (not allowed_hosts) — Go struct tag: json:"allowedHosts,omitempty"
+#   - authType (not auth_type)         — Go struct tag: json:"authType"
+#   - httpHeaderName1/httpHeaderValue1 — custom headers sent with every request
+# The base datasource URL is set so that panel queries can use relative paths
+# and Infinity appends them to this URL.
+# The BI connector uses DRF token auth ("Token <value>"), not Bearer, so we use
+# a custom Authorization header rather than the bearerToken auth type.
 
 datasources:
   - name: Metrics Service BI Connector
     type: yesoreyeram-infinity-datasource
     uid: metrics-bi-connector
+    url: "http://demo-metrics-web:8000"
     jsonData:
-      auth_type: "none"
-      allowed_hosts:
-        - "http://demo-metrics-service-web:8000"
-    # Uncomment and populate after running: docker exec demo-metrics-service-init python manage.py drf_create_token demo_admin
-    # secureJsonData:
-    #   httpHeaderValue1: "Token <your-token-here>"
-    # jsonData:
-    #   httpHeaderName1: "Authorization"
+      authType: "none"
+      allowedHosts:
+        - "http://demo-metrics-web:8000"
+      httpHeaderName1: "Authorization"
+    secureJsonData:
+      httpHeaderValue1: "Token demo-bi-connector-token"
