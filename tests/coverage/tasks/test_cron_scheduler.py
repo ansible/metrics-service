@@ -356,7 +356,9 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
         name="stuck", function_name="hello_world", task_data={}, created_by=user, status="running"
     )
     # Backdate started_at to trigger stuck detection
-    started = timezone.now() - timedelta(seconds=cs.STUCK_TASK_TIMEOUT_SECONDS + 60)
+    from django.conf import settings as django_settings
+
+    started = timezone.now() - timedelta(seconds=django_settings.TASK_TIMEOUT + 60)
     Task.objects.filter(pk=task.pk).update(started_at=started)
     execution = TaskExecution.objects.create(task=task, status="running")
 
