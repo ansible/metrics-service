@@ -83,15 +83,15 @@ def test_handle_run_command_calls_start_services():
 @pytest.mark.django_db
 def test_subscription_cost_per_second():
     import decimal
-    from datetime import date
+    from datetime import UTC, datetime, timezone
 
     from apps.dashboard_reports.models import SubscriptionCost
 
     SubscriptionCost.objects.all().delete()
     cost = SubscriptionCost.get()
     result = cost.per_second_subscription_cost(
-        start=date(2024, 1, 1),
-        end=date(2024, 1, 31),
+        start=datetime(2024, 1, 1, tzinfo=UTC),
+        end=datetime(2024, 1, 31, tzinfo=UTC),
     )
     assert isinstance(result, decimal.Decimal)
 

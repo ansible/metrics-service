@@ -8,8 +8,16 @@ import logging
 from typing import Any
 
 from django.utils import timezone
+from rest_framework import serializers
 
 logger = logging.getLogger(__name__)
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    error = serializers.CharField()
+    status_code = serializers.IntegerField()
+    timestamp = serializers.DateTimeField()
+    details = serializers.DictField(required=False)
 
 
 def build_error_response(message: str, details: dict[str, Any] | None = None, status_code: int = 400) -> dict[str, Any]:

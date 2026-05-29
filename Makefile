@@ -23,4 +23,19 @@ requirements-check:
 		echo "Requirements files are in sync."; \
 	fi
 
-.PHONY: sync-requirements requirements requirements-check
+
+# Generate OpenAPI schema files (requires DB to be running for migrations)
+generate-openapi-schema:
+	@echo "Generating OpenAPI schema..."
+	mkdir -p tools/openapi-schema
+	uv run python manage.py spectacular --file tools/openapi-schema/metrics-service.yaml
+	uv run python manage.py spectacular --format openapi-json --file tools/openapi-schema/metrics-service.json
+
+# Validate committed OpenAPI schema files against OpenAPI 3.0 spec (no server required)
+validate-openapi-schema: generate-openapi-schema
+	@echo "Validating generated OpenAPI schema files..."
+	@uv run openapi-spec-validator tools/openapi-schema/metrics-service.yaml
+	@uv run openapi-spec-validator tools/openapi-schema/metrics-service.json
+	@echo "✓ OpenAPI schema files are valid!"
+
+.PHONY: sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema
