@@ -399,7 +399,35 @@ TASK_METADATA = {
                 "description": "Serialised unified_jobs rows from the hourly collector hook",
             },
         },
-        "examples": [],
+        "examples": [
+            {
+                "name": "Sync one hour of job records",
+                "data": {
+                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "raw_jobs": [
+                        {
+                            "id": 1,
+                            "name": "Demo Job Template",
+                            "unified_job_template_id": 10,
+                            "organization_id": 1,
+                            "organization_name": "Default",
+                            "started": "2024-01-01T00:01:00+00:00",
+                            "finished": "2024-01-01T00:02:30+00:00",
+                            "status": "successful",
+                            "elapsed": 90.0,
+                            "launched_by_id": 1,
+                            "launched_by_username": "admin",
+                            "project_id": 5,
+                            "project_name": "Demo Project",
+                            "created": "2024-01-01T00:00:50+00:00",
+                            "modified": "2024-01-01T00:02:30+00:00",
+                            "label_ids": None,
+                            "num_hosts": 3,
+                        }
+                    ],
+                },
+            },
+        ],
     },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",

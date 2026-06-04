@@ -62,7 +62,6 @@ def test_collect_data_success():
     now = datetime.now(tz=UTC)
     since = (now - timedelta(hours=2)).isoformat()
 
-    mock_jobs_result = {"results": [], "count": 0}
     with (
         patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
         patch("apps.dashboard_reports.tasks._get_job_id_range", return_value=(None, None)),
@@ -105,7 +104,6 @@ def test_collect_dashboard_reports_initial_data_no_db():
 def test_collect_dashboard_reports_initial_data_success():
     from apps.dashboard_reports.tasks import collect_dashboard_reports_initial_data
 
-    mock_jobs_result = {"results": [], "count": 5}
     now = datetime.now(tz=UTC)
 
     with (
@@ -129,7 +127,6 @@ def test_collect_dashboard_reports_initial_data_success():
 def test_collect_dashboard_reports_data_incremental():
     from apps.dashboard_reports.tasks import collect_dashboard_reports_data
 
-    mock_jobs_result = {"results": [], "count": 0}
     with (
         patch("apps.dashboard_reports.tasks.get_db_connection", return_value=MagicMock()),
         patch("apps.dashboard_reports.tasks._get_job_id_range", return_value=(None, None)),
@@ -145,7 +142,6 @@ def test_collect_dashboard_reports_data_incremental():
 def test_collect_dashboard_reports_data_full():
     from apps.dashboard_reports.tasks import collect_dashboard_reports_data
 
-    mock_jobs_result = {"results": [], "count": 0}
     now = datetime.now(tz=UTC)
 
     with (

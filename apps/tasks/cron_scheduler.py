@@ -18,7 +18,7 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-STUCK_TASK_TIMEOUT_SECONDS = django_settings.TASK_TIMEOUT
+STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
