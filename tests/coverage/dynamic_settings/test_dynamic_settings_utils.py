@@ -120,12 +120,16 @@ def test_initialize_default_settings_reads_value_from_feature_dict():
     from apps.dynamic_settings.models import Setting
     from apps.dynamic_settings.utils import initialize_default_settings
 
-    test_defaults = {"TEST_INIT_FLAG": {"default_value": False, "description": "test"}}
+    # Hardcoded default is True; FEATURE dict says False — the row must be created
+    # with False, proving the loop reads FEATURE over the hardcoded default.
+    # Using False also means the cleanup step won't delete the row (only true rows
+    # are removed as redundant).
+    test_defaults = {"TEST_INIT_FLAG": {"default_value": True, "description": "test"}}
     Setting.objects.filter(setting_key="TEST_INIT_FLAG").delete()
 
     with (
         patch("apps.dynamic_settings.utils.DEFAULT_SETTINGS", test_defaults),
-        override_settings(FEATURE={"TEST_INIT_FLAG": True}),
+        override_settings(FEATURE={"TEST_INIT_FLAG": False}),
     ):
         initialize_default_settings()
 
@@ -133,7 +137,80 @@ def test_initialize_default_settings_reads_value_from_feature_dict():
     assert setting is not None
     import json
 
-    assert json.loads(setting.current_value) is True  # sourced from FEATURE dict, not hardcoded default
+    assert json.loads(setting.current_value) is False  # sourced from FEATURE dict, not hardcoded True default
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_initialize_default_settings_deletes_redundant_true_row():
+    """Upgrade failsafe: a system-seeded `true` row (previous_value=None) is deleted
+    so that METRICS_SERVICE_FEATURE__<KEY>=false takes effect without a DB update."""
+    import json
+
+    from django.test import override_settings
+
+    from apps.dynamic_settings.models import Setting
+    from apps.dynamic_settings.utils import initialize_default_settings
+
+    # Simulate old init-default-settings having written True into the DB
+    Setting.objects.update_or_create(
+        setting_key="ANONYMIZED_DATA_COLLECTION",
+        defaults={"current_value": json.dumps(True), "previous_value": None},
+    )
+
+    with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
+        initialize_default_settings()
+
+    # Row is gone — env var (or static default) now applies at runtime
+    assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_initialize_default_settings_keeps_false_row():
+    """A system-seeded `false` row is an explicit opt-out and must survive upgrade."""
+    import json
+
+    from django.test import override_settings
+
+    from apps.dynamic_settings.models import Setting
+    from apps.dynamic_settings.utils import initialize_default_settings
+
+    Setting.objects.update_or_create(
+        setting_key="ANONYMIZED_DATA_COLLECTION",
+        defaults={"current_value": json.dumps(False), "previous_value": None},
+    )
+
+    with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
+        initialize_default_settings()
+
+    row = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
+    assert json.loads(row.current_value) is False  # opt-out preserved
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_initialize_default_settings_keeps_api_changed_true_row():
+    """API-changed rows (previous_value != None) are intentional runtime toggles
+    and must not be touched regardless of their value."""
+    import json
+
+    from django.test import override_settings
+
+    from apps.dynamic_settings.models import Setting
+    from apps.dynamic_settings.utils import initialize_default_settings
+
+    # Admin explicitly set it to True via the settings API
+    Setting.objects.update_or_create(
+        setting_key="ANONYMIZED_DATA_COLLECTION",
+        defaults={"current_value": json.dumps(True), "previous_value": json.dumps(False)},
+    )
+
+    with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
+        initialize_default_settings()
+
+    row = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
+    assert json.loads(row.current_value) is True  # API change preserved
 
 
 # ---------------------------------------------------------------------------

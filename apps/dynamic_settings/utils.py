@@ -267,3 +267,27 @@ def initialize_default_settings(overwrite: bool = False):
         logger.info(f"Initialized {created_count} default settings in database")
     if skipped_count > 0:
         logger.debug(f"Skipped {skipped_count} existing settings")
+
+    # On upgrade, delete system-seeded `true` rows for FEATURE flags.
+    # A `true` row is redundant — the static default and env var both produce `true`
+    # when no row exists, so keeping it only blocks env var overrides (e.g. an
+    # operator setting METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false).
+    # `false` rows are kept: they represent an explicit opt-out that must survive.
+    # Rows changed via the settings API (previous_value != None) are left untouched
+    # regardless of their value — they are intentional runtime toggles.
+    feature_dict = getattr(django_settings, "FEATURE", {})
+    cleaned_count = 0
+    for flag_key in feature_dict:
+        try:
+            deleted, _ = Setting.objects.filter(
+                setting_key=flag_key,
+                current_value=json.dumps(True),
+                previous_value=None,
+            ).delete()
+            if deleted:
+                logger.info(f"Removed redundant system-seeded 'true' row for '{flag_key}'; env var now applies")
+                cleaned_count += deleted
+        except Exception as e:
+            logger.warning(f"Failed to clean up feature flag row for '{flag_key}': {e}")
+    if cleaned_count > 0:
+        logger.info(f"Cleaned up {cleaned_count} redundant feature flag row(s)")
