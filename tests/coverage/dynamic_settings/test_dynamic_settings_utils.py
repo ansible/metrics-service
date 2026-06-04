@@ -143,8 +143,8 @@ def test_initialize_default_settings_reads_value_from_feature_dict():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_initialize_default_settings_deletes_redundant_true_row():
-    """Upgrade failsafe: a system-seeded `true` row (previous_value=None) is deleted
-    so that METRICS_SERVICE_FEATURE__<KEY>=false takes effect without a DB update."""
+    """Upgrade failsafe: any `true` row for a FEATURE flag is deleted so that
+    METRICS_SERVICE_FEATURE__<KEY>=false takes effect without a DB update."""
     import json
 
     from django.test import override_settings
@@ -155,7 +155,7 @@ def test_initialize_default_settings_deletes_redundant_true_row():
     # Simulate old init-default-settings having written True into the DB
     Setting.objects.update_or_create(
         setting_key="ANONYMIZED_DATA_COLLECTION",
-        defaults={"current_value": json.dumps(True), "previous_value": None},
+        defaults={"current_value": json.dumps(True)},
     )
 
     with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
@@ -168,7 +168,7 @@ def test_initialize_default_settings_deletes_redundant_true_row():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_initialize_default_settings_keeps_false_row():
-    """A system-seeded `false` row is an explicit opt-out and must survive upgrade."""
+    """`false` rows are an explicit opt-out and must survive upgrade."""
     import json
 
     from django.test import override_settings
@@ -178,7 +178,7 @@ def test_initialize_default_settings_keeps_false_row():
 
     Setting.objects.update_or_create(
         setting_key="ANONYMIZED_DATA_COLLECTION",
-        defaults={"current_value": json.dumps(False), "previous_value": None},
+        defaults={"current_value": json.dumps(False)},
     )
 
     with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
@@ -186,31 +186,6 @@ def test_initialize_default_settings_keeps_false_row():
 
     row = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
     assert json.loads(row.current_value) is False  # opt-out preserved
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_initialize_default_settings_keeps_api_changed_true_row():
-    """API-changed rows (previous_value != None) are intentional runtime toggles
-    and must not be touched regardless of their value."""
-    import json
-
-    from django.test import override_settings
-
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import initialize_default_settings
-
-    # Admin explicitly set it to True via the settings API
-    Setting.objects.update_or_create(
-        setting_key="ANONYMIZED_DATA_COLLECTION",
-        defaults={"current_value": json.dumps(True), "previous_value": json.dumps(False)},
-    )
-
-    with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
-        initialize_default_settings()
-
-    row = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
-    assert json.loads(row.current_value) is True  # API change preserved
 
 
 # ---------------------------------------------------------------------------
