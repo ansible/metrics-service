@@ -183,7 +183,7 @@ class Command(BaseCommand):
             if command == "run":
                 self._handle_run_command(options)
             elif command == "init-default-settings":
-                self._handle_init_default_settings_command(options)
+                self._handle_init_default_settings_command()
             elif command == "remove-default-settings":
                 self._handle_remove_default_settings_command(options)
             elif command == "init-service-id":
@@ -214,7 +214,7 @@ class Command(BaseCommand):
         except ValueError as e:
             raise CommandError(f"Configuration error: {e}") from e
 
-    def _handle_init_default_settings_command(self, options: dict[str, Any] | None = None) -> None:
+    def _handle_init_default_settings_command(self) -> None:
         """Handle the init-default-settings command."""
         try:
             from apps.dynamic_settings.utils import initialize_default_settings

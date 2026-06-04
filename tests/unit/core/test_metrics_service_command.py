@@ -398,8 +398,7 @@ class TestInitDefaultSettingsCommand(BaseCommandTestCase):
         self.create_test_setting("ANONYMIZED_DATA_COLLECTION", False, True)
 
         self.setup_command_output()
-        options = {"overwrite": True}
-        self.command._handle_init_default_settings_command(options)
+        self.command._handle_init_default_settings_command()
 
         # ANONYMIZED_DATA_COLLECTION is not in DEFAULT_SETTINGS → not removed, not re-created
         setting = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")

@@ -121,6 +121,23 @@ def test_initialize_default_settings_keeps_false_row():
     assert json.loads(row.current_value) is False  # opt-out preserved
 
 
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_initialize_default_settings_cleanup_exception_does_not_propagate():
+    """DB errors during cleanup are swallowed and logged — they must not raise."""
+    from unittest.mock import patch
+
+    from django.test import override_settings
+
+    from apps.dynamic_settings.utils import initialize_default_settings
+
+    with (
+        override_settings(FEATURE={"SOME_FLAG": True}),
+        patch("apps.dynamic_settings.utils.Setting.objects.filter", side_effect=Exception("db error")),
+    ):
+        initialize_default_settings()  # must not raise
+
+
 # ---------------------------------------------------------------------------
 # remove_default_settings
 # ---------------------------------------------------------------------------
