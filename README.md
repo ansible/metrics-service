@@ -173,9 +173,13 @@ METRICS_SERVICE_FEATURE__METRICS_COLLECTION=false
 METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false
 ```
 
-These environment variables (or their default values) are used to populate the feature flags database tables during `manage.py metrics_service init-default-settings`. You can also use `python manage.py metrics_service remove-default-settings` to remove these settings from the database.
+Feature flags are resolved at runtime with this precedence:
 
-The feature flag values in the database determine which scheduled tasks run (checked at execution time). If a value is missing from the database, the environment variable or static default is used as the fallback.
+1. **DB row** in `dynamic_settings_setting` (written via the API, `dbshell`, or a prior `init-default-settings` run) — always wins
+2. **Env var** (`METRICS_SERVICE_FEATURE__*`) — used on fresh installs or when no DB row exists
+3. **Static default** in `settings.FEATURE` — fallback if neither of the above is set
+
+`init-default-settings` no longer pre-seeds these flags into the database, so env vars take effect on fresh installs without a DB row overriding them. Existing DB rows (from prior deploys or manual updates) continue to take precedence — a pod restart is required for env var changes to be picked up by the running service.
 
 After upgrading to a version that adds `METRICS_COLLECTION`, run `python manage.py metrics_service init-system-tasks` once so system tasks include `_feature_flag` for metrics collection templates.
 

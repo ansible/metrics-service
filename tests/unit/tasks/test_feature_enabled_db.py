@@ -8,8 +8,11 @@ with fallback to Django settings and defaults.
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+
+pytestmark = pytest.mark.unit
 
 from apps.tasks.task_groups import (
     get_feature_enabled_from_db,

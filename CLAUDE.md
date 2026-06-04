@@ -139,7 +139,7 @@ The task system has several layers:
 Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE` in Django settings if not in DB.
 
 ```bash
-# Toggle at runtime without restart
+# Toggle (requires process/pod restart to take effect)
 METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false
 ```
 

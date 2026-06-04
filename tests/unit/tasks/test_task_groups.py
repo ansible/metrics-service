@@ -7,7 +7,10 @@ task categorization, and integration with the cron scheduler.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from django.test import TestCase, override_settings
+
+pytestmark = pytest.mark.unit
 
 from apps.tasks.task_groups import (
     ANONYMIZATION_GROUP,
