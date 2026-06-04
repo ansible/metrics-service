@@ -148,18 +148,14 @@ def rollback_configuration_change(change_id, user):
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
 
-# Define default feature flags - same as in initialize_default_settings
-# default_value is the fallback, set the actual default in apps/settings/defaults.py
-DEFAULT_SETTINGS = {
-    "METRICS_COLLECTION": {
-        "default_value": True,
-        "description": "Enable local metrics collection (hourly/daily collectors), daily rollup, and metrics data cleanup",
-    },
-    "ANONYMIZED_DATA_COLLECTION": {
-        "default_value": True,
-        "description": "Enable anonymization of daily rollup and transmission to Red Hat (Segment); does not gate local metrics collection",
-    },
-}
+# Feature flags controlled by METRICS_SERVICE_FEATURE__<KEY>=value env-var overrides
+# (dynaconf nested-key syntax merges into the FEATURE dict in apps/settings/defaults.py).
+# AAP-77009: METRICS_COLLECTION and ANONYMIZED_DATA_COLLECTION are no longer seeded into the DB
+# by initialize_default_settings. They resolve from the FEATURE dict via get_feature_enabled_from_db,
+# so METRICS_SERVICE_FEATURE__METRICS_COLLECTION and METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION
+# take effect on fresh installs without a DB row overriding them — identical to DASHBOARD_COLLECTION.
+# Add entries here only for flags that must be DB-seeded for legacy compatibility reasons.
+DEFAULT_SETTINGS: dict = {}
 
 
 def _remove_all_settings():
@@ -250,8 +246,8 @@ def initialize_default_settings(overwrite: bool = False):
             skipped_count += 1
             continue
 
-        # Get default value from Django settings FEATURE_ENABLED dict, or use hardcoded default
-        feature_enabled = getattr(django_settings, "FEATURE_ENABLED", {})
+        # Get default value from Django settings FEATURE dict, or use hardcoded default
+        feature_enabled = getattr(django_settings, "FEATURE", {})
         default_value = feature_enabled.get(setting_key, config["default_value"])
 
         # Create the setting

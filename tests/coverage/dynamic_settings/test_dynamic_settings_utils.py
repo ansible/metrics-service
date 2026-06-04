@@ -115,6 +115,8 @@ def test_initialize_default_settings_overwrite_recreates():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_remove_default_settings_removes_unchanged():
+    """AAP-77009: remove_default_settings is a no-op for keys not in DEFAULT_SETTINGS.
+    Use all_settings=True to remove all settings regardless."""
     from apps.dynamic_settings.models import Setting
     from apps.dynamic_settings.utils import remove_default_settings
 
@@ -122,9 +124,15 @@ def test_remove_default_settings_removes_unchanged():
         setting_key="METRICS_COLLECTION", defaults={"current_value": "true", "previous_value": None}
     )
 
+    # DEFAULT_SETTINGS is empty — nothing removed by the "known defaults" path
     removed = remove_default_settings()
-    assert removed >= 1
-    assert not Setting.objects.filter(setting_key="METRICS_COLLECTION", previous_value=None).exists()
+    assert removed == 0
+    assert Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
+
+    # all_settings=True removes everything unconditionally
+    removed_all = remove_default_settings(all_settings=True)
+    assert removed_all >= 1
+    assert not Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
 
 
 @pytest.mark.unit
@@ -146,6 +154,8 @@ def test_remove_default_settings_preserves_modified():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_remove_default_settings_all_known_removes_modified():
+    """AAP-77009: all_known=True only removes keys present in DEFAULT_SETTINGS.
+    Since DEFAULT_SETTINGS is empty, METRICS_COLLECTION is left untouched."""
     from apps.dynamic_settings.models import Setting
     from apps.dynamic_settings.utils import remove_default_settings
 
@@ -154,8 +164,10 @@ def test_remove_default_settings_all_known_removes_modified():
         defaults={"current_value": "false", "previous_value": '"true"'},
     )
 
-    remove_default_settings(all_known=True)
-    assert not Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
+    removed = remove_default_settings(all_known=True)
+    assert removed == 0
+    # Not in DEFAULT_SETTINGS → not touched
+    assert Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
 
 
 @pytest.mark.unit
