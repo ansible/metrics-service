@@ -148,131 +148,44 @@ def rollback_configuration_change(change_id, user):
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
 
-# Feature flags controlled by METRICS_SERVICE_FEATURE__<KEY>=value env-var overrides
-# (dynaconf nested-key syntax merges into the FEATURE dict in apps/settings/defaults.py).
-# AAP-77009: METRICS_COLLECTION and ANONYMIZED_DATA_COLLECTION are no longer seeded into the DB
-# by initialize_default_settings. They resolve from the FEATURE dict via get_feature_enabled_from_db,
-# so METRICS_SERVICE_FEATURE__METRICS_COLLECTION and METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION
-# take effect on fresh installs without a DB row overriding them — identical to DASHBOARD_COLLECTION.
-# Add entries here only for flags that must be DB-seeded for legacy compatibility reasons.
-DEFAULT_SETTINGS: dict = {}
+# uv run ./manage.py metrics_service remove-default-settings [--all-settings]
+def remove_default_settings(all_settings: bool = False, **_kwargs) -> int:
+    """
+    Remove settings from the database.
 
+    With all_settings=True removes every row. Without it this is a no-op —
+    there are no longer any known-default keys to target individually.
+    The **_kwargs absorbs legacy all_known= callers without raising.
+    """
+    if not all_settings:
+        logger.debug("No settings found to remove")
+        return 0
 
-def _remove_all_settings():
     deleted_count, _ = Setting.objects.all().delete()
+    if deleted_count > 0:
+        logger.info(f"Removed {deleted_count} settings from database")
     return deleted_count
 
 
-def _remove_known_settings(including_changed=False):
-    removed_count = 0
-
-    for setting_key in DEFAULT_SETTINGS:
-        if including_changed:
-            # remove all known defaults regardless of modification status
-            deleted_count, _ = Setting.objects.filter(setting_key=setting_key).delete()
-        else:
-            # default: only remove unchanged settings
-            deleted_count, _ = Setting.objects.filter(setting_key=setting_key, previous_value=None).delete()
-
-        if deleted_count > 0:
-            logger.info(f"Removed setting '{setting_key}'")
-            removed_count += deleted_count
-
-    return removed_count
-
-
-# uv run ./manage.py metrics_service remove-default-settings [--all-known] [--all-settings]
-def remove_default_settings(all_known: bool = False, all_settings: bool = False):
-    """
-    Remove default feature flag settings from the database.
-
-    Args:
-        all_known: If True, remove all known default settings (ignores previous_value logic)
-        all_settings: If True, remove all settings from database (ignores DEFAULT_SETTINGS known settings list)
-
-    Default behavior (both False):
-        Only removes settings that match DEFAULT_SETTINGS keys and have
-        previous_value=None (indicating they haven't been modified by a user).
-        Settings that have been modified (have a previous_value) are preserved.
-
-    With all_known=True:
-        Removes all settings in DEFAULT_SETTINGS, even if they have been modified.
-
-    With all_settings=True:
-        Removes ALL settings from the database, not just those in DEFAULT_SETTINGS.
-        Takes precedence over all_known.
-    """
-    removed_count = _remove_all_settings() if all_settings else _remove_known_settings(all_known)
-
-    if removed_count > 0:
-        logger.info(f"Removed {removed_count} settings from database")
-    else:
-        logger.debug("No settings found to remove")
-
-    return removed_count
-
-
 # uv run ./manage.py metrics_service init-default-settings
-def initialize_default_settings(overwrite: bool = False):
+def initialize_default_settings(**_kwargs) -> None:
     """
-    Initialize or update default feature flag settings in the database.
+    Upgrade hook for FEATURE flag DB rows.
 
-    Args:
-        overwrite: If True, remove all known default settings before reinitializing
-                   (passes all_known=True to remove_default_settings)
+    No flags are pre-seeded into the database. Feature flags resolve at runtime
+    from the ``settings.FEATURE`` dict (env var overrides via
+    ``METRICS_SERVICE_FEATURE__*`` merge in via dynaconf) with ``false`` DB rows
+    as explicit opt-outs.
 
-    This function removes unchanged default settings (those with previous_value=None)
-    and recreates them with current values from configuration. Modified settings
-    (those with a previous_value) are preserved and never overwritten, unless
-    overwrite=True is specified.
+    On each call, any ``true`` DB row for a FEATURE flag key is deleted — a
+    ``true`` row is redundant (the static default and env var both produce
+    ``true`` when no row exists) and blocks env var overrides.  ``false`` rows
+    are kept: they represent an explicit opt-out that must survive upgrades.
 
-    This ensures default settings stay in sync with configuration while respecting
-    user modifications.
+    The **_kwargs absorbs legacy overwrite= callers without raising.
     """
     from django.conf import settings as django_settings
 
-    # Remove existing defaults (all known if overwrite=True, otherwise just unchanged)
-    remove_default_settings(all_known=overwrite)
-
-    created_count = 0
-    skipped_count = 0
-
-    for setting_key, config in DEFAULT_SETTINGS.items():
-        # Check if setting already exists
-        existing = Setting.objects.filter(setting_key=setting_key).first()
-
-        if existing:
-            logger.debug(f"Setting '{setting_key}' already exists with value: {existing.current_value}")
-            skipped_count += 1
-            continue
-
-        # Get default value from Django settings FEATURE dict, or use hardcoded default
-        feature_enabled = getattr(django_settings, "FEATURE", {})
-        default_value = feature_enabled.get(setting_key, config["default_value"])
-
-        # Create the setting
-        Setting.objects.create(
-            setting_key=setting_key,
-            current_value=json.dumps(default_value),
-            previous_value=None,
-            last_modified_by=None,  # System initialization
-        )
-
-        logger.info(
-            f"Initialized setting '{setting_key}' with default value: {default_value} ({config['description']})"
-        )
-        created_count += 1
-
-    if created_count > 0:
-        logger.info(f"Initialized {created_count} default settings in database")
-    if skipped_count > 0:
-        logger.debug(f"Skipped {skipped_count} existing settings")
-
-    # On upgrade, delete any `true` DB rows for FEATURE flags.
-    # A `true` row is always redundant — the static default and env var both produce
-    # `true` when no row exists, so keeping it only blocks env var overrides (e.g.
-    # METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false).
-    # `false` rows are kept: they represent an explicit opt-out that must survive.
     feature_dict = getattr(django_settings, "FEATURE", {})
     cleaned_count = 0
     for flag_key in feature_dict:

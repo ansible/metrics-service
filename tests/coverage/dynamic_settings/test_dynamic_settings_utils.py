@@ -65,79 +65,12 @@ def test_parse_setting_value_empty_string_returns_none():
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_initialize_default_settings_creates_records():
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import DEFAULT_SETTINGS, initialize_default_settings
-
-    # Ensure fresh state
-    Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).delete()
-
-    initialize_default_settings()
-
-    for key in DEFAULT_SETTINGS:
-        assert Setting.objects.filter(setting_key=key).exists(), f"Missing setting: {key}"
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_initialize_default_settings_skips_existing():
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import DEFAULT_SETTINGS, initialize_default_settings
-
-    Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).delete()
-    initialize_default_settings()
-    count_after_first = Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).count()
-
-    # Second call should not duplicate
-    initialize_default_settings()
-    count_after_second = Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).count()
-    assert count_after_second == count_after_first
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_initialize_default_settings_overwrite_recreates():
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import DEFAULT_SETTINGS, initialize_default_settings
-
-    Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).delete()
-    initialize_default_settings()
-    # Should complete without error
-    initialize_default_settings(overwrite=True)
-    # Settings should still exist
-    for key in DEFAULT_SETTINGS:
-        assert Setting.objects.filter(setting_key=key).exists()
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_initialize_default_settings_reads_value_from_feature_dict():
-    """Loop body reads from settings.FEATURE when DEFAULT_SETTINGS has an entry."""
-    from unittest.mock import patch
-
-    from django.test import override_settings
-
-    from apps.dynamic_settings.models import Setting
+def test_initialize_default_settings_runs_without_error():
+    """initialize_default_settings completes without raising (no-op when no true rows exist)."""
     from apps.dynamic_settings.utils import initialize_default_settings
 
-    # Hardcoded default is True; FEATURE dict says False — the row must be created
-    # with False, proving the loop reads FEATURE over the hardcoded default.
-    # Using False also means the cleanup step won't delete the row (only true rows
-    # are removed as redundant).
-    test_defaults = {"TEST_INIT_FLAG": {"default_value": True, "description": "test"}}
-    Setting.objects.filter(setting_key="TEST_INIT_FLAG").delete()
-
-    with (
-        patch("apps.dynamic_settings.utils.DEFAULT_SETTINGS", test_defaults),
-        override_settings(FEATURE={"TEST_INIT_FLAG": False}),
-    ):
-        initialize_default_settings()
-
-    setting = Setting.objects.filter(setting_key="TEST_INIT_FLAG").first()
-    assert setting is not None
-    import json
-
-    assert json.loads(setting.current_value) is False  # sourced from FEATURE dict, not hardcoded True default
+    initialize_default_settings()  # idempotent — safe to call multiple times
+    initialize_default_settings()
 
 
 @pytest.mark.unit

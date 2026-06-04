@@ -16,24 +16,12 @@ from django.core.management import call_command
 @pytest.mark.django_db
 def test_metrics_service_init_default_settings():
     with (
-        patch("apps.dynamic_settings.utils.initialize_default_settings"),
-        patch("apps.tasks.apps.load_task_feature_flags", return_value=True),
-        patch("apps.tasks.apps.sync_flag_values_from_settings"),
-    ):
-        call_command("metrics_service", "init-default-settings")
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_metrics_service_init_default_settings_overwrite():
-    with (
         patch("apps.dynamic_settings.utils.initialize_default_settings") as mock_init,
         patch("apps.tasks.apps.load_task_feature_flags", return_value=True),
         patch("apps.tasks.apps.sync_flag_values_from_settings"),
     ):
-        call_command("metrics_service", "init-default-settings", "--overwrite")
-    # overwrite=True should be passed to initialize_default_settings
-    mock_init.assert_called_with(overwrite=True)
+        call_command("metrics_service", "init-default-settings")
+    mock_init.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------
@@ -49,18 +37,10 @@ def test_metrics_service_remove_default_settings():
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_metrics_service_remove_default_settings_all_known():
-    with patch("apps.dynamic_settings.utils.remove_default_settings", return_value=3) as mock_remove:
-        call_command("metrics_service", "remove-default-settings", "--all-known")
-    mock_remove.assert_called_with(all_known=True, all_settings=False)
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
 def test_metrics_service_remove_default_settings_all_settings():
     with patch("apps.dynamic_settings.utils.remove_default_settings", return_value=5) as mock_remove:
         call_command("metrics_service", "remove-default-settings", "--all-settings")
-    mock_remove.assert_called_with(all_known=False, all_settings=True)
+    mock_remove.assert_called_with(all_settings=True)
 
 
 # ---------------------------------------------------------------------------
