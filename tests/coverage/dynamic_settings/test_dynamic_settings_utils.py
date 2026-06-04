@@ -109,6 +109,33 @@ def test_initialize_default_settings_overwrite_recreates():
         assert Setting.objects.filter(setting_key=key).exists()
 
 
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_initialize_default_settings_reads_value_from_feature_dict():
+    """Loop body reads from settings.FEATURE when DEFAULT_SETTINGS has an entry."""
+    from unittest.mock import patch
+
+    from django.test import override_settings
+
+    from apps.dynamic_settings.models import Setting
+    from apps.dynamic_settings.utils import initialize_default_settings
+
+    test_defaults = {"TEST_INIT_FLAG": {"default_value": False, "description": "test"}}
+    Setting.objects.filter(setting_key="TEST_INIT_FLAG").delete()
+
+    with (
+        patch("apps.dynamic_settings.utils.DEFAULT_SETTINGS", test_defaults),
+        override_settings(FEATURE={"TEST_INIT_FLAG": True}),
+    ):
+        initialize_default_settings()
+
+    setting = Setting.objects.filter(setting_key="TEST_INIT_FLAG").first()
+    assert setting is not None
+    import json
+
+    assert json.loads(setting.current_value) is True  # sourced from FEATURE dict, not hardcoded default
+
+
 # ---------------------------------------------------------------------------
 # remove_default_settings
 # ---------------------------------------------------------------------------
