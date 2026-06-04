@@ -12,12 +12,12 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-pytestmark = pytest.mark.unit
-
 from apps.tasks.task_groups import (
     get_feature_enabled_from_db,
 )
 from tests.test_utils import get_test_password
+
+pytestmark = pytest.mark.unit
 
 User = get_user_model()
 

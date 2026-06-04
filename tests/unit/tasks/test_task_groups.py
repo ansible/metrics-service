@@ -10,8 +10,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import TestCase, override_settings
 
-pytestmark = pytest.mark.unit
-
 from apps.tasks.task_groups import (
     ANONYMIZATION_GROUP,
     METRICS_COLLECTION_GROUP,
@@ -20,6 +18,8 @@ from apps.tasks.task_groups import (
     get_all_enabled_tasks,
     get_all_tasks_for_init,
 )
+
+pytestmark = pytest.mark.unit
 
 # override_settings replaces the entire FEATURE dict; include both keys when tests need
 # metrics collectors plus anonymization tasks from get_all_enabled_tasks().
