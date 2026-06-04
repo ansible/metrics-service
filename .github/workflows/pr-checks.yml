@@ -23,6 +23,20 @@ jobs:
           - 5432:5432
 
     steps:
+      - name: "Check PR target"
+        env:
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [[ "$BASE_REPO" == "ansible/metrics-service" && "$BASE_BRANCH" == "devel" ]]; then
+            echo "✓ PR targets devel on upstream"
+          elif [[ "$BASE_BRANCH" == stable-2.* ]]; then
+            echo "✓ PR targets $BASE_BRANCH"
+          else
+            echo "::error::PRs should target devel on ansible/metrics-service or a stable-2.x branch"
+            exit 1
+          fi
+
       - name: "Checkout metrics-service (${{ github.ref }})"
         uses: actions/checkout@v6
 
