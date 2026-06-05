@@ -47,7 +47,7 @@ def test_get_feature_enabled_from_db_fallback_settings_dict():
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
     with patch("apps.tasks.task_groups.settings") as mock_settings:
-        mock_settings.FEATURE_ENABLED = {"MY_FLAG": True}
+        mock_settings.FEATURE = {"MY_FLAG": True}
         mock_settings.FEATURE_MY_FLAG_ENABLED = None
         result = get_feature_enabled_from_db("MY_FLAG", default=False)
     assert result is True
@@ -59,7 +59,7 @@ def test_get_feature_enabled_from_db_fallback_direct_attr():
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
     with patch("apps.tasks.task_groups.settings") as mock_settings:
-        mock_settings.FEATURE_ENABLED = {}
+        mock_settings.FEATURE = {}
         mock_settings.FEATURE_DIRECT_FLAG_ENABLED = True
         result = get_feature_enabled_from_db("DIRECT_FLAG", default=False)
     assert result is True
@@ -71,7 +71,7 @@ def test_get_feature_enabled_from_db_returns_default():
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
     with patch("apps.tasks.task_groups.settings") as mock_settings:
-        mock_settings.FEATURE_ENABLED = {}
+        mock_settings.FEATURE = {}
         mock_settings.FEATURE_UNKNOWN_FLAG_ENABLED = None
         with patch("ansible_base.feature_flags.models.AAPFlag") as mock_flag:
             mock_flag.objects.filter.return_value.first.return_value = None
@@ -87,7 +87,7 @@ def test_get_feature_enabled_db_exception_falls_back_to_settings():
         patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB error")),
         patch("apps.tasks.task_groups.settings") as mock_settings,
     ):
-        mock_settings.FEATURE_ENABLED = {"FALLBACK_FLAG": True}
+        mock_settings.FEATURE = {"FALLBACK_FLAG": True}
         result = get_feature_enabled_from_db("FALLBACK_FLAG", default=False)
     assert result is True
 
@@ -100,7 +100,7 @@ def test_get_feature_enabled_db_exception_returns_default():
         patch("apps.dynamic_settings.models.Setting.objects.filter", side_effect=Exception("DB error")),
         patch("apps.tasks.task_groups.settings") as mock_settings,
     ):
-        mock_settings.FEATURE_ENABLED = {}
+        mock_settings.FEATURE = {}
         result = get_feature_enabled_from_db("NO_FALLBACK", default=False)
     assert result is False
 

@@ -478,15 +478,9 @@ def test_rollback_configuration_change_exception(user):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_initialize_default_settings_skips_count():
-    """initialize_default_settings logs skipped count when settings already exist."""
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import DEFAULT_SETTINGS, initialize_default_settings
+    """initialize_default_settings completes without raising."""
+    from apps.dynamic_settings.utils import initialize_default_settings
 
-    # Create settings so they're skipped
-    for key in DEFAULT_SETTINGS:
-        Setting.objects.get_or_create(setting_key=key, defaults={"current_value": "true"})
-
-    # Should not raise and should skip all
     initialize_default_settings()
 
 

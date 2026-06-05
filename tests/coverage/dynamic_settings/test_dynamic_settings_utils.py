@@ -65,48 +65,77 @@ def test_parse_setting_value_empty_string_returns_none():
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_initialize_default_settings_creates_records():
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import DEFAULT_SETTINGS, initialize_default_settings
+def test_initialize_default_settings_runs_without_error():
+    """initialize_default_settings completes without raising (no-op when no true rows exist)."""
+    from apps.dynamic_settings.utils import initialize_default_settings
 
-    # Ensure fresh state
-    Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).delete()
-
+    initialize_default_settings()  # idempotent — safe to call multiple times
     initialize_default_settings()
-
-    for key in DEFAULT_SETTINGS:
-        assert Setting.objects.filter(setting_key=key).exists(), f"Missing setting: {key}"
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_initialize_default_settings_skips_existing():
+def test_initialize_default_settings_deletes_redundant_true_row():
+    """Upgrade failsafe: any `true` row for a FEATURE flag is deleted so that
+    METRICS_SERVICE_FEATURE__<KEY>=false takes effect without a DB update."""
+    import json
+
+    from django.test import override_settings
+
     from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import DEFAULT_SETTINGS, initialize_default_settings
+    from apps.dynamic_settings.utils import initialize_default_settings
 
-    Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).delete()
-    initialize_default_settings()
-    count_after_first = Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).count()
+    # Simulate old init-default-settings having written True into the DB
+    Setting.objects.update_or_create(
+        setting_key="ANONYMIZED_DATA_COLLECTION",
+        defaults={"current_value": json.dumps(True)},
+    )
 
-    # Second call should not duplicate
-    initialize_default_settings()
-    count_after_second = Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).count()
-    assert count_after_second == count_after_first
+    with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
+        initialize_default_settings()
+
+    # Row is gone — env var (or static default) now applies at runtime
+    assert not Setting.objects.filter(setting_key="ANONYMIZED_DATA_COLLECTION").exists()
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_initialize_default_settings_overwrite_recreates():
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import DEFAULT_SETTINGS, initialize_default_settings
+def test_initialize_default_settings_keeps_false_row():
+    """`false` rows are an explicit opt-out and must survive upgrade."""
+    import json
 
-    Setting.objects.filter(setting_key__in=DEFAULT_SETTINGS.keys()).delete()
-    initialize_default_settings()
-    # Should complete without error
-    initialize_default_settings(overwrite=True)
-    # Settings should still exist
-    for key in DEFAULT_SETTINGS:
-        assert Setting.objects.filter(setting_key=key).exists()
+    from django.test import override_settings
+
+    from apps.dynamic_settings.models import Setting
+    from apps.dynamic_settings.utils import initialize_default_settings
+
+    Setting.objects.update_or_create(
+        setting_key="ANONYMIZED_DATA_COLLECTION",
+        defaults={"current_value": json.dumps(False)},
+    )
+
+    with override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True}):
+        initialize_default_settings()
+
+    row = Setting.objects.get(setting_key="ANONYMIZED_DATA_COLLECTION")
+    assert json.loads(row.current_value) is False  # opt-out preserved
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_initialize_default_settings_cleanup_exception_does_not_propagate():
+    """DB errors during cleanup are swallowed and logged — they must not raise."""
+    from unittest.mock import patch
+
+    from django.test import override_settings
+
+    from apps.dynamic_settings.utils import initialize_default_settings
+
+    with (
+        override_settings(FEATURE={"SOME_FLAG": True}),
+        patch("apps.dynamic_settings.utils.Setting.objects.filter", side_effect=Exception("db error")),
+    ):
+        initialize_default_settings()  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +144,8 @@ def test_initialize_default_settings_overwrite_recreates():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_remove_default_settings_removes_unchanged():
+    """AAP-77009: remove_default_settings is a no-op for keys not in DEFAULT_SETTINGS.
+    Use all_settings=True to remove all settings regardless."""
     from apps.dynamic_settings.models import Setting
     from apps.dynamic_settings.utils import remove_default_settings
 
@@ -122,9 +153,15 @@ def test_remove_default_settings_removes_unchanged():
         setting_key="METRICS_COLLECTION", defaults={"current_value": "true", "previous_value": None}
     )
 
+    # DEFAULT_SETTINGS is empty — nothing removed by the "known defaults" path
     removed = remove_default_settings()
-    assert removed >= 1
-    assert not Setting.objects.filter(setting_key="METRICS_COLLECTION", previous_value=None).exists()
+    assert removed == 0
+    assert Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
+
+    # all_settings=True removes everything unconditionally
+    removed_all = remove_default_settings(all_settings=True)
+    assert removed_all >= 1
+    assert not Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
 
 
 @pytest.mark.unit
@@ -146,6 +183,8 @@ def test_remove_default_settings_preserves_modified():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_remove_default_settings_all_known_removes_modified():
+    """AAP-77009: all_known=True only removes keys present in DEFAULT_SETTINGS.
+    Since DEFAULT_SETTINGS is empty, METRICS_COLLECTION is left untouched."""
     from apps.dynamic_settings.models import Setting
     from apps.dynamic_settings.utils import remove_default_settings
 
@@ -154,8 +193,10 @@ def test_remove_default_settings_all_known_removes_modified():
         defaults={"current_value": "false", "previous_value": '"true"'},
     )
 
-    remove_default_settings(all_known=True)
-    assert not Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
+    removed = remove_default_settings(all_known=True)
+    assert removed == 0
+    # Not in DEFAULT_SETTINGS → not touched
+    assert Setting.objects.filter(setting_key="METRICS_COLLECTION").exists()
 
 
 @pytest.mark.unit
