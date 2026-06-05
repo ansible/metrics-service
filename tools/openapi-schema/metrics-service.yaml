@@ -1487,30 +1487,6 @@ paths:
                 $ref: '#/components/schemas/FeatureFlagStates'
           description: ''
       x-ai-description: Retrieve single feature flags state
-  /api/v1/feature_flags_state/:
-    get:
-      operationId: feature_flags_state_retrieve
-      description: A view class for displaying feature flags
-      tags:
-      - feature_flags_state
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-              examples:
-                Featureflags:
-                  value:
-                    FLAG1: true
-                    FLAG2: false
-                  summary: featureflags
-          description: ''
-      x-ai-description: Retrieve single feature flags state
   /api/v1/organizations/:
     get:
       operationId: organizations_list
@@ -3919,7 +3895,8 @@ paths:
   /api/v1/tasks/:
     get:
       operationId: tasks_list
-      description: Returns a list of all task.
+      description: Returns a list of all tasks. Requires system admin or system auditor
+        role.
       summary: List all tasks.
       parameters:
       - in: query
@@ -4257,7 +4234,7 @@ paths:
       x-ai-description: List all tasks
     post:
       operationId: tasks_create
-      description: Create a new task object.
+      description: Create a new task object. Requires system admin role.
       summary: Create a task.
       tags:
       - tasks
@@ -4287,7 +4264,8 @@ paths:
   /api/v1/tasks/{id}/:
     get:
       operationId: tasks_retrieve
-      description: Returns a specific task by ID.
+      description: Returns a specific task by ID. Requires system admin or system
+        auditor role.
       summary: Get specific task by ID.
       parameters:
       - in: path
@@ -4311,7 +4289,7 @@ paths:
       x-ai-description: Retrieve single task
     put:
       operationId: tasks_update
-      description: Update a specific task by ID.
+      description: Update a specific task by ID. Requires system admin role.
       summary: Update a specific task by ID.
       parameters:
       - in: path
@@ -4347,7 +4325,7 @@ paths:
       x-ai-description: Update existing task
     patch:
       operationId: tasks_partial_update
-      description: Partially update a specific task by ID.
+      description: Partially update a specific task by ID. Requires system admin role.
       summary: Partially update a specific task by ID.
       parameters:
       - in: path
@@ -4382,7 +4360,7 @@ paths:
       x-ai-description: Partially update existing task
     delete:
       operationId: tasks_destroy
-      description: Delete a specific task record by ID.
+      description: Delete a specific task record by ID. Requires system admin role.
       summary: Delete a specific task by ID.
       parameters:
       - in: path
@@ -4574,7 +4552,8 @@ paths:
   /api/v1/tasks/executions/:
     get:
       operationId: tasks_executions_list
-      description: Returns a list of task executions.
+      description: Returns a list of task executions. Requires system admin or system
+        auditor role.
       summary: List task executions.
       parameters:
       - in: query
@@ -4827,7 +4806,7 @@ paths:
       x-ai-description: List all tasks executions
     post:
       operationId: tasks_executions_create
-      description: Create a new task execution object.
+      description: Create a new task execution object. Requires system admin role.
       summary: Create a task execution.
       tags:
       - tasks
@@ -4857,7 +4836,8 @@ paths:
   /api/v1/tasks/executions/{id}/:
     get:
       operationId: tasks_executions_retrieve
-      description: Returns a specific task execution by ID.
+      description: Returns a specific task execution by ID. Requires system admin
+        or system auditor role.
       summary: Get specific task execution by ID.
       parameters:
       - in: path
@@ -4881,7 +4861,7 @@ paths:
       x-ai-description: Retrieve single tasks execution
     put:
       operationId: tasks_executions_update
-      description: Update a specific task execution by ID.
+      description: Update a specific task execution by ID. Requires system admin role.
       summary: Update a specific task execution by ID.
       parameters:
       - in: path
@@ -4917,7 +4897,8 @@ paths:
       x-ai-description: Update existing tasks execution
     patch:
       operationId: tasks_executions_partial_update
-      description: Partially update a specific task execution by ID.
+      description: Partially update a specific task execution by ID. Requires system
+        admin role.
       summary: Partially update a specific task execution by ID.
       parameters:
       - in: path
@@ -4952,7 +4933,8 @@ paths:
       x-ai-description: Partially update existing tasks execution
     delete:
       operationId: tasks_executions_destroy
-      description: Delete a specific task execution record by ID.
+      description: Delete a specific task execution record by ID. Requires system
+        admin role.
       summary: Delete a specific task execution by ID.
       parameters:
       - in: path

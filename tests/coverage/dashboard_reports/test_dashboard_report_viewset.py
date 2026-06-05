@@ -79,7 +79,7 @@ def test_dashboard_report_list_no_period(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
+    with patch("ansible_base.rbac.api.permissions.IsSystemAdminOrAuditor.has_permission", return_value=True):
         # Find the correct URL
         response = client.get("/api/v1/dashboard/")
 
@@ -96,7 +96,7 @@ def test_dashboard_report_filters_viewset(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
+    with patch("ansible_base.rbac.api.permissions.IsSystemAdminOrAuditor.has_permission", return_value=True):
         response = client.get("/api/v1/filter-sets/")
 
     assert response.status_code in (200, 404)
