@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 
 @pytest.fixture
 def perm_client(user):
-    """APIClient with DeveloperModeRequired bypassed."""
+    """Authenticated APIClient with permissions bypassed."""
     client = APIClient()
     client.force_authenticate(user=user)
     return client
@@ -20,7 +20,7 @@ def perm_client(user):
 
 @pytest.fixture
 def perm_patch():
-    return patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True)
+    return patch("ansible_base.rbac.api.permissions.IsSystemAdminOrAuditor.has_permission", return_value=True)
 
 
 # ---------------------------------------------------------------------------

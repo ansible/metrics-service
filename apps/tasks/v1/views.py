@@ -30,6 +30,7 @@ Operations:
 from datetime import timedelta
 from typing import Any
 
+from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from django.http import HttpRequest
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -38,7 +39,6 @@ from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.core.permissions import DeveloperModeRequired
 from apps.tasks.api_utils import ErrorResponseSerializer, build_error_response
 from apps.tasks.models import Task, TaskExecution
 
@@ -55,28 +55,28 @@ from .serializers import (
 @extend_schema_view(
     list=extend_schema(
         summary="List all tasks.",
-        description="Returns a list of all task.",
+        description="Returns a list of all tasks. Requires system admin or system auditor role.",
     ),
     retrieve=extend_schema(
         summary="Get specific task by ID.",
-        description="Returns a specific task by ID.",
+        description="Returns a specific task by ID. Requires system admin or system auditor role.",
     ),
     create=extend_schema(
         summary="Create a task.",
-        description="Create a new task object.",
+        description="Create a new task object. Requires system admin role.",
         request=TaskSerializer,
     ),
     update=extend_schema(
         summary="Update a specific task by ID.",
-        description="Update a specific task by ID.",
+        description="Update a specific task by ID. Requires system admin role.",
     ),
     partial_update=extend_schema(
         summary="Partially update a specific task by ID.",
-        description="Partially update a specific task by ID.",
+        description="Partially update a specific task by ID. Requires system admin role.",
     ),
     destroy=extend_schema(
         summary="Delete a specific task by ID.",
-        description="Delete a specific task record by ID.",
+        description="Delete a specific task record by ID. Requires system admin role.",
     ),
 )
 class TaskViewSet(BaseViewSet):
@@ -90,7 +90,7 @@ class TaskViewSet(BaseViewSet):
 
     queryset = Task.objects.select_related("created_by").all()
     serializer_class = TaskSerializer
-    permission_classes = [DeveloperModeRequired]
+    permission_classes = [IsSystemAdminOrAuditor]
     ordering_fields = ["id", "name", "status", "scheduled_time", "created", "started_at", "completed_at"]
     ordering = ["-id"]
 
@@ -668,28 +668,28 @@ class TaskViewSet(BaseViewSet):
 @extend_schema_view(
     list=extend_schema(
         summary="List task executions.",
-        description="Returns a list of task executions.",
+        description="Returns a list of task executions. Requires system admin or system auditor role.",
     ),
     retrieve=extend_schema(
         summary="Get specific task execution by ID.",
-        description="Returns a specific task execution by ID.",
+        description="Returns a specific task execution by ID. Requires system admin or system auditor role.",
     ),
     create=extend_schema(
         summary="Create a task execution.",
-        description="Create a new task execution object.",
+        description="Create a new task execution object. Requires system admin role.",
         request=TaskExecutionSerializer,
     ),
     update=extend_schema(
         summary="Update a specific task execution by ID.",
-        description="Update a specific task execution by ID.",
+        description="Update a specific task execution by ID. Requires system admin role.",
     ),
     partial_update=extend_schema(
         summary="Partially update a specific task execution by ID.",
-        description="Partially update a specific task execution by ID.",
+        description="Partially update a specific task execution by ID. Requires system admin role.",
     ),
     destroy=extend_schema(
         summary="Delete a specific task execution by ID.",
-        description="Delete a specific task execution record by ID.",
+        description="Delete a specific task execution record by ID. Requires system admin role.",
     ),
 )
 class TaskExecutionViewSet(BaseViewSet):
@@ -699,7 +699,7 @@ class TaskExecutionViewSet(BaseViewSet):
 
     queryset = TaskExecution.objects.select_related("task").all()
     serializer_class = TaskExecutionSerializer
-    permission_classes = [DeveloperModeRequired]
+    permission_classes = [IsSystemAdminOrAuditor]
     ordering_fields = ["started_at", "completed_at", "execution_time_seconds", "status"]
     ordering = ["-started_at"]
 
