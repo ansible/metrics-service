@@ -65,7 +65,7 @@ jobs:
         run: |
           uvx ruff format --check
 
-      - name: "Check for missing migrations"
+      - name: "Run database migrations"
         env:
           METRICS_SERVICE_DATABASES__default__HOST: localhost
           METRICS_SERVICE_DATABASES__default__PORT: 5432
@@ -75,6 +75,16 @@ jobs:
           METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
         run: |
           uv run ./manage.py migrate
+
+      - name: "Check for missing migrations"
+        env:
+          METRICS_SERVICE_DATABASES__default__HOST: localhost
+          METRICS_SERVICE_DATABASES__default__PORT: 5432
+          METRICS_SERVICE_DATABASES__default__USER: metrics_service
+          METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
+          METRICS_SERVICE_DATABASES__default__NAME: metrics_service
+          METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
+        run: |
           if ! uv run ./manage.py makemigrations --check; then
             echo "Models have changed. Run 'uv run ./manage.py makemigrations' locally and commit the updated migrations."
             exit 1  # Fail the job
@@ -89,7 +99,6 @@ jobs:
           METRICS_SERVICE_DATABASES__default__NAME: metrics_service
           METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
         run: |
-          uv run --frozen python manage.py migrate
           mkdir -p tools/openapi-schema
           uv run --frozen python manage.py spectacular --file tools/openapi-schema/metrics-service.yaml
           uv run --frozen python manage.py spectacular --format openapi-json --file tools/openapi-schema/metrics-service.json
