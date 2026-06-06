@@ -12,15 +12,10 @@ from rest_framework.test import APIClient
 
 @pytest.fixture
 def perm_client(user):
-    """APIClient with DeveloperModeRequired bypassed."""
+    """APIClient authenticated as a superuser (passes IsSystemAdminOrAuditor)."""
     client = APIClient()
     client.force_authenticate(user=user)
     return client
-
-
-@pytest.fixture
-def perm_patch():
-    return patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True)
 
 
 # ---------------------------------------------------------------------------
@@ -28,7 +23,7 @@ def perm_patch():
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_task_cleanup_dry_run(perm_client, user, perm_patch):
+def test_task_cleanup_dry_run(perm_client, user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -40,8 +35,7 @@ def test_task_cleanup_dry_run(perm_client, user, perm_patch):
     )
     Task.objects.filter(pk=task.pk).update(completed_at=timezone.now() - timedelta(days=40))
 
-    with perm_patch:
-        response = perm_client.post("/api/v1/tasks/cleanup/", {"days": 30, "dry_run": True}, format="json")
+    response = perm_client.post("/api/v1/tasks/cleanup/", {"days": 30, "dry_run": True}, format="json")
 
     assert response.status_code == 200
     data = response.json()
@@ -51,7 +45,7 @@ def test_task_cleanup_dry_run(perm_client, user, perm_patch):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_task_cleanup_actual_delete(perm_client, user, perm_patch):
+def test_task_cleanup_actual_delete(perm_client, user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -63,8 +57,7 @@ def test_task_cleanup_actual_delete(perm_client, user, perm_patch):
     )
     Task.objects.filter(pk=task.pk).update(completed_at=timezone.now() - timedelta(days=40))
 
-    with perm_patch:
-        response = perm_client.post("/api/v1/tasks/cleanup/", {"days": 30, "dry_run": False}, format="json")
+    response = perm_client.post("/api/v1/tasks/cleanup/", {"days": 30, "dry_run": False}, format="json")
 
     assert response.status_code == 200
     data = response.json()
@@ -77,9 +70,8 @@ def test_task_cleanup_actual_delete(perm_client, user, perm_patch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_available_functions_lists_functions(perm_client, perm_patch):
-    with perm_patch:
-        response = perm_client.get("/api/v1/tasks/available_functions/")
+def test_available_functions_lists_functions(perm_client):
+    response = perm_client.get("/api/v1/tasks/available_functions/")
 
     assert response.status_code == 200
     data = response.json()
@@ -93,12 +85,12 @@ def test_available_functions_lists_functions(perm_client, perm_patch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_scheduler_status_endpoint(perm_client, perm_patch):
+def test_scheduler_status_endpoint(perm_client):
     mock_scheduler = MagicMock()
     mock_scheduler.running = True
     mock_scheduler.check_interval = 30
 
-    with perm_patch, patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
+    with patch("apps.tasks.cron_scheduler.get_scheduler", return_value=mock_scheduler):
         response = perm_client.get("/api/v1/tasks/scheduler_status/")
 
     assert response.status_code == 200
@@ -112,15 +104,14 @@ def test_scheduler_status_endpoint(perm_client, perm_patch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_schedule_immediate_endpoint(perm_client, user, perm_patch):
+def test_schedule_immediate_endpoint(perm_client, user):
     payload = {
         "name": "Immediate Test Task",
         "function_name": "hello_world",
         "task_data": {},
     }
 
-    with perm_patch:
-        response = perm_client.post("/api/v1/tasks/schedule_immediate/", payload, format="json")
+    response = perm_client.post("/api/v1/tasks/schedule_immediate/", payload, format="json")
 
     assert response.status_code in (200, 201)
     if response.status_code in (200, 201):
@@ -133,7 +124,7 @@ def test_schedule_immediate_endpoint(perm_client, user, perm_patch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_schedule_recurring_endpoint(perm_client, user, perm_patch):
+def test_schedule_recurring_endpoint(perm_client, user):
     payload = {
         "name": "Recurring Test Task",
         "function_name": "hello_world",
@@ -141,23 +132,21 @@ def test_schedule_recurring_endpoint(perm_client, user, perm_patch):
         "cron_expression": "0 * * * *",
     }
 
-    with perm_patch:
-        response = perm_client.post("/api/v1/tasks/schedule_recurring/", payload, format="json")
+    response = perm_client.post("/api/v1/tasks/schedule_recurring/", payload, format="json")
 
     assert response.status_code in (200, 201)
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_schedule_recurring_no_cron_returns_400(perm_client, perm_patch):
+def test_schedule_recurring_no_cron_returns_400(perm_client):
     payload = {
         "name": "Missing Cron Task",
         "function_name": "hello_world",
         "task_data": {},
     }
 
-    with perm_patch:
-        response = perm_client.post("/api/v1/tasks/schedule_recurring/", payload, format="json")
+    response = perm_client.post("/api/v1/tasks/schedule_recurring/", payload, format="json")
 
     assert response.status_code in (400,)  # Missing cron_expression
 
@@ -167,7 +156,7 @@ def test_schedule_recurring_no_cron_returns_400(perm_client, perm_patch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_force_delete_without_confirm_returns_400(perm_client, user, perm_patch):
+def test_force_delete_without_confirm_returns_400(perm_client, user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -178,15 +167,14 @@ def test_force_delete_without_confirm_returns_400(perm_client, user, perm_patch)
         is_system_task=True,
     )
 
-    with perm_patch:
-        response = perm_client.delete(f"/api/v1/tasks/{task.id}/force_delete/", format="json")
+    response = perm_client.delete(f"/api/v1/tasks/{task.id}/force_delete/", format="json")
 
     assert response.status_code == 400
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_force_delete_system_task_with_confirm(perm_client, user, perm_patch):
+def test_force_delete_system_task_with_confirm(perm_client, user):
     from apps.tasks.models import Task
 
     task = Task.objects.create(
@@ -197,19 +185,18 @@ def test_force_delete_system_task_with_confirm(perm_client, user, perm_patch):
         is_system_task=True,
     )
 
-    with perm_patch:
-        response = perm_client.delete(
-            f"/api/v1/tasks/{task.id}/force_delete/",
-            data={"force_confirm": True},
-            format="json",
-        )
+    response = perm_client.delete(
+        f"/api/v1/tasks/{task.id}/force_delete/",
+        data={"force_confirm": True},
+        format="json",
+    )
 
     assert response.status_code == 200
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_perform_destroy_system_task_raises(perm_client, user, perm_patch):
+def test_perform_destroy_system_task_raises(perm_client, user):
     """DELETE a system task should be rejected."""
     from apps.tasks.models import Task
 
@@ -221,8 +208,7 @@ def test_perform_destroy_system_task_raises(perm_client, user, perm_patch):
         is_system_task=True,
     )
 
-    with perm_patch:
-        response = perm_client.delete(f"/api/v1/tasks/{task.id}/")
+    response = perm_client.delete(f"/api/v1/tasks/{task.id}/")
 
     assert response.status_code in (403, 405)
     assert Task.objects.filter(pk=task.pk).exists()
@@ -233,13 +219,12 @@ def test_perform_destroy_system_task_raises(perm_client, user, perm_patch):
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_task_execution_list(perm_client, user, perm_patch):
+def test_task_execution_list(perm_client, user):
     from apps.tasks.models import Task, TaskExecution
 
     task = Task.objects.create(name="exec_list_task", function_name="hello_world", task_data={}, created_by=user)
     TaskExecution.objects.create(task=task, status="completed")
 
-    with perm_patch:
-        response = perm_client.get("/api/v1/tasks/executions/")
+    response = perm_client.get("/api/v1/tasks/executions/")
 
     assert response.status_code == 200
