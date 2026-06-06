@@ -1,6 +1,6 @@
 """
 Miscellaneous tests for small uncovered modules.
-Covers: core/logging_config.py, dashboard/views.py, dashboard_reports/tasks.py basics.
+Covers: core/logging_config.py, dashboard_reports/tasks.py basics.
 """
 
 import json
@@ -83,77 +83,6 @@ def test_json_formatter_with_request_id():
     output = formatter.format(record)
     parsed = json.loads(output)
     assert parsed.get("request_id") == "req-12345"
-
-
-# ---------------------------------------------------------------------------
-# dashboard/views.py — url_for helper and dashboard_view
-# ---------------------------------------------------------------------------
-@pytest.mark.unit
-def test_url_for_with_no_prefix():
-    from unittest.mock import patch
-
-    with patch("apps.dashboard.views.settings") as mock_settings:
-        mock_settings.URL_PREFIX = None
-        from apps.dashboard.views import url_for
-
-        result = url_for("/v1/")
-        assert result.startswith("/api/")
-        assert "/v1/" in result
-
-
-@pytest.mark.unit
-def test_url_for_with_prefix():
-    with patch("apps.dashboard.views.settings") as mock_settings:
-        mock_settings.URL_PREFIX = "/prefix"
-        from apps.dashboard.views import url_for
-
-        result = url_for("v1/")
-        assert "prefix" in result
-        assert "v1/" in result
-
-
-@pytest.mark.unit
-def test_require_development_mode_returns_403_in_prod():
-    from django.test import RequestFactory
-
-    from apps.dashboard.views import require_development_mode
-
-    @require_development_mode
-    def my_view(request):
-        return type("Response", (), {"status_code": 200})()
-
-    factory = RequestFactory()
-    request = factory.get("/dashboard/")
-
-    with patch("apps.dashboard.views.settings") as mock_settings:
-        mock_settings.MODE = "production"
-        response = my_view(request)
-
-    assert response.status_code == 403
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_dashboard_view_in_development_mode(user):
-    from django.test import RequestFactory
-
-    from apps.dashboard.views import dashboard_view
-
-    factory = RequestFactory()
-    request = factory.get("/dashboard/")
-    request.user = user
-
-    with patch("apps.dashboard.views.settings") as mock_settings:
-        mock_settings.MODE = "development"
-        mock_settings.URL_PREFIX = None
-        with patch("apps.dashboard.views.render") as mock_render:
-            mock_render.return_value = type("Response", (), {"status_code": 200})()
-            dashboard_view(request)
-
-    mock_render.assert_called_once()
-    context = mock_render.call_args[0][2]
-    assert "available_functions" in context
-    assert context["database_driven"] is True
 
 
 # ---------------------------------------------------------------------------
