@@ -3,15 +3,13 @@ Unit tests for apps/tasks/v1/views.py — TaskViewSet API endpoints.
 Targets 34% → ~90% coverage.
 """
 
-from unittest.mock import patch
-
 import pytest
 from rest_framework.test import APIClient
 
 
 @pytest.fixture
 def dev_client(user):
-    """APIClient with developer mode permissions enabled."""
+    """APIClient authenticated as a superuser (passes IsSystemAdminOrAuditor)."""
     client = APIClient()
     client.force_authenticate(user=user)
     return client
@@ -24,13 +22,13 @@ def dev_client(user):
 @pytest.mark.django_db
 def test_task_list_returns_200(dev_client):
     response = dev_client.get("/api/v1/tasks/")
-    assert response.status_code in (200, 403)  # 403 if DeveloperModeRequired blocks
+    assert response.status_code == 200
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_task_list_with_developer_mode(user):
-    """Test task list endpoint with developer mode enabled."""
+def test_task_list(user):
+    """Test task list endpoint."""
     from apps.tasks.models import Task
 
     Task.objects.create(name="api_task_1", function_name="hello_world", task_data={}, created_by=user)
@@ -38,8 +36,7 @@ def test_task_list_with_developer_mode(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.get("/api/v1/tasks/")
+    response = client.get("/api/v1/tasks/")
 
     assert response.status_code == 200
     data = response.json()
@@ -55,8 +52,7 @@ def test_task_create(user):
 
     payload = {"name": "Test API Task", "function_name": "hello_world", "task_data": {}}
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.post("/api/v1/tasks/", payload, format="json")
+    response = client.post("/api/v1/tasks/", payload, format="json")
 
     assert response.status_code in (200, 201, 400)  # 400 if validation fails
 
@@ -71,8 +67,7 @@ def test_task_retrieve(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.get(f"/api/v1/tasks/{task.id}/")
+    response = client.get(f"/api/v1/tasks/{task.id}/")
 
     assert response.status_code == 200
     assert response.json()["id"] == task.id
@@ -93,8 +88,7 @@ def test_task_running_endpoint(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.get("/api/v1/tasks/running/")
+    response = client.get("/api/v1/tasks/running/")
 
     assert response.status_code == 200
     data = response.json()
@@ -114,8 +108,7 @@ def test_task_pending_endpoint(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.get("/api/v1/tasks/pending/")
+    response = client.get("/api/v1/tasks/pending/")
 
     assert response.status_code == 200
 
@@ -132,8 +125,7 @@ def test_task_list_filtered_endpoint(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.get("/api/v1/tasks/list/?status=pending")
+    response = client.get("/api/v1/tasks/list/?status=pending")
 
     assert response.status_code == 200
 
@@ -156,8 +148,7 @@ def test_task_retry_success(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.post(f"/api/v1/tasks/{task.id}/retry/")
+    response = client.post(f"/api/v1/tasks/{task.id}/retry/")
 
     assert response.status_code == 200
     task.refresh_from_db()
@@ -182,8 +173,7 @@ def test_task_retry_cannot_retry(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.post(f"/api/v1/tasks/{task.id}/retry/")
+    response = client.post(f"/api/v1/tasks/{task.id}/retry/")
 
     assert response.status_code == 400
 
@@ -204,8 +194,7 @@ def test_task_cancel_success(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.post(f"/api/v1/tasks/{task.id}/cancel/")
+    response = client.post(f"/api/v1/tasks/{task.id}/cancel/")
 
     assert response.status_code == 200
     task.refresh_from_db()
@@ -228,8 +217,7 @@ def test_task_cancel_already_completed(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.post(f"/api/v1/tasks/{task.id}/cancel/")
+    response = client.post(f"/api/v1/tasks/{task.id}/cancel/")
 
     assert response.status_code == 400
 
@@ -241,8 +229,7 @@ def test_task_available_functions_endpoint(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.get("/api/v1/tasks/available_functions/")
+    response = client.get("/api/v1/tasks/available_functions/")
 
     assert response.status_code == 200
     data = response.json()
@@ -266,7 +253,6 @@ def test_task_delete_non_system(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.delete(f"/api/v1/tasks/{task.id}/")
+    response = client.delete(f"/api/v1/tasks/{task.id}/")
 
     assert response.status_code in (204, 400, 405)  # 405 if delete not allowed

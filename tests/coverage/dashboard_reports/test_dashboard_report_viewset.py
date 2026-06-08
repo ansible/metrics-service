@@ -3,8 +3,6 @@ Tests for apps/dashboard_reports/viewsets/dashboard_report.py helpers.
 Covers parse_period_param, PassthroughRenderer, require_date_range, and API endpoints.
 """
 
-from unittest.mock import patch
-
 import pytest
 
 
@@ -79,9 +77,7 @@ def test_dashboard_report_list_no_period(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        # Find the correct URL
-        response = client.get("/api/v1/dashboard/")
+    response = client.get("/api/v1/dashboard/")
 
     # Dashboard viewset is at /api/v1/dashboard_reports/dashboard/ or similar; 404 means not found
     assert response.status_code in (200, 400, 404)
@@ -96,8 +92,7 @@ def test_dashboard_report_filters_viewset(user):
     client = APIClient()
     client.force_authenticate(user=user)
 
-    with patch("apps.core.permissions.DeveloperModeRequired.has_permission", return_value=True):
-        response = client.get("/api/v1/filter-sets/")
+    response = client.get("/api/v1/filter-sets/")
 
     assert response.status_code in (200, 404)
 
