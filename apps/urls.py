@@ -22,12 +22,14 @@ This file loads at step 3 in the URL loading order, before individual apps
 
 """
 
-from django.urls import include, path
+from django.urls import path
 from django.views.generic import RedirectView
 
+from apps.core.views.metrics import PrometheusMetricsView
+
 urlpatterns = [
-    # Prometheus metrics endpoint
-    path("api/", include("django_prometheus.urls")),
+    # Prometheus metrics endpoint — requires system admin or auditor
+    path("api/metrics", PrometheusMetricsView.as_view(), name="prometheus-django-metrics"),
     # Redirect /metrics to canonical /api/metrics for backwards compatibility
     path("metrics", RedirectView.as_view(url="/api/metrics", permanent=False)),
     # Redirect bare feature_flags/ to the canonical states list
