@@ -26,8 +26,10 @@ from django.urls import include, path
 from django.views.generic import RedirectView
 
 urlpatterns = [
-    # Prometheus metrics endpoint exposed at /api/metrics (AAP-77819)
+    # Prometheus metrics endpoint
     path("api/", include("django_prometheus.urls")),
+    # Redirect /metrics to canonical /api/metrics for backwards compatibility
+    path("metrics", RedirectView.as_view(url="/api/metrics", permanent=False)),
     # Redirect bare feature_flags/ to the canonical states list
     path("api/v1/feature_flags/", RedirectView.as_view(url="/api/v1/feature_flags/states/", permanent=True)),
 ]

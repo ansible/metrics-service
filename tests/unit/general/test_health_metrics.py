@@ -163,3 +163,9 @@ class TestMetricsEndpoint:
         response = client.get("/api/metrics")
         assert response.status_code == status.HTTP_200_OK
         assert "django_" in response.content.decode()
+
+    def test_metrics_legacy_path_redirects(self, client):
+        """Test that /metrics redirects to /api/metrics for backwards compatibility."""
+        response = client.get("/metrics")
+        assert response.status_code == status.HTTP_302_FOUND
+        assert response["Location"] == "/api/metrics"
