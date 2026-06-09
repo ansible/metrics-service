@@ -10,6 +10,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from django.db.models import Q
 from django.utils import timezone
 
 from ..utils import create_task_result, log_task_execution
@@ -58,10 +59,6 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
         "completed_at__isnull": False,
     }
 
-    # Exclude recurring tasks if preserve_recurring is True (default)
-    if preserve_recurring:
-        old_tasks_filter["cron_expression__isnull"] = True
-
     old_tasks = Task.objects.filter(**old_tasks_filter)
 
     # Also include tasks that don't have completed_at but are old based on modified date
@@ -71,14 +68,14 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
         "modified__lt": cutoff_date,
     }
 
-    # Exclude recurring tasks if preserve_recurring is True (default)
-    if preserve_recurring:
-        old_tasks_fallback_filter["cron_expression__isnull"] = True
-
     old_tasks_fallback = Task.objects.filter(**old_tasks_fallback_filter)
 
     # Combine querysets
     old_tasks = old_tasks | old_tasks_fallback
+
+    # Exclude genuine recurring tasks (non-null, non-empty cron_expression)
+    if preserve_recurring:
+        old_tasks = old_tasks.filter(Q(cron_expression__isnull=True) | Q(cron_expression=""))
 
     task_count = old_tasks.count()
     execution_count = 0

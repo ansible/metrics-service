@@ -356,14 +356,10 @@ class TestCleanupOldTasks:
         result = cleanup_old_tasks(days_old=30, dry_run=False, preserve_recurring=True)
 
         # Assert
-        # Empty string and NULL should be deleted, but valid cron should be preserved
-        # FIXME: This test will fail until we also update the cleanup filter
-        # For now, we're only fixing the serializer to prevent new tasks from having empty strings
-        assert result["tasks_deleted"] == 1  # Only task_with_null should be deleted
+        # Both NULL and empty string cron_expression are treated as non-recurring and deleted
+        assert result["tasks_deleted"] == 2
         assert not Task.objects.filter(id=task_with_null.id).exists()
-
-        # Empty string task still exists (bug) - will be fixed in cleanup filter
-        assert Task.objects.filter(id=task_with_empty_string.id).exists()
+        assert not Task.objects.filter(id=task_with_empty_string.id).exists()
 
         # Valid cron task should still exist
         assert Task.objects.filter(id=task_with_valid_cron.id).exists()
