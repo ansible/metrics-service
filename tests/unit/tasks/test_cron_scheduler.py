@@ -605,3 +605,25 @@ class TestStuckTaskDetection:
         execution.refresh_from_db()
         assert execution.status == "failed"
         assert execution.completed_at is not None
+
+    def test_updates_modified_when_failing_stuck_task(self, user):
+        """QuerySet.update() bypasses auto_now — modified must be set explicitly."""
+        from apps.tasks.models import Task
+
+        old_time = timezone.now() - timedelta(hours=2)
+        task = Task.objects.create(
+            name="Stuck Task Modified",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="running",
+        )
+        Task.objects.filter(id=task.id).update(started_at=old_time, modified=old_time)
+        task.refresh_from_db()
+        pre_sync_modified = task.modified
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        task.refresh_from_db()
+        assert task.status == "failed"
+        assert task.modified > pre_sync_modified
