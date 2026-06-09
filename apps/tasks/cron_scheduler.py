@@ -219,10 +219,10 @@ class UnifiedTaskScheduler:
                 error_msg = "Task timed out — worker died before completion"
                 with transaction.atomic():
                     TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
+                        status="failed", error_message=error_msg, completed_at=now, modified=now
                     )
                     Task.objects.filter(id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
+                        status="failed", error_message=error_msg, completed_at=now, modified=now
                     )
                 logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
