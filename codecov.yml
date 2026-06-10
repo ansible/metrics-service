@@ -26,7 +26,6 @@ ignore:
   - "*/asgi.py"             # ASGI entry points
   - "**/settings/**"        # All settings files (Django + Dynaconf)
   - "metrics_service/settings.py"  # Root settings file
-  - "metrics_service/test_urls.py" # Test URL configuration
   - "**/__pycache__/*"      # Python cache
   - "*.pyc"                 # Compiled Python files
   - "**/tools/**"           # Developer tools and utilities

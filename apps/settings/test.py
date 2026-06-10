@@ -39,8 +39,6 @@ ANSIBLE_BASE_CREATOR_DEFAULTS = ["add", "change", "delete", "view"]
 # Service identification
 SERVICE_ID = "test-service-id"
 
-# URLs - simplified for testing to avoid oauth2 provider conflicts
-ROOT_URLCONF = "metrics_service.test_urls"
 
 # Disable caching during tests
 CACHES = {
