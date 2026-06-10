@@ -5,8 +5,6 @@ This module provides extensive coverage for the main URL configuration,
 including URL pattern resolution, view integration, and routing behavior.
 """
 
-import contextlib
-
 import pytest
 from django.test import Client, TestCase
 from django.urls import NoReverseMatch, resolve, reverse
@@ -22,24 +20,16 @@ class TestHealthURLsIntegration(TestCase):
         super().setUp()
         self.client = Client()
 
-    def test_health_urls_inclusion(self):
-        """Test that health URLs are properly included."""
-        health_urls = ["/health/", "/health/ready/", "/health/live/"]
+    def test_health_url_resolves(self):
+        """Test that the health URL resolves."""
+        resolver_match = resolve("/health/")
+        assert resolver_match is not None
+        assert resolver_match.url_name == "health"
 
-        for url in health_urls:
-            with contextlib.suppress(Exception):
-                resolver_match = resolve(url)
-                assert resolver_match is not None
-
-    def test_health_endpoints_response(self):
-        """Test that health endpoints respond appropriately."""
-        health_urls = ["/health/", "/health/ready/", "/health/live/"]
-
-        for url in health_urls:
-            with contextlib.suppress(Exception):
-                response = self.client.get(url)
-                # Health endpoints should typically return 200
-                assert response.status_code in [200, 404, 405]
+    def test_health_endpoint_response(self):
+        """Test that the health endpoint returns 200."""
+        response = self.client.get("/health/")
+        assert response.status_code == 200
 
 
 @pytest.mark.unit
@@ -53,13 +43,9 @@ class TestAPISchemaURL(TestCase):
 
     def test_schema_url_resolution(self):
         """Test that schema URL resolves correctly."""
-        try:
-            resolver_match = resolve("/api/v1/docs/schema/")
-            assert resolver_match is not None
-            assert resolver_match.url_name == "schema"
-        except Resolver404:
-            # Schema might not be available in test environment
-            pass
+        resolver_match = resolve("/api/v1/docs/schema/")
+        assert resolver_match is not None
+        assert resolver_match.url_name == "schema"
 
     def test_schema_url_reverse(self):
         """Test that schema URL can be reversed."""
@@ -67,23 +53,18 @@ class TestAPISchemaURL(TestCase):
             url = reverse("schema")
             assert url == "/api/v1/docs/schema/"
         except NoReverseMatch:
-            # Schema might not be available in test environment
-            pass
+            pytest.skip("schema URL name not registered for reverse lookup")
 
     def test_schema_endpoint_response(self):
         """Test schema endpoint response."""
-        with contextlib.suppress(Exception):
-            response = self.client.get("/api/v1/docs/schema/")
-            # Schema should return 200 or appropriate status
-            assert response.status_code in [200, 404, 405]
+        response = self.client.get("/api/v1/docs/schema/")
+        assert response.status_code == 200
 
     def test_schema_content_type(self):
         """Test schema endpoint content type."""
-        with contextlib.suppress(Exception):
-            response = self.client.get("/api/v1/docs/schema/")
-            if response.status_code == 200:
-                # Schema should return appropriate content type
-                assert "content-type" in response.headers
+        response = self.client.get("/api/v1/docs/schema/")
+        assert response.status_code == 200
+        assert "content-type" in response.headers
 
 
 @pytest.mark.unit
@@ -95,33 +76,25 @@ class TestAPIURLsIntegration(TestCase):
         super().setUp()
         self.client = Client()
 
-    def test_api_urls_inclusion(self):
-        """Test that API URLs are properly included."""
-        api_urls = ["/api/", "/api/v1/"]
+    def test_api_urls_resolve(self):
+        """Test that API URLs resolve."""
+        resolver_match = resolve("/api/")
+        assert resolver_match is not None
 
-        for url in api_urls:
-            with contextlib.suppress(Exception):
-                resolver_match = resolve(url)
-                assert resolver_match is not None
+        resolver_match = resolve("/api/v1/")
+        assert resolver_match is not None
 
     def test_api_endpoints_response(self):
-        """Test API endpoints response."""
-        api_urls = ["/api/", "/api/v1/"]
+        """Test API endpoints respond with 200."""
+        for url in ["/api/", "/api/v1/"]:
+            response = self.client.get(url)
+            assert response.status_code == 200
 
-        for url in api_urls:
-            with contextlib.suppress(Exception):
-                response = self.client.get(url)
-                # API endpoints should return valid status
-                assert response.status_code in [200, 401, 403, 404, 405]
-
-    def test_api_documentation_urls(self):
-        """Test API documentation URLs."""
-        doc_urls = ["/api/docs/", "/api/redoc/"]
-
-        for url in doc_urls:
-            with contextlib.suppress(Exception):
-                response = self.client.get(url)
-                assert response.status_code in [200, 404, 405]
+    def test_api_documentation_urls_not_registered(self):
+        """Test that standalone documentation URLs are not registered."""
+        for url in ["/api/docs/", "/api/redoc/"]:
+            response = self.client.get(url)
+            assert response.status_code == 404
 
 
 @pytest.mark.unit
@@ -133,30 +106,22 @@ class TestDjangoAnsibleBaseURLs(TestCase):
         super().setUp()
         self.client = Client()
 
-    def test_resource_api_urls_inclusion(self):
-        """Test that resource API URLs are included."""
-        with contextlib.suppress(Exception):
-            # Test that resource API patterns are included
-            resolver_match = resolve("/api/v1/")
-            assert resolver_match is not None
+    def test_api_v1_resolves(self):
+        """Test that the v1 API root resolves."""
+        resolver_match = resolve("/api/v1/")
+        assert resolver_match is not None
 
-    def test_dab_authentication_endpoints(self):
-        """Test DAB authentication endpoints."""
-        auth_urls = ["/api/v1/auth/", "/api/v1/me/"]
+    def test_dab_resource_endpoints_require_auth(self):
+        """Test DAB resource endpoints require authentication."""
+        for url in ["/api/v1/users/", "/api/v1/organizations/"]:
+            response = self.client.get(url)
+            assert response.status_code == 403
 
-        for url in auth_urls:
-            with contextlib.suppress(Exception):
-                response = self.client.get(url)
-                assert response.status_code in [200, 401, 403, 404, 405]
-
-    def test_dab_resource_endpoints(self):
-        """Test DAB resource endpoints."""
-        resource_urls = ["/api/v1/users/", "/api/v1/organizations/"]
-
-        for url in resource_urls:
-            with contextlib.suppress(Exception):
-                response = self.client.get(url)
-                assert response.status_code in [200, 401, 403, 404, 405]
+    def test_dab_authentication_endpoints_not_registered(self):
+        """Test that DAB authentication endpoints are not registered."""
+        for url in ["/api/v1/auth/", "/api/v1/me/"]:
+            response = self.client.get(url)
+            assert response.status_code == 404
 
 
 @pytest.mark.unit
@@ -168,31 +133,25 @@ class TestRootURLsIntegration(TestCase):
         super().setUp()
         self.client = Client()
 
-    def test_root_urls_inclusion(self):
-        """Test that root URLs are properly included."""
-        with contextlib.suppress(Exception):
-            # Test that root URLs resolve
-            resolver_match = resolve("/")
-            assert resolver_match is not None
+    def test_root_url_resolves(self):
+        """Test that the root URL resolves."""
+        resolver_match = resolve("/")
+        assert resolver_match is not None
 
     def test_root_url_response(self):
-        """Test root URL response."""
-        with contextlib.suppress(Exception):
-            response = self.client.get("/")
-            assert response.status_code in [200, 302, 404]
+        """Test root URL responds with 200."""
+        response = self.client.get("/")
+        assert response.status_code == 200
 
-    def test_admin_url_inclusion(self):
-        """Test that admin URLs are included via root URLs."""
-        with contextlib.suppress(Exception):
-            resolver_match = resolve("/admin/")
-            assert resolver_match is not None
+    def test_admin_url_does_not_resolve(self):
+        """Test that admin URL is not registered."""
+        with pytest.raises(Resolver404):
+            resolve("/admin/")
 
-    def test_admin_url_response(self):
-        """Test admin URL response."""
-        with contextlib.suppress(Exception):
-            response = self.client.get("/admin/")
-            # Admin should redirect to login
-            assert response.status_code in [200, 302, 403, 404]
+    def test_admin_url_returns_404(self):
+        """Test that admin URL returns 404."""
+        response = self.client.get("/admin/")
+        assert response.status_code == 404
 
 
 @pytest.mark.unit
@@ -211,12 +170,11 @@ class TestURLErrorHandling(TestCase):
 
     def test_malformed_urls(self):
         """Test handling of malformed URLs."""
-        malformed_urls = ["/api//", "/api/v1//", "//admin/"]
+        malformed_urls = ["/api//", "/api/v1//"]
 
         for url in malformed_urls:
             response = self.client.get(url)
-            # Should handle gracefully
-            assert response.status_code in [200, 302, 404, 405]
+            assert response.status_code in [200, 404]
 
     def test_url_with_special_characters(self):
         """Test URLs with special characters."""
@@ -224,25 +182,21 @@ class TestURLErrorHandling(TestCase):
 
         for url in special_urls:
             response = self.client.get(url)
-            # Should handle gracefully
-            assert response.status_code in [200, 404, 405]
-
-    def test_very_long_url(self):
-        """Test handling of very long URLs."""
-        long_path = "/api/" + "a" * 1000 + "/"
-        response = self.client.get(long_path)
-
-        # Should handle gracefully (likely 404)
-        assert response.status_code in [404, 414]  # 414 = URI Too Long
+            assert response.status_code == 404
 
     def test_url_with_unicode(self):
         """Test URLs with unicode characters."""
         unicode_urls = ["/api/tëst/", "/api/测试/", "/api/🚀/"]
 
         for url in unicode_urls:
-            with contextlib.suppress(Exception):
-                response = self.client.get(url)
-                assert response.status_code in [200, 404, 405]
+            response = self.client.get(url)
+            assert response.status_code == 404
+
+    def test_very_long_url(self):
+        """Test handling of very long URLs."""
+        long_path = "/api/" + "a" * 1000 + "/"
+        response = self.client.get(long_path)
+        assert response.status_code in [404, 414]
 
 
 @pytest.mark.unit
@@ -256,19 +210,16 @@ class TestURLSecurityConsiderations(TestCase):
 
     def test_path_traversal_protection(self):
         """Test protection against path traversal attacks."""
-        traversal_urls = ["/api/../../../etc/passwd", "/api/v1/../../../settings.py"]
+        traversal_urls = ["/api/../../../etc/passwd", "/admin/../../../etc/passwd", "/api/v1/../../../settings.py"]
 
         for url in traversal_urls:
             response = self.client.get(url)
-            # Should not return 200 for traversal attempts
             assert response.status_code != 200
 
     def test_admin_access_protection(self):
-        """Test that admin URLs are properly protected."""
+        """Test that admin URLs are not accessible."""
         response = self.client.get("/admin/")
-
-        # Should require authentication (redirect or 401/403)
-        assert response.status_code in [302, 401, 403, 404]
+        assert response.status_code == 404
 
 
 @pytest.mark.unit
@@ -279,18 +230,16 @@ class TestURLPerformance(TestCase):
         """Test that URL resolution is fast."""
         import time
 
-        urls_to_test = ["/api/", "/admin/", "/api/v1/docs/schema/", "/api/v1/", "/health/"]
+        urls_to_test = ["/api/", "/api/v1/", "/api/v1/docs/schema/", "/health/"]
 
         start_time = time.time()
 
         for url in urls_to_test:
-            with contextlib.suppress(Exception):
-                resolve(url)
+            resolve(url)
 
         end_time = time.time()
         resolution_time = end_time - start_time
 
-        # Resolution should be fast (< 1 second for all URLs)
         assert resolution_time < 1.0
 
 
@@ -305,21 +254,17 @@ class TestURLIntegrationWithViews(TestCase):
 
     def test_url_view_mapping(self):
         """Test that URLs map to actual views."""
-        test_urls = ["/api/v1/docs/schema/", "/health/", "/admin/"]
+        test_urls = ["/api/v1/docs/schema/", "/health/", "/api/", "/api/v1/"]
 
         for url in test_urls:
-            with contextlib.suppress(Exception):
-                resolver_match = resolve(url)
-                assert resolver_match is not None
-                assert resolver_match.func is not None
+            resolver_match = resolve(url)
+            assert resolver_match is not None
+            assert resolver_match.func is not None
 
     def test_view_response_consistency(self):
         """Test that views respond consistently through URLs."""
-        # Test that the same view through different URL patterns behaves consistently
-        with contextlib.suppress(Exception):
-            response1 = self.client.get("/api/")
-            response2 = self.client.get("/api/v1/")
+        response1 = self.client.get("/api/")
+        response2 = self.client.get("/api/v1/")
 
-            # Both should return valid HTTP responses
-            assert response1.status_code in [200, 401, 403, 404, 405]
-            assert response2.status_code in [200, 401, 403, 404, 405]
+        assert response1.status_code == 200
+        assert response2.status_code == 200
