@@ -207,24 +207,30 @@ class UnifiedTaskScheduler:
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
 
-            # Detect tasks stuck in running beyond their timeout
+            # Detect tasks stuck in running beyond their timeout.
+            # Per-task TASK_TIMEOUT_SECONDS in task_data overrides the global default.
             from .models import TaskExecution
 
             now = timezone.now()
-            stuck_to_fail = Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-            )
-            if stuck_to_fail:
-                ids = [t.id for t in stuck_to_fail]
+            running_tasks = Task.objects.filter(status="running")
+            ids_to_fail = [
+                t.id
+                for t in running_tasks
+                if t.started_at is not None
+                and t.started_at
+                < now
+                - timedelta(seconds=(t.task_data or {}).get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS))
+            ]
+            if ids_to_fail:
                 error_msg = "Task timed out — worker died before completion"
                 with transaction.atomic():
-                    TaskExecution.objects.filter(task__id__in=ids, status="running").update(
+                    TaskExecution.objects.filter(task__id__in=ids_to_fail, status="running").update(
                         status="failed", error_message=error_msg, completed_at=now
                     )
-                    Task.objects.filter(id__in=ids, status="running").update(
+                    Task.objects.filter(id__in=ids_to_fail, status="running").update(
                         status="failed", error_message=error_msg, completed_at=now
                     )
-                logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+                logger.warning(f"Failed {len(ids_to_fail)} stuck task(s): {ids_to_fail}")
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")

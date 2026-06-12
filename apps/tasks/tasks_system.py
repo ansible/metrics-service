@@ -233,9 +233,13 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
         queue = get_queue_for_function(task.function_name)
 
+        # Per-task TASK_TIMEOUT_SECONDS overrides the global dispatcherd default timeout.
+        # Falls back to None (dispatcherd uses its configured default) when not set.
+        task_timeout = task.task_data.get("TASK_TIMEOUT_SECONDS") if task.task_data else None
+
         # Submit to dispatcherd using execute_db_task as the entry point
         # TaskExecution is created inside _claim_task to avoid orphaned records
-        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
+        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue, timeout=task_timeout)
 
         logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 

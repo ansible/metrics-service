@@ -180,7 +180,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "task_id": "hourly_job_host_summary",
             "function": "collect_hourly_metrics",
             "cron": "5 * * * *",  # Every hour at XX:05
-            "args": {"collector_type": "job_host_summary_service"},
+            "args": {"collector_type": "job_host_summary_service", "TASK_TIMEOUT_SECONDS": 240},
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
         },
@@ -188,7 +188,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "task_id": "hourly_unified_jobs",
             "function": "collect_hourly_metrics",
             "cron": "10 * * * *",  # Every hour at XX:10
-            "args": {"collector_type": "unified_jobs"},
+            "args": {"collector_type": "unified_jobs", "TASK_TIMEOUT_SECONDS": 240},
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
         },
@@ -196,7 +196,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "task_id": "hourly_credentials",
             "function": "collect_hourly_metrics",
             "cron": "15 * * * *",  # Every hour at XX:15
-            "args": {"collector_type": "credentials_service"},
+            "args": {"collector_type": "credentials_service", "TASK_TIMEOUT_SECONDS": 240},
             "enabled": True,
             "description": "Collect credentials metrics every hour",
         },
@@ -204,7 +204,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "task_id": "hourly_job_events",
             "function": "collect_hourly_metrics",
             "cron": "20 * * * *",  # Every hour at XX:20
-            "args": {"collector_type": "main_jobevent_service"},
+            "args": {"collector_type": "main_jobevent_service", "TASK_TIMEOUT_SECONDS": 240},
             "enabled": False,  # NOT enabled by default, for performance
             "description": "Collect job events (event modules) metrics every hour",
         },
