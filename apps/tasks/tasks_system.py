@@ -237,6 +237,13 @@ def submit_task_to_dispatcher(task: Any) -> None:
         # Falls back to None (dispatcherd uses its configured default) when not set.
         task_timeout = task.task_data.get("TASK_TIMEOUT_SECONDS") if task.task_data else None
 
+        # if task type is created, recompute task timeout by doing diff now vs created
+        if task_timeout is not None and (task.task_data or {}).get("TASK_TYPE") == "created":
+            from django.utils import timezone
+
+            elapsed = (timezone.now() - task.created).total_seconds()
+            task_timeout = max(1, int(task_timeout) - int(elapsed))
+
         # Submit to dispatcherd using execute_db_task as the entry point
         # TaskExecution is created inside _claim_task to avoid orphaned records
         submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue, timeout=task_timeout)
