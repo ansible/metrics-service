@@ -19,6 +19,9 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
+# Extra grace period on top of the task timeout before the scheduler forcibly fails a stuck task.
+# This gives dispatcherd time to kill the worker process first via its own timeout mechanism.
+STUCK_TASK_TIMEOUT_PADDING_SECONDS: int = 30
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
@@ -209,6 +212,8 @@ class UnifiedTaskScheduler:
 
             # Detect tasks stuck in running beyond their timeout.
             # Per-task TASK_TIMEOUT_SECONDS in task_data overrides the global default.
+            # STUCK_TASK_TIMEOUT_PADDING_SECONDS is added on top so dispatcherd can kill
+            # the worker process via its own timeout mechanism before we forcibly fail the task.
             from .models import TaskExecution
 
             now = timezone.now()
@@ -219,7 +224,10 @@ class UnifiedTaskScheduler:
                 if t.started_at is not None
                 and t.started_at
                 < now
-                - timedelta(seconds=(t.task_data or {}).get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS))
+                - timedelta(
+                    seconds=(t.task_data or {}).get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
+                    + STUCK_TASK_TIMEOUT_PADDING_SECONDS
+                )
             ]
             if ids_to_fail:
                 error_msg = "Task timed out — worker died before completion"
