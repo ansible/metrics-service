@@ -161,6 +161,46 @@ class UnifiedTaskScheduler:
         except Exception as e:
             logger.error(f"Error synchronizing database tasks: {e}")
 
+    def _fail_stuck_tasks(self) -> None:
+        """Forcibly fail tasks that have been running beyond their timeout.
+
+        Two timeout modes, matching how the timeout was computed at dispatch time:
+          TASK_TYPE == "created": timeout counts from task.created (the moment the cron
+            fired and created the execution record). dispatcherd already received a
+            reduced timeout (original - elapsed_since_created), so the scheduler must
+            also anchor to created to stay consistent.
+          anything else ("started" / absent): timeout counts from started_at, the moment
+            the worker actually began executing. dispatcherd received the full timeout.
+
+        STUCK_TASK_TIMEOUT_PADDING_SECONDS is added on top of TASK_TIMEOUT_SECONDS so
+        dispatcherd has time to kill the worker process first via its own timeout mechanism.
+        """
+        from .models import Task, TaskExecution
+
+        now = timezone.now()
+        ids_to_fail = []
+        for t in Task.objects.filter(status="running"):
+            task_data = t.task_data or {}
+            per_task_timeout = task_data.get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
+            deadline = timedelta(seconds=per_task_timeout + STUCK_TASK_TIMEOUT_PADDING_SECONDS)
+            if task_data.get("TASK_TYPE") == "created":
+                # anchor to created: consistent with the shrunk timeout passed to dispatcherd
+                if t.created < now - deadline:
+                    ids_to_fail.append(t.id)
+            # anchor to started_at: dispatcherd received the full timeout from start
+            elif t.started_at is not None and t.started_at < now - deadline:
+                ids_to_fail.append(t.id)
+        if ids_to_fail:
+            error_msg = "Task timed out — worker died before completion"
+            with transaction.atomic():
+                TaskExecution.objects.filter(task__id__in=ids_to_fail, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+                Task.objects.filter(id__in=ids_to_fail, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+            logger.warning(f"Failed {len(ids_to_fail)} stuck task(s): {ids_to_fail}")
+
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
         close_old_connections()
@@ -210,35 +250,7 @@ class UnifiedTaskScheduler:
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
 
-            # Detect tasks stuck in running beyond their timeout.
-            # Per-task TASK_TIMEOUT_SECONDS in task_data overrides the global default.
-            # STUCK_TASK_TIMEOUT_PADDING_SECONDS is added on top so dispatcherd can kill
-            # the worker process via its own timeout mechanism before we forcibly fail the task.
-            from .models import TaskExecution
-
-            now = timezone.now()
-            running_tasks = Task.objects.filter(status="running")
-            ids_to_fail = [
-                t.id
-                for t in running_tasks
-                if t.started_at is not None
-                and t.started_at
-                < now
-                - timedelta(
-                    seconds=(t.task_data or {}).get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
-                    + STUCK_TASK_TIMEOUT_PADDING_SECONDS
-                )
-            ]
-            if ids_to_fail:
-                error_msg = "Task timed out — worker died before completion"
-                with transaction.atomic():
-                    TaskExecution.objects.filter(task__id__in=ids_to_fail, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                    Task.objects.filter(id__in=ids_to_fail, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                logger.warning(f"Failed {len(ids_to_fail)} stuck task(s): {ids_to_fail}")
+            self._fail_stuck_tasks()
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
