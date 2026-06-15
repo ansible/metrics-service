@@ -97,19 +97,33 @@ print("JSON patches done.")
 yp = pathlib.Path("tools/openapi-schema/metrics-service.yaml")
 content = yp.read_text()
 
-# 1. Path param type: integer → string (remove description line too)
-for desc in [
-    "A unique integer value identifying this Job Data.",
-    "A unique integer value identifying this Subscription Cost.",
-]:
-    pattern = (
-        r"(        schema:\n          type: )integer\n"
-        r"        description: " + re.escape(desc) + r"\n"
+# 1. Path param type: integer → string for the specific operationIds where
+#    spectacular cannot resolve the type on CI Linux (targeted, not global).
+#    Only these 3 are affected; other Job Data endpoints stay as integer.
+op_id_fixes = {
+    "dashboard_reports_report_retrieve": "A unique integer value identifying this Job Data.",
+    "dashboard_reports_subscription_costs_update": "A unique integer value identifying this Subscription Cost.",
+    "dashboard_reports_subscription_costs_partial_update": "A unique integer value identifying this Subscription Cost.",
+}
+for op_id, desc in op_id_fixes.items():
+    old = (
+        f"operationId: {op_id}\n"
+        + r".*\n" * 10  # not reliable — use string search instead
     )
-    new, count = re.subn(pattern, r"\1string\n", content)
-    if count:
-        print(f"  [YAML] fixed {count} path param type(s): '{desc[:50]}'")
-        content = new
+    # Find the operationId, then patch the type: integer block after it
+    idx = content.find(f"operationId: {op_id}")
+    if idx == -1:
+        continue
+    old_block = (
+        "        schema:\n          type: integer\n"
+        f"        description: {desc}\n"
+        "        required: true"
+    )
+    new_block = "        schema:\n          type: string\n        required: true"
+    patch_idx = content.find(old_block, idx)
+    if patch_idx != -1:
+        content = content[:patch_idx] + new_block + content[patch_idx + len(old_block):]
+        print(f"  [YAML] fixed path param type: {op_id}")
 
 # 2. Add feature_flags_state endpoint (before /api/v1/organizations/)
 if "/api/v1/feature_flags_state/" not in content:
