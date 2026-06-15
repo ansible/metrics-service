@@ -38,4 +38,13 @@ validate-openapi-schema: generate-openapi-schema
 	@uv run openapi-spec-validator tools/openapi-schema/metrics-service.json
 	@echo "✓ OpenAPI schema files are valid!"
 
-.PHONY: sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema
+METRICS_UTILITY_COMPOSE = ../metrics-utility/tools/docker/docker-compose.yaml
+COMPOSE_CMD ?= $(shell command -v podman-compose 2>/dev/null || echo "docker compose")
+
+compose-service:
+	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) --profile service up
+
+compose-pytest-svc:
+	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) --profile pytest-svc up
+
+.PHONY: sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose-service compose-pytest-svc

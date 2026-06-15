@@ -31,8 +31,12 @@ python manage.py metrics_service run
 # Development server only
 python manage.py runserver
 
-# With Docker (includes PostgreSQL)
+# With Docker (includes PostgreSQL) — standalone
 docker-compose up
+
+# Shared compose environment (requires ../metrics-utility checkout)
+# Runs both repos against the same postgres with AWX + metrics_service databases
+cd ../metrics-utility && make compose-service
 ```
 
 ### Testing
