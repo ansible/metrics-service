@@ -161,25 +161,29 @@ class TestLoadSegmentWriteKeyFromFile:
         from apps.core.segment import load_segment_write_key_from_file
 
         dynaconf_mock = mock.MagicMock()
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with mock.patch("apps.core.segment.Path") as path_mock:
-                path_instance = path_mock.return_value
-                path_instance.exists.return_value = False
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch("apps.core.segment.Path") as path_mock,
+        ):
+            path_instance = path_mock.return_value
+            path_instance.exists.return_value = False
 
-                load_segment_write_key_from_file(path=None, dynaconf_instance=dynaconf_mock)
+            load_segment_write_key_from_file(path=None, dynaconf_instance=dynaconf_mock)
 
-                path_mock.assert_called_once_with("/etc/ansible-automation-platform/metrics/segment-write-key")
+            path_mock.assert_called_once_with("/etc/ansible-automation-platform/metrics/segment-write-key")
 
     def test_custom_path_from_env_when_path_not_provided(self):
         """When path is None and env var set, uses env var path."""
         from apps.core.segment import load_segment_write_key_from_file
 
         dynaconf_mock = mock.MagicMock()
-        with mock.patch.dict(os.environ, {"METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE": "/custom/path"}):
-            with mock.patch("apps.core.segment.Path") as path_mock:
-                path_instance = path_mock.return_value
-                path_instance.exists.return_value = False
+        with (
+            mock.patch.dict(os.environ, {"METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE": "/custom/path"}),
+            mock.patch("apps.core.segment.Path") as path_mock,
+        ):
+            path_instance = path_mock.return_value
+            path_instance.exists.return_value = False
 
-                load_segment_write_key_from_file(path=None, dynaconf_instance=dynaconf_mock)
+            load_segment_write_key_from_file(path=None, dynaconf_instance=dynaconf_mock)
 
-                path_mock.assert_called_once_with("/custom/path")
+            path_mock.assert_called_once_with("/custom/path")
