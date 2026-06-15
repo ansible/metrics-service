@@ -1,7 +1,7 @@
 # Dockerfile.dev - Fast local build using binary wheels (no Rust/C compiles).
 # Use for local development only. Production/Konflux should use the main Dockerfile.
 
-FROM registry.access.redhat.com/ubi9/python-312:9-1739552823
+FROM registry.access.redhat.com/ubi9/python-312:latest
 
 WORKDIR /app
 
