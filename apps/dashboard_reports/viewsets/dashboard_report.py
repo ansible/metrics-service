@@ -71,6 +71,8 @@ def make_passthrough_renderer(media_type: str, fmt: str) -> type:
 PassthroughRenderer = make_passthrough_renderer(media_type="text/csv", fmt="csv")
 PassthroughRendererHTML = make_passthrough_renderer(media_type="text/html", fmt="html")
 
+HTML_CONTENT_TYPE = "text/html; charset=UTF-8"
+
 
 def parse_period_param(
     period_str: str | None, param_name: str, timezone_str: str
@@ -755,7 +757,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         }
 
         html = render_to_string("dashboard_reports/report_summary.html", context, request=request)
-        return HttpResponse(html, content_type="text/html; charset=UTF-8")
+        return HttpResponse(html, content_type=HTML_CONTENT_TYPE)
 
     def _build_html_roi(self, request: Request) -> HttpResponse:
         """Render the ROI report as an HTML response."""
@@ -795,7 +797,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         }
 
         html = render_to_string("dashboard_reports/report_roi.html", context, request=request)
-        return HttpResponse(html, content_type="text/html; charset=UTF-8")
+        return HttpResponse(html, content_type=HTML_CONTENT_TYPE)
 
     def _build_html_trends(self, request: Request) -> HttpResponse:
         """Render the trends report as an HTML response."""
@@ -851,7 +853,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         }
 
         html = render_to_string("dashboard_reports/report_trends.html", context, request=request)
-        return HttpResponse(html, content_type="text/html; charset=UTF-8")
+        return HttpResponse(html, content_type=HTML_CONTENT_TYPE)
 
     def _export_csv(
         self, request: Request, report_type: str, filename: str, base_qs: QuerySet, qs: QuerySet
