@@ -295,6 +295,12 @@ class TestExportHTMLSummary:
         assert response.status_code == 200
         assert b"Showing top" not in response.content
 
+    def test_summary_label_filter_shows_badge(self, job_data, admin_client):
+        """label has no name lookup — exercises the else branch in _build_filter_labels."""
+        response = get_html(admin_client, build_html_query("summary", label=[42]))
+        assert response.status_code == 200
+        assert b"Label" in response.content
+
 
 # =============================================================================
 # ROI HTML report

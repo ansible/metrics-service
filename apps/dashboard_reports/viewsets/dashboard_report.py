@@ -869,18 +869,13 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             self._write_trends_csv(csv_response, base_qs)
         return csv_response
 
-    def _export_html(self, request: Request, report_type: str) -> HttpResponse | JsonResponse:
+    def _export_html(self, request: Request, report_type: str) -> HttpResponse:
         """Handle HTML export dispatch."""
         if report_type == "summary":
             return self._build_html_summary(request)
         if report_type == "roi":
             return self._build_html_roi(request)
-        if report_type == "trends":
-            return self._build_html_trends(request)
-        return JsonResponse(
-            {"detail": "Something went wrong. Check your query parameters."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return self._build_html_trends(request)
 
     @extend_schema(
         summary="Returns summary, chart data, and top users/projects for dashboard",
