@@ -40,7 +40,7 @@ class TestRunTaskSchedulerCommand(TestCase):
         second_call = parser.add_argument.call_args_list[1]
         assert second_call[0][0] == "--check-interval"
         assert second_call[1]["type"] is int
-        assert second_call[1]["default"] == 60
+        assert second_call[1]["default"] == 10
 
     def test_command_help_text(self):
         """Test that command has proper help text."""
