@@ -322,21 +322,6 @@ load_standard_settings_files(DYNACONF)
 # Load envvars at the end to allow them to override everything loaded so far.
 load_envvars(DYNACONF)
 
-# PSF-OVERRIDE: PostgreSQL OPTIONS normalization - proposed upstream to platform-service-framework
-# Normalize DATABASES OPTIONS: move PostgreSQL session parameters into the psycopg2 'options' string.
-# This allows installers to set e.g. METRICS_SERVICE_DATABASES__awx__OPTIONS__datestyle=iso, mdy
-# without needing to know the psycopg2-specific OPTIONS__options=-c datestyle=... syntax.
-_PG_SESSION_PARAMS = {"datestyle", "search_path", "timezone", "application_name"}
-_databases = DYNACONF.get("DATABASES", {})
-for _db_conf in _databases.values():
-    _opts = _db_conf.get("OPTIONS", {})
-    _session_params = {k: _opts.pop(k) for k in list(_opts) if k.lower() in _PG_SESSION_PARAMS}
-    if _session_params:
-        _existing = _opts.get("options", "")
-        _new = " ".join(f"-c {k}={v.replace(' ', '')}" for k, v in _session_params.items())
-        _opts["options"] = f"{_existing} {_new}".strip()
-DYNACONF.set("DATABASES", _databases)
-
 # Load development only apps
 if not DYNACONF.get("IS_RUNNING_TESTS") and DYNACONF.get("DEBUG"):
     try:
