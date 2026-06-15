@@ -137,10 +137,10 @@ URL_PREFIX = None
 TASK_TIMEOUT = 3600
 
 
-# PSF-OVERRIDE: Project-specific middleware additions
+# Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
 
-# PSF-OVERRIDE: Template directories for apps/core
+# Template directories for core app
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -158,12 +158,12 @@ TEMPLATES = [
     },
 ]
 
-# PSF-OVERRIDE: Dashboard collection schedule configuration
+# Dashboard collection schedule configuration
 DASHBOARD_COLLECTION = {
     "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
 }
 
-# PSF-OVERRIDE: Conditional static files directory (avoids staticfiles.W004 when absent)
+# Conditional static files directory (avoids staticfiles.W004 when absent)
 from pathlib import Path
 
 _base_dir = Path(__file__).resolve().parent.parent.parent
