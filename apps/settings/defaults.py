@@ -5,6 +5,8 @@ The settings here overrides any setting previously loaded
 from the `metrics_service.settings`.
 """
 
+from pathlib import Path
+
 from dynaconf import Dynaconf, post_hook
 
 # Extra applications added after PSF templating
@@ -164,8 +166,6 @@ DASHBOARD_COLLECTION = {
 }
 
 # Conditional static files directory (avoids staticfiles.W004 when absent)
-from pathlib import Path
-
 _base_dir = Path(__file__).resolve().parent.parent.parent
 STATICFILES_DIRS = [d for d in [_base_dir / "static"] if d.exists()]
 
@@ -188,7 +188,7 @@ def load_prometheus_middlewares(settings: Dynaconf) -> dict:
 def load_segment_write_key(settings: Dynaconf) -> dict:
     """Load SEGMENT_WRITE_KEY from file if configured."""
     import os
-    from pathlib import Path
+
     from apps.core.segment import read_segment_key_from_path
 
     # Respect env/settings precedence: do not overwrite if already set
