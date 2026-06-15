@@ -16,6 +16,7 @@ import logging
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
+    cleanup_dashboard_telemetry,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
     sync_dashboard_job_records,
@@ -60,6 +61,7 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
     "sync_dashboard_job_records": sync_dashboard_job_records,
 }
 
@@ -74,6 +76,7 @@ TASK_LOCKS = {
     "send_anonymized_to_segment",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
 }
 
@@ -447,6 +450,24 @@ TASK_METADATA = {
             {"name": "Extended retention", "data": {"retention_period_days": 180}},
         ],
     },
+    "cleanup_dashboard_telemetry": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Delete DashboardTelemetry rows older than retention_period_days (default: 60) to prevent unbounded table growth.",
+        "parameters": {
+            "retention_period_days": {
+                "type": "integer",
+                "default": 60,
+                "description": "Number of days to retain telemetry rows. Rows with collection_run_date older than this are deleted.",
+                "min": 0,
+                "max": 365,
+            },
+        },
+        "examples": [
+            {"name": "Default (60 days)", "data": {}},
+            {"name": "30-day retention", "data": {"retention_period_days": 30}},
+        ],
+    },
 }
 
 # Explicit exports for better IDE support
@@ -475,4 +496,5 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "cleanup_dashboard_telemetry",
 ]

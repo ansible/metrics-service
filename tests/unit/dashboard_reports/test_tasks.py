@@ -245,6 +245,7 @@ class TestCollectDashboardReportsInitialData:
         with (
             patch("apps.dashboard_reports.tasks._collect_data") as mock_collect,
             patch("apps.dashboard_reports.tasks.create_task_result") as mock_result,
+            patch("apps.dashboard_reports.tasks._save_telemetry_details"),
         ):
             mock_collect.return_value = {"error": True, "message": "fail"}
             collect_dashboard_reports_initial_data()
@@ -255,6 +256,7 @@ class TestCollectDashboardReportsInitialData:
         with (
             patch("apps.dashboard_reports.tasks._collect_data") as mock_collect,
             patch("apps.dashboard_reports.tasks.create_task_result") as mock_result,
+            patch("apps.dashboard_reports.tasks._save_telemetry_details"),
         ):
             mock_collect.return_value = {"error": False, "data": {"job_count": 10}}
             collect_dashboard_reports_initial_data()
@@ -265,6 +267,7 @@ class TestCollectDashboardReportsInitialData:
         with (
             patch("apps.dashboard_reports.tasks._collect_data") as mock_collect,
             patch("apps.dashboard_reports.tasks.create_task_result"),
+            patch("apps.dashboard_reports.tasks._save_telemetry_details"),
             patch("apps.tasks.models.Task") as mock_task,
         ):
             mock_collect.return_value = {"error": False, "data": {}}
@@ -306,6 +309,11 @@ class TestCollectDashboardReportsData:
 @pytest.mark.unit
 class TestSyncDashboardJobRecords:
     """Tests for sync_dashboard_job_records — the hourly hook-driven sync task."""
+
+    @pytest.fixture(autouse=True)
+    def patch_telemetry(self):
+        with patch("apps.dashboard_reports.tasks._save_telemetry_details"):
+            yield
 
     def _raw_job(self, job_id=1, num_hosts=5, label_ids=None):
         """Return a minimal raw job dict suitable for passing as raw_jobs input."""
@@ -461,6 +469,12 @@ class TestCleanupDashboardReportsOldData:
         """Patch create_task_result for cleanup tests."""
         with patch("apps.dashboard_reports.tasks.create_task_result") as mock:
             yield mock
+
+    @pytest.fixture(autouse=True)
+    def mock_save_telemetry(self):
+        """Patch _save_telemetry_details so unit tests don't hit the DB."""
+        with patch("apps.dashboard_reports.tasks._save_telemetry_details"):
+            yield
 
     def test_cleanup_success(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
         """Successful deletion returns a success result with the correct record count."""

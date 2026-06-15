@@ -221,6 +221,40 @@
                 "x-ai-description": "List all dashboard reports collection status"
             }
         },
+        "/api/v1/dashboard_reports/collection_telemetry/": {
+            "get": {
+                "operationId": "dashboard_reports_collection_telemetry_list",
+                "description": "Aggregate performance metrics (duration, records processed, DB query time, cache hit rate) for each DASHBOARD_COLLECTION task execution within the last 30 days. No sensitive data is included.",
+                "summary": "Return the last 30 days of daily dashboard collection performance stats.",
+                "tags": [
+                    "dashboard_reports"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DashboardTelemetryResponse"
+                                    }
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "x-ai-description": "List all dashboard reports collection telemetry"
+            }
+        },
         "/api/v1/dashboard_reports/filter_sets/": {
             "get": {
                 "operationId": "dashboard_reports_filter_sets_list",
@@ -11128,6 +11162,76 @@
                 },
                 "required": [
                     "detail"
+                ]
+            },
+            "DashboardTelemetry": {
+                "type": "object",
+                "description": "Serializer for DashboardTelemetry",
+                "properties": {
+                    "task_name": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Name of the task that produced this telemetry entry",
+                        "maxLength": 512
+                    },
+                    "collection_run_date": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "UTC date on which the task ran"
+                    },
+                    "collection_duration_ms": {
+                        "type": "string",
+                        "format": "decimal",
+                        "pattern": "^-?\\d{0,13}(?:\\.\\d{0,2})?$",
+                        "description": "Collection duration (ms)"
+                    },
+                    "number_of_records_processed": {
+                        "type": "integer",
+                        "description": "Number of records processed"
+                    },
+                    "database_query_time_ms": {
+                        "type": "string",
+                        "format": "decimal",
+                        "pattern": "^-?\\d{0,13}(?:\\.\\d{0,2})?$",
+                        "nullable": true,
+                        "description": "Database query time (ms)"
+                    },
+                    "cache_hit_rate": {
+                        "type": "string",
+                        "format": "decimal",
+                        "pattern": "^-?\\d{0,13}(?:\\.\\d{0,2})?$",
+                        "nullable": true,
+                        "description": "Cache hit rate"
+                    },
+                    "success": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Whether the task completed without an error"
+                    }
+                },
+                "required": [
+                    "collection_duration_ms",
+                    "collection_run_date",
+                    "database_query_time_ms",
+                    "number_of_records_processed"
+                ]
+            },
+            "DashboardTelemetryResponse": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DashboardTelemetry"
+                        }
+                    }
+                },
+                "required": [
+                    "count",
+                    "results"
                 ]
             },
             "DeletErrorResponse": {
