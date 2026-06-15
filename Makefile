@@ -1,10 +1,3 @@
-
-# If you are running an old version, you might need docker-compose instead
-DOCKER_COMPOSE?=docker compose
-
-docker-compose:
-	$(DOCKER_COMPOSE) --file docker-compose.yml up
-
 # Requirements management
 sync-requirements:
 	@echo "Syncing requirements files from uv.lock..."
@@ -41,10 +34,19 @@ validate-openapi-schema: generate-openapi-schema
 METRICS_UTILITY_COMPOSE = ../metrics-utility/tools/docker/docker-compose.yaml
 COMPOSE_CMD ?= $(shell command -v podman-compose 2>/dev/null || echo "docker compose")
 
+compose:
+	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) up
+
 compose-service:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) --profile service up
 
 compose-pytest-svc:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) --profile pytest-svc up
 
-.PHONY: sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose-service compose-pytest-svc
+compose-clean:
+	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) down -v
+
+compose-psql:
+	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) exec postgres psql -U awx
+
+.PHONY: sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc compose-clean compose-psql

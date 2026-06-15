@@ -16,18 +16,16 @@ A modern Django-based service built for the Ansible Automation Platform (AAP) ec
 
 ## Quick Start
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker + dev server (Recommended)
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd metrics-service
+# Requires a sibling ../metrics-utility checkout.
 
-# Start all services
-docker-compose up -d
+# Start base containers (postgres, minio)
+make compose
 
-# Create a superuser (optional)
-docker-compose exec metrics-service python manage.py createsuperuser
+# In another terminal — run migrations, start dev server
+tools/dev.sh --init
 ```
 
 Your service will be available at:
