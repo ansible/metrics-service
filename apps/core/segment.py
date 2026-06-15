@@ -15,11 +15,10 @@ def read_segment_key_from_path(path: Path) -> str | None:
         return key if key else None
     except OSError as e:
         filename = getattr(e, "filename", path)
-        logger.error(
+        logger.exception(
             "Failed to read segment write key from %s: %s",
             filename,
             e,
-            exc_info=True,
         )
         return None
 
