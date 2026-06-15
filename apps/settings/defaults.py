@@ -187,9 +187,29 @@ def load_prometheus_middlewares(settings: Dynaconf) -> dict:
 @post_hook
 def load_segment_write_key(settings: Dynaconf) -> dict:
     """Load SEGMENT_WRITE_KEY from file if configured."""
-    from apps.core.segment import load_segment_write_key_from_file
+    import os
+    from pathlib import Path
+    from apps.core.segment import read_segment_key_from_path
 
-    load_segment_write_key_from_file(dynaconf_instance=settings)
+    # Respect env/settings precedence: do not overwrite if already set
+    if os.environ.get("METRICS_SERVICE_SEGMENT_WRITE_KEY", "").strip():
+        return {}
+    if settings.get("SEGMENT_WRITE_KEY"):
+        return {}
+
+    # Get path from environment or use default
+    segment_key_path = os.environ.get(
+        "METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE",
+        "/etc/ansible-automation-platform/metrics/segment-write-key",
+    )
+    path = Path(segment_key_path)
+
+    if not path.exists():
+        return {}
+
+    key = read_segment_key_from_path(path)
+    if key:
+        return {"SEGMENT_WRITE_KEY": key}
     return {}
 
 
