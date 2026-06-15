@@ -392,8 +392,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Job Data.
+          type: string
         required: true
       tags:
       - dashboard_reports
@@ -445,8 +444,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Job Data.
+          type: string
         required: true
       tags:
       - dashboard_reports
@@ -498,8 +496,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Job Data.
+          type: string
         required: true
       tags:
       - dashboard_reports
@@ -1075,8 +1072,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Job Data.
+          type: string
         required: true
       tags:
       - dashboard_reports
