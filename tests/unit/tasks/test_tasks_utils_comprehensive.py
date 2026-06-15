@@ -236,13 +236,8 @@ class TestParseDatetimeString(TestCase):
 class TestGetDbConnection(TestCase):
     """Test get_db_connection function."""
 
-    def setUp(self):
-        # Reset module-level grace period tracker between tests
-        utils._first_not_ready_at = None
-
-    @patch("apps.tasks.utils._check_db_ready", return_value=True)
     @patch("django.db.connections")
-    def test_get_db_connection_default(self, mock_connections, _mock_ready):
+    def test_get_db_connection_default(self, mock_connections):
         """Test getting default AWX database connection."""
         mock_raw_conn = MagicMock()
         mock_django_conn = MagicMock()
@@ -268,10 +263,9 @@ class TestGetDbConnection(TestCase):
         mock_connections.__getitem__.assert_called_once_with("custom_db")
         self.assertEqual(result, mock_raw_conn)
 
-    @patch("apps.tasks.utils._check_db_ready", return_value=True)
     @patch("django.db.close_old_connections")
     @patch("django.db.connections")
-    def test_get_db_connection_does_not_call_close_old_connections(self, mock_connections, mock_close_old, _mock_ready):
+    def test_get_db_connection_does_not_call_close_old_connections(self, mock_connections, mock_close_old):
         """Test that get_db_connection does NOT call close_old_connections.
 
         close_old_connections() closes ALL Django connections, not just one.
@@ -313,6 +307,12 @@ class TestGetDbConnection(TestCase):
         mock_django_conn = MagicMock()
         mock_django_conn.connection = None
         mock_connections.__getitem__.return_value = mock_django_conn
+
+        # Mock ensure_connection to set a valid connection after it's called
+        def set_connection():
+            mock_django_conn.connection = MagicMock()
+
+        mock_django_conn.ensure_connection.side_effect = set_connection
 
         utils.get_db_connection()
 
@@ -378,57 +378,6 @@ class TestGetDbConnection(TestCase):
 
         mock_django_conn.close.assert_called_once()
         mock_django_conn.ensure_connection.assert_called_once()
-
-    @patch("apps.tasks.utils._check_db_ready", return_value=False)
-    @patch("django.db.connections")
-    def test_get_db_connection_raises_not_ready_within_grace_period(self, mock_connections, _mock_ready):
-        """Test that DatabaseNotReady is raised when tables are missing within grace period."""
-        mock_raw_conn = MagicMock()
-        mock_django_conn = MagicMock()
-        mock_django_conn.connection = mock_raw_conn
-        mock_connections.__getitem__.return_value = mock_django_conn
-
-        with self.assertRaises(utils.DatabaseNotReadyError) as ctx:
-            utils.get_db_connection()
-
-        self.assertNotIsInstance(ctx.exception, utils.DatabaseNotReadyGracePeriodExpiredError)
-        self.assertIn("not ready yet", str(ctx.exception))
-
-    @patch("apps.tasks.utils.time.monotonic")
-    @patch("apps.tasks.utils._check_db_ready", return_value=False)
-    @patch("django.db.connections")
-    def test_get_db_connection_raises_expired_after_grace_period(self, mock_connections, _mock_ready, mock_monotonic):
-        """Test that DatabaseNotReadyGracePeriodExpired is raised after grace period."""
-        mock_raw_conn = MagicMock()
-        mock_django_conn = MagicMock()
-        mock_django_conn.connection = mock_raw_conn
-        mock_connections.__getitem__.return_value = mock_django_conn
-
-        mock_monotonic.return_value = 1000.0
-        with self.assertRaises(utils.DatabaseNotReadyError):
-            utils.get_db_connection()
-
-        mock_monotonic.return_value = 1000.0 + utils._NOT_READY_GRACE_SECONDS + 1
-        with self.assertRaises(utils.DatabaseNotReadyGracePeriodExpiredError):
-            utils.get_db_connection()
-
-    @patch("apps.tasks.utils._check_db_ready")
-    @patch("django.db.connections")
-    def test_get_db_connection_resets_tracker_when_ready(self, mock_connections, mock_ready):
-        """Test that the grace period tracker resets once tables are found."""
-        mock_raw_conn = MagicMock()
-        mock_django_conn = MagicMock()
-        mock_django_conn.connection = mock_raw_conn
-        mock_connections.__getitem__.return_value = mock_django_conn
-
-        mock_ready.return_value = False
-        with self.assertRaises(utils.DatabaseNotReadyError):
-            utils.get_db_connection()
-        self.assertIsNotNone(utils._first_not_ready_at)
-
-        mock_ready.return_value = True
-        utils.get_db_connection()
-        self.assertIsNone(utils._first_not_ready_at)
 
 
 class TestRunWithLock(TestCase):
@@ -512,7 +461,7 @@ class TestCheckDbReady(TestCase):
         """Test that _check_db_ready returns True when a probe table exists."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_cursor.fetchone.return_value = (True,)
 
         result = utils._check_db_ready(mock_conn, ("main_unifiedjob",))
@@ -523,7 +472,7 @@ class TestCheckDbReady(TestCase):
         """Test that _check_db_ready returns False when no probe tables exist."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_cursor.fetchone.return_value = (False,)
 
         result = utils._check_db_ready(mock_conn, ("main_unifiedjob",))
@@ -534,89 +483,13 @@ class TestCheckDbReady(TestCase):
         """Test that _check_db_ready returns True on the first found table."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_cursor.fetchone.side_effect = [(False,), (True,)]
 
         result = utils._check_db_ready(mock_conn, ("table_a", "table_b"))
 
         self.assertTrue(result)
         self.assertEqual(mock_cursor.execute.call_count, 2)
-
-
-class TestGenericCollectMetricsDatabaseNotReady(TestCase):
-    """Test generic_collect_metrics handles DatabaseNotReady exceptions."""
-
-    @patch("apps.tasks.utils.logger")
-    def test_database_not_ready_logs_warning(self, mock_logger):
-        """Test that DatabaseNotReady is caught and logged as warning, not error."""
-        mock_registry = {
-            "test_collector": {
-                "collector_func": MagicMock(side_effect=utils.DatabaseNotReadyError("not ready")),
-                "rollup_processor": None,
-                "description": "test",
-            }
-        }
-
-        result = utils.generic_collect_metrics(
-            collector_type="test_collector",
-            collector_registry=mock_registry,
-            collection_mode="hourly",
-            timestamp=MagicMock(isoformat=MagicMock(return_value="2024-01-01T00:00:00")),
-            db_connection=MagicMock(),
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("Database not ready", result["error"])
-        mock_logger.warning.assert_called()
-        mock_logger.exception.assert_not_called()
-
-    @patch("apps.tasks.utils.logger")
-    def test_database_not_ready_expired_logs_error(self, mock_logger):
-        """Test that DatabaseNotReadyGracePeriodExpired is caught and logged as error."""
-        mock_registry = {
-            "test_collector": {
-                "collector_func": MagicMock(
-                    side_effect=utils.DatabaseNotReadyGracePeriodExpiredError("expired")
-                ),
-                "rollup_processor": None,
-                "description": "test",
-            }
-        }
-
-        result = utils.generic_collect_metrics(
-            collector_type="test_collector",
-            collector_registry=mock_registry,
-            collection_mode="hourly",
-            timestamp=MagicMock(isoformat=MagicMock(return_value="2024-01-01T00:00:00")),
-            db_connection=MagicMock(),
-        )
-
-        self.assertEqual(result["status"], "error")
-        self.assertIn("expired", result["error"])
-        mock_logger.error.assert_called()
-        mock_logger.exception.assert_not_called()
-
-    @patch("apps.tasks.utils.logger")
-    def test_database_not_ready_does_not_write_failed_audit_record(self, mock_logger):
-        """Test that DatabaseNotReady skips the failed audit record write."""
-        mock_registry = {
-            "test_collector": {
-                "collector_func": MagicMock(side_effect=utils.DatabaseNotReadyError("not ready")),
-                "rollup_processor": None,
-                "description": "test",
-            }
-        }
-
-        with patch("apps.tasks.models.HourlyMetricsCollection.objects") as mock_objects:
-            utils.generic_collect_metrics(
-                collector_type="test_collector",
-                collector_registry=mock_registry,
-                collection_mode="hourly",
-                timestamp=MagicMock(isoformat=MagicMock(return_value="2024-01-01T00:00:00")),
-                db_connection=MagicMock(),
-            )
-
-            mock_objects.update_or_create.assert_not_called()
 
 
 class TestSendToSegment(TestCase):

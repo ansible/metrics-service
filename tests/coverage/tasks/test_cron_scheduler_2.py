@@ -116,9 +116,11 @@ def test_periodic_sync_handles_immediate_tasks(user, mock_apscheduler):
 
     scheduler = cs.UnifiedTaskScheduler()
     scheduler.scheduler = mock_apscheduler
+    scheduler.running = True
 
     with (
         patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.utils.awx_db_ready", return_value=True),
         patch.object(scheduler, "_execute_database_task") as mock_execute,
         patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()),
         patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()),

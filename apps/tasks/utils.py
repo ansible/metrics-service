@@ -3,7 +3,6 @@ Utility functions for task management and execution.
 """
 
 import logging
-import time
 from datetime import UTC
 from typing import Any
 
@@ -11,14 +10,6 @@ from django.db import transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
-
-
-class DatabaseNotReadyError(Exception):
-    """Target database tables not yet available (e.g., migrations pending)."""
-
-
-class DatabaseNotReadyGracePeriodExpiredError(DatabaseNotReadyError):
-    """Grace period exceeded — database should have been ready by now."""
 
 
 def ensure_django_setup():
@@ -305,20 +296,18 @@ def parse_datetime_string(date_str: str | None) -> Any:
 
 
 _AWX_PROBE_TABLES = ("main_unifiedjob",)
-_NOT_READY_GRACE_SECONDS = 600
-_first_not_ready_at: float | None = None
 
 
 def _check_db_ready(connection, probe_tables):
     """Return True if at least one probe table exists in the database."""
-    cursor = connection.cursor()
-    for table in probe_tables:
-        cursor.execute(
-            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s)",
-            [table],
-        )
-        if cursor.fetchone()[0]:
-            return True
+    with connection.cursor() as cursor:
+        for table in probe_tables:
+            cursor.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s)",
+                [table],
+            )
+            if cursor.fetchone()[0]:
+                return True
     return False
 
 
@@ -336,16 +325,10 @@ def get_db_connection(db_name: str = "awx"):
     Returns:
         Raw database connection object (psycopg3 connection)
 
-    Raises:
-        DatabaseNotReady: If target database tables are not yet available (within grace period)
-        DatabaseNotReadyGracePeriodExpired: If tables are still missing after grace period
-
     Note:
         DO NOT CLOSE the returned connection. It is a Django-managed singleton
         shared across multiple tasks. Django handles connection lifecycle.
     """
-    global _first_not_ready_at
-
     from django.db import connections
 
     # Get the raw connection to bypass Django's cursor wrapper
@@ -369,29 +352,28 @@ def get_db_connection(db_name: str = "awx"):
 
     django_connection.ensure_connection()
 
-    raw_conn = django_connection.connection
+    return django_connection.connection
 
-    if db_name == "awx":
-        if not _check_db_ready(raw_conn, _AWX_PROBE_TABLES):
-            now = time.monotonic()
-            if _first_not_ready_at is None:
-                _first_not_ready_at = now
 
-            elapsed = now - _first_not_ready_at
-            if elapsed > _NOT_READY_GRACE_SECONDS:
-                raise DatabaseNotReadyGracePeriodExpiredError(
-                    f"Database '{db_name}' not ready after {int(elapsed)}s — "
-                    "this is no longer expected. Check that controller migrations completed."
-                )
-            raise DatabaseNotReadyError(
-                f"Database '{db_name}' not ready yet ({int(elapsed)}s elapsed, "
-                f"grace period {_NOT_READY_GRACE_SECONDS}s). "
-                "Controller migrations may still be running."
-            )
-        # Tables found — reset tracker
-        _first_not_ready_at = None
+def awx_db_ready() -> bool:
+    """
+    Check if AWX controller database tables are available.
 
-    return raw_conn
+    This prevents scheduling collector tasks before controller migrations complete,
+    avoiding startup race conditions. Useful for any component that needs to wait
+    for controller DB initialization.
+
+    Returns:
+        True if at least one AWX probe table exists, False otherwise
+    """
+    try:
+        # Use get_db_connection() to inherit stale-connection recovery logic
+        # (SELECT 1 probe + reconnect), preventing false negatives on transient stale connections
+        raw_conn = get_db_connection("awx")
+        return _check_db_ready(raw_conn, _AWX_PROBE_TABLES)
+    except Exception as e:
+        logger.debug(f"AWX DB readiness check failed: {e}")
+        return False
 
 
 def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):
@@ -588,22 +570,6 @@ def generic_collect_metrics(
             rollup_data,
             collection_params,
             task_execution_instance,
-        )
-
-    except DatabaseNotReadyGracePeriodExpiredError as e:
-        logger.error(f"Collection blocked for {collector_type}: {e}")
-        return create_task_result(
-            "error",
-            {"task_type": f"collect_{collector_type}", "collector_type": collector_type},
-            error=str(e),
-        )
-
-    except DatabaseNotReadyError as e:
-        logger.warning(f"Skipping {collector_type} collection: {e}")
-        return create_task_result(
-            "error",
-            {"task_type": f"collect_{collector_type}", "collector_type": collector_type},
-            error=f"Database not ready, will retry on next schedule: {e}",
         )
 
     except Exception as e:
