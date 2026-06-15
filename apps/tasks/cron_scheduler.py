@@ -165,7 +165,7 @@ class UnifiedTaskScheduler:
         """Forcibly fail tasks that have been running beyond their timeout.
 
         Two timeout modes, matching how the timeout was computed at dispatch time:
-          TASK_TYPE == "created": timeout counts from task.created (the moment the cron
+          TASK_TIMEOUT_TYPE == "created": timeout counts from task.created (the moment the cron
             fired and created the execution record). dispatcherd already received a
             reduced timeout (original - elapsed_since_created), so the scheduler must
             also anchor to created to stay consistent.
@@ -183,7 +183,7 @@ class UnifiedTaskScheduler:
             task_data = t.task_data or {}
             per_task_timeout = task_data.get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
             deadline = timedelta(seconds=per_task_timeout + STUCK_TASK_TIMEOUT_PADDING_SECONDS)
-            if task_data.get("TASK_TYPE") == "created":
+            if task_data.get("TASK_TIMEOUT_TYPE") == "created":
                 # anchor to created: consistent with the shrunk timeout passed to dispatcherd
                 if t.created < now - deadline:
                     ids_to_fail.append(t.id)

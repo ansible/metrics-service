@@ -238,7 +238,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         task_timeout = task.task_data.get("TASK_TIMEOUT_SECONDS") if task.task_data else None
 
         # if task type is created, recompute task timeout by doing diff now vs created
-        if task_timeout is not None and (task.task_data or {}).get("TASK_TYPE") == "created":
+        if task_timeout is not None and (task.task_data or {}).get("TASK_TIMEOUT_TYPE") == "created":
             from django.utils import timezone
 
             elapsed = (timezone.now() - task.created).total_seconds()
