@@ -722,7 +722,7 @@ class Command(BaseCommand):
             "dispatcher_workers": dispatcher_workers,
             "max_tasks": options.get("max_tasks", 100),
             "log_level": options.get("log_level", "INFO"),
-            "check_interval": options.get("check_interval", 60),
+            "check_interval": options.get("check_interval", 10),
         }
 
     def _handle_task_management_command(self, options: dict[str, Any]) -> None:

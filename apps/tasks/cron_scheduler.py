@@ -65,7 +65,7 @@ class UnifiedTaskScheduler:
     without database polling, providing optimal performance for all task types.
     """
 
-    def __init__(self, check_interval: int = 30):
+    def __init__(self, check_interval: int = 10):
         """Initialize the task scheduler."""
         self.scheduler = BackgroundScheduler()
         self.running = False

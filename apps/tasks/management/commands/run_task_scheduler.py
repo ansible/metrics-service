@@ -29,8 +29,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--check-interval",
             type=int,
-            default=60,
-            help="Check interval in seconds (default: 60)",
+            default=10,
+            help="Check interval in seconds (default: 10)",
         )
 
     def handle(self, *args, **options):
