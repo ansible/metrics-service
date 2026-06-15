@@ -9,6 +9,7 @@ from dynaconf import Dynaconf, post_hook
 
 # Extra applications added after PSF templating
 extra_applications = [
+    "django.contrib.humanize",
     "django_prometheus",
     "django_extensions",
 ]

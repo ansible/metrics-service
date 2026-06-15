@@ -550,7 +550,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Job Data.
         required: true
       tags:
       - dashboard_reports
@@ -682,9 +683,10 @@ paths:
   /api/v1/dashboard_reports/report/export/:
     get:
       operationId: dashboard_reports_report_export_retrieve
-      description: Exports report data as CSV based on the specific report type and
-        format query parameters.
-      summary: Exports report data as CSV
+      description: Exports report data as CSV or HTML based on the specified report
+        type and format query parameters. The HTML format returns a print-ready page
+        with a browser print button for saving as PDF.
+      summary: Exports report data as CSV or HTML
       parameters:
       - in: query
         name: export_format
@@ -692,8 +694,16 @@ paths:
           type: string
           enum:
           - csv
+          - html
           default: csv
-        description: 'Export file format. Options: ''csv''.'
+        description: 'Export file format. Options: ''csv'', ''html''.'
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - csv
+          - html
       - in: query
         name: label
         schema:
@@ -796,10 +806,16 @@ paths:
             text/csv; charset=UTF-8:
               schema:
                 type: string
+            text/html; charset=UTF-8:
+              schema:
+                type: string
           description: ''
         '400':
           content:
             text/csv:
+              schema:
+                $ref: '#/components/schemas/DashboardReportExportError'
+            text/html:
               schema:
                 $ref: '#/components/schemas/DashboardReportExportError'
           description: ''
@@ -863,7 +879,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Subscription Cost.
         required: true
       tags:
       - dashboard_reports
@@ -897,7 +914,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Subscription Cost.
         required: true
       tags:
       - dashboard_reports
@@ -1485,30 +1503,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FeatureFlagStates'
-          description: ''
-      x-ai-description: Retrieve single feature flags state
-  /api/v1/feature_flags_state/:
-    get:
-      operationId: feature_flags_state_retrieve
-      description: A view class for displaying feature flags
-      tags:
-      - feature_flags_state
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-              examples:
-                Featureflags:
-                  value:
-                    FLAG1: true
-                    FLAG2: false
-                  summary: featureflags
           description: ''
       x-ai-description: Retrieve single feature flags state
   /api/v1/organizations/:
@@ -6620,12 +6614,28 @@ paths:
         required: true
       tags:
       - teams
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+        required: true
       security:
       - cookieAuth: []
       - basicAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationDisassociate'
+          description: ''
       x-ai-description: Disassociate organization from a team
   /api/v1/users/:
     get:
@@ -7413,6 +7423,30 @@ components:
           description: The user who created this resource.
       required:
       - name
+    OrganizationDisassociate:
+      type: object
+      description: Serializer used for removing objects that are currently associated
+        via a many-to-many relationship
+      properties:
+        instances:
+          type: array
+          items:
+            type: integer
+          description: A list of organizations to remove from this relationship.
+      required:
+      - instances
+    OrganizationDisassociateRequest:
+      type: object
+      description: Serializer used for removing objects that are currently associated
+        via a many-to-many relationship
+      properties:
+        instances:
+          type: array
+          items:
+            type: integer
+          description: A list of organizations to remove from this relationship.
+      required:
+      - instances
     OrganizationRequest:
       type: object
       description: Serializer for the Organization model with RBAC access mixin.
