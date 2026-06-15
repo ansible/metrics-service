@@ -52,9 +52,7 @@ class TestLoadSegmentWriteKeyPostHook:
         settings_mock = mock.MagicMock()
         settings_mock.get.return_value = None
 
-        with mock.patch.dict(
-            os.environ, {"METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE": str(key_file)}, clear=True
-        ):
+        with mock.patch.dict(os.environ, {"METRICS_SERVICE_SEGMENT_WRITE_KEY_FILE": str(key_file)}, clear=True):
             result = load_segment_write_key(settings_mock)
 
         assert result == {"SEGMENT_WRITE_KEY": "test-key-from-file"}
@@ -89,9 +87,7 @@ class TestParseAllowedHostsEnvPostHook:
         from apps.settings.defaults import parse_allowed_hosts_env
 
         settings_mock = mock.MagicMock()
-        with mock.patch.dict(
-            os.environ, {"METRICS_SERVICE_ALLOWED_HOSTS": '["example.com", "*.example.org"]'}
-        ):
+        with mock.patch.dict(os.environ, {"METRICS_SERVICE_ALLOWED_HOSTS": '["example.com", "*.example.org"]'}):
             result = parse_allowed_hosts_env(settings_mock)
 
         assert result == {"ALLOWED_HOSTS": ["example.com", "*.example.org"]}
@@ -171,9 +167,7 @@ class TestSetupJsonLoggingForProductionPostHook:
             "formatters": {},
             "handlers": {"console": {"class": "logging.StreamHandler"}},
         }
-        with mock.patch.dict(
-            os.environ, {"METRICS_SERVICE_MODE": "development", "METRICS_SERVICE_LOG_FORMAT": "json"}
-        ):
+        with mock.patch.dict(os.environ, {"METRICS_SERVICE_MODE": "development", "METRICS_SERVICE_LOG_FORMAT": "json"}):
             result = setup_json_logging_for_production(settings_mock)
 
         assert "LOGGING" in result
