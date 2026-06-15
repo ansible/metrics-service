@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
 # Extra grace period on top of the task timeout before the scheduler forcibly fails a stuck task.
 # This gives dispatcherd time to kill the worker process first via its own timeout mechanism.
-STUCK_TASK_TIMEOUT_PADDING_SECONDS: int = 30
+STUCK_TASK_TIMEOUT_PADDING_SECONDS: int = 120
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
