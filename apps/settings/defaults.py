@@ -110,7 +110,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "",  # require to be set at runtime
         "PORT": "5432",
-        "USER": "myuser",
+        "USER": "awx",
         "PASSWORD": "",  # require to be set at runtime
         "NAME": "awx",
         "OPTIONS": {
