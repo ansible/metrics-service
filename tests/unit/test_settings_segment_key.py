@@ -187,3 +187,39 @@ class TestLoadSegmentWriteKeyFromFile:
             load_segment_write_key_from_file(path=None, dynaconf_instance=dynaconf_mock)
 
             path_mock.assert_called_once_with("/custom/path")
+
+    def test_does_not_set_when_key_empty(self, tmp_path):
+        """Does not set SEGMENT_WRITE_KEY when file is empty."""
+        from apps.core.segment import load_segment_write_key_from_file
+
+        key_file = tmp_path / "segment-write-key"
+        key_file.write_text("   \n  ")  # Empty after strip
+        dynaconf_mock = mock.MagicMock()
+        dynaconf_mock.get.return_value = None
+
+        load_segment_write_key_from_file(path=key_file, dynaconf_instance=dynaconf_mock)
+
+        dynaconf_mock.set.assert_not_called()
+
+    def test_does_not_set_when_dynaconf_instance_none(self, tmp_path):
+        """Does not set SEGMENT_WRITE_KEY when dynaconf_instance is None."""
+        from apps.core.segment import load_segment_write_key_from_file
+
+        key_file = tmp_path / "segment-write-key"
+        key_file.write_text("test-key")
+
+        # Should not raise error, just log warning
+        load_segment_write_key_from_file(path=key_file, dynaconf_instance=None)
+
+    def test_returns_early_when_path_not_exists(self, tmp_path):
+        """Returns early when path does not exist (covers debug logging branch)."""
+        from apps.core.segment import load_segment_write_key_from_file
+
+        nonexistent = tmp_path / "nonexistent"
+        dynaconf_mock = mock.MagicMock()
+        dynaconf_mock.get.return_value = None
+
+        # Should return early without calling set
+        load_segment_write_key_from_file(path=nonexistent, dynaconf_instance=dynaconf_mock)
+
+        dynaconf_mock.set.assert_not_called()
