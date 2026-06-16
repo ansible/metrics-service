@@ -282,6 +282,99 @@ def test_submit_task_dispatcher_error_logs_error_when_exhausted(user, mock_dispa
 
 
 # ---------------------------------------------------------------------------
+# submit_task_to_dispatcher — timeout handling
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_passes_explicit_timeout(user, mock_dispatcherd, mock_dispatcherd_config):
+    """TASK_TIMEOUT_SECONDS in task_data is forwarded to dispatcherd as timeout."""
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="timeout_task",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": 300},
+        created_by=user,
+    )
+
+    submit_task_to_dispatcher(task)
+
+    _, kwargs = mock_dispatcherd.call_args
+    assert kwargs.get("timeout") == 300
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_no_timeout_when_not_set(user, mock_dispatcherd, mock_dispatcherd_config):
+    """task_data without TASK_TIMEOUT_SECONDS passes timeout=None to dispatcherd."""
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="no_timeout_task",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+    )
+
+    submit_task_to_dispatcher(task)
+
+    _, kwargs = mock_dispatcherd.call_args
+    assert kwargs.get("timeout") is None
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_shrinks_timeout_for_created_type(user, mock_dispatcherd, mock_dispatcherd_config):
+    """TASK_TIMEOUT_TYPE='created' shrinks the timeout by elapsed time since task creation."""
+    from unittest.mock import patch
+
+    from django.utils import timezone
+
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="created_type_task",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": 420, "TASK_TIMEOUT_TYPE": "created"},
+        created_by=user,
+    )
+    # Simulate 60 seconds elapsed since creation
+    fake_now = task.created + __import__("datetime").timedelta(seconds=60)
+    with patch("django.utils.timezone.now", return_value=fake_now):
+        submit_task_to_dispatcher(task)
+
+    _, kwargs = mock_dispatcherd.call_args
+    assert kwargs.get("timeout") == 360  # 420 - 60
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_timeout_floor_at_one_second(user, mock_dispatcherd, mock_dispatcherd_config):
+    """Timeout is floored at 1s when elapsed >= TASK_TIMEOUT_SECONDS for created type."""
+    from unittest.mock import patch
+
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="expired_task",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": 60, "TASK_TIMEOUT_TYPE": "created"},
+        created_by=user,
+    )
+    # Simulate 120 seconds elapsed — well past the timeout
+    fake_now = task.created + __import__("datetime").timedelta(seconds=120)
+    with patch("django.utils.timezone.now", return_value=fake_now):
+        submit_task_to_dispatcher(task)
+
+    _, kwargs = mock_dispatcherd.call_args
+    assert kwargs.get("timeout") == 1
+
+
+# ---------------------------------------------------------------------------
 # create_system_tasks
 # ---------------------------------------------------------------------------
 @pytest.mark.unit

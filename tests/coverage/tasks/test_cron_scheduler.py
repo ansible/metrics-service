@@ -381,6 +381,120 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
 
 
 # ---------------------------------------------------------------------------
+# _fail_stuck_tasks — TASK_TIMEOUT_TYPE="created" anchor
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_fail_stuck_tasks_created_type_overtime(user, mock_apscheduler):
+    """Task with TASK_TIMEOUT_TYPE='created' is failed when created timestamp is past deadline."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task, TaskExecution
+
+    task_timeout = 300
+    task = Task.objects.create(
+        name="created_stuck",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": task_timeout, "TASK_TIMEOUT_TYPE": "created"},
+        created_by=user,
+        status="running",
+    )
+    # Backdate created so it's past deadline (timeout + padding + 1s)
+    overtime = timezone.now() - timedelta(seconds=task_timeout + cs.STUCK_TASK_TIMEOUT_PADDING_SECONDS + 1)
+    Task.objects.filter(pk=task.pk).update(created=overtime)
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler._fail_stuck_tasks()
+
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == "failed"
+    assert execution.status == "failed"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_fail_stuck_tasks_created_type_within_deadline(user, mock_apscheduler):
+    """Task with TASK_TIMEOUT_TYPE='created' is NOT failed when still within its deadline."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task, TaskExecution
+
+    task = Task.objects.create(
+        name="created_ok",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": 420, "TASK_TIMEOUT_TYPE": "created"},
+        created_by=user,
+        status="running",
+    )
+    # created is very recent — well within deadline
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler._fail_stuck_tasks()
+
+    task.refresh_from_db()
+    assert task.status == "running"
+    execution.refresh_from_db()
+    assert execution.status == "running"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_fail_stuck_tasks_per_task_timeout_override(user, mock_apscheduler):
+    """Per-task TASK_TIMEOUT_SECONDS overrides the global timeout for stuck detection."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task, TaskExecution
+
+    short_timeout = 60
+    task = Task.objects.create(
+        name="short_timeout_stuck",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": short_timeout},
+        created_by=user,
+        status="running",
+    )
+    # Backdate started_at past the short timeout + padding
+    started = timezone.now() - timedelta(seconds=short_timeout + cs.STUCK_TASK_TIMEOUT_PADDING_SECONDS + 1)
+    Task.objects.filter(pk=task.pk).update(started_at=started)
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler._fail_stuck_tasks()
+
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == "failed"
+    assert execution.status == "failed"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_fail_stuck_tasks_skips_task_without_started_at(user, mock_apscheduler):
+    """Running task with no started_at and no TASK_TIMEOUT_TYPE='created' is not failed."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task, TaskExecution
+
+    task = Task.objects.create(
+        name="no_started_at",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="running",
+    )
+    # Ensure started_at is None
+    Task.objects.filter(pk=task.pk).update(started_at=None)
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler._fail_stuck_tasks()
+
+    task.refresh_from_db()
+    assert task.status == "running"
+    execution.refresh_from_db()
+    assert execution.status == "running"
+
+
+# ---------------------------------------------------------------------------
 # get_scheduler singleton
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
