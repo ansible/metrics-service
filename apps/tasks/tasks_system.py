@@ -23,12 +23,13 @@ logger = logging.getLogger(__name__)
 
 RETRY_BASE_DELAY_SECONDS = 600  # 10 minutes - delay used for the first retry
 RETRY_MAX_DELAY_SECONDS = 28800  # 8 hours - upper cap on any single retry delay
+RETRY_EXPONENT = 2  # default exponential base; tasks can override via retry_exponent in task_data
 
 
-def compute_retry_delay(base_delay: int, attempts: int) -> int:
-    """Seconds before next retry: min(base_delay * 2**max(0, attempts - 1), RETRY_MAX_DELAY_SECONDS)."""
-    exponent = max(0, attempts - 1)
-    return min(base_delay * (2**exponent), RETRY_MAX_DELAY_SECONDS)
+def compute_retry_delay(base_delay: int, attempts: int, exponent: float = RETRY_EXPONENT) -> int:
+    """Seconds before next retry: min(base_delay * exponent**max(0, attempts - 1), RETRY_MAX_DELAY_SECONDS)."""
+    power = max(0, attempts - 1)
+    return min(int(base_delay * (exponent**power)), RETRY_MAX_DELAY_SECONDS)
 
 
 try:
@@ -108,6 +109,19 @@ def _get_base_delay(task) -> int:
         return RETRY_BASE_DELAY_SECONDS
 
 
+def _get_exponent(task) -> float:
+    """Return a validated retry exponent for task, falling back to RETRY_EXPONENT."""
+    raw = task.task_data.get("retry_exponent", RETRY_EXPONENT)
+    try:
+        value = float(raw)
+        if value <= 1:
+            raise ValueError(f"retry_exponent must be > 1, got {value}")
+        return value
+    except (TypeError, ValueError):
+        logger.warning(f"Invalid retry_exponent {raw!r} for task {task.name}, using default {RETRY_EXPONENT}")
+        return RETRY_EXPONENT
+
+
 def _schedule_retry(task) -> None:
     """Schedule a retry for a failed task if attempts remain."""
     if not task.can_retry():
@@ -116,7 +130,8 @@ def _schedule_retry(task) -> None:
     if not task.can_retry():
         return
     base_delay = _get_base_delay(task)
-    retry_delay = compute_retry_delay(base_delay, task.attempts)
+    exponent = _get_exponent(task)
+    retry_delay = compute_retry_delay(base_delay, task.attempts, exponent)
     logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}) (delay {retry_delay}s)")
     task.retry(delay_seconds=retry_delay)
 

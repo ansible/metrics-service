@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 _TIMEOUT_SECONDS = 60 * 6  # TASK_TIMEOUT_SECONDS: max execution time from started_at
 _ABSOLUTE_TIMEOUT_SECONDS = 60 * 8  # TASK_ABSOLUTE_TIMEOUT_SECONDS: max total time from created
 _MAX_ATTEMPTS = 8
-_RETRY_DELAY_SECONDS = 2
+_RETRY_DELAY_SECONDS = 10
+_RETRY_EXPONENT = 1.5
 
 # Cron minutes: every 5 minutes across the full hour
 _SCHEDULE = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
@@ -82,6 +83,7 @@ FAKE_TASKS_GROUP = TaskGroup(
                 "TASK_TIMEOUT_SECONDS": _TIMEOUT_SECONDS,
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": _ABSOLUTE_TIMEOUT_SECONDS,
                 "retry_delay_seconds": _RETRY_DELAY_SECONDS,
+                "retry_exponent": _RETRY_EXPONENT,
             },
             "max_attempts": _MAX_ATTEMPTS,
             "enabled": True,
