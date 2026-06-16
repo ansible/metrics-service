@@ -67,7 +67,7 @@ if flag_state_path not in paths:
     new_paths = {}
     for k, v in paths.items():
         new_paths[k] = v
-        if k == "/api/v1/feature_flags/{id}/":
+        if k == "/api/v1/feature_flags/states/{id}/":
             new_paths[flag_state_path] = entry
     data["paths"] = paths = new_paths
     print("  [JSON] added feature_flags_state endpoint")
