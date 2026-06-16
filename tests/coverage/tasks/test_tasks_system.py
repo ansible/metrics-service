@@ -326,8 +326,8 @@ def test_submit_task_no_timeout_when_not_set(user, mock_dispatcherd, mock_dispat
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_submit_task_shrinks_timeout_for_created_type(user, mock_dispatcherd, mock_dispatcherd_config):
-    """TASK_TIMEOUT_TYPE='created' shrinks the timeout by elapsed time since task creation."""
+def test_submit_task_shrinks_timeout_for_absolute_deadline(user, mock_dispatcherd, mock_dispatcherd_config):
+    """TASK_ABSOLUTE_TIMEOUT_SECONDS shrinks the timeout by elapsed time since task creation."""
     from unittest.mock import patch
 
     from django.utils import timezone
@@ -336,9 +336,9 @@ def test_submit_task_shrinks_timeout_for_created_type(user, mock_dispatcherd, mo
     from apps.tasks.tasks_system import submit_task_to_dispatcher
 
     task = Task.objects.create(
-        name="created_type_task",
+        name="absolute_deadline_task",
         function_name="hello_world",
-        task_data={"TASK_TIMEOUT_SECONDS": 420, "TASK_TIMEOUT_TYPE": "created"},
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": 420},
         created_by=user,
     )
     # Simulate 60 seconds elapsed since creation
@@ -352,8 +352,8 @@ def test_submit_task_shrinks_timeout_for_created_type(user, mock_dispatcherd, mo
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_submit_task_timeout_floor_at_one_second(user, mock_dispatcherd, mock_dispatcherd_config):
-    """Timeout is floored at 1s when elapsed >= TASK_TIMEOUT_SECONDS for created type."""
+def test_submit_task_fails_immediately_when_absolute_deadline_elapsed(user, mock_dispatcherd, mock_dispatcherd_config):
+    """Task is immediately failed without dispatch when TASK_ABSOLUTE_TIMEOUT_SECONDS has elapsed."""
     from unittest.mock import patch
 
     from apps.tasks.models import Task
@@ -362,16 +362,19 @@ def test_submit_task_timeout_floor_at_one_second(user, mock_dispatcherd, mock_di
     task = Task.objects.create(
         name="expired_task",
         function_name="hello_world",
-        task_data={"TASK_TIMEOUT_SECONDS": 60, "TASK_TIMEOUT_TYPE": "created"},
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": 60},
         created_by=user,
     )
-    # Simulate 120 seconds elapsed — well past the timeout
+    # Simulate 120 seconds elapsed — well past the absolute deadline
     fake_now = task.created + __import__("datetime").timedelta(seconds=120)
     with patch("django.utils.timezone.now", return_value=fake_now):
         submit_task_to_dispatcher(task)
 
-    _, kwargs = mock_dispatcherd.call_args
-    assert kwargs.get("timeout") == 1
+    # Dispatcherd must NOT have been called — task was failed before submission
+    mock_dispatcherd.assert_not_called()
+    task.refresh_from_db()
+    assert task.status == "failed"
+    assert "absolute timeout" in task.error_message.lower()
 
 
 # ---------------------------------------------------------------------------

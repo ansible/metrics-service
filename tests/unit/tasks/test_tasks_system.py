@@ -170,7 +170,13 @@ class TestExecuteDbTask(TestCase):
         assert execution.status == "failed"
         assert "Boom" in execution.error_message
 
-        # The Task should be auto-retried (back to pending) since max_attempts=3
+        # Retry is deferred to the scheduler — task stays failed until _schedule_retry is called
+        self.task.refresh_from_db()
+        assert self.task.status == "failed"
+
+        from apps.tasks.tasks_system import _schedule_retry
+
+        _schedule_retry(self.task)
         self.task.refresh_from_db()
         assert self.task.status == "pending"
 
@@ -203,7 +209,13 @@ class TestExecuteDbTask(TestCase):
         assert "lock" in result["error"].lower()
 
         self.task.refresh_from_db()
-        # Task should have been auto-retried (back to pending)
+        # Task is failed — retry is deferred to the scheduler
+        assert self.task.status == "failed"
+
+        from apps.tasks.tasks_system import _schedule_retry
+
+        _schedule_retry(self.task)
+        self.task.refresh_from_db()
         assert self.task.status == "pending"
 
     @pytest.mark.django_db(transaction=True)
@@ -225,7 +237,13 @@ class TestExecuteDbTask(TestCase):
 
         assert result["status"] == "error"
         self.task.refresh_from_db()
-        # Task should have been retried with delay
+        # Task is failed — retry scheduling is deferred to the scheduler
+        assert self.task.status == "failed"
+
+        from apps.tasks.tasks_system import _schedule_retry
+
+        _schedule_retry(self.task)
+        self.task.refresh_from_db()
         assert self.task.status == "pending"
         assert self.task.scheduled_time is not None
         # scheduled_time should be ~120s after the retry call
@@ -257,6 +275,13 @@ class TestExecuteDbTask(TestCase):
                 mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
                 execute_db_task(task_id=task.id)
 
+            task.refresh_from_db()
+            # Task is failed — retry scheduling is deferred to the scheduler
+            assert task.status == "failed", f"Expected failed for bad_value={bad_value!r}"
+
+            from apps.tasks.tasks_system import _schedule_retry
+
+            _schedule_retry(task)
             task.refresh_from_db()
             assert task.status == "pending", f"Expected pending for bad_value={bad_value!r}"
             assert task.scheduled_time is not None
@@ -1073,13 +1098,15 @@ class TestRetryBackoffProgression(TestCase):
             execute_db_task(task_id=task.id)
 
         task.refresh_from_db()
+        assert task.status == "failed"
+
+        from apps.tasks.tasks_system import _schedule_retry
+
+        _schedule_retry(task)
+        task.refresh_from_db()
         assert task.status == "pending"
         assert task.scheduled_time is not None
         first_scheduled_time = task.scheduled_time
-
-        # Simulate the scheduler picking the task back up (reset to pending/running manually)
-        task.status = "failed"
-        task.save()
 
         # Manually bump attempts as _claim_task would on a second execution
         task.attempts = 2
@@ -1101,6 +1128,12 @@ class TestRetryBackoffProgression(TestCase):
             task.save()
             execute_claimed(task, execution)
 
+        task.refresh_from_db()
+        assert task.status == "failed"
+
+        from apps.tasks.tasks_system import _schedule_retry
+
+        _schedule_retry(task)
         task.refresh_from_db()
         assert task.status == "pending"
         assert task.scheduled_time is not None

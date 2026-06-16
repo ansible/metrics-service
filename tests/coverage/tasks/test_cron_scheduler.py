@@ -371,6 +371,7 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
         patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()),
         patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()),
         patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()),
+        patch.object(scheduler, "_retry_failed_tasks"),
     ):
         scheduler._periodic_database_sync()
 
@@ -386,7 +387,7 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_fail_stuck_tasks_created_type_overtime(user, mock_apscheduler):
-    """Task with TASK_TIMEOUT_TYPE='created' is failed when created timestamp is past deadline."""
+    """Task with TASK_ABSOLUTE_TIMEOUT_SECONDS is failed when created timestamp is past deadline."""
     import apps.tasks.cron_scheduler as cs
     from apps.tasks.models import Task, TaskExecution
 
@@ -394,7 +395,7 @@ def test_fail_stuck_tasks_created_type_overtime(user, mock_apscheduler):
     task = Task.objects.create(
         name="created_stuck",
         function_name="hello_world",
-        task_data={"TASK_TIMEOUT_SECONDS": task_timeout, "TASK_TIMEOUT_TYPE": "created"},
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": task_timeout},
         created_by=user,
         status="running",
     )
@@ -415,14 +416,14 @@ def test_fail_stuck_tasks_created_type_overtime(user, mock_apscheduler):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_fail_stuck_tasks_created_type_within_deadline(user, mock_apscheduler):
-    """Task with TASK_TIMEOUT_TYPE='created' is NOT failed when still within its deadline."""
+    """Task with TASK_ABSOLUTE_TIMEOUT_SECONDS is NOT failed when still within its deadline."""
     import apps.tasks.cron_scheduler as cs
     from apps.tasks.models import Task, TaskExecution
 
     task = Task.objects.create(
         name="created_ok",
         function_name="hello_world",
-        task_data={"TASK_TIMEOUT_SECONDS": 420, "TASK_TIMEOUT_TYPE": "created"},
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": 420},
         created_by=user,
         status="running",
     )
@@ -470,7 +471,7 @@ def test_fail_stuck_tasks_per_task_timeout_override(user, mock_apscheduler):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_fail_stuck_tasks_skips_task_without_started_at(user, mock_apscheduler):
-    """Running task with no started_at and no TASK_TIMEOUT_TYPE='created' is not failed."""
+    """Running task with no started_at and no TASK_ABSOLUTE_TIMEOUT_SECONDS is not failed."""
     import apps.tasks.cron_scheduler as cs
     from apps.tasks.models import Task, TaskExecution
 

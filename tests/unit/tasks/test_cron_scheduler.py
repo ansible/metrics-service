@@ -548,7 +548,8 @@ class TestStuckTaskDetection:
         )
         Task.objects.filter(id=task.id).update(started_at=timezone.now() - timedelta(hours=2))
 
-        self._run_sync(UnifiedTaskScheduler())
+        with patch.object(UnifiedTaskScheduler, "_retry_failed_tasks"):
+            self._run_sync(UnifiedTaskScheduler())
 
         task.refresh_from_db()
         assert task.status == "failed"
