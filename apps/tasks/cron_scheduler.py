@@ -227,7 +227,7 @@ class UnifiedTaskScheduler:
         from .tasks_system import _schedule_retry
 
         now = timezone.now()
-        for task in Task.objects.filter(status="failed"):
+        for task in Task.objects.filter(status="failed").order_by("created"):
             absolute_timeout = (task.task_data or {}).get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
             if absolute_timeout is not None:
                 elapsed = (now - task.created).total_seconds()
