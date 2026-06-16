@@ -154,9 +154,6 @@ def execute_claimed(task, execution):
         log_task_execution(task.function_name, "error", error_msg, level="error")
     log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
-    if status == "failed":
-        _schedule_retry(task)
-
     return result
 
 

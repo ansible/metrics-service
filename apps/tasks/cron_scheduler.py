@@ -201,6 +201,19 @@ class UnifiedTaskScheduler:
                 )
             logger.warning(f"Failed {len(ids_to_fail)} stuck task(s): {ids_to_fail}")
 
+    def _retry_failed_tasks(self) -> None:
+        """Retry failed tasks that still have attempts remaining.
+
+        Called in the scheduler loop so retries are durable — if the process dies
+        between task failure and retry scheduling, the next scheduler tick picks it up.
+        Also handles tasks failed by _fail_stuck_tasks() in the same tick.
+        """
+        from .models import Task
+        from .tasks_system import _schedule_retry
+
+        for task in Task.objects.filter(status="failed"):
+            _schedule_retry(task)
+
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
         close_old_connections()
@@ -251,6 +264,7 @@ class UnifiedTaskScheduler:
                 )
 
             self._fail_stuck_tasks()
+            self._retry_failed_tasks()
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
