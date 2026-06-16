@@ -296,7 +296,6 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     # Maximum number of top users/projects to return in details endpoint
     # TODO: Consider moving to a Django setting if UIs need to configure this value.
     TOP_RESULTS_LIMIT = 5
-    MAX_HTML_JOB_TEMPLATES = 50
 
     ordering_fields: list[str] = [
         "template_metadata__template_name",
@@ -718,8 +717,6 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         base_qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
         agg_qs = self._build_aggregated_queryset(base_qs)
         full_agg_qs = self.filter_queryset(agg_qs)
-        total_count = full_agg_qs.count()
-        table_qs = full_agg_qs[: self.MAX_HTML_JOB_TEMPLATES]
 
         report_data_qs = full_agg_qs.aggregate(
             total_runs=Coalesce(Sum("runs"), Value(0)),
@@ -735,7 +732,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
         context = {
             "report_type": "summary",
-            "table_data": ReportSerializer(table_qs, many=True).data,
+            "table_data": ReportSerializer(full_agg_qs, many=True).data,
             "details": ReportDetailSerializer(
                 {
                     **report_data_qs,
@@ -751,9 +748,6 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date.strftime("%Y-%m-%d"),
             "filters": self._build_filter_labels(request),
-            "total_templates": total_count,
-            "max_templates": self.MAX_HTML_JOB_TEMPLATES,
-            "is_truncated": total_count > self.MAX_HTML_JOB_TEMPLATES,
         }
 
         html = render_to_string("dashboard_reports/report_summary.html", context, request=request)

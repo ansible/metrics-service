@@ -246,55 +246,6 @@ class TestExportHTMLSummary:
         assert b"Template A" in response.content
         assert b"Template B" not in response.content
 
-    def test_summary_truncation_notice_when_over_limit(self, admin_client):
-        """Truncation notice appears when template count exceeds MAX_HTML_JOB_TEMPLATES."""
-        from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
-
-        limit = DashboardReportViewSet.MAX_HTML_JOB_TEMPLATES
-        bulk = []
-        for i in range(limit + 1):
-            tm = TemplateMetadata(
-                template_id=1000 + i,
-                template_name=f"Bulk Template {i:03d}",
-                time_taken_manually_execute_minutes=10,
-            )
-            bulk.append(tm)
-        TemplateMetadata.objects.bulk_create(bulk)
-
-        now = get_now() - datetime.timedelta(days=1)
-        jobs = []
-        for i, tm in enumerate(TemplateMetadata.objects.filter(template_id__gte=1000)):
-            jobs.append(
-                JobData(
-                    job_id=2000 + i,
-                    template_name=tm.template_name,
-                    template_id=tm.template_id,
-                    organization_id=99,
-                    project_id=99,
-                    project_name="Bulk Project",
-                    status=JobStatusChoices.SUCCESSFUL,
-                    started=now - datetime.timedelta(hours=2),
-                    finished=now - datetime.timedelta(hours=1),
-                    elapsed=60,
-                    num_hosts=1,
-                    template_metadata=tm,
-                )
-            )
-        JobData.objects.bulk_create(jobs)
-
-        with patch(
-            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
-            return_value=FIXED_PER_SECOND_COST,
-        ):
-            response = get_html(admin_client, build_html_query("summary", organization=[99]))
-        assert response.status_code == 200
-        assert b"Showing top" in response.content
-
-    def test_summary_no_truncation_notice_when_under_limit(self, job_data, admin_client):
-        response = get_html(admin_client, build_html_query("summary"))
-        assert response.status_code == 200
-        assert b"Showing top" not in response.content
-
     def test_summary_label_filter_shows_badge(self, job_data, admin_client):
         """label has no name lookup — exercises the else branch in _build_filter_labels."""
         response = get_html(admin_client, build_html_query("summary", label=[42]))
