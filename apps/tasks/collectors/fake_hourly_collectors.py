@@ -4,11 +4,12 @@ Fake hourly collector tasks for testing retries, timeouts, and failures.
 Enabled when the TEST_FAKE_TASKS environment variable is set to "true".
 
 Each fake task:
-- Sleeps a random duration between 1 and 8 minutes
+- Sleeps randomly: 50% chance of 10–100s (short), 50% chance of 1–8 min (long)
 - Then randomly succeeds or fails
 
-The timeout (7 min) is intentionally shorter than the max sleep (8 min) so that
-tasks sleeping beyond 7 minutes are killed by dispatcherd, exercising the timeout path.
+Timeout behaviour:
+- TASK_TIMEOUT_SECONDS (6 min): dispatcherd kills the worker if execution exceeds 6 min from start
+- TASK_ABSOLUTE_TIMEOUT_SECONDS (8 min): task is not submitted / not retried if 8 min elapsed since creation
 
 Run `manage.py metrics_service init-system-tasks` after setting TEST_FAKE_TASKS=true
 to create the tasks in the database.
@@ -24,8 +25,8 @@ from apps.tasks.utils import create_task_result
 
 logger = logging.getLogger(__name__)
 
-# Same settings as real hourly collectors (7 min timeout < 8 min max sleep → tests timeouts)
-_TIMEOUT_SECONDS = 60 * 7
+_TIMEOUT_SECONDS = 60 * 6  # TASK_TIMEOUT_SECONDS: max execution time from started_at
+_ABSOLUTE_TIMEOUT_SECONDS = 60 * 8  # TASK_ABSOLUTE_TIMEOUT_SECONDS: max total time from created
 _MAX_ATTEMPTS = 5
 _RETRY_DELAY_SECONDS = 10
 
@@ -45,10 +46,11 @@ def fake_hourly_collector(**kwargs) -> dict[str, Any]:
     will_fail = random.choice([True, False])
 
     logger.info(
-        "Fake_Task_%s: sleeping %ds (timeout=%ds), will_fail=%s",
+        "Fake_Task_%s: sleeping %ds (timeout=%ds, absolute=%ds), will_fail=%s",
         task_number,
         sleep_seconds,
         _TIMEOUT_SECONDS,
+        _ABSOLUTE_TIMEOUT_SECONDS,
         will_fail,
     )
 
@@ -78,7 +80,7 @@ FAKE_TASKS_GROUP = TaskGroup(
             "args": {
                 "task_number": i + 1,
                 "TASK_TIMEOUT_SECONDS": _TIMEOUT_SECONDS,
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": _TIMEOUT_SECONDS,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": _ABSOLUTE_TIMEOUT_SECONDS,
                 "retry_delay_seconds": _RETRY_DELAY_SECONDS,
             },
             "max_attempts": _MAX_ATTEMPTS,
