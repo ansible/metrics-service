@@ -106,10 +106,6 @@ op_id_fixes = {
     "dashboard_reports_subscription_costs_partial_update": "A unique integer value identifying this Subscription Cost.",
 }
 for op_id, desc in op_id_fixes.items():
-    old = (
-        f"operationId: {op_id}\n"
-        + r".*\n" * 10  # not reliable — use string search instead
-    )
     # Find the operationId, then patch the type: integer block after it
     idx = content.find(f"operationId: {op_id}")
     if idx == -1:
@@ -125,9 +121,8 @@ for op_id, desc in op_id_fixes.items():
         content = content[:patch_idx] + new_block + content[patch_idx + len(old_block):]
         print(f"  [YAML] fixed path param type: {op_id}")
 
-# 2. Add feature_flags_state endpoint (before /api/v1/organizations/)
+# 2. Add feature_flags_state endpoint — insert immediately before /api/v1/organizations/
 if "/api/v1/feature_flags_state/" not in content:
-    marker = "      x-ai-description: Retrieve single feature flags state\n"
     new_block = (
         "  /api/v1/feature_flags_state/:\n"
         "    get:\n"
@@ -154,12 +149,13 @@ if "/api/v1/feature_flags_state/" not in content:
         "          description: ''\n"
         "      x-ai-description: Retrieve single feature flags state\n"
     )
-    # Insert after the last feature_flags/{id}/ x-ai-description line
-    idx = content.rfind(marker, 0, content.find("/api/v1/organizations/"))
+    trigger = "  /api/v1/organizations/:\n"
+    idx = content.find(trigger)
     if idx != -1:
-        pos = idx + len(marker)
-        content = content[:pos] + new_block + content[pos:]
+        content = content[:idx] + new_block + content[idx:]
         print("  [YAML] added feature_flags_state endpoint")
+    else:
+        print("  [YAML] WARNING: could not find /api/v1/organizations/ anchor")
 
 # 3. Remove requestBody from teams org disassociation
 rb_pattern = (
