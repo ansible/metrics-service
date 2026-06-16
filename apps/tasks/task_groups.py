@@ -183,7 +183,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "job_host_summary_service",
                 "TASK_TIMEOUT_SECONDS": 60 * 7,
-                "TASK_TIMEOUT_TYPE": "created",
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 7,
                 "retry_delay_seconds": 10,
             },
             "max_attempts": 5,
@@ -197,7 +197,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "unified_jobs",
                 "TASK_TIMEOUT_SECONDS": 60 * 7,
-                "TASK_TIMEOUT_TYPE": "created",
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 7,
                 "retry_delay_seconds": 10,
             },
             "max_attempts": 5,
@@ -211,7 +211,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "credentials_service",
                 "TASK_TIMEOUT_SECONDS": 60 * 7,
-                "TASK_TIMEOUT_TYPE": "created",
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 7,
                 "retry_delay_seconds": 10,
             },
             "max_attempts": 5,
@@ -225,7 +225,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "main_jobevent_service",
                 "TASK_TIMEOUT_SECONDS": 60 * 7,
-                "TASK_TIMEOUT_TYPE": "created",
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 7,
                 "retry_delay_seconds": 10,
             },
             "max_attempts": 5,

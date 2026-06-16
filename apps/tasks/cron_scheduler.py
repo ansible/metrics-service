@@ -19,9 +19,9 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
-# Extra grace period on top of the task timeout before the scheduler forcibly fails a stuck task.
-# This gives dispatcherd time to kill the worker process first via its own timeout mechanism.
-STUCK_TASK_TIMEOUT_PADDING_SECONDS: int = 120
+# Grace period added on top of task timeout before the scheduler forcibly fails a stuck task.
+# Gives dispatcherd time to kill the worker process first via its own timeout mechanism.
+STUCK_TASK_TIMEOUT_PADDING_SECONDS: int = 30
 
 
 def _inject_dispatch_timestamps(function_name: str, task_data: dict) -> dict:
@@ -164,16 +164,21 @@ class UnifiedTaskScheduler:
     def _fail_stuck_tasks(self) -> None:
         """Forcibly fail tasks that have been running beyond their timeout.
 
-        Two timeout modes, matching how the timeout was computed at dispatch time:
-          TASK_TIMEOUT_TYPE == "created": timeout counts from task.created (the moment the cron
-            fired and created the execution record). dispatcherd already received a
-            reduced timeout (original - elapsed_since_created), so the scheduler must
-            also anchor to created to stay consistent.
-          anything else ("started" / absent): timeout counts from started_at, the moment
-            the worker actually began executing. dispatcherd received the full timeout.
+        Two independent timeout checks (a task is failed if either triggers):
 
-        STUCK_TASK_TIMEOUT_PADDING_SECONDS is added on top of TASK_TIMEOUT_SECONDS so
-        dispatcherd has time to kill the worker process first via its own timeout mechanism.
+        TASK_TIMEOUT_SECONDS (relative, from started_at):
+            Max execution time once the worker starts. dispatcherd receives this value
+            as its kill timeout. The scheduler fails tasks still running after
+            TASK_TIMEOUT_SECONDS + STUCK_TASK_TIMEOUT_PADDING_SECONDS from started_at.
+
+        TASK_ABSOLUTE_TIMEOUT_SECONDS (absolute, from created, optional):
+            Max total wall-clock time from task creation. Ensures long-queued tasks
+            cannot run past their collection window. The scheduler fails tasks still
+            running after TASK_ABSOLUTE_TIMEOUT_SECONDS + STUCK_TASK_TIMEOUT_PADDING_SECONDS
+            from created.
+
+        STUCK_TASK_TIMEOUT_PADDING_SECONDS is added so dispatcherd has time to kill the
+        worker process first before the scheduler intervenes.
         """
         from .models import Task, TaskExecution
 
@@ -182,14 +187,21 @@ class UnifiedTaskScheduler:
         for t in Task.objects.filter(status="running"):
             task_data = t.task_data or {}
             per_task_timeout = task_data.get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
-            deadline = timedelta(seconds=per_task_timeout + STUCK_TASK_TIMEOUT_PADDING_SECONDS)
-            if task_data.get("TASK_TIMEOUT_TYPE") == "created":
-                # anchor to created: consistent with the shrunk timeout passed to dispatcherd
-                if t.created < now - deadline:
-                    ids_to_fail.append(t.id)
-            # anchor to started_at: dispatcherd received the full timeout from start
-            elif t.started_at is not None and t.started_at < now - deadline:
+            absolute_timeout = task_data.get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
+
+            # TASK_TIMEOUT_SECONDS: relative timeout anchored to started_at
+            if t.started_at is not None and t.started_at < now - timedelta(
+                seconds=int(per_task_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
+            ):
                 ids_to_fail.append(t.id)
+                continue
+
+            # TASK_ABSOLUTE_TIMEOUT_SECONDS: absolute deadline anchored to created
+            if absolute_timeout is not None and t.created < now - timedelta(
+                seconds=int(absolute_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
+            ):
+                ids_to_fail.append(t.id)
+
         if ids_to_fail:
             error_msg = "Task timed out — worker died before completion"
             with transaction.atomic():
@@ -207,11 +219,23 @@ class UnifiedTaskScheduler:
         Called in the scheduler loop so retries are durable — if the process dies
         between task failure and retry scheduling, the next scheduler tick picks it up.
         Also handles tasks failed by _fail_stuck_tasks() in the same tick.
+
+        Tasks with TASK_ABSOLUTE_TIMEOUT_SECONDS set are skipped if their absolute
+        deadline has already elapsed — retrying them would be pointless.
         """
         from .models import Task
         from .tasks_system import _schedule_retry
 
+        now = timezone.now()
         for task in Task.objects.filter(status="failed"):
+            absolute_timeout = (task.task_data or {}).get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
+            if absolute_timeout is not None:
+                elapsed = (now - task.created).total_seconds()
+                if elapsed >= int(absolute_timeout):
+                    logger.debug(
+                        f"Skipping retry for {task.name}: absolute timeout of {absolute_timeout}s elapsed ({int(elapsed)}s since creation)"
+                    )
+                    continue
             _schedule_retry(task)
 
     def _periodic_database_sync(self):

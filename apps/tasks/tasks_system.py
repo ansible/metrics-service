@@ -230,16 +230,36 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
         queue = get_queue_for_function(task.function_name)
 
-        # Per-task TASK_TIMEOUT_SECONDS overrides the global dispatcherd default timeout.
-        # Falls back to None (dispatcherd uses its configured default) when not set.
-        task_timeout = task.task_data.get("TASK_TIMEOUT_SECONDS") if task.task_data else None
+        # Compute the timeout to pass to dispatcherd.
+        #
+        # TASK_TIMEOUT_SECONDS  — max execution time from when the worker starts (relative).
+        # TASK_ABSOLUTE_TIMEOUT_SECONDS — max total wall-clock time from task.created (absolute).
+        #
+        # If TASK_ABSOLUTE_TIMEOUT_SECONDS is set, compute remaining time. If already elapsed,
+        # fail the task immediately without submitting. Otherwise pass min(relative, remaining)
+        # so whichever limit is tighter governs dispatcherd's kill timer.
+        task_data = task.task_data or {}
+        task_timeout = task_data.get("TASK_TIMEOUT_SECONDS")  # None → dispatcherd uses its default
+        absolute_timeout = task_data.get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
 
-        # if task type is created, recompute task timeout by doing diff now vs created
-        if task_timeout is not None and (task.task_data or {}).get("TASK_TIMEOUT_TYPE") == "created":
+        if absolute_timeout is not None:
             from django.utils import timezone
 
             elapsed = (timezone.now() - task.created).total_seconds()
-            task_timeout = max(1, int(task_timeout) - int(elapsed))
+            remaining = int(absolute_timeout) - int(elapsed)
+            if remaining <= 0:
+                error_msg = (
+                    f"Task absolute timeout of {absolute_timeout}s elapsed "
+                    f"({int(elapsed)}s since creation) — not submitted"
+                )
+                task.status = "failed"
+                task.error_message = error_msg
+                # Exhaust remaining attempts so _retry_failed_tasks won't loop forever.
+                task.attempts = task.max_attempts
+                task.save(update_fields=["status", "error_message", "attempts", "modified"])
+                logger.warning(f"Task {task.name} (ID: {task.id}): {error_msg}")
+                return
+            task_timeout = min(int(task_timeout), remaining) if task_timeout is not None else remaining
 
         # Submit to dispatcherd using execute_db_task as the entry point
         # TaskExecution is created inside _claim_task to avoid orphaned records

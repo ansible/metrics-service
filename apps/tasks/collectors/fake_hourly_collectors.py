@@ -78,7 +78,7 @@ FAKE_TASKS_GROUP = TaskGroup(
             "args": {
                 "task_number": i + 1,
                 "TASK_TIMEOUT_SECONDS": _TIMEOUT_SECONDS,
-                "TASK_TIMEOUT_TYPE": "created",
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": _TIMEOUT_SECONDS,
                 "retry_delay_seconds": _RETRY_DELAY_SECONDS,
             },
             "max_attempts": _MAX_ATTEMPTS,
