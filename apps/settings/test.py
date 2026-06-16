@@ -39,8 +39,6 @@ ANSIBLE_BASE_CREATOR_DEFAULTS = ["add", "change", "delete", "view"]
 # Service identification
 SERVICE_ID = "test-service-id"
 
-# URLs - simplified for testing to avoid oauth2 provider conflicts
-ROOT_URLCONF = "metrics_service.test_urls"
 
 # Disable caching during tests
 CACHES = {
@@ -81,22 +79,15 @@ FEATURE = {
     "ANONYMIZED_DATA_COLLECTION": False,
 }
 
-# REST Framework settings for tests
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
-    ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
-    ],
-    "DEFAULT_FILTER_BACKENDS": [
-        "rest_framework.filters.SearchFilter",
-        "rest_framework.filters.OrderingFilter",
-    ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 25,
-    "TEST_REQUEST_DEFAULT_FORMAT": "json",
-}
+# REST Framework overrides for tests - use __ syntax to avoid replacing the whole dict
+# (which would drop DEFAULT_RENDERER_CLASSES and other keys set by defaults.py / core/settings.py)
+REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = [
+    "rest_framework.authentication.SessionAuthentication",
+]
+REST_FRAMEWORK__DEFAULT_PERMISSION_CLASSES = [
+    "rest_framework.permissions.AllowAny",
+]
+REST_FRAMEWORK__TEST_REQUEST_DEFAULT_FORMAT = "json"
 
 # Test database settings
 TEST_DATABASE_PREFIX = "test_"

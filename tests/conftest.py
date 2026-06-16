@@ -4,9 +4,11 @@ Pytest configuration and fixtures for metrics_service tests.
 
 import os
 
-# Must be set before Django is configured (pytest-django reads DJANGO_SETTINGS_MODULE
-# from pyproject.toml and calls django.setup() before conftest fixtures run, so the
-# setdefault inside the 'if not settings.configured' block below is too late).
+# NOTE: This setdefault is too late — pytest-django imports metrics_service.settings
+# (triggering Dynaconf) before any conftest loads, and settings.py defaults the mode
+# to "development". Locally tests effectively run in dev mode; CI sets the env var
+# explicitly. The settings in apps/settings/test.py use Dynaconf __ syntax so mode
+# differences don't silently drop keys (see REST_FRAMEWORK).
 os.environ.setdefault("METRICS_SERVICE_MODE", "test")
 
 # Patch ansible_base feature flags loading before Django setup to prevent
