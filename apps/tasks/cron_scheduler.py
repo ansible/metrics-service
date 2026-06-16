@@ -239,10 +239,27 @@ class UnifiedTaskScheduler:
             _schedule_retry(task)
 
     def _periodic_database_sync(self):
-        """Periodically check for new database tasks and add them to the scheduler."""
+        """Periodically check for new database tasks and add them to the scheduler.
+
+        Order of operations within each tick is intentional:
+          1. Fail stuck tasks — must happen before retry so the retry sees the
+             freshly-failed status in the same tick.
+          2. Retry failed tasks — retries of existing work always take priority
+             over dispatching brand-new tasks.
+          3. Immediate tasks — new work with no scheduled time, run ASAP.
+          4. Scheduled tasks — new one-off tasks whose scheduled_time has arrived
+             (also picks up retry tasks whose delay has elapsed from a previous tick).
+          5. Recurring tasks — register new cron templates into APScheduler.
+        """
         close_old_connections()
         try:
             from .models import Task
+
+            # Step 1: fail stuck tasks first so step 2 can retry them in this tick
+            self._fail_stuck_tasks()
+
+            # Step 2: retry before any new work is dispatched
+            self._retry_failed_tasks()
 
             # Get all pending database tasks (immediate, scheduled, or recurring)
             immediate_tasks = Task.immediate_tasks()
@@ -253,7 +270,7 @@ class UnifiedTaskScheduler:
             new_scheduled = 0
             new_recurring = 0
 
-            # Handle immediate tasks - execute them right away
+            # Step 3: handle immediate tasks - execute them right away
             for task in immediate_tasks:
                 if task.id not in self._db_task_jobs and task.is_ready_to_run():
                     if not self._task_feature_flag_enabled(task):
@@ -264,7 +281,7 @@ class UnifiedTaskScheduler:
                     self._execute_database_task(task.id)
                     new_immediate += 1
 
-            # Check for new scheduled tasks
+            # Step 4: check for new scheduled tasks
             for task in scheduled_tasks:
                 if task.id not in self._db_task_jobs:
                     if not self._task_feature_flag_enabled(task):
@@ -273,7 +290,7 @@ class UnifiedTaskScheduler:
                     self._add_database_scheduled_task(task)
                     new_scheduled += 1
 
-            # Check for new recurring tasks
+            # Step 5: check for new recurring tasks
             for task in recurring_tasks:
                 if task.id not in self._db_task_jobs:
                     if not self._task_feature_flag_enabled(task):
@@ -286,9 +303,6 @@ class UnifiedTaskScheduler:
                 logger.info(
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
-
-            self._fail_stuck_tasks()
-            self._retry_failed_tasks()
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
