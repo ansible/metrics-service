@@ -362,6 +362,13 @@ TASK_GROUPS = [
     DASHBOARD_COLLECTION_GROUP,
 ]
 
+import os  # noqa: E402
+
+if os.environ.get("TEST_FAKE_TASKS", "").lower() in ("true", "1", "yes"):
+    from apps.tasks.collectors.fake_hourly_collectors import FAKE_TASKS_GROUP  # noqa: E402
+
+    TASK_GROUPS.append(FAKE_TASKS_GROUP)
+
 
 def get_all_enabled_tasks() -> dict[str, dict[str, Any]]:
     """

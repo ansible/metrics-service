@@ -12,6 +12,7 @@ Queue routing is defined per-function in TASK_METADATA ("queue" field).
 """
 
 import logging
+import os
 
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
@@ -41,6 +42,9 @@ from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
 
+if os.environ.get("TEST_FAKE_TASKS", "").lower() in ("true", "1", "yes"):
+    from .collectors.fake_hourly_collectors import fake_hourly_collector
+
 # Task configuration for dispatcherd
 TASK_FUNCTIONS = {
     # System tasks
@@ -61,6 +65,11 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
     "sync_dashboard_job_records": sync_dashboard_job_records,
+    **(
+        {"fake_hourly_collector": fake_hourly_collector}
+        if os.environ.get("TEST_FAKE_TASKS", "").lower() in ("true", "1", "yes")
+        else {}
+    ),
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -75,6 +84,7 @@ TASK_LOCKS = {
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
     "sync_dashboard_job_records",
+    *({"fake_hourly_collector"} if os.environ.get("TEST_FAKE_TASKS", "").lower() in ("true", "1", "yes") else set()),
 }
 
 
