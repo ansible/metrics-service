@@ -232,9 +232,11 @@ class UnifiedTaskScheduler:
             if absolute_timeout is not None:
                 elapsed = (now - task.created).total_seconds()
                 if elapsed >= int(absolute_timeout):
-                    logger.debug(
-                        f"Skipping retry for {task.name}: absolute timeout of {absolute_timeout}s elapsed ({int(elapsed)}s since creation)"
-                    )
+                    msg = f"Absolute timeout of {absolute_timeout}s elapsed ({int(elapsed)}s since creation) — no further retries"
+                    logger.debug(f"Skipping retry for {task.name}: {msg}")
+                    if task.error_message != msg:
+                        task.error_message = msg
+                        task.save(update_fields=["error_message", "modified"])
                     continue
             _schedule_retry(task)
 
