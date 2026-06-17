@@ -444,3 +444,187 @@ def test_create_task_from_group_without_feature_flag():
 
     task = Task.objects.get(name="test_no_flag_task")
     assert "_feature_flag" not in task.task_data
+
+
+# ---------------------------------------------------------------------------
+# _get_exponent — invalid values fall back to default
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+def test_get_exponent_value_le_one_falls_back():
+    """retry_exponent <= 1 raises ValueError internally and falls back to RETRY_EXPONENT."""
+    from unittest.mock import MagicMock
+
+    from apps.tasks.tasks_system import RETRY_EXPONENT, _get_exponent
+
+    task = MagicMock()
+    task.task_data = {"retry_exponent": 0.5}
+    task.name = "test_task"
+
+    result = _get_exponent(task)
+    assert result == RETRY_EXPONENT
+
+
+@pytest.mark.unit
+def test_get_exponent_non_numeric_falls_back():
+    """Non-numeric retry_exponent falls back to RETRY_EXPONENT."""
+    from unittest.mock import MagicMock
+
+    from apps.tasks.tasks_system import RETRY_EXPONENT, _get_exponent
+
+    task = MagicMock()
+    task.task_data = {"retry_exponent": "not_a_number"}
+    task.name = "test_task"
+
+    result = _get_exponent(task)
+    assert result == RETRY_EXPONENT
+
+
+# ---------------------------------------------------------------------------
+# _schedule_retry — early returns
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+def test_schedule_retry_skips_when_cannot_retry_before_refresh():
+    """_schedule_retry returns immediately if can_retry() is False on first check."""
+    from unittest.mock import MagicMock
+
+    from apps.tasks.tasks_system import _schedule_retry
+
+    task = MagicMock()
+    task.can_retry.return_value = False
+
+    _schedule_retry(task)
+
+    task.refresh_from_db.assert_not_called()
+    task.retry.assert_not_called()
+
+
+@pytest.mark.unit
+def test_schedule_retry_skips_when_cannot_retry_after_refresh():
+    """_schedule_retry returns after refresh if can_retry() becomes False."""
+    from unittest.mock import MagicMock
+
+    from apps.tasks.tasks_system import _schedule_retry
+
+    task = MagicMock()
+    task.can_retry.side_effect = [True, False]
+
+    _schedule_retry(task)
+
+    task.refresh_from_db.assert_called_once()
+    task.retry.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# execute_function — DispatcherCancel handling
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_execute_function_dispatcher_cancel_returns_error(user):
+    """execute_function returns a cancel error when DispatcherCancel is raised."""
+    from apps.tasks.models import Task, TaskExecution
+    from apps.tasks.tasks_system import execute_function
+
+    task = Task.objects.create(name="cancel_task", function_name="hello_world", task_data={}, created_by=user)
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    from dispatcherd.worker.exceptions import DispatcherCancel
+
+    mock_fn = MagicMock(side_effect=DispatcherCancel())
+
+    result = execute_function(task, execution, mock_fn, locked=False)
+
+    assert result["status"] == "error"
+    assert "cancelled by dispatcherd" in result["error"].lower()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_execute_function_dispatcher_cancel_import_error_falls_through(user):
+    """If DispatcherCancel cannot be imported, execute_function falls through to generic error."""
+    import sys
+    from unittest.mock import MagicMock
+
+    from apps.tasks.models import Task, TaskExecution
+    from apps.tasks.tasks_system import execute_function
+
+    task = Task.objects.create(name="cancel_task2", function_name="hello_world", task_data={}, created_by=user)
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    mock_fn = MagicMock(side_effect=RuntimeError("boom"))
+
+    with patch.dict(sys.modules, {"dispatcherd.worker.exceptions": None}):
+        result = execute_function(task, execution, mock_fn, locked=False)
+
+    assert result["status"] == "error"
+    assert "boom" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# execute_db_task — outer exception handling
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_execute_db_task_outer_exception_is_handled(user):
+    """Unexpected exception during _claim_task is caught and returns error."""
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import execute_db_task
+
+    task = Task.objects.create(name="outer_exc_task", function_name="hello_world", task_data={}, created_by=user)
+
+    with patch("apps.tasks.tasks_system._claim_task", side_effect=RuntimeError("unexpected DB error")):
+        result = execute_db_task(task_id=task.id)
+
+    assert result["status"] == "error"
+
+
+# ---------------------------------------------------------------------------
+# submit_task_to_dispatcher — both TASK_TIMEOUT_SECONDS and TASK_ABSOLUTE_TIMEOUT_SECONDS
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_takes_min_of_relative_and_remaining(user, mock_dispatcherd, mock_dispatcherd_config):
+    """When both timeouts are set, dispatcherd receives min(relative, remaining)."""
+    import datetime
+
+    from django.utils import timezone
+
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="both_timeout_task",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": 200, "TASK_ABSOLUTE_TIMEOUT_SECONDS": 420},
+        created_by=user,
+    )
+    # 60s elapsed → remaining = 360s; min(200, 360) = 200
+    fake_now = task.created + datetime.timedelta(seconds=60)
+    with patch("django.utils.timezone.now", return_value=fake_now):
+        submit_task_to_dispatcher(task)
+
+    _, kwargs = mock_dispatcherd.call_args
+    assert kwargs.get("timeout") == 200
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_remaining_wins_when_tighter(user, mock_dispatcherd, mock_dispatcherd_config):
+    """When remaining time < relative timeout, remaining governs."""
+    import datetime
+
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="remaining_wins_task",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": 400, "TASK_ABSOLUTE_TIMEOUT_SECONDS": 420},
+        created_by=user,
+    )
+    # 60s elapsed → remaining = 360s; min(400, 360) = 360
+    fake_now = task.created + datetime.timedelta(seconds=60)
+    with patch("django.utils.timezone.now", return_value=fake_now):
+        submit_task_to_dispatcher(task)
+
+    _, kwargs = mock_dispatcherd.call_args
+    assert kwargs.get("timeout") == 360

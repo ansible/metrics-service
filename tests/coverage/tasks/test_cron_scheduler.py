@@ -507,3 +507,150 @@ def test_get_scheduler_returns_same_instance():
     s2 = cs.get_scheduler()
     assert s1 is s2
     cs._scheduler_instance = None  # cleanup
+
+
+# ---------------------------------------------------------------------------
+# _fail_stuck_tasks — started_at ok but absolute timeout exceeded
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_fail_stuck_tasks_absolute_fires_when_started_at_within_relative(user, mock_apscheduler):
+    """Task whose started_at is within the relative timeout but created exceeds absolute is failed."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task, TaskExecution
+
+    abs_timeout = 300
+    task = Task.objects.create(
+        name="abs_only_stuck",
+        function_name="hello_world",
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": abs_timeout},
+        created_by=user,
+        status="running",
+    )
+    # created is well past the absolute deadline
+    overtime_created = timezone.now() - timedelta(seconds=abs_timeout + cs.STUCK_TASK_TIMEOUT_PADDING_SECONDS + 1)
+    # started_at is very recent — within the relative timeout
+    recent_started = timezone.now() - timedelta(seconds=10)
+    Task.objects.filter(pk=task.pk).update(created=overtime_created, started_at=recent_started)
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler._fail_stuck_tasks()
+
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == "failed"
+    assert execution.status == "failed"
+    assert "TASK_ABSOLUTE_TIMEOUT_SECONDS" in task.error_message
+
+
+# ---------------------------------------------------------------------------
+# _retry_failed_tasks
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_retry_failed_tasks_calls_schedule_retry(user, mock_apscheduler):
+    """Failed task without absolute timeout has _schedule_retry called."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    task = Task.objects.create(
+        name="retry_me",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="failed",
+        attempts=1,
+        max_attempts=3,
+    )
+
+    scheduler = cs.UnifiedTaskScheduler()
+    with patch("apps.tasks.tasks_system._schedule_retry") as mock_retry:
+        scheduler._retry_failed_tasks()
+
+    mock_retry.assert_called_once_with(task)
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_retry_failed_tasks_skips_when_absolute_timeout_elapsed(user, mock_apscheduler):
+    """Failed task with elapsed absolute timeout is not retried; error_message is updated."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    abs_timeout = 120
+    task = Task.objects.create(
+        name="abs_elapsed_retry",
+        function_name="hello_world",
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": abs_timeout},
+        created_by=user,
+        status="failed",
+        attempts=1,
+        max_attempts=5,
+    )
+    # created is past the absolute timeout
+    old_created = timezone.now() - timedelta(seconds=abs_timeout + 1)
+    Task.objects.filter(pk=task.pk).update(created=old_created)
+
+    scheduler = cs.UnifiedTaskScheduler()
+    with patch("apps.tasks.tasks_system._schedule_retry") as mock_retry:
+        scheduler._retry_failed_tasks()
+
+    mock_retry.assert_not_called()
+    task.refresh_from_db()
+    assert "no further retries" in task.error_message
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_retry_failed_tasks_no_save_when_error_message_unchanged(user, mock_apscheduler):
+    """If the task already has the correct timeout error_message, save is not called again."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    abs_timeout = 120
+    elapsed = abs_timeout + 1
+    expected_msg = f"Absolute timeout of {abs_timeout}s elapsed ({elapsed}s since creation) — no further retries"
+    task = Task.objects.create(
+        name="already_msg_task",
+        function_name="hello_world",
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": abs_timeout},
+        created_by=user,
+        status="failed",
+        attempts=1,
+        max_attempts=5,
+        error_message=expected_msg,
+    )
+    old_created = timezone.now() - timedelta(seconds=elapsed)
+    Task.objects.filter(pk=task.pk).update(created=old_created)
+
+    scheduler = cs.UnifiedTaskScheduler()
+    with patch.object(task.__class__, "save") as mock_save:
+        scheduler._retry_failed_tasks()
+
+    # save should NOT be called because the message is already set
+    mock_save.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_retry_failed_tasks_retries_within_absolute_deadline(user, mock_apscheduler):
+    """Failed task whose absolute timeout has NOT elapsed is retried normally."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    task = Task.objects.create(
+        name="within_deadline_retry",
+        function_name="hello_world",
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": 600},
+        created_by=user,
+        status="failed",
+        attempts=1,
+        max_attempts=5,
+    )
+
+    scheduler = cs.UnifiedTaskScheduler()
+    with patch("apps.tasks.tasks_system._schedule_retry") as mock_retry:
+        scheduler._retry_failed_tasks()
+
+    mock_retry.assert_called_once_with(task)
