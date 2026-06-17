@@ -215,7 +215,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
                 "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 7,  # 2 min window: absolute timeout is the real hard stop
+            "max_attempts": 5,  # 2 min window: absolute timeout is the real hard stop
             "enabled": True,
             "description": "Collect credentials metrics every hour",
         },

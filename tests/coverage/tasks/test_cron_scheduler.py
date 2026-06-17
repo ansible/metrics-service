@@ -603,17 +603,13 @@ def test_retry_failed_tasks_skips_when_absolute_timeout_elapsed(user, mock_apsch
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_retry_failed_tasks_no_save_when_error_message_unchanged(user, mock_apscheduler):
-    """If the task already has the correct timeout error_message, save is not called again."""
+def test_retry_failed_tasks_exhausts_attempts_on_absolute_timeout(user, mock_apscheduler):
+    """When absolute timeout elapses, attempts is set to max_attempts so the task
+    drops out of the retryable queryset (attempts__lt=max_attempts) on the next tick."""
     import apps.tasks.cron_scheduler as cs
     from apps.tasks.models import Task
 
     abs_timeout = 120
-    elapsed = abs_timeout + 1
-    # Pin now so the elapsed recomputed inside _retry_failed_tasks is exactly `elapsed`,
-    # making the message deterministic and preventing a timing-dependent mismatch.
-    fixed_now = timezone.now()
-    expected_msg = f"Absolute timeout of {abs_timeout}s elapsed ({elapsed}s since creation) — no further retries"
     task = Task.objects.create(
         name="already_msg_task",
         function_name="hello_world",
@@ -622,21 +618,20 @@ def test_retry_failed_tasks_no_save_when_error_message_unchanged(user, mock_apsc
         status="failed",
         attempts=1,
         max_attempts=5,
-        error_message=expected_msg,
     )
-    old_created = fixed_now - timedelta(seconds=elapsed)
+    old_created = timezone.now() - timedelta(seconds=abs_timeout + 1)
     Task.objects.filter(pk=task.pk).update(created=old_created)
 
     scheduler = cs.UnifiedTaskScheduler()
-    with (
-        patch("apps.tasks.cron_scheduler.timezone") as mock_tz,
-        patch.object(Task, "save") as mock_save,
-    ):
-        mock_tz.now.return_value = fixed_now
-        scheduler._retry_failed_tasks()
+    scheduler._retry_failed_tasks()
 
-    # save should NOT be called because the message is already set
-    mock_save.assert_not_called()
+    task.refresh_from_db()
+    assert task.attempts == task.max_attempts
+    assert "no further retries" in task.error_message
+    # Confirm the task no longer appears in the retryable queryset
+    from django.db.models import F
+
+    assert not Task.objects.filter(pk=task.pk, attempts__lt=F("max_attempts")).exists()
 
 
 @pytest.mark.unit
