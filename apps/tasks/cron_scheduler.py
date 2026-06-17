@@ -183,7 +183,11 @@ class UnifiedTaskScheduler:
         from .models import Task, TaskExecution
 
         now = timezone.now()
-        ids_to_fail = []
+        # Separate buckets so each gets a distinct error message.
+        # relative_ids: exceeded TASK_TIMEOUT_SECONDS + grace (dispatcherd failed to kill in time)
+        # absolute_ids: exceeded TASK_ABSOLUTE_TIMEOUT_SECONDS + grace (hard wall-clock deadline)
+        relative_ids: list[int] = []
+        absolute_ids: list[int] = []
         for t in Task.objects.filter(status="running"):
             task_data = t.task_data or {}
             per_task_timeout = task_data.get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
@@ -193,17 +197,27 @@ class UnifiedTaskScheduler:
             if t.started_at is not None and t.started_at < now - timedelta(
                 seconds=int(per_task_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
             ):
-                ids_to_fail.append(t.id)
+                relative_ids.append(t.id)
                 continue
 
             # TASK_ABSOLUTE_TIMEOUT_SECONDS: absolute deadline anchored to created
             if absolute_timeout is not None and t.created < now - timedelta(
                 seconds=int(absolute_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
             ):
-                ids_to_fail.append(t.id)
+                absolute_ids.append(t.id)
 
-        if ids_to_fail:
-            error_msg = "Task timed out — worker died before completion"
+        for ids_to_fail, error_msg in (
+            (
+                relative_ids,
+                f"Task forcibly failed by scheduler watchdog — still running past TASK_TIMEOUT_SECONDS + {STUCK_TASK_TIMEOUT_PADDING_SECONDS}s grace period (dispatcherd did not kill worker in time)",
+            ),
+            (
+                absolute_ids,
+                f"Task forcibly failed by scheduler watchdog — still running past TASK_ABSOLUTE_TIMEOUT_SECONDS + {STUCK_TASK_TIMEOUT_PADDING_SECONDS}s grace period (hard wall-clock deadline exceeded)",
+            ),
+        ):
+            if not ids_to_fail:
+                continue
             with transaction.atomic():
                 TaskExecution.objects.filter(task__id__in=ids_to_fail, status="running").update(
                     status="failed", error_message=error_msg, completed_at=now
@@ -211,7 +225,7 @@ class UnifiedTaskScheduler:
                 Task.objects.filter(id__in=ids_to_fail, status="running").update(
                     status="failed", error_message=error_msg, completed_at=now
                 )
-            logger.warning(f"Failed {len(ids_to_fail)} stuck task(s): {ids_to_fail}")
+            logger.warning(f"Scheduler watchdog failed {len(ids_to_fail)} stuck task(s) {ids_to_fail}: {error_msg}")
 
     def _retry_failed_tasks(self) -> None:
         """Retry failed tasks that still have attempts remaining.

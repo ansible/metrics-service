@@ -90,6 +90,14 @@ def execute_function(task, execution, task_function, locked):
             return task_function(execution_id=execution.id, **task.task_data)
 
     except Exception as e:
+        try:
+            from dispatcherd.worker.exceptions import DispatcherCancel
+
+            if isinstance(e, DispatcherCancel):
+                logger.warning(f"Task {task.function_name} was cancelled by dispatcherd (timeout or cancel signal)")
+                return create_task_result("error", error="Task cancelled by dispatcherd — timeout reached")
+        except ImportError:
+            pass
         logger.exception(f"Task {task.function_name} raised: {e}")
         return create_task_result("error", error=f"Task execution failed: {e}")
 
