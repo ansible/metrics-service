@@ -268,7 +268,8 @@ def submit_task_to_dispatcher(task: Any) -> None:
         if absolute_timeout is not None:
             from django.utils import timezone
 
-            elapsed = (timezone.now() - task.created).total_seconds()
+            now = timezone.now()
+            elapsed = (now - task.created).total_seconds()
             remaining = int(absolute_timeout) - int(elapsed)
             if remaining <= 0:
                 error_msg = (
@@ -277,7 +278,8 @@ def submit_task_to_dispatcher(task: Any) -> None:
                 )
                 task.status = "failed"
                 task.error_message = error_msg
-                task.save(update_fields=["status", "error_message", "modified"])
+                task.completed_at = now
+                task.save(update_fields=["status", "error_message", "completed_at", "modified"])
                 logger.warning(f"Task {task.name} (ID: {task.id}): {error_msg}")
                 return
             task_timeout = min(int(task_timeout), remaining) if task_timeout is not None else remaining

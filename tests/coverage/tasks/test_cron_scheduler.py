@@ -610,6 +610,9 @@ def test_retry_failed_tasks_no_save_when_error_message_unchanged(user, mock_apsc
 
     abs_timeout = 120
     elapsed = abs_timeout + 1
+    # Pin now so the elapsed recomputed inside _retry_failed_tasks is exactly `elapsed`,
+    # making the message deterministic and preventing a timing-dependent mismatch.
+    fixed_now = timezone.now()
     expected_msg = f"Absolute timeout of {abs_timeout}s elapsed ({elapsed}s since creation) — no further retries"
     task = Task.objects.create(
         name="already_msg_task",
@@ -621,11 +624,15 @@ def test_retry_failed_tasks_no_save_when_error_message_unchanged(user, mock_apsc
         max_attempts=5,
         error_message=expected_msg,
     )
-    old_created = timezone.now() - timedelta(seconds=elapsed)
+    old_created = fixed_now - timedelta(seconds=elapsed)
     Task.objects.filter(pk=task.pk).update(created=old_created)
 
     scheduler = cs.UnifiedTaskScheduler()
-    with patch.object(task.__class__, "save") as mock_save:
+    with (
+        patch("apps.tasks.cron_scheduler.timezone") as mock_tz,
+        patch.object(Task, "save") as mock_save,
+    ):
+        mock_tz.now.return_value = fixed_now
         scheduler._retry_failed_tasks()
 
     # save should NOT be called because the message is already set
