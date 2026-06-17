@@ -8,7 +8,6 @@ Each fake task:
 - Then randomly succeeds or fails
 
 Timeout behaviour:
-- TASK_TIMEOUT_SECONDS (4 min): dispatcherd kills the worker if execution exceeds 4 min from start
 - TASK_ABSOLUTE_TIMEOUT_SECONDS (5 min): task is not submitted / not retried if 5 min elapsed since creation
 
 Run `manage.py metrics_service init-system-tasks` after setting TEST_FAKE_TASKS=true
@@ -25,10 +24,9 @@ from apps.tasks.utils import create_task_result
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT_SECONDS = 60 * 4  # TASK_TIMEOUT_SECONDS: max execution time from started_at
 _ABSOLUTE_TIMEOUT_SECONDS = 60 * 5  # TASK_ABSOLUTE_TIMEOUT_SECONDS: max total time from created
-_MAX_ATTEMPTS = 8
-_RETRY_DELAY_SECONDS = 10
+_MAX_ATTEMPTS = 10
+_RETRY_DELAY_SECONDS = 2
 _RETRY_EXPONENT = 1.5
 
 # Cron minutes: every 5 minutes across the full hour
@@ -47,10 +45,9 @@ def fake_hourly_collector(**kwargs) -> dict[str, Any]:
     will_fail = random.choice([True, False])
 
     logger.info(
-        "Fake_Task_%s: sleeping %ds (timeout=%ds, absolute=%ds), will_fail=%s",
+        "Fake_Task_%s: sleeping %ds (absolute=%ds), will_fail=%s",
         task_number,
         sleep_seconds,
-        _TIMEOUT_SECONDS,
         _ABSOLUTE_TIMEOUT_SECONDS,
         will_fail,
     )
@@ -80,7 +77,6 @@ FAKE_TASKS_GROUP = TaskGroup(
             "cron": f"{minute} * * * *",
             "args": {
                 "task_number": i + 1,
-                "TASK_TIMEOUT_SECONDS": _TIMEOUT_SECONDS,
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": _ABSOLUTE_TIMEOUT_SECONDS,
                 "retry_delay_seconds": _RETRY_DELAY_SECONDS,
                 "retry_exponent": _RETRY_EXPONENT,
