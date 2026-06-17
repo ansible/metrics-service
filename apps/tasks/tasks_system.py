@@ -269,9 +269,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
                 )
                 task.status = "failed"
                 task.error_message = error_msg
-                # Exhaust remaining attempts so _retry_failed_tasks won't loop forever.
-                task.attempts = task.max_attempts
-                task.save(update_fields=["status", "error_message", "attempts", "modified"])
+                task.save(update_fields=["status", "error_message", "modified"])
                 logger.warning(f"Task {task.name} (ID: {task.id}): {error_msg}")
                 return
             task_timeout = min(int(task_timeout), remaining) if task_timeout is not None else remaining
