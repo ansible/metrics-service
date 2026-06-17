@@ -152,7 +152,7 @@ services:
       <<: *common-env
       # Scheduler configuration
       METRICS_SERVICE_TASK_TIMEOUT: ${DISPATCHERD_TIMEOUT:-1800}
-      SCHEDULER_CHECK_INTERVAL: ${SCHEDULER_CHECK_INTERVAL:-60}
+      SCHEDULER_CHECK_INTERVAL: ${SCHEDULER_CHECK_INTERVAL:-10}
       SCHEDULER_LOG_LEVEL: ${SCHEDULER_LOG_LEVEL:-INFO}
     healthcheck:
       test: ["CMD-SHELL", "grep -q scheduler /proc/1/cmdline"]

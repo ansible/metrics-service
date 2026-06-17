@@ -276,10 +276,17 @@ def submit_task_to_dispatcher(task: Any) -> None:
                     f"Task absolute timeout of {absolute_timeout}s elapsed "
                     f"({int(elapsed)}s since creation) — not submitted"
                 )
-                task.status = "failed"
-                task.error_message = error_msg
-                task.completed_at = now
-                task.save(update_fields=["status", "error_message", "completed_at", "modified"])
+                with transaction.atomic():
+                    TaskExecution.objects.create(
+                        task=task,
+                        status="failed",
+                        error_message=error_msg,
+                        completed_at=now,
+                    )
+                    task.status = "failed"
+                    task.error_message = error_msg
+                    task.completed_at = now
+                    task.save(update_fields=["status", "error_message", "completed_at", "modified"])
                 logger.warning(f"Task {task.name} (ID: {task.id}): {error_msg}")
                 return
             task_timeout = min(int(task_timeout), remaining) if task_timeout is not None else remaining

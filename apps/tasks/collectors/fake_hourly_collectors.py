@@ -4,11 +4,13 @@ Fake hourly collector tasks for testing retries, timeouts, and failures.
 Enabled when the TEST_FAKE_TASKS environment variable is set to "true".
 
 Each fake task:
-- Sleeps randomly: 50% chance of 10–100s (short), 50% chance of 1–8 min (long)
+- Sleeps randomly: 50% chance of 10–100s (short), 50% chance of 60s–8 min (long)
 - Then randomly succeeds or fails
 
 Timeout behaviour:
 - TASK_ABSOLUTE_TIMEOUT_SECONDS (5 min): task is not submitted / not retried if 5 min elapsed since creation
+- The long-sleep path (up to 8 min) intentionally exceeds the 5-min absolute timeout — those
+  executions will always be killed by dispatcherd and are designed to exercise the timeout/watchdog path.
 
 Run `manage.py metrics_service init-system-tasks` after setting TEST_FAKE_TASKS=true
 to create the tasks in the database.
@@ -37,7 +39,10 @@ def fake_hourly_collector(**kwargs) -> dict[str, Any]:
     """
     Fake hourly collector for testing.
 
-    Sleeps a random 1–8 minutes, then randomly succeeds or fails.
+    50% chance: sleeps 10–100s (short path, can succeed or fail naturally).
+    50% chance: sleeps 60s–8 min (long path, always exceeds the 5-min absolute timeout
+                and will be killed by dispatcherd — exercises the timeout/watchdog path).
+    After sleeping, randomly succeeds or fails with equal probability.
     Designed to exercise retry, failure, and timeout behaviour alongside real collectors.
     """
     task_number = kwargs.get("task_number", "?")
@@ -83,7 +88,7 @@ FAKE_TASKS_GROUP = TaskGroup(
             },
             "max_attempts": _MAX_ATTEMPTS,
             "enabled": True,
-            "description": f"Fake_Task_{i + 1}: sleeps 1–8 min then randomly succeeds or fails (tests retries/timeouts)",
+            "description": f"Fake_Task_{i + 1}: sleeps 10–100s or 1–8 min then randomly succeeds or fails (tests retries/timeouts)",
         }
         for i, minute in enumerate(_SCHEDULE)
     ],

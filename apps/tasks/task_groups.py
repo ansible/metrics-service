@@ -15,6 +15,7 @@ run `manage.py metrics_utility init-system-tasks` to update the DB from `TASK_GR
 
 import json
 import logging
+import os
 from typing import Any
 
 from django.conf import settings
@@ -362,10 +363,8 @@ TASK_GROUPS = [
     DASHBOARD_COLLECTION_GROUP,
 ]
 
-import os  # noqa: E402
-
 if os.environ.get("TEST_FAKE_TASKS", "").lower() in ("true", "1", "yes"):
-    from apps.tasks.collectors.fake_hourly_collectors import FAKE_TASKS_GROUP  # noqa: E402
+    from apps.tasks.collectors.fake_hourly_collectors import FAKE_TASKS_GROUP
 
     TASK_GROUPS.append(FAKE_TASKS_GROUP)
 

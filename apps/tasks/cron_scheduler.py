@@ -14,6 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.conf import settings as django_settings
 from django.db import close_old_connections, transaction
+from django.db.models import F
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -241,7 +242,7 @@ class UnifiedTaskScheduler:
         from .tasks_system import _schedule_retry
 
         now = timezone.now()
-        for task in Task.objects.filter(status="failed").order_by("created"):
+        for task in Task.objects.filter(status="failed", attempts__lt=F("max_attempts")).order_by("created"):
             absolute_timeout = (task.task_data or {}).get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
             if absolute_timeout is not None:
                 elapsed = (now - task.created).total_seconds()
