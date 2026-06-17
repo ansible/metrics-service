@@ -182,8 +182,8 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {
                 "collector_type": "job_host_summary_service",
-                "TASK_TIMEOUT_SECONDS": 60 * 6,
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 8,
+                "TASK_TIMEOUT_SECONDS": 60 * 4,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
                 "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
@@ -197,8 +197,8 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "cron": "10 * * * *",  # Every hour at XX:10
             "args": {
                 "collector_type": "unified_jobs",
-                "TASK_TIMEOUT_SECONDS": 60 * 6,
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 8,
+                "TASK_TIMEOUT_SECONDS": 60 * 4,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
                 "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
@@ -212,8 +212,8 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "cron": "15 * * * *",  # Every hour at XX:15
             "args": {
                 "collector_type": "credentials_service",
-                "TASK_TIMEOUT_SECONDS": 60 * 6,
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 8,
+                "TASK_TIMEOUT_SECONDS": 60 * 4,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
                 "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
@@ -227,8 +227,8 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {
                 "collector_type": "main_jobevent_service",
-                "TASK_TIMEOUT_SECONDS": 60 * 6,
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 8,
+                "TASK_TIMEOUT_SECONDS": 60 * 4,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
                 "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },

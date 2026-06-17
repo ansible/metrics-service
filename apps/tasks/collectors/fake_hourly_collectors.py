@@ -8,8 +8,8 @@ Each fake task:
 - Then randomly succeeds or fails
 
 Timeout behaviour:
-- TASK_TIMEOUT_SECONDS (6 min): dispatcherd kills the worker if execution exceeds 6 min from start
-- TASK_ABSOLUTE_TIMEOUT_SECONDS (8 min): task is not submitted / not retried if 8 min elapsed since creation
+- TASK_TIMEOUT_SECONDS (4 min): dispatcherd kills the worker if execution exceeds 4 min from start
+- TASK_ABSOLUTE_TIMEOUT_SECONDS (5 min): task is not submitted / not retried if 5 min elapsed since creation
 
 Run `manage.py metrics_service init-system-tasks` after setting TEST_FAKE_TASKS=true
 to create the tasks in the database.
@@ -25,8 +25,8 @@ from apps.tasks.utils import create_task_result
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT_SECONDS = 60 * 6  # TASK_TIMEOUT_SECONDS: max execution time from started_at
-_ABSOLUTE_TIMEOUT_SECONDS = 60 * 8  # TASK_ABSOLUTE_TIMEOUT_SECONDS: max total time from created
+_TIMEOUT_SECONDS = 60 * 4  # TASK_TIMEOUT_SECONDS: max execution time from started_at
+_ABSOLUTE_TIMEOUT_SECONDS = 60 * 5  # TASK_ABSOLUTE_TIMEOUT_SECONDS: max total time from created
 _MAX_ATTEMPTS = 8
 _RETRY_DELAY_SECONDS = 10
 _RETRY_EXPONENT = 1.5
