@@ -182,42 +182,39 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {
                 "collector_type": "job_host_summary_service",
-                "TASK_TIMEOUT_SECONDS": 60 * 4,
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
-                "retry_delay_seconds": 10,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 8,
+                "retry_delay_seconds": 2,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 8,
+            "max_attempts": 10,
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
         },
         {
             "task_id": "hourly_unified_jobs",
             "function": "collect_hourly_metrics",
-            "cron": "10 * * * *",  # Every hour at XX:10
+            "cron": "15 * * * *",  # Every hour at XX:15
             "args": {
                 "collector_type": "unified_jobs",
-                "TASK_TIMEOUT_SECONDS": 60 * 4,
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
-                "retry_delay_seconds": 10,
+                "retry_delay_seconds": 2,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 8,
+            "max_attempts": 10,
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
         },
         {
             "task_id": "hourly_credentials",
             "function": "collect_hourly_metrics",
-            "cron": "15 * * * *",  # Every hour at XX:15
+            "cron": "13 * * * *",  # Every hour at XX:13
             "args": {
                 "collector_type": "credentials_service",
-                "TASK_TIMEOUT_SECONDS": 60 * 4,
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
-                "retry_delay_seconds": 10,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 2,
+                "retry_delay_seconds": 2,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 8,
+            "max_attempts": 10,
             "enabled": True,
             "description": "Collect credentials metrics every hour",
         },
@@ -227,12 +224,11 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {
                 "collector_type": "main_jobevent_service",
-                "TASK_TIMEOUT_SECONDS": 60 * 4,
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
-                "retry_delay_seconds": 10,
+                "retry_delay_seconds": 2,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 8,
+            "max_attempts": 10,
             "enabled": False,  # NOT enabled by default, for performance
             "description": "Collect job events (event modules) metrics every hour",
         },
