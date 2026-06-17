@@ -147,7 +147,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "function": "cleanup_old_tasks",
             "cron": "0 5 * * *",  # Daily at 5 AM
             "args": {
-                "days_old": 5,
+                "days_old": 3,
                 "dry_run": False,
                 "include_executions": True,
                 "preserve_recurring": True,
@@ -183,10 +183,10 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "job_host_summary_service",
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 8,
-                "retry_delay_seconds": 2,
+                "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 10,
+            "max_attempts": 10,  # 8 min window: absolute timeout is the real hard stop
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
         },
@@ -197,10 +197,10 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "unified_jobs",
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
-                "retry_delay_seconds": 2,
+                "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 10,
+            "max_attempts": 9,  # 5 min window: absolute timeout is the real hard stop
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
         },
@@ -211,10 +211,10 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "credentials_service",
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 2,
-                "retry_delay_seconds": 2,
+                "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 10,
+            "max_attempts": 7,  # 2 min window: absolute timeout is the real hard stop
             "enabled": True,
             "description": "Collect credentials metrics every hour",
         },
@@ -225,10 +225,10 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "args": {
                 "collector_type": "main_jobevent_service",
                 "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 5,
-                "retry_delay_seconds": 2,
+                "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 10,
+            "max_attempts": 9,  # 5 min window: absolute timeout is the real hard stop
             "enabled": False,  # NOT enabled by default, for performance
             "description": "Collect job events (event modules) metrics every hour",
         },
