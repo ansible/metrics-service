@@ -243,15 +243,18 @@ class UnifiedTaskScheduler:
 
         now = timezone.now()
         for task in Task.objects.filter(status="failed", attempts__lt=F("max_attempts")).order_by("created"):
-            absolute_timeout = (task.task_data or {}).get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
-            if absolute_timeout is not None:
-                elapsed = (now - task.created).total_seconds()
-                if elapsed >= int(absolute_timeout):
-                    task.attempts = task.max_attempts
-                    task.error_message = f"Absolute timeout of {absolute_timeout}s elapsed ({int(elapsed)}s since creation) — no further retries"
-                    task.save(update_fields=["error_message", "attempts", "modified"])
-                    continue
-            _schedule_retry(task)
+            try:
+                absolute_timeout = (task.task_data or {}).get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
+                if absolute_timeout is not None:
+                    elapsed = (now - task.created).total_seconds()
+                    if elapsed >= int(absolute_timeout):
+                        task.attempts = task.max_attempts
+                        task.error_message = f"Absolute timeout of {absolute_timeout}s elapsed ({int(elapsed)}s since creation) — no further retries"
+                        task.save(update_fields=["error_message", "attempts", "modified"])
+                        continue
+                _schedule_retry(task)
+            except Exception as e:
+                logger.error(f"Failed to schedule retry for task {task.id} ({task.name}): {e}")
 
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler.
