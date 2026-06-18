@@ -106,9 +106,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     execution_count = 0
 
     if include_executions:
-        execution_count = TaskExecution.objects.filter(
-            task__in=old_tasks | hourly_tasks
-        ).count()
+        execution_count = TaskExecution.objects.filter(task__in=old_tasks | hourly_tasks).count()
 
     deleted_tasks = 0
     deleted_hourly_tasks = 0
@@ -135,18 +133,14 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
             deleted_hourly_tasks = deletion_info.get("tasks.Task", 0)
 
             if not include_executions:
-                deleted_executions = (
-                    deletion_info.get("tasks.TaskExecution", 0)
-                )
+                deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
 
         message = f"Deleted {deleted_tasks + deleted_hourly_tasks} tasks and {deleted_executions} executions"
         if preserve_recurring:
             message += " (recurring tasks preserved)"
         log_task_execution("cleanup_old_tasks", "completed", message)
     else:
-        message = (
-            f"Found {task_count + hourly_task_count} tasks and {execution_count} executions that would be deleted"
-        )
+        message = f"Found {task_count + hourly_task_count} tasks and {execution_count} executions that would be deleted"
         if preserve_recurring:
             message += " (recurring tasks preserved)"
         log_task_execution("cleanup_old_tasks", "completed", message)
