@@ -208,29 +208,33 @@ class UnifiedTaskScheduler:
                 )
 
             # Detect tasks stuck in running beyond their timeout
-            from .models import TaskExecution
-
-            now = timezone.now()
-            stuck_to_fail = Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-            )
-            if stuck_to_fail:
-                ids = [t.id for t in stuck_to_fail]
-                error_msg = "Task timed out — worker died before completion"
-                with transaction.atomic():
-                    TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                    Task.objects.filter(id__in=ids, status="running").update(
-                        status="failed", error_message=error_msg, completed_at=now
-                    )
-                logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+            self._fail_stuck_tasks()
 
             # Clean up advisory locks held by sessions that outlived their process
             self._cleanup_stale_advisory_locks()
 
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
+
+    def _fail_stuck_tasks(self):
+        """Mark tasks stuck in running status as failed after their timeout."""
+        from .models import Task, TaskExecution
+
+        now = timezone.now()
+        stuck_to_fail = Task.objects.filter(
+            status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
+        )
+        if stuck_to_fail:
+            ids = [t.id for t in stuck_to_fail]
+            error_msg = "Task timed out — worker died before completion"
+            with transaction.atomic():
+                TaskExecution.objects.filter(task__id__in=ids, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+                Task.objects.filter(id__in=ids, status="running").update(
+                    status="failed", error_message=error_msg, completed_at=now
+                )
+            logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
     def _cleanup_stale_advisory_locks(self):
         """Terminate database sessions holding advisory locks that appear stale.
