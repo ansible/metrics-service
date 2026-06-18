@@ -147,8 +147,8 @@ class TestSetupDispatcherdConfig:
         ):
             setup_dispatcherd_config()
 
-        mock_logger.error.assert_called()
-        assert "Failed to configure dispatcherd" in str(mock_logger.error.call_args)
+        mock_logger.exception.assert_called()
+        assert "Failed to configure dispatcherd" in str(mock_logger.exception.call_args)
 
 
 class TestLoadConfigWithDjangoDb:
@@ -394,8 +394,8 @@ class TestBuildConfigFromDjangoSettings:
         with pytest.raises(KeyError):
             build_config_from_django_settings()
 
-        mock_logger.error.assert_called()
-        assert "Failed to build config from Django settings" in str(mock_logger.error.call_args)
+        mock_logger.exception.assert_called()
+        assert "Failed to build config from Django settings" in str(mock_logger.exception.call_args)
 
 
 class TestEnsureDispatcherdConfigured:
@@ -456,5 +456,5 @@ class TestEnsureDispatcherdConfigured:
         ):
             ensure_dispatcherd_configured()
 
-        mock_logger.error.assert_called()
-        assert "Failed to ensure dispatcherd configuration" in str(mock_logger.error.call_args)
+        mock_logger.exception.assert_called()
+        assert "Failed to ensure dispatcherd configuration" in str(mock_logger.exception.call_args)

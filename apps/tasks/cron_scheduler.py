@@ -148,7 +148,7 @@ class UnifiedTaskScheduler:
                 logger.info(f"Periodic database sync will run every {self.check_interval} seconds")
 
             except Exception as e:
-                logger.error(f"Failed to start cron scheduler: {str(e)}")
+                logger.exception(f"Failed to start cron scheduler: {str(e)}")
                 raise
 
     def stop(self):
@@ -163,7 +163,7 @@ class UnifiedTaskScheduler:
                 self._db_task_jobs.clear()
                 logger.info("Task scheduler stopped")
             except Exception as e:
-                logger.error(f"Error stopping cron scheduler: {str(e)}")
+                logger.exception(f"Error stopping cron scheduler: {str(e)}")
 
     def _task_feature_flag_enabled(self, task) -> bool:
         """Return False if the task carries a feature flag that is currently disabled."""
@@ -201,7 +201,7 @@ class UnifiedTaskScheduler:
             logger.info(f"Synchronized {added_scheduled} scheduled and {added_recurring} recurring database tasks")
 
         except Exception as e:
-            logger.error(f"Error synchronizing database tasks: {e}")
+            logger.exception(f"Error synchronizing database tasks: {e}")
 
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
@@ -376,7 +376,7 @@ class UnifiedTaskScheduler:
             logger.info(f"Added scheduled database task: {task.name} (ID: {task.id}) at {task.scheduled_time}")
 
         except Exception as e:
-            logger.error(f"Failed to add scheduled database task {task.id}: {e}")
+            logger.exception(f"Failed to add scheduled database task {task.id}: {e}")
 
     def _add_database_recurring_task(self, task):
         """Add a recurring database task to the scheduler."""
@@ -404,7 +404,7 @@ class UnifiedTaskScheduler:
             logger.info(f"Added recurring database task: {task.name} (ID: {task.id}) with cron: {task.cron_expression}")
 
         except Exception as e:
-            logger.error(f"Failed to add recurring database task {task.id}: {e}")
+            logger.exception(f"Failed to add recurring database task {task.id}: {e}")
 
     def _execute_database_task(self, task_id: int):
         """Execute a database task by submitting it to dispatcherd."""
@@ -481,7 +481,7 @@ class UnifiedTaskScheduler:
             self._remove_database_task(task_id)
 
         except Exception as e:
-            logger.error(f"Failed to execute database task {task_id}: {e}")
+            logger.exception(f"Failed to execute database task {task_id}: {e}")
 
     def _remove_database_task(self, task_id: int):
         """Remove a database task from the scheduler."""

@@ -69,7 +69,7 @@ def setup_dispatcherd_config() -> None:
         logger.error(f"Failed to import dispatcherd: {e}")
         raise
     except Exception as e:
-        logger.error(f"Failed to configure dispatcherd: {e}")
+        logger.exception(f"Failed to configure dispatcherd: {e}")
         raise
 
 
@@ -176,7 +176,7 @@ def build_config_from_django_settings() -> dict[str, Any]:
         return config
 
     except Exception as e:
-        logger.error(f"Failed to build config from Django settings: {e}")
+        logger.exception(f"Failed to build config from Django settings: {e}")
         raise
 
 
@@ -199,5 +199,5 @@ def ensure_dispatcherd_configured() -> None:
         logger.error("Dispatcherd not available")
         raise
     except Exception as e:
-        logger.error(f"Failed to ensure dispatcherd configuration: {e}")
+        logger.exception(f"Failed to ensure dispatcherd configuration: {e}")
         raise

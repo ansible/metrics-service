@@ -51,6 +51,6 @@ class Command(BaseCommand):
 
         except Exception as e:
             error_msg = f"Failed to reload configuration: {str(e)}"
-            logger.error(error_msg)
+            logger.exception(error_msg)
             self.stdout.write(self.style.ERROR(f"{error_msg}"))
             raise
