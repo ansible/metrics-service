@@ -214,7 +214,7 @@ class UnifiedTaskScheduler:
             self._cleanup_stale_advisory_locks()
 
         except Exception as e:
-            logger.error(f"Error in periodic database sync: {e}")
+            logger.exception(f"Error in periodic database sync: {e}")
 
     def _fail_stuck_tasks(self):
         """Mark tasks stuck in running status as failed after their timeout."""
@@ -281,7 +281,7 @@ class UnifiedTaskScheduler:
                 if stale_pids:
                     logger.warning(f"Cleaned up {len(stale_pids)} stale advisory lock(s)")
         except Exception as e:
-            logger.error(f"Error cleaning up stale advisory locks: {e}")
+            logger.exception(f"Error cleaning up stale advisory locks: {e}")
 
     def _add_database_scheduled_task(self, task):
         """Add a one-time scheduled database task to the scheduler."""
