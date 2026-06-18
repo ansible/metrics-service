@@ -149,12 +149,13 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "cron": "0 5 * * *",  # Daily at 5 AM
             "args": {
                 "days_old": 3,
+                "hourly_tasks_hours_old": 6,
                 "dry_run": False,
                 "include_executions": True,
                 "preserve_recurring": True,
             },
             "enabled": True,
-            "description": "Daily cleanup of old completed/failed tasks (preserves recurring tasks)",
+            "description": "Daily cleanup of old completed/failed tasks; hourly collector executions purged after 6h (preserves recurring tasks)",
         },
         {
             "task_id": "hourly_health_check",
