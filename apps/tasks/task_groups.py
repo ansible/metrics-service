@@ -184,11 +184,11 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {
                 "collector_type": "job_host_summary_service",
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 8,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 7,
                 "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 10,  # 8 min window: absolute timeout is the real hard stop
+            "max_attempts": 10,  # 7 min window: absolute timeout is the real hard stop
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
         },
@@ -209,14 +209,14 @@ METRICS_COLLECTION_GROUP = TaskGroup(
         {
             "task_id": "hourly_credentials",
             "function": "collect_hourly_metrics",
-            "cron": "13 * * * *",  # Every hour at XX:13
+            "cron": "12 * * * *",  # Every hour at XX:12
             "args": {
                 "collector_type": "credentials_service",
-                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 2,
+                "TASK_ABSOLUTE_TIMEOUT_SECONDS": 60 * 3,
                 "retry_delay_seconds": 10,
                 "retry_exponent": 1.5,
             },
-            "max_attempts": 5,  # 2 min window: absolute timeout is the real hard stop
+            "max_attempts": 5,  # 3 min window: absolute timeout is the real hard stop
             "enabled": True,
             "description": "Collect credentials metrics every hour",
         },
