@@ -239,11 +239,21 @@ class UnifiedTaskScheduler:
         timeout — at that point the corresponding Task has already been marked
         failed by the stuck-task detector above, but a network partition can keep
         the PostgreSQL session (and its lock) alive for hours.
+
+        Only cleans up locks matching TASK_LOCKS function names, not arbitrary
+        advisory locks that other applications might hold.
         """
         from django.db import connection
 
+        from .tasks import TASK_LOCKS
+
         try:
             with connection.cursor() as cursor:
+                # Compute our lock IDs the same way lock.py does:
+                # hashtext(name)::bigint, then Python-style modulo 2**63
+                cursor.execute("SELECT hashtext(name)::bigint FROM unnest(%s::text[]) AS name", [list(TASK_LOCKS)])
+                our_lock_ids = [row[0] % (2**63) for row in cursor.fetchall()]
+
                 cursor.execute(
                     """
                     SELECT l.pid
@@ -254,8 +264,9 @@ class UnifiedTaskScheduler:
                       AND a.pid != pg_backend_pid()
                       AND a.state = 'idle'
                       AND a.state_change < NOW() - interval '1 second' * %s
+                      AND ((l.classid::bigint << 32) | (l.objid::bigint & x'ffffffff'::bigint)) = ANY(%s)
                     """,
-                    [STUCK_TASK_TIMEOUT_SECONDS],
+                    [STUCK_TASK_TIMEOUT_SECONDS, our_lock_ids],
                 )
                 stale_pids = [row[0] for row in cursor.fetchall()]
 
