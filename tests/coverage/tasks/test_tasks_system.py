@@ -628,3 +628,230 @@ def test_submit_task_remaining_wins_when_tighter(user, mock_dispatcherd, mock_di
 
     _, kwargs = mock_dispatcherd.call_args
     assert kwargs.get("timeout") == 360
+
+
+# ---------------------------------------------------------------------------
+# _safe_timeout_int — unit tests
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+def test_safe_timeout_int_valid_positive_value():
+    """A valid positive integer is returned unchanged."""
+    from apps.tasks.tasks_system import _safe_timeout_int
+
+    assert _safe_timeout_int(300, field="TASK_TIMEOUT_SECONDS", task_id=1) == 300
+
+
+@pytest.mark.unit
+def test_safe_timeout_int_string_numeric_coerced():
+    """A string that represents a positive integer is accepted."""
+    from apps.tasks.tasks_system import _safe_timeout_int
+
+    assert _safe_timeout_int("600", field="TASK_TIMEOUT_SECONDS", task_id=1) == 600
+
+
+@pytest.mark.unit
+def test_safe_timeout_int_non_numeric_returns_default():
+    """A non-numeric string returns the supplied default and does not raise."""
+    from apps.tasks.tasks_system import _safe_timeout_int
+
+    assert _safe_timeout_int("bad_value", field="TASK_TIMEOUT_SECONDS", task_id=1, default=None) is None
+
+
+@pytest.mark.unit
+def test_safe_timeout_int_zero_returns_default():
+    """Zero is non-positive and must be rejected (returns default)."""
+    from apps.tasks.tasks_system import _safe_timeout_int
+
+    assert _safe_timeout_int(0, field="TASK_TIMEOUT_SECONDS", task_id=1, default=None) is None
+
+
+@pytest.mark.unit
+def test_safe_timeout_int_negative_returns_default():
+    """A negative value is non-positive and must be rejected (returns default)."""
+    from apps.tasks.tasks_system import _safe_timeout_int
+
+    assert _safe_timeout_int(-60, field="TASK_TIMEOUT_SECONDS", task_id=1, default=None) is None
+
+
+@pytest.mark.unit
+def test_safe_timeout_int_none_input_returns_default_silently():
+    """None input returns the supplied default without logging a warning."""
+    from apps.tasks.tasks_system import _safe_timeout_int
+
+    with patch("apps.tasks.tasks_system.logger") as mock_logger:
+        result = _safe_timeout_int(None, field="TASK_TIMEOUT_SECONDS", task_id=1, default=99)
+
+    assert result == 99
+    mock_logger.warning.assert_not_called()
+
+
+@pytest.mark.unit
+def test_safe_timeout_int_invalid_value_logs_warning():
+    """An invalid value must emit exactly one logger.warning."""
+    from apps.tasks.tasks_system import _safe_timeout_int
+
+    with patch("apps.tasks.tasks_system.logger") as mock_logger:
+        _safe_timeout_int("oops", field="TASK_TIMEOUT_SECONDS", task_id=42, default=None)
+
+    mock_logger.warning.assert_called_once()
+    assert "TASK_TIMEOUT_SECONDS" in mock_logger.warning.call_args[0][0]
+    assert "oops" in mock_logger.warning.call_args[0][0]
+
+
+# ---------------------------------------------------------------------------
+# submit_task_to_dispatcher — malformed / non-positive timeout values
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_malformed_absolute_timeout_still_submits(user, mock_dispatcherd, mock_dispatcherd_config):
+    """Malformed TASK_ABSOLUTE_TIMEOUT_SECONDS is silently dropped; the task is still submitted.
+
+    Before the fix, int("bad") raised ValueError into the except block, which did not
+    increment attempts, creating an infinite retry loop.  After the fix _safe_timeout_int
+    returns None and the submit proceeds normally.
+    """
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="bad_abs_timeout_task",
+        function_name="hello_world",
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": "not_a_number"},
+        created_by=user,
+    )
+    submit_task_to_dispatcher(task)
+
+    mock_dispatcherd.assert_called_once()
+    _, kwargs = mock_dispatcherd.call_args
+    # Malformed value is dropped → timeout falls back to None (dispatcherd default)
+    assert kwargs.get("timeout") is None
+    task.refresh_from_db()
+    assert task.status == "pending"
+    # No error path taken — attempts must NOT have been incremented
+    assert task.attempts == 0
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_malformed_relative_timeout_still_submits(user, mock_dispatcherd, mock_dispatcherd_config):
+    """Malformed TASK_TIMEOUT_SECONDS is dropped; task is submitted with timeout=None."""
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="bad_rel_timeout_task",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": "oops"},
+        created_by=user,
+    )
+    submit_task_to_dispatcher(task)
+
+    mock_dispatcherd.assert_called_once()
+    _, kwargs = mock_dispatcherd.call_args
+    assert kwargs.get("timeout") is None
+    task.refresh_from_db()
+    assert task.status == "pending"
+    assert task.attempts == 0
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_zero_absolute_timeout_treated_as_absent(user, mock_dispatcherd, mock_dispatcherd_config):
+    """TASK_ABSOLUTE_TIMEOUT_SECONDS=0 is non-positive; treated as absent so no early-fail occurs."""
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="zero_abs_timeout_task",
+        function_name="hello_world",
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": 0},
+        created_by=user,
+    )
+    submit_task_to_dispatcher(task)
+
+    mock_dispatcherd.assert_called_once()
+    task.refresh_from_db()
+    assert task.status == "pending"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_negative_absolute_timeout_treated_as_absent(user, mock_dispatcherd, mock_dispatcherd_config):
+    """TASK_ABSOLUTE_TIMEOUT_SECONDS=-1 is non-positive; treated as absent so no early-fail occurs."""
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="neg_abs_timeout_task",
+        function_name="hello_world",
+        task_data={"TASK_ABSOLUTE_TIMEOUT_SECONDS": -1},
+        created_by=user,
+    )
+    submit_task_to_dispatcher(task)
+
+    mock_dispatcherd.assert_called_once()
+    task.refresh_from_db()
+    assert task.status == "pending"
+
+
+# ---------------------------------------------------------------------------
+# submit_task_to_dispatcher — attempts incremented on submit error
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_error_increments_attempts(user, mock_dispatcherd_config):
+    """A submit-time error increments attempts so _retry_failed_tasks can exhaust max_attempts.
+
+    Without the fix the except block saved status='failed' without touching attempts,
+    leaving the task permanently retryable and creating an infinite scheduler loop.
+    """
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="attempt_inc_task",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        attempts=0,
+        max_attempts=3,
+    )
+
+    with patch("dispatcherd.publish.submit_task", side_effect=RuntimeError("broker down")):
+        submit_task_to_dispatcher(task)
+
+    task.refresh_from_db()
+    assert task.status == "failed"
+    assert task.attempts == 1
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_submit_task_repeated_errors_exhaust_max_attempts(user, mock_dispatcherd_config):
+    """Repeated submit-time failures eventually exhaust max_attempts, stopping the retry loop."""
+    from apps.tasks.models import Task
+    from apps.tasks.tasks_system import _schedule_retry, submit_task_to_dispatcher
+
+    task = Task.objects.create(
+        name="exhaust_submit_task",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        attempts=0,
+        max_attempts=2,
+    )
+
+    # Two submit failures should consume all attempts
+    for _ in range(2):
+        task.status = "pending"
+        task.save(update_fields=["status", "modified"])
+        with patch("dispatcherd.publish.submit_task", side_effect=RuntimeError("broker down")):
+            submit_task_to_dispatcher(task)
+        task.refresh_from_db()
+        assert task.status == "failed"
+
+    assert task.attempts == 2
+    # Now max_attempts is reached; _schedule_retry must not reschedule
+    _schedule_retry(task)
+    task.refresh_from_db()
+    assert task.status == "failed", "Task must not be rescheduled after max_attempts is exhausted"

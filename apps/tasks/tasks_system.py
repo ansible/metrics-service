@@ -103,6 +103,26 @@ def execute_function(task, execution, task_function, locked):
         return create_task_result("error", error=f"Task execution failed: {e}")
 
 
+def _safe_timeout_int(value, *, field: str, task_id: int, default: int | None = None) -> int | None:
+    """
+    Parse a timeout value from task_data, returning *default* on any failure.
+
+    Rejects non-positive values in addition to non-numeric ones so that a
+    misconfigured ``TASK_TIMEOUT_SECONDS=0`` or ``TASK_ABSOLUTE_TIMEOUT_SECONDS=-1``
+    cannot produce a degenerate ``min()`` / ``remaining`` computation in
+    ``submit_task_to_dispatcher()``.
+    """
+    try:
+        parsed = int(value) if value is not None else default
+    except (TypeError, ValueError):
+        logger.warning(f"Task {task_id}: invalid {field}={value!r}, using default {default!r}")
+        return default
+    if parsed is not None and parsed <= 0:
+        logger.warning(f"Task {task_id}: non-positive {field}={parsed!r}, using default {default!r}")
+        return default
+    return parsed
+
+
 def _get_base_delay(task) -> int:
     """Return a validated base retry delay for task, falling back to RETRY_BASE_DELAY_SECONDS."""
     raw = task.task_data.get("retry_delay_seconds", RETRY_BASE_DELAY_SECONDS)
@@ -269,15 +289,28 @@ def submit_task_to_dispatcher(task: Any) -> None:
         # fail the task immediately without submitting. Otherwise pass min(relative, remaining)
         # so whichever limit is tighter governs dispatcherd's kill timer.
         task_data = task.task_data or {}
-        task_timeout = task_data.get("TASK_TIMEOUT_SECONDS")  # None → dispatcherd uses its default
-        absolute_timeout = task_data.get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
+        # Use _safe_timeout_int so a malformed value never raises into the except
+        # block below, which does not increment attempts — a bare int() ValueError
+        # there would create a retryable-failed task that loops indefinitely.
+        task_timeout = _safe_timeout_int(
+            task_data.get("TASK_TIMEOUT_SECONDS"),
+            field="TASK_TIMEOUT_SECONDS",
+            task_id=task.id,
+            default=None,  # None → dispatcherd uses its own configured default
+        )
+        absolute_timeout = _safe_timeout_int(
+            task_data.get("TASK_ABSOLUTE_TIMEOUT_SECONDS"),
+            field="TASK_ABSOLUTE_TIMEOUT_SECONDS",
+            task_id=task.id,
+            default=None,
+        )
 
         if absolute_timeout is not None:
             from django.utils import timezone
 
             now = timezone.now()
             elapsed = (now - task.created).total_seconds()
-            remaining = int(absolute_timeout) - int(elapsed)
+            remaining = absolute_timeout - int(elapsed)
             if remaining <= 0:
                 error_msg = (
                     f"Task absolute timeout of {absolute_timeout}s elapsed "
@@ -300,7 +333,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
                     task.save(update_fields=["status", "error_message", "completed_at", "attempts", "modified"])
                 logger.warning(f"Task {task.name} (ID: {task.id}): {error_msg}")
                 return
-            task_timeout = min(int(task_timeout), remaining) if task_timeout is not None else remaining
+            task_timeout = min(task_timeout, remaining) if task_timeout is not None else remaining
 
         # Submit to dispatcherd using execute_db_task as the entry point
         # TaskExecution is created inside _claim_task to avoid orphaned records
@@ -311,7 +344,12 @@ def submit_task_to_dispatcher(task: Any) -> None:
     except Exception as e:
         task.status = "failed"
         task.error_message = f"Failed to submit to dispatcher: {str(e)}"
-        task.save(update_fields=["status", "error_message", "modified"])
+        # Increment attempts so that repeated submit-time failures count toward
+        # max_attempts.  Without this, any exception raised before _claim_task()
+        # would leave attempts unchanged, and _retry_failed_tasks() would keep
+        # rescheduling the task indefinitely.
+        task.attempts = getattr(task, "attempts", 0) + 1
+        task.save(update_fields=["status", "error_message", "attempts", "modified"])
         # status must be "failed" before can_retry() is called; log WARNING while retries remain, ERROR on final failure.
         if task.can_retry():
             logger.warning(f"Error submitting task to dispatcher: {str(e)}")
