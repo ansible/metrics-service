@@ -448,6 +448,53 @@ class TestRemoveDatabaseTask:
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
+class TestCleanupStaleAdvisoryLocks:
+    """Test _cleanup_stale_advisory_locks in the scheduler."""
+
+    def test_terminates_stale_sessions(self):
+        """Sessions holding advisory locks idle beyond the timeout are terminated."""
+        scheduler = UnifiedTaskScheduler()
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [(101,), (102,)]
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+
+        with patch("django.db.connection") as mock_conn:
+            mock_conn.cursor.return_value = mock_cursor
+            scheduler._cleanup_stale_advisory_locks()
+
+        calls = mock_cursor.execute.call_args_list
+        assert any("pg_terminate_backend" in str(c) and 101 in c[0][1] for c in calls)
+        assert any("pg_terminate_backend" in str(c) and 102 in c[0][1] for c in calls)
+
+    def test_skips_when_no_stale_locks(self):
+        """No termination calls when there are no stale advisory locks."""
+        scheduler = UnifiedTaskScheduler()
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+
+        with patch("django.db.connection") as mock_conn:
+            mock_conn.cursor.return_value = mock_cursor
+            scheduler._cleanup_stale_advisory_locks()
+
+        calls = mock_cursor.execute.call_args_list
+        assert not any("pg_terminate_backend" in str(c) for c in calls)
+
+    def test_handles_db_error_gracefully(self):
+        """Database errors in lock cleanup are caught and logged, not raised."""
+        scheduler = UnifiedTaskScheduler()
+
+        with patch("django.db.connection") as mock_conn:
+            mock_conn.cursor.side_effect = Exception("connection lost")
+            scheduler._cleanup_stale_advisory_locks()
+
+
+@pytest.mark.unit
 class TestInjectDispatchTimestamps:
     """
     Test that _inject_dispatch_timestamps pins the correct time-window key into

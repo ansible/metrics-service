@@ -226,8 +226,47 @@ class UnifiedTaskScheduler:
                     )
                 logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
+            # Clean up advisory locks held by sessions that outlived their process
+            self._cleanup_stale_advisory_locks()
+
         except Exception as e:
             logger.error(f"Error in periodic database sync: {e}")
+
+    def _cleanup_stale_advisory_locks(self):
+        """Terminate database sessions holding advisory locks that appear stale.
+
+        A session is considered stale when it has been idle longer than the task
+        timeout — at that point the corresponding Task has already been marked
+        failed by the stuck-task detector above, but a network partition can keep
+        the PostgreSQL session (and its lock) alive for hours.
+        """
+        from django.db import connection
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT l.pid
+                    FROM pg_locks l
+                    JOIN pg_stat_activity a ON l.pid = a.pid
+                    WHERE l.locktype = 'advisory'
+                      AND l.granted = true
+                      AND a.pid != pg_backend_pid()
+                      AND a.state = 'idle'
+                      AND a.state_change < NOW() - interval '1 second' * %s
+                    """,
+                    [STUCK_TASK_TIMEOUT_SECONDS],
+                )
+                stale_pids = [row[0] for row in cursor.fetchall()]
+
+                for pid in stale_pids:
+                    cursor.execute("SELECT pg_terminate_backend(%s)", [pid])
+                    logger.warning(f"Terminated stale session {pid} holding an advisory lock")
+
+                if stale_pids:
+                    logger.warning(f"Cleaned up {len(stale_pids)} stale advisory lock(s)")
+        except Exception as e:
+            logger.error(f"Error cleaning up stale advisory locks: {e}")
 
     def _add_database_scheduled_task(self, task):
         """Add a one-time scheduled database task to the scheduler."""
