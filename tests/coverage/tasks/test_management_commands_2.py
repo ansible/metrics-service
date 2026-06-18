@@ -15,11 +15,7 @@ from django.core.management import call_command
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_metrics_service_init_default_settings():
-    with (
-        patch("apps.dynamic_settings.utils.initialize_default_settings") as mock_init,
-        patch("apps.tasks.apps.load_task_feature_flags", return_value=True),
-        patch("apps.tasks.apps.sync_flag_values_from_settings"),
-    ):
+    with patch("apps.dynamic_settings.utils.initialize_default_settings") as mock_init:
         call_command("metrics_service", "init-default-settings")
     mock_init.assert_called_once_with()
 
