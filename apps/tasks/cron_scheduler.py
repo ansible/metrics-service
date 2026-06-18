@@ -184,27 +184,30 @@ class UnifiedTaskScheduler:
         from .models import Task, TaskExecution
 
         now = timezone.now()
-        # Separate buckets so each gets a distinct error message.
-        # relative_ids: exceeded TASK_TIMEOUT_SECONDS + grace (dispatcherd failed to kill in time)
-        # absolute_ids: exceeded TASK_ABSOLUTE_TIMEOUT_SECONDS + grace (hard wall-clock deadline)
+        # Three buckets so each combination gets an accurate error message.
+        # relative_ids: only TASK_TIMEOUT_SECONDS exceeded (dispatcherd failed to kill in time)
+        # absolute_ids: only TASK_ABSOLUTE_TIMEOUT_SECONDS exceeded (hard wall-clock deadline)
+        # both_ids:     both exceeded simultaneously
         relative_ids: list[int] = []
         absolute_ids: list[int] = []
+        both_ids: list[int] = []
         for t in Task.objects.filter(status="running"):
             task_data = t.task_data or {}
             per_task_timeout = task_data.get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
             absolute_timeout = task_data.get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
 
-            # TASK_TIMEOUT_SECONDS: relative timeout anchored to started_at
-            if t.started_at is not None and t.started_at < now - timedelta(
+            relative_exceeded = t.started_at is not None and t.started_at < now - timedelta(
                 seconds=int(per_task_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
-            ):
-                relative_ids.append(t.id)
-                continue
-
-            # TASK_ABSOLUTE_TIMEOUT_SECONDS: absolute deadline anchored to created
-            if absolute_timeout is not None and t.created < now - timedelta(
+            )
+            absolute_exceeded = absolute_timeout is not None and t.created < now - timedelta(
                 seconds=int(absolute_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
-            ):
+            )
+
+            if relative_exceeded and absolute_exceeded:
+                both_ids.append(t.id)
+            elif relative_exceeded:
+                relative_ids.append(t.id)
+            elif absolute_exceeded:
                 absolute_ids.append(t.id)
 
         for ids_to_fail, error_msg in (
@@ -215,6 +218,10 @@ class UnifiedTaskScheduler:
             (
                 absolute_ids,
                 f"Task forcibly failed by scheduler watchdog — still running past TASK_ABSOLUTE_TIMEOUT_SECONDS + {STUCK_TASK_TIMEOUT_PADDING_SECONDS}s grace period (hard wall-clock deadline exceeded)",
+            ),
+            (
+                both_ids,
+                f"Task forcibly failed by scheduler watchdog — still running past both TASK_TIMEOUT_SECONDS + {STUCK_TASK_TIMEOUT_PADDING_SECONDS}s grace period (dispatcherd did not kill worker in time) AND TASK_ABSOLUTE_TIMEOUT_SECONDS + {STUCK_TASK_TIMEOUT_PADDING_SECONDS}s grace period (hard wall-clock deadline exceeded)",
             ),
         ):
             if not ids_to_fail:

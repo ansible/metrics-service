@@ -279,7 +279,7 @@ class TaskExecution(CommonModel, AuditableModel):
             # Covers _fail_stuck_tasks bulk update: filter(task__id__in=ids, status="running")
             # and submit_task_to_dispatcher guard: filter(task=task, status__in=[...]).
             # The task FK is already indexed; adding status enables index-only filtering.
-            models.Index(fields=["task", "status"], name="tasks_taskexecution_task_status_idx"),
+            models.Index(fields=["task", "status"], name="tasks_te_task_status_idx"),
         ]
 
     task = models.ForeignKey(

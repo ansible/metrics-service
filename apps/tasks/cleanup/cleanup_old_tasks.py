@@ -126,14 +126,17 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
                 _, deletion_info = TaskExecution.objects.filter(task__in=all_tasks_to_delete).delete()
                 deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
 
-            _, deletion_info = old_tasks.delete()
-            deleted_tasks = deletion_info.get("tasks.Task", 0)
+            _, old_deletion_info = old_tasks.delete()
+            deleted_tasks = old_deletion_info.get("tasks.Task", 0)
 
-            _, deletion_info = hourly_tasks.delete()
-            deleted_hourly_tasks = deletion_info.get("tasks.Task", 0)
+            _, hourly_deletion_info = hourly_tasks.delete()
+            deleted_hourly_tasks = hourly_deletion_info.get("tasks.Task", 0)
 
             if not include_executions:
-                deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
+                # Accumulate cascade-deleted executions from both querysets.
+                deleted_executions = old_deletion_info.get("tasks.TaskExecution", 0) + hourly_deletion_info.get(
+                    "tasks.TaskExecution", 0
+                )
 
         message = f"Deleted {deleted_tasks + deleted_hourly_tasks} tasks and {deleted_executions} executions"
         if preserve_recurring:

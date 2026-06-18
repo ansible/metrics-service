@@ -177,6 +177,12 @@ def execute_claimed(task, execution):
         log_task_execution(task.function_name, "error", error_msg, level="error")
     log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
 
+    # Retry scheduling is intentionally NOT done here. It is handled by
+    # _retry_failed_tasks() in the scheduler loop, which runs every tick.
+    # Keeping retry out of the worker process makes it durable: if the
+    # process dies after marking a task failed but before scheduling a retry,
+    # the scheduler will still pick it up on the next boot.
+
     return result
 
 
@@ -286,7 +292,11 @@ def submit_task_to_dispatcher(task: Any) -> None:
                     task.status = "failed"
                     task.error_message = error_msg
                     task.completed_at = now
-                    task.save(update_fields=["status", "error_message", "completed_at", "modified"])
+                    # Set attempts = max_attempts so _retry_failed_tasks skips this task
+                    # immediately rather than entering the loop and hitting the absolute
+                    # timeout guard on the next scheduler tick.
+                    task.attempts = task.max_attempts
+                    task.save(update_fields=["status", "error_message", "completed_at", "attempts", "modified"])
                 logger.warning(f"Task {task.name} (ID: {task.id}): {error_msg}")
                 return
             task_timeout = min(int(task_timeout), remaining) if task_timeout is not None else remaining

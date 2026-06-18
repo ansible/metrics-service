@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="taskexecution",
-            index=models.Index(fields=["task", "status"], name="tasks_taskexecution_task_status_idx"),
+            index=models.Index(fields=["task", "status"], name="tasks_te_task_status_idx"),
         ),
     ]

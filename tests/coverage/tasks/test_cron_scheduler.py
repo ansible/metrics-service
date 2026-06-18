@@ -545,6 +545,42 @@ def test_fail_stuck_tasks_absolute_fires_when_started_at_within_relative(user, m
 
 
 # ---------------------------------------------------------------------------
+# _fail_stuck_tasks — both timeouts exceeded simultaneously
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_fail_stuck_tasks_both_timeouts_exceeded(user, mock_apscheduler):
+    """Task that exceeds both relative and absolute timeouts gets a message mentioning both."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task, TaskExecution
+
+    rel_timeout = 60
+    abs_timeout = 120
+    task = Task.objects.create(
+        name="both_stuck",
+        function_name="hello_world",
+        task_data={"TASK_TIMEOUT_SECONDS": rel_timeout, "TASK_ABSOLUTE_TIMEOUT_SECONDS": abs_timeout},
+        created_by=user,
+        status="running",
+    )
+    # Both deadlines exceeded: created well past abs_timeout + padding, started well past rel_timeout + padding
+    overtime = timezone.now() - timedelta(seconds=abs_timeout + cs.STUCK_TASK_TIMEOUT_PADDING_SECONDS + 1)
+    started_overtime = timezone.now() - timedelta(seconds=rel_timeout + cs.STUCK_TASK_TIMEOUT_PADDING_SECONDS + 1)
+    Task.objects.filter(pk=task.pk).update(created=overtime, started_at=started_overtime)
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler._fail_stuck_tasks()
+
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == "failed"
+    assert execution.status == "failed"
+    assert "TASK_TIMEOUT_SECONDS" in task.error_message
+    assert "TASK_ABSOLUTE_TIMEOUT_SECONDS" in task.error_message
+
+
+# ---------------------------------------------------------------------------
 # _retry_failed_tasks
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
