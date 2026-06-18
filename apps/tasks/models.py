@@ -343,6 +343,7 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         ("unified_jobs", "Unified Jobs"),
         ("credentials_service", "Credentials Service"),
         ("main_jobevent_service", "Job Events (Event Modules)"),
+        ("indirect_managed_nodes", "Indirect Managed Nodes"),
         ("execution_environments", "Execution Environments"),
         ("controller_version_service", "Controller Version Service"),
         ("table_metadata", "Table Metadata"),
