@@ -50,6 +50,39 @@ def _build_old_tasks_queryset(cutoff_date, preserve_recurring: bool):
     return Task.objects.filter(by_completed | by_modified)
 
 
+def _delete_old_tasks(
+    old_tasks, hourly_tasks, include_executions: bool, task_count: int, hourly_task_count: int
+) -> tuple[int, int, int]:
+    """Delete old tasks and their execution records.
+
+    Returns (deleted_tasks, deleted_hourly_tasks, deleted_executions).
+    """
+    from ..models import TaskExecution
+
+    all_tasks_to_delete = old_tasks | hourly_tasks
+    if not all_tasks_to_delete.exists():
+        return 0, 0, 0
+
+    log_task_execution(
+        "cleanup_old_tasks",
+        "processing",
+        f"Deleting {task_count} standard + {hourly_task_count} hourly tasks",
+    )
+
+    if include_executions:
+        _, exec_del = TaskExecution.objects.filter(task__in=all_tasks_to_delete).delete()
+        deleted_executions = exec_del.get(_TASK_EXECUTION_DELETE_KEY, 0)
+
+    _, old_del = old_tasks.delete()
+    _, hourly_del = hourly_tasks.delete()
+
+    if not include_executions:
+        # Accumulate cascade-deleted executions from both querysets.
+        deleted_executions = old_del.get(_TASK_EXECUTION_DELETE_KEY, 0) + hourly_del.get(_TASK_EXECUTION_DELETE_KEY, 0)
+
+    return old_del.get("tasks.Task", 0), hourly_del.get("tasks.Task", 0), deleted_executions
+
+
 def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     """
     Clean up old completed and failed tasks from the database.
@@ -75,7 +108,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result dictionary with cleanup statistics
     """
-    from ..models import Task, TaskExecution
+    from ..models import Task, TaskExecution  # TaskExecution needed for the execution_count query
 
     days_old = kwargs.get("days_old", 5)
     hourly_tasks_hours_old = kwargs.get("hourly_tasks_hours_old")
@@ -115,37 +148,14 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     deleted_hourly_tasks = 0
     deleted_executions = 0
 
+    suffix = " (recurring tasks preserved)" if preserve_recurring else ""
     if not dry_run:
-        all_tasks_to_delete = old_tasks | hourly_tasks
-
-        if all_tasks_to_delete.exists():
-            log_task_execution(
-                "cleanup_old_tasks",
-                "processing",
-                f"Deleting {task_count} standard + {hourly_task_count} hourly tasks",
-            )
-
-            if include_executions:
-                _, deletion_info = TaskExecution.objects.filter(task__in=all_tasks_to_delete).delete()
-                deleted_executions = deletion_info.get(_TASK_EXECUTION_DELETE_KEY, 0)
-
-            _, old_deletion_info = old_tasks.delete()
-            deleted_tasks = old_deletion_info.get("tasks.Task", 0)
-
-            _, hourly_deletion_info = hourly_tasks.delete()
-            deleted_hourly_tasks = hourly_deletion_info.get("tasks.Task", 0)
-
-            if not include_executions:
-                # Accumulate cascade-deleted executions from both querysets.
-                deleted_executions = old_deletion_info.get(_TASK_EXECUTION_DELETE_KEY, 0) + hourly_deletion_info.get(
-                    _TASK_EXECUTION_DELETE_KEY, 0
-                )
-
-        suffix = " (recurring tasks preserved)" if preserve_recurring else ""
+        deleted_tasks, deleted_hourly_tasks, deleted_executions = _delete_old_tasks(
+            old_tasks, hourly_tasks, include_executions, task_count, hourly_task_count
+        )
         message = f"Deleted {deleted_tasks + deleted_hourly_tasks} tasks and {deleted_executions} executions{suffix}"
         log_task_execution("cleanup_old_tasks", "completed", message)
     else:
-        suffix = " (recurring tasks preserved)" if preserve_recurring else ""
         message = f"Found {task_count + hourly_task_count} tasks and {execution_count} executions that would be deleted{suffix}"
         log_task_execution("cleanup_old_tasks", "completed", message)
 
