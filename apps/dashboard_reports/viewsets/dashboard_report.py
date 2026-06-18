@@ -18,12 +18,13 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import filters, serializers, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import BaseRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from apps.dashboard_reports.filters import CustomReportFilter, DateFilter
+from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, validate_custom_period_dates
 from apps.dashboard_reports.models import JobData, JobHostSummary, JobStatusChoices, SubscriptionCost
 from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
@@ -66,25 +67,37 @@ class PassthroughRenderer(BaseRenderer):
 
 
 def parse_period_param(
-    period_str: str | None, param_name: str, timezone_str: str
+    period_str: str | None, param_name: str, timezone_str: str, start_date_str: str | None, end_date_str: str | None
 ) -> tuple[datetime | None, datetime | None, str]:
     """
     Validates ISO date string for query parameters.
     """
     if not period_str:
-        msg = f"{param_name} is required"
-        return None, None, msg
+        return None, None, f"{param_name} is required"
     if period_str not in DateFilter.to_list():
-        msg = f"Invalid {param_name}: {period_str}. Must be one of: {DateFilter.to_list()}"
-        return None, None, msg
+        return None, None, f"Invalid {param_name}: {period_str}. Must be one of: {DateFilter.to_list()}"
 
     try:
-        start_date, end_date = DateFilter.to_start_date_end_date(value=period_str, tz_string=timezone_str)
-        return start_date, end_date, ""
+        if period_str == DateFilter.CUSTOM.value:
+            try:
+                validate_custom_period_dates(start_date_str, end_date_str)
+            except ValidationError as e:
+                # Extract the error message from the ValidationError detail
+                error_msg = str(e.detail.get("detail", "start_date and end_date are required when period is 'custom'."))
+                return None, None, error_msg
+            start_date, end_date = DateFilter.custom_range_to_start_date_end_date(
+                start_date_str=start_date_str,
+                end_date_str=end_date_str,
+                tz_string=timezone_str,
+            )
+        else:
+            start_date, end_date = DateFilter.to_start_date_end_date(value=period_str, tz_string=timezone_str)
     except ValueError as e:
         msg = f"Invalid {param_name} format: {period_str}. Error: {str(e)}"
         logger.error(msg)
         return None, None, msg
+
+    return start_date, end_date, ""
 
 
 def require_date_range(view_func):
@@ -96,11 +109,15 @@ def require_date_range(view_func):
         # Use request.GET for query parameters (works for DRF and Django)
         period = view.request.GET.get("period", None)
         timezone_str = view.request.GET.get("tz", "UTC") or "UTC"
+        start_date_str = view.request.GET.get("start_date", None)
+        end_date_str = view.request.GET.get("end_date", None)
 
         start_date, end_date, period_err_msg = parse_period_param(
             period_str=period,
             param_name="period",
             timezone_str=timezone_str,
+            start_date_str=start_date_str,
+            end_date_str=end_date_str,
         )
         if start_date is None or end_date is None:
             error_response = build_error_response(period_err_msg, status_code=400)
@@ -183,6 +200,20 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             default="UTC",
             required=True,
             description="Timezone string (default: UTC)",
+        ),
+        OpenApiParameter(
+            name="start_date",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Start date in 'YYYY-MM-DD' format. Required when period is 'custom'.",
+        ),
+        OpenApiParameter(
+            name="end_date",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="End date in 'YYYY-MM-DD' format. Required when period is 'custom'.",
         ),
         OpenApiParameter(
             name="organization",
@@ -428,6 +459,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         end_date = end_date.astimezone(UTC)
 
         diff = abs(end_date - start_date)
+
         diff_relative = relativedelta(end_date, start_date)
         total_months = diff_relative.months + diff_relative.years * 12
 
@@ -439,7 +471,11 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             end_date = end_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0) + relativedelta(
                 years=1
             )
-        elif diff.days <= 1:
+        elif diff.days < 1:
+            # Use hourly bucketing only for ranges UNDER 24 hours (< 1 day).
+            # Exactly 24-hour ranges (diff.days == 1) fall through to daily bucketing below.
+            # This is intentional: a 24h range like "June 15 10:00 → June 16 10:00" spans
+            # 2 calendar days, so daily bucketing prevents data misattribution.
             kind = "hour"
             start_date = start_date.replace(minute=0, second=0, microsecond=0)
             # Advance to the start of the *next* hour so the current hour's bucket is included.
