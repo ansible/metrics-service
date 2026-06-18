@@ -40,6 +40,13 @@ jobs:
       - name: "Checkout metrics-service (${{ github.ref }})"
         uses: actions/checkout@v6
 
+      - name: "Check for wildcard cron minutes in renovate config"
+        run: |
+          if grep -Pn '"schedule".*"\* ' renovate.json; then
+            echo "::error::Cron schedules in renovate.json must not use * for minutes (runs every minute). Use a specific minute like 0."
+            exit 1
+          fi
+
       - name: "Install uv"
         uses: astral-sh/setup-uv@v7
 
