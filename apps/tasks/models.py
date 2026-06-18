@@ -60,6 +60,12 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         app_label = "tasks"
         ordering = ["id"]
         permissions = [("can_execute_task", "Can execute task")]
+        indexes = [
+            # Covers all status-only queries (filter by running/pending/failed).
+            models.Index(fields=["status"], name="tasks_task_status_idx"),
+            # Covers _retry_failed_tasks: filter(status="failed", attempts__lt=max_attempts).
+            models.Index(fields=["status", "attempts"], name="tasks_task_status_attempts_idx"),
+        ]
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -269,6 +275,12 @@ class TaskExecution(CommonModel, AuditableModel):
     class Meta:
         app_label = "tasks"
         ordering = ["-started_at"]
+        indexes = [
+            # Covers _fail_stuck_tasks bulk update: filter(task__id__in=ids, status="running")
+            # and submit_task_to_dispatcher guard: filter(task=task, status__in=[...]).
+            # The task FK is already indexed; adding status enables index-only filtering.
+            models.Index(fields=["task", "status"], name="tasks_taskexecution_task_status_idx"),
+        ]
 
     task = models.ForeignKey(
         Task, on_delete=models.CASCADE, related_name="executions", help_text="The task that was executed"
