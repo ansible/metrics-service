@@ -117,8 +117,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--check-interval",
             type=int,
-            default=60,
-            help="Task scheduler check interval in seconds (default: 60)",
+            default=10,
+            help="Task scheduler check interval in seconds (default: 10)",
         )
 
     def _add_init_settings_arguments(self, parser):

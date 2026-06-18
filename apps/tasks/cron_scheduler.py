@@ -162,6 +162,13 @@ class UnifiedTaskScheduler:
         except Exception as e:
             logger.error(f"Error synchronizing database tasks: {e}")
 
+    def _safe_int(self, value, *, field: str, task_id: int, default: int | None = None) -> int | None:
+        try:
+            return int(value) if value is not None else default
+        except (TypeError, ValueError):
+            logger.warning(f"Task {task_id}: invalid {field}={value!r}, using default {default!r}")
+            return default
+
     def _fail_stuck_tasks(self) -> None:
         """Forcibly fail tasks that have been running beyond their timeout.
 
@@ -193,14 +200,24 @@ class UnifiedTaskScheduler:
         both_ids: list[int] = []
         for t in Task.objects.filter(status="running"):
             task_data = t.task_data or {}
-            per_task_timeout = task_data.get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS)
-            absolute_timeout = task_data.get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
+            per_task_timeout = self._safe_int(
+                task_data.get("TASK_TIMEOUT_SECONDS", STUCK_TASK_TIMEOUT_SECONDS),
+                field="TASK_TIMEOUT_SECONDS",
+                task_id=t.id,
+                default=STUCK_TASK_TIMEOUT_SECONDS,
+            )
+            absolute_timeout = self._safe_int(
+                task_data.get("TASK_ABSOLUTE_TIMEOUT_SECONDS"),
+                field="TASK_ABSOLUTE_TIMEOUT_SECONDS",
+                task_id=t.id,
+                default=None,
+            )
 
             relative_exceeded = t.started_at is not None and t.started_at < now - timedelta(
-                seconds=int(per_task_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
+                seconds=per_task_timeout + STUCK_TASK_TIMEOUT_PADDING_SECONDS
             )
             absolute_exceeded = absolute_timeout is not None and t.created < now - timedelta(
-                seconds=int(absolute_timeout) + STUCK_TASK_TIMEOUT_PADDING_SECONDS
+                seconds=absolute_timeout + STUCK_TASK_TIMEOUT_PADDING_SECONDS
             )
 
             if relative_exceeded and absolute_exceeded:
@@ -251,10 +268,15 @@ class UnifiedTaskScheduler:
         now = timezone.now()
         for task in Task.objects.filter(status="failed", attempts__lt=F("max_attempts")).order_by("created"):
             try:
-                absolute_timeout = (task.task_data or {}).get("TASK_ABSOLUTE_TIMEOUT_SECONDS")
+                absolute_timeout = self._safe_int(
+                    (task.task_data or {}).get("TASK_ABSOLUTE_TIMEOUT_SECONDS"),
+                    field="TASK_ABSOLUTE_TIMEOUT_SECONDS",
+                    task_id=task.id,
+                    default=None,
+                )
                 if absolute_timeout is not None:
                     elapsed = (now - task.created).total_seconds()
-                    if elapsed >= int(absolute_timeout):
+                    if elapsed >= absolute_timeout:
                         task.attempts = task.max_attempts
                         task.error_message = f"Absolute timeout of {absolute_timeout}s elapsed ({int(elapsed)}s since creation) — no further retries"
                         task.save(update_fields=["error_message", "attempts", "modified"])

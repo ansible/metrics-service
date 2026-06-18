@@ -6,6 +6,7 @@ communication, and testing tasks with proper error handling and status tracking.
 """
 
 import logging
+import math
 from typing import Any
 
 from django.db import models, transaction
@@ -122,8 +123,8 @@ def _get_exponent(task) -> float:
     raw = task.task_data.get("retry_exponent", RETRY_EXPONENT)
     try:
         value = float(raw)
-        if value <= 1:
-            raise ValueError(f"retry_exponent must be > 1, got {value}")
+        if not math.isfinite(value) or value <= 1:
+            raise ValueError(f"retry_exponent must be a finite number > 1, got {value}")
         return value
     except (TypeError, ValueError):
         logger.warning(f"Invalid retry_exponent {raw!r} for task {task.name}, using default {RETRY_EXPONENT}")
