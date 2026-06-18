@@ -260,8 +260,8 @@ class UnifiedTaskScheduler:
                         task.save(update_fields=["error_message", "attempts", "modified"])
                         continue
                 _schedule_retry(task)
-            except Exception as e:
-                logger.error(f"Failed to schedule retry for task {task.id} ({task.name}): {e}")
+            except Exception:
+                logger.exception(f"Failed to schedule retry for task {task.id} ({task.name})")
 
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler.

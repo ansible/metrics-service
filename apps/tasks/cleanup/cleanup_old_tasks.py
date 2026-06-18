@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 # Function names whose execution records rotate on the short retention schedule.
 _HOURLY_TASK_FUNCTION_NAMES = {"collect_hourly_metrics"}
 
+# Django deletion-info key for TaskExecution rows.
+_TASK_EXECUTION_DELETE_KEY = "tasks.TaskExecution"
+
 
 def _build_old_tasks_queryset(cutoff_date, preserve_recurring: bool):
     """Return a queryset of completed/failed tasks older than cutoff_date."""
@@ -124,7 +127,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
             if include_executions:
                 _, deletion_info = TaskExecution.objects.filter(task__in=all_tasks_to_delete).delete()
-                deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
+                deleted_executions = deletion_info.get(_TASK_EXECUTION_DELETE_KEY, 0)
 
             _, old_deletion_info = old_tasks.delete()
             deleted_tasks = old_deletion_info.get("tasks.Task", 0)
@@ -134,18 +137,16 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
             if not include_executions:
                 # Accumulate cascade-deleted executions from both querysets.
-                deleted_executions = old_deletion_info.get("tasks.TaskExecution", 0) + hourly_deletion_info.get(
-                    "tasks.TaskExecution", 0
+                deleted_executions = old_deletion_info.get(_TASK_EXECUTION_DELETE_KEY, 0) + hourly_deletion_info.get(
+                    _TASK_EXECUTION_DELETE_KEY, 0
                 )
 
-        message = f"Deleted {deleted_tasks + deleted_hourly_tasks} tasks and {deleted_executions} executions"
-        if preserve_recurring:
-            message += " (recurring tasks preserved)"
+        suffix = " (recurring tasks preserved)" if preserve_recurring else ""
+        message = f"Deleted {deleted_tasks + deleted_hourly_tasks} tasks and {deleted_executions} executions{suffix}"
         log_task_execution("cleanup_old_tasks", "completed", message)
     else:
-        message = f"Found {task_count + hourly_task_count} tasks and {execution_count} executions that would be deleted"
-        if preserve_recurring:
-            message += " (recurring tasks preserved)"
+        suffix = " (recurring tasks preserved)" if preserve_recurring else ""
+        message = f"Found {task_count + hourly_task_count} tasks and {execution_count} executions that would be deleted{suffix}"
         log_task_execution("cleanup_old_tasks", "completed", message)
 
     return create_task_result(
