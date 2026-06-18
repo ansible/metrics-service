@@ -14,8 +14,6 @@ Queue routing is defined per-function in TASK_METADATA ("queue" field).
 import logging
 import os
 
-_FAKE_TASKS_ENABLED = os.environ.get("TEST_FAKE_TASKS", "").lower() in ("true", "1", "yes")
-
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
@@ -43,6 +41,8 @@ from .simple.hello_world import hello_world
 from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
+
+_FAKE_TASKS_ENABLED = os.environ.get("TEST_FAKE_TASKS", "").lower() in ("true", "1", "yes")
 
 if _FAKE_TASKS_ENABLED:
     from .collectors.fake_hourly_collectors import fake_hourly_collector
