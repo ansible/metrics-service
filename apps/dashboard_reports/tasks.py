@@ -101,7 +101,7 @@ def _sync_jobs_atomically(job_results: list) -> list:
                 try:
                     JobData.create_or_update_from_awx(job)
                 except Exception as e:
-                    logger.error(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
+                    logger.exception(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
                     failed_jobs.append(job["id"])
             if failed_jobs:
                 raise _PartialSyncRollbackError()
@@ -417,5 +417,5 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
             },
         )
     except Exception as e:
-        logger.error(f"Error during cleanup of old JobData records: {str(e)}")
+        logger.exception(f"Error during cleanup of old JobData records: {str(e)}")
         return create_task_result("error", error=f"Cleanup failed: {str(e)}")

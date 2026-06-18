@@ -82,7 +82,7 @@ def log_setting_change(user, setting_key: str, new_value, old_value=None):
         return setting
 
     except Exception as e:
-        logger.error(f"Failed to log setting change for {setting_key}: {str(e)}")
+        logger.exception(f"Failed to log setting change for {setting_key}: {str(e)}")
         return None
 
 
@@ -144,7 +144,7 @@ def rollback_configuration_change(change_id, user):
         }
 
     except Exception as e:
-        logger.error(f"Failed to rollback configuration change {change_id}: {str(e)}")
+        logger.exception(f"Failed to rollback configuration change {change_id}: {str(e)}")
         return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
 

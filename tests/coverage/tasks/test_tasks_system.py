@@ -273,8 +273,8 @@ def test_submit_task_dispatcher_error_logs_error_when_exhausted(user, mock_dispa
 
     task.refresh_from_db()
     assert task.status == "failed"
-    mock_logger.error.assert_called_once()
-    error_msg = mock_logger.error.call_args[0][0]
+    mock_logger.exception.assert_called_once()
+    error_msg = mock_logger.exception.call_args[0][0]
     assert "broker gone" in error_msg
     # Must NOT log at WARNING level for the dispatcher error
     warning_calls = [str(call) for call in mock_logger.warning.call_args_list]

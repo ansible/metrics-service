@@ -108,5 +108,5 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
         )
 
     except Exception as e:
-        logger.error(f"Error in cleanup_metrics_data: {str(e)}")
+        logger.exception(f"Error in cleanup_metrics_data: {str(e)}")
         return create_task_result("error", error=f"Cleanup failed: {str(e)}")
