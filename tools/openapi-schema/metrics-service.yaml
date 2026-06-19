@@ -688,6 +688,13 @@ paths:
       summary: Exports report data as CSV or HTML
       parameters:
       - in: query
+        name: currency
+        schema:
+          type: string
+          default: $
+        description: Currency symbol to display in HTML cost columns (e.g. '$', '€',
+          '£'). Defaults to '$'. Has no effect on CSV exports.
+      - in: query
         name: export_format
         schema:
           type: string
