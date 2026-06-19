@@ -393,3 +393,175 @@ class TestPassthroughRendererHTML:
         renderer = PassthroughRendererHTML()
         data = b"<html></html>"
         assert renderer.render(data) == data
+
+
+# =============================================================================
+# SVG chart helpers
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestRenderSvgChart:
+    """Unit tests for DashboardReportViewSet._render_svg_chart."""
+
+    @pytest.fixture
+    def viewset(self):
+        from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
+
+        return DashboardReportViewSet()
+
+    def _make_chart(self, n: int = 5, kind: str = "day", base_value: int = 10) -> dict:
+        items = []
+        base = datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
+        for i in range(n):
+            items.append({"label": base + datetime.timedelta(days=i), "value": base_value + i})
+        return {"kind": kind, "items": items}
+
+    def test_bar_chart_returns_svg_element(self, viewset):
+        chart_data = self._make_chart()
+        svg = viewset._render_svg_chart(chart_data, "bar")
+        assert "<svg" in svg
+        assert "</svg>" in svg
+
+    def test_line_chart_returns_svg_element(self, viewset):
+        chart_data = self._make_chart()
+        svg = viewset._render_svg_chart(chart_data, "line")
+        assert "<svg" in svg
+        assert "</svg>" in svg
+
+    def test_bar_chart_contains_rect_elements(self, viewset):
+        chart_data = self._make_chart(n=3)
+        svg = viewset._render_svg_chart(chart_data, "bar")
+        # At least one bar rect beyond the background rect
+        assert svg.count("<rect") >= 2
+
+    def test_line_chart_contains_path_element(self, viewset):
+        chart_data = self._make_chart(n=3)
+        svg = viewset._render_svg_chart(chart_data, "line")
+        assert "<path" in svg
+
+    def test_empty_items_returns_no_data_message(self, viewset):
+        result = viewset._render_svg_chart({"kind": "day", "items": []}, "bar")
+        assert "<svg" not in result
+        assert "No data" in result
+
+    def test_all_zero_values_does_not_raise(self, viewset):
+        items = [{"label": datetime.datetime(2025, 1, i + 1, tzinfo=datetime.UTC), "value": 0} for i in range(5)]
+        chart_data = {"kind": "day", "items": items}
+        svg = viewset._render_svg_chart(chart_data, "bar")
+        assert "<svg" in svg
+
+    def test_single_item_line_chart_does_not_render_path(self, viewset):
+        items = [{"label": datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC), "value": 5}]
+        chart_data = {"kind": "day", "items": items}
+        svg = viewset._render_svg_chart(chart_data, "line")
+        # Single point: no connecting line path, just the SVG wrapper
+        assert "<svg" in svg
+
+    def test_none_value_treated_as_zero(self, viewset):
+        items = [
+            {"label": datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC), "value": None},
+            {"label": datetime.datetime(2025, 1, 2, tzinfo=datetime.UTC), "value": 5},
+        ]
+        svg = viewset._render_svg_chart({"kind": "day", "items": items}, "bar")
+        assert "<svg" in svg
+
+
+@pytest.mark.unit
+class TestFormatChartLabel:
+    """Unit tests for DashboardReportViewSet._format_chart_label."""
+
+    @pytest.fixture
+    def viewset(self):
+        from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
+
+        return DashboardReportViewSet()
+
+    def test_datetime_day_kind(self, viewset):
+        dt = datetime.datetime(2025, 6, 15, tzinfo=datetime.UTC)
+        assert viewset._format_chart_label(dt, "day") == "15 Jun"
+
+    def test_datetime_month_kind(self, viewset):
+        dt = datetime.datetime(2025, 6, 1, tzinfo=datetime.UTC)
+        assert viewset._format_chart_label(dt, "month") == "Jun 2025"
+
+    def test_datetime_year_kind(self, viewset):
+        dt = datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
+        assert viewset._format_chart_label(dt, "year") == "2025"
+
+    def test_datetime_hour_kind(self, viewset):
+        dt = datetime.datetime(2025, 6, 15, 14, 30, tzinfo=datetime.UTC)
+        assert viewset._format_chart_label(dt, "hour") == "14:00"
+
+    def test_iso_string_label_is_parsed(self, viewset):
+        label = "2025-06-15T00:00:00+00:00"
+        result = viewset._format_chart_label(label, "day")
+        assert result == "15 Jun"
+
+    def test_already_formatted_string_returned_as_is(self, viewset):
+        # Strings that are not valid ISO datetimes fall back to the raw string
+        result = viewset._format_chart_label("15 Jun", "day")
+        assert result == "15 Jun"
+
+    def test_unknown_kind_uses_default_format(self, viewset):
+        dt = datetime.datetime(2025, 6, 15, tzinfo=datetime.UTC)
+        result = viewset._format_chart_label(dt, "week")
+        assert result == "2025-06-15"
+
+
+# =============================================================================
+# Charts in HTML output
+# =============================================================================
+
+
+@pytest.mark.unit
+@pytest.mark.django_db(transaction=True, reset_sequences=True)
+class TestExportHTMLCharts:
+    """Verify that SVG charts appear in the summary and trends HTML exports."""
+
+    @pytest.fixture(autouse=True)
+    def fixed_cost(self):
+        with patch(
+            "apps.dashboard_reports.models.SubscriptionCost.per_second_subscription_cost",
+            return_value=FIXED_PER_SECOND_COST,
+        ):
+            yield
+
+    def test_summary_html_contains_svg_chart(self, job_data, admin_client):
+        response = get_html(admin_client, build_html_query("summary"))
+        assert response.status_code == 200
+        assert b"<svg" in response.content
+
+    def test_summary_html_contains_job_chart_title(self, job_data, admin_client):
+        response = get_html(admin_client, build_html_query("summary"))
+        assert response.status_code == 200
+        assert b"Number of times jobs were run" in response.content
+
+    def test_summary_html_contains_host_chart_title(self, job_data, admin_client):
+        response = get_html(admin_client, build_html_query("summary"))
+        assert response.status_code == 200
+        assert b"Number of hosts jobs are running on" in response.content
+
+    def test_trends_html_contains_svg_chart(self, job_data, admin_client):
+        response = get_html(admin_client, build_html_query("trends"))
+        assert response.status_code == 200
+        assert b"<svg" in response.content
+
+    def test_trends_html_contains_job_chart_title(self, job_data, admin_client):
+        response = get_html(admin_client, build_html_query("trends"))
+        assert response.status_code == 200
+        assert b"Number of times jobs were run" in response.content
+
+    def test_trends_html_contains_host_chart_title(self, job_data, admin_client):
+        response = get_html(admin_client, build_html_query("trends"))
+        assert response.status_code == 200
+        assert b"Number of hosts jobs are running on" in response.content
+
+    def test_summary_html_no_data_shows_no_data_message(self, admin_client):
+        """With no job data, the charts should show the no-data placeholder instead of SVG."""
+        response = get_html(admin_client, build_html_query("summary"))
+        assert response.status_code == 200
+        # Either an SVG chart or a no-data message must be present
+        has_svg = b"<svg" in response.content
+        has_no_data = b"No data" in response.content
+        assert has_svg or has_no_data

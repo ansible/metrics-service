@@ -230,3 +230,44 @@ thead {
   background: #f0f0f0;
   color: #333;
 }
+
+.chart-row {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  margin-bottom: 10mm;
+}
+
+.chart-cell {
+  display: table-cell;
+  width: 50%;
+  vertical-align: top;
+  padding-right: 2%;
+  box-sizing: border-box;
+}
+
+.chart-cell:last-child {
+  padding-right: 0;
+}
+
+.chart-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px 12px 4px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.chart-card .chart-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.chart-card .chart-summary {
+  font-size: 22px;
+  font-weight: 600;
+  color: #151515;
+  margin-bottom: 6px;
+}

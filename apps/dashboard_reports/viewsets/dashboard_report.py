@@ -528,6 +528,112 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         return result
 
     @staticmethod
+    def _format_chart_label(label: Any, kind: str) -> str:
+        """Format a chart label (datetime or string) for display on a chart axis."""
+        date_formats = {
+            "year": "%Y",
+            "month": "%b %Y",
+            "day": "%d %b",
+            "hour": "%H:00",
+        }
+        fmt = date_formats.get(kind, "%Y-%m-%d")
+        try:
+            if isinstance(label, datetime):
+                return label.strftime(fmt)
+            parsed = datetime.fromisoformat(str(label).replace("Z", "+00:00"))
+            return parsed.strftime(fmt)
+        except (ValueError, TypeError, AttributeError):
+            return str(label)
+
+    def _render_svg_chart(self, chart_data: dict, chart_type: str) -> str:
+        """
+        Render chart data as an inline SVG bar or line chart.
+        Mirrors the two chart cards shown on the automation-dashboard UI:
+          - chart_type='bar'  → job runs per period (blue bars)
+          - chart_type='line' → host runs per period (blue line + filled area)
+        Returns an empty-state message string when there is no data.
+        """
+        items = chart_data.get("items", [])
+        kind = chart_data.get("kind", "day")
+
+        if not items:
+            return '<p style="color:#888;font-style:italic;text-align:center;margin:24px 0">No data available for this period.</p>'
+
+        width, height = 700, 250
+        pad_l, pad_r, pad_t, pad_b = 54, 16, 16, 52
+        plot_w = width - pad_l - pad_r
+        plot_h = height - pad_t - pad_b
+
+        values = [int(item.get("value") or 0) for item in items]
+        max_val = max(values) if values else 1
+        if max_val == 0:
+            max_val = 1
+
+        n = len(items)
+        slot_w = plot_w / n
+
+        svg = []
+        svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%;display:block">')
+        svg.append(f'<rect width="{width}" height="{height}" fill="#fafafa" rx="3"/>')
+
+        # Horizontal grid lines
+        steps = 4
+        for i in range(steps + 1):
+            y = pad_t + plot_h - (i / steps) * plot_h
+            label_val = int(max_val * i / steps)
+            svg.append(f'<line x1="{pad_l}" y1="{y:.1f}" x2="{pad_l + plot_w}" y2="{y:.1f}" stroke="#e8e8e8" stroke-width="1"/>')
+            svg.append(
+                f'<text x="{pad_l - 5}" y="{y + 4:.1f}" text-anchor="end" '
+                f'font-family="inherit" font-size="9" fill="#888">{label_val:,}</text>'
+            )
+
+        color = "#0066cc"
+
+        if chart_type == "bar":
+            bar_w = max(slot_w * 0.62, 2.0)
+            for i, item in enumerate(items):
+                val = int(item.get("value") or 0)
+                bh = (val / max_val) * plot_h
+                bx = pad_l + i * slot_w + (slot_w - bar_w) / 2
+                by = pad_t + plot_h - bh
+                svg.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="0.82" rx="2"/>')
+        else:  # line chart
+            pts = [
+                (pad_l + i * slot_w + slot_w / 2, pad_t + plot_h - (int(item.get("value") or 0) / max_val) * plot_h)
+                for i, item in enumerate(items)
+            ]
+            if len(pts) > 1:
+                area = (
+                    f"M {pts[0][0]:.1f},{pad_t + plot_h} "
+                    + " ".join(f"L {x:.1f},{y:.1f}" for x, y in pts)
+                    + f" L {pts[-1][0]:.1f},{pad_t + plot_h} Z"
+                )
+                svg.append(f'<path d="{area}" fill="{color}" opacity="0.10"/>')
+                line_d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+                svg.append(f'<path d="{line_d}" fill="none" stroke="{color}" stroke-width="2"/>')
+                for cx, cy in pts:
+                    svg.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3" fill="{color}"/>')
+
+        # X axis labels — show at most 8 to avoid crowding
+        tick_step = max(1, n // 8)
+        for i in range(0, n, tick_step):
+            label = self._format_chart_label(items[i].get("label", ""), kind)
+            cx = pad_l + i * slot_w + slot_w / 2
+            by = pad_t + plot_h
+            svg.append(
+                f'<text x="{cx:.1f}" y="{by + 10}" text-anchor="middle" '
+                f'font-family="inherit" font-size="8" fill="#888" '
+                f'transform="rotate(-30 {cx:.1f} {by + 10})">{label}</text>'
+            )
+
+        # Axes
+        svg.append(f'<line x1="{pad_l}" y1="{pad_t}" x2="{pad_l}" y2="{pad_t + plot_h}" stroke="#ccc" stroke-width="1.5"/>')
+        svg.append(f'<line x1="{pad_l}" y1="{pad_t + plot_h}" x2="{pad_l + plot_w}" y2="{pad_t + plot_h}" stroke="#ccc" stroke-width="1.5"/>')
+
+        svg.append("</svg>")
+        return "\n".join(svg)
+
+    @staticmethod
     def _csv_safe(value: Any) -> Any:
         """
         Prepend a single quote to any string value that starts with special
@@ -730,6 +836,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             total_time_savings=Coalesce(Sum("time_savings"), Value(decimal.Decimal("0"))),
         )
 
+        chart_data = self.get_chart_data()
+
         context = {
             "report_type": "summary",
             "table_data": ReportSerializer(full_agg_qs, many=True).data,
@@ -739,8 +847,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                     "top_users": [],
                     "top_projects": [],
                     "total_number_of_unique_hosts": 0,
-                    "job_chart": {"kind": "", "items": []},
-                    "host_chart": {"kind": "", "items": []},
+                    **chart_data,
                 }
             ).data,
             "enable_template_creation_time": SubscriptionCost.get().include_template_creation_time_in_costs,
@@ -748,6 +855,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date.strftime("%Y-%m-%d"),
             "filters": self._build_filter_labels(request),
+            "job_chart_svg": self._render_svg_chart(chart_data["job_chart"], "bar"),
+            "host_chart_svg": self._render_svg_chart(chart_data["host_chart"], "line"),
         }
 
         html = render_to_string("dashboard_reports/report_summary.html", context, request=request)
@@ -837,6 +946,15 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             for row in trends_qs
         ]
 
+        job_chart = {
+            "kind": kind,
+            "items": [{"label": row["date"], "value": row["runs"]} for row in rows],
+        }
+        host_chart = {
+            "kind": kind,
+            "items": [{"label": row["date"], "value": row["total_hosts"]} for row in rows],
+        }
+
         context = {
             "report_type": "trends",
             "granularity": kind,
@@ -844,6 +962,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date.strftime("%Y-%m-%d"),
             "filters": self._build_filter_labels(request),
+            "job_chart_svg": self._render_svg_chart(job_chart, "bar"),
+            "host_chart_svg": self._render_svg_chart(host_chart, "line"),
         }
 
         html = render_to_string("dashboard_reports/report_trends.html", context, request=request)
