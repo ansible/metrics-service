@@ -598,7 +598,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         slot_w = plot_w / n
 
         svg = []
-        svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%;display:block">')
+        svg.append(
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%;display:block">'
+        )
         svg.append(f'<rect width="{width}" height="{height}" fill="#fafafa" rx="3"/>')
 
         # Horizontal grid lines
@@ -606,7 +608,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         for i in range(steps + 1):
             y = pad_t + plot_h - (i / steps) * plot_h
             label_val = int(max_val * i / steps)
-            svg.append(f'<line x1="{pad_l}" y1="{y:.1f}" x2="{pad_l + plot_w}" y2="{y:.1f}" stroke="#e8e8e8" stroke-width="1"/>')
+            svg.append(
+                f'<line x1="{pad_l}" y1="{y:.1f}" x2="{pad_l + plot_w}" y2="{y:.1f}" stroke="#e8e8e8" stroke-width="1"/>'
+            )
             svg.append(
                 f'<text x="{pad_l - 5}" y="{y + 4:.1f}" text-anchor="end" '
                 f'font-family="inherit" font-size="9" fill="#888">{label_val:,}</text>'
@@ -621,7 +625,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 bh = (val / max_val) * plot_h
                 bx = pad_l + i * slot_w + (slot_w - bar_w) / 2
                 by = pad_t + plot_h - bh
-                svg.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="0.82" rx="2"/>')
+                svg.append(
+                    f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="0.82" rx="2"/>'
+                )
         else:  # line chart
             pts = [
                 (pad_l + i * slot_w + slot_w / 2, pad_t + plot_h - (int(item.get("value") or 0) / max_val) * plot_h)
@@ -652,8 +658,12 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             )
 
         # Axes
-        svg.append(f'<line x1="{pad_l}" y1="{pad_t}" x2="{pad_l}" y2="{pad_t + plot_h}" stroke="#ccc" stroke-width="1.5"/>')
-        svg.append(f'<line x1="{pad_l}" y1="{pad_t + plot_h}" x2="{pad_l + plot_w}" y2="{pad_t + plot_h}" stroke="#ccc" stroke-width="1.5"/>')
+        svg.append(
+            f'<line x1="{pad_l}" y1="{pad_t}" x2="{pad_l}" y2="{pad_t + plot_h}" stroke="#ccc" stroke-width="1.5"/>'
+        )
+        svg.append(
+            f'<line x1="{pad_l}" y1="{pad_t + plot_h}" x2="{pad_l + plot_w}" y2="{pad_t + plot_h}" stroke="#ccc" stroke-width="1.5"/>'
+        )
 
         svg.append("</svg>")
         return "\n".join(svg)
