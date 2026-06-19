@@ -18,6 +18,7 @@ from apps.dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    sync_dashboard_host_summaries,
     sync_dashboard_job_records,
 )
 
@@ -795,3 +796,132 @@ class TestProcessBatches:
         assert mock_collect.call_count == 2
         second_call_kwargs = mock_collect.call_args_list[1][1]
         assert second_call_kwargs["after_id"] == 105  # max id from batch1, not batch1["count"]
+
+
+@pytest.mark.unit
+class TestSyncDashboardHostSummaries:
+    """Tests for sync_dashboard_host_summaries — the hourly hook-driven host summary sync task."""
+
+    def _raw_record(self, host_summary_id=1, host_name="web01", host_remote_id=10, job_remote_id=42):
+        """Return a minimal raw host summary dict as produced by the hook."""
+        return {
+            "id": host_summary_id,
+            "host_name": host_name,
+            "host_remote_id": host_remote_id,
+            "job_remote_id": job_remote_id,
+        }
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_syncs_host_summaries_for_known_job(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
+        """When JobData exists for job_remote_id, _sync_host_summaries is called with remapped fields."""
+        job_data = MagicMock()
+        mock_objects.get.return_value = job_data
+        mock_jhs.objects.filter.return_value = []
+
+        record = self._raw_record(host_summary_id=7, host_name="db01", host_remote_id=99, job_remote_id=123)
+        sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
+
+        mock_sync.assert_called_once_with(
+            job_data,
+            [{"id": 7, "host_id": 99, "host_name": "db01"}],
+            {},
+        )
+        args, kwargs = mock_result.call_args
+        assert args[0] == "success"
+        assert kwargs["data"]["job_count"] == 1
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_skips_silently_when_job_data_not_found(self, mock_log, mock_objects, mock_result):
+        """When JobData.DoesNotExist is raised, the job is skipped without error."""
+        mock_objects.get.side_effect = JobData.DoesNotExist
+
+        sync_dashboard_host_summaries(raw_host_summaries=[self._raw_record()], hour_timestamp="2024-01-01T00:00:00")
+
+        args, kwargs = mock_result.call_args
+        assert args[0] == "success"
+        assert kwargs["data"]["job_count"] == 0
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_continues_after_individual_job_failure(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
+        """An exception on one job is logged and remaining jobs are still processed."""
+        job_a = MagicMock()
+        job_b = MagicMock()
+        mock_objects.get.side_effect = [job_a, job_b]
+        mock_jhs.objects.filter.return_value = []
+        mock_sync.side_effect = [RuntimeError("oops"), None]
+
+        records = [self._raw_record(job_remote_id=1), self._raw_record(job_remote_id=2)]
+        sync_dashboard_host_summaries(raw_host_summaries=records, hour_timestamp="2024-01-01T00:00:00")
+
+        assert mock_sync.call_count == 2
+        args, kwargs = mock_result.call_args
+        assert args[0] == "success"
+        assert kwargs["data"]["job_count"] == 1  # only job_b succeeded
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_groups_multiple_summaries_per_job(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
+        """Multiple host summary records for the same job are grouped and passed together."""
+        job_data = MagicMock()
+        mock_objects.get.return_value = job_data
+        mock_jhs.objects.filter.return_value = []
+
+        records = [
+            self._raw_record(host_summary_id=1, host_name="web01", job_remote_id=42),
+            self._raw_record(host_summary_id=2, host_name="web02", job_remote_id=42),
+        ]
+        sync_dashboard_host_summaries(raw_host_summaries=records, hour_timestamp="2024-01-01T00:00:00")
+
+        mock_objects.get.assert_called_once_with(job_id=42)
+        passed_summaries = mock_sync.call_args[0][1]
+        assert len(passed_summaries) == 2
+        assert {s["host_name"] for s in passed_summaries} == {"web01", "web02"}
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_empty_raw_host_summaries(self, mock_log, mock_result):
+        """Empty input returns success with job_count=0."""
+        sync_dashboard_host_summaries(raw_host_summaries=[], hour_timestamp="2024-01-01T00:00:00")
+        args, kwargs = mock_result.call_args
+        assert args[0] == "success"
+        assert kwargs["data"]["job_count"] == 0
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_null_host_remote_id_passed_as_none_host_id(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
+        """host_remote_id=None is mapped to host_id=None in the dict passed to _sync_host_summaries."""
+        job_data = MagicMock()
+        mock_objects.get.return_value = job_data
+        mock_jhs.objects.filter.return_value = []
+
+        record = self._raw_record(host_remote_id=None)
+        sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
+
+        passed_summaries = mock_sync.call_args[0][1]
+        assert passed_summaries[0]["host_id"] is None
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_records_with_null_job_remote_id_are_dropped(self, mock_log, mock_result):
+        """Records where job_remote_id is None are ignored without error."""
+        record = {"id": 1, "host_name": "h1", "host_remote_id": 5, "job_remote_id": None}
+        sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
+        args, kwargs = mock_result.call_args
+        assert args[0] == "success"
+        assert kwargs["data"]["job_count"] == 0

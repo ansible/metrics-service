@@ -43,6 +43,7 @@ def _get_hourly_collectors():
             "collector_func": job_host_summary_service,
             "rollup_processor": JobHostSummaryAnonymizedRollup,
             "description": "Job host summary metrics (partition-optimized)",
+            "post_collect_hook_factory": _build_dashboard_host_summary_sync_hook,
         },
         "unified_jobs": {
             # unified_jobs_dashboard extends the base unified_jobs query with dashboard-specific
@@ -126,7 +127,9 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     )
 
 
-_SYNC_TASK_CHUNK_SIZE = 500  # max records per sync_dashboard_job_records task
+_SYNC_TASK_CHUNK_SIZE = 500  # max jobs per sync_dashboard_* task
+
+_HOST_SUMMARY_COLUMNS = ("id", "host_name", "host_remote_id", "job_remote_id")
 
 _DASHBOARD_COLUMNS = [
     "id",
@@ -179,6 +182,90 @@ def _serialize_dashboard_record(row: dict) -> None:
         row["elapsed"] = None
     else:
         row["elapsed"] = float(val)
+
+
+def _serialize_host_summary_record(row: dict) -> dict:
+    """Coerce numpy/pandas types to Python natives for a single host summary row.
+
+    host_remote_id is nullable (None when the AWX host record has been deleted).
+    job_remote_id and id are always non-null integers from main_jobhostsummary.
+    """
+    result: dict = {}
+    for field in ("id", "job_remote_id"):
+        val = row.get(field)
+        result[field] = None if (val is None or (isinstance(val, float) and math.isnan(val))) else int(val)
+    val = row.get("host_remote_id")
+    result["host_remote_id"] = None if (val is None or (isinstance(val, float) and math.isnan(val))) else int(val)
+    result["host_name"] = str(row["host_name"]) if row.get("host_name") is not None else None
+    return result
+
+
+def _build_dashboard_host_summary_sync_hook(hour_timestamp):
+    """Return a post_collect_hook that schedules sync_dashboard_host_summaries tasks.
+
+    Reuses the raw DataFrame from job_host_summary_service to incrementally write
+    JobHostSummary records for post-backfill jobs without adding extra Controller
+    DB queries. Only schedules tasks when the DASHBOARD_COLLECTION feature flag is enabled.
+    """
+    # Lazy import: circular dependency (collect_hourly_metrics → task_groups → tasks → collect_hourly_metrics).
+    from apps.tasks.task_groups import get_feature_enabled_from_db
+
+    if not get_feature_enabled_from_db("DASHBOARD_COLLECTION"):
+        return None
+
+    def hook(raw_data):
+        if raw_data is None or raw_data.empty:
+            return
+
+        available = [c for c in _HOST_SUMMARY_COLUMNS if c in raw_data.columns]
+        missing = set(_HOST_SUMMARY_COLUMNS) - set(available)
+        if missing:
+            logger.warning(
+                "job_host_summary_service is missing expected columns for dashboard sync: %s",
+                sorted(missing),
+            )
+            return
+
+        rows = raw_data[list(available)].where(raw_data[list(available)].notna(), other=None).to_dict("records")
+
+        by_job: dict[int, list] = {}
+        for row in rows:
+            record = _serialize_host_summary_record(row)
+            job_id = record.get("job_remote_id")
+            if job_id is None:
+                continue
+            by_job.setdefault(job_id, []).append(record)
+
+        if not by_job:
+            return
+
+        # Lazy import inside closure: Task must be resolved at call time so tests can
+        # patch apps.tasks.models.Task after the hook is built (same circular-import reason).
+        from apps.tasks.models import Task
+
+        hour_ts_str = hour_timestamp.isoformat()
+        job_ids = list(by_job.keys())
+        for chunk_index, start in enumerate(range(0, len(job_ids), _SYNC_TASK_CHUNK_SIZE)):
+            chunk_job_ids = job_ids[start : start + _SYNC_TASK_CHUNK_SIZE]
+            chunk_summaries = [record for job_id in chunk_job_ids for record in by_job[job_id]]
+            Task.objects.update_or_create(
+                name=f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}",
+                defaults={
+                    "description": (
+                        f"Sync dashboard host summary records from job_host_summary_service"
+                        f" for {hour_ts_str} (chunk {chunk_index})"
+                    ),
+                    "function_name": "sync_dashboard_host_summaries",
+                    "task_data": {
+                        "raw_host_summaries": chunk_summaries,
+                        "hour_timestamp": hour_ts_str,
+                        "_feature_flag": "DASHBOARD_COLLECTION",
+                    },
+                    "is_system_task": False,
+                },
+            )
+
+    return hook
 
 
 def _build_dashboard_sync_hook(hour_timestamp):

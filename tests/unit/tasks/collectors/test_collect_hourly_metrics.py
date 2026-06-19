@@ -7,9 +7,11 @@ import pandas as pd
 import pytest
 
 from apps.tasks.collectors.collect_hourly_metrics import (
+    _build_dashboard_host_summary_sync_hook,
     _build_dashboard_sync_hook,
     _get_hourly_collectors,
     _serialize_dashboard_record,
+    _serialize_host_summary_record,
 )
 
 
@@ -387,3 +389,165 @@ class TestHourlyCollectorRegistry:
         assert entry.get("post_collect_hook_factory") is _build_dashboard_sync_hook, (
             "unified_jobs registry entry must wire _build_dashboard_sync_hook as post_collect_hook_factory"
         )
+
+    def test_job_host_summary_service_has_host_summary_hook_factory(self):
+        """job_host_summary_service entry must register _build_dashboard_host_summary_sync_hook."""
+        registry = _get_hourly_collectors()
+        entry = registry.get("job_host_summary_service")
+        assert entry is not None, "job_host_summary_service key missing from hourly collector registry"
+        assert entry.get("post_collect_hook_factory") is _build_dashboard_host_summary_sync_hook, (
+            "job_host_summary_service must wire _build_dashboard_host_summary_sync_hook"
+        )
+
+
+def _make_host_summary_df(rows: list[dict]) -> pd.DataFrame:
+    """Build a minimal DataFrame matching the job_host_summary_service schema."""
+    defaults = {
+        "id": 1,
+        "host_name": "web01",
+        "host_remote_id": 10,
+        "job_remote_id": 42,
+        # Extra columns present in the real collector — hook must ignore these.
+        "changed": 0,
+        "failures": 0,
+        "ok": 5,
+    }
+    return pd.DataFrame([{**defaults, **r} for r in rows])
+
+
+@pytest.mark.unit
+class TestBuildDashboardHostSummarySyncHook:
+    """Tests for _build_dashboard_host_summary_sync_hook and its returned inner hook."""
+
+    def test_returns_none_when_feature_disabled(self):
+        """When DASHBOARD_COLLECTION is off, the factory returns None."""
+        with patch(FEATURE_FLAG_PATH, return_value=False):
+            result = _build_dashboard_host_summary_sync_hook(HOUR_TS)
+        assert result is None
+
+    def test_returns_callable_when_feature_enabled(self):
+        """When DASHBOARD_COLLECTION is on, the factory returns a callable hook."""
+        with patch(FEATURE_FLAG_PATH, return_value=True):
+            hook = _build_dashboard_host_summary_sync_hook(HOUR_TS)
+        assert callable(hook)
+
+    def _enabled_hook(self):
+        """Build a hook with DASHBOARD_COLLECTION enabled."""
+        with patch(FEATURE_FLAG_PATH, return_value=True):
+            return _build_dashboard_host_summary_sync_hook(HOUR_TS)
+
+    def test_hook_returns_early_when_raw_data_none(self):
+        """hook(None) exits immediately without touching Task."""
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            hook(None)
+        mock_task.objects.update_or_create.assert_not_called()
+
+    def test_hook_returns_early_when_dataframe_empty(self):
+        """hook(empty_df) exits without creating a Task."""
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            hook(pd.DataFrame())
+        mock_task.objects.update_or_create.assert_not_called()
+
+    def test_hook_returns_early_when_required_columns_missing(self):
+        """If the DataFrame is missing any required column, no Task is created (schema drift guard)."""
+        df = pd.DataFrame([{"id": 1, "host_name": "h1"}])  # missing host_remote_id, job_remote_id
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            hook(df)
+        mock_task.objects.update_or_create.assert_not_called()
+
+    def test_hook_creates_task_with_correct_function_name(self):
+        """A valid DataFrame causes update_or_create with function_name='sync_dashboard_host_summaries'."""
+        df = _make_host_summary_df([{}])
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+        mock_task.objects.update_or_create.assert_called_once()
+        call_kwargs = mock_task.objects.update_or_create.call_args[1]
+        assert call_kwargs["defaults"]["function_name"] == "sync_dashboard_host_summaries"
+
+    def test_hook_serialises_raw_host_summaries_into_task_data(self):
+        """raw_host_summaries in task_data contains id, host_name, host_remote_id, job_remote_id."""
+        df = _make_host_summary_df([{"id": 7, "host_name": "db01", "host_remote_id": 99, "job_remote_id": 123}])
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+        task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
+        records = task_data["raw_host_summaries"]
+        assert len(records) == 1
+        assert records[0]["id"] == 7
+        assert records[0]["host_name"] == "db01"
+        assert records[0]["host_remote_id"] == 99
+        assert records[0]["job_remote_id"] == 123
+
+    def test_hook_uses_update_or_create_for_idempotency(self):
+        """Task creation uses update_or_create so retry is safe."""
+        df = _make_host_summary_df([{}])
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+        assert mock_task.objects.update_or_create.called
+
+    def test_hook_chunks_by_job(self):
+        """Records for more than _SYNC_TASK_CHUNK_SIZE unique jobs are split across multiple Tasks."""
+        from apps.tasks.collectors.collect_hourly_metrics import _SYNC_TASK_CHUNK_SIZE
+
+        rows = [{"id": i, "job_remote_id": i} for i in range(_SYNC_TASK_CHUNK_SIZE + 1)]
+        df = _make_host_summary_df(rows)
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        assert mock_task.objects.update_or_create.call_count == 2
+        first_call = mock_task.objects.update_or_create.call_args_list[0]
+        second_call = mock_task.objects.update_or_create.call_args_list[1]
+        assert first_call[1]["name"].endswith("_0")
+        assert second_call[1]["name"].endswith("_1")
+
+    def test_hook_skips_rows_with_null_job_remote_id(self):
+        """Rows where job_remote_id is None are dropped and no Task is created."""
+        df = _make_host_summary_df([{"job_remote_id": None}])
+        # pandas will store None as NaN for numeric column — force object dtype
+        df["job_remote_id"] = df["job_remote_id"].astype(object)
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            hook(df)
+        mock_task.objects.update_or_create.assert_not_called()
+
+
+@pytest.mark.unit
+class TestSerializeHostSummaryRecord:
+    """Branch-coverage tests for _serialize_host_summary_record."""
+
+    def test_basic_row_coerced_correctly(self):
+        """Standard row with all fields present is returned with Python-native types."""
+        import numpy as np
+
+        row = {"id": np.int64(5), "host_name": "web01", "host_remote_id": np.int64(10), "job_remote_id": np.int64(42)}
+        result = _serialize_host_summary_record(row)
+        assert result == {"id": 5, "host_name": "web01", "host_remote_id": 10, "job_remote_id": 42}
+        assert isinstance(result["id"], int)
+
+    def test_null_host_remote_id_stays_none(self):
+        """host_remote_id=None (deleted AWX host) is preserved as None."""
+        row = {"id": 1, "host_name": "h1", "host_remote_id": None, "job_remote_id": 7}
+        result = _serialize_host_summary_record(row)
+        assert result["host_remote_id"] is None
+
+    def test_nan_host_remote_id_becomes_none(self):
+        """NaN in host_remote_id (pandas float64 upcast of nullable int) is coerced to None."""
+        row = {"id": 1, "host_name": "h1", "host_remote_id": float("nan"), "job_remote_id": 7}
+        result = _serialize_host_summary_record(row)
+        assert result["host_remote_id"] is None
+
+    def test_null_host_name_stays_none(self):
+        """host_name=None is preserved as None."""
+        row = {"id": 1, "host_name": None, "host_remote_id": 10, "job_remote_id": 7}
+        result = _serialize_host_summary_record(row)
+        assert result["host_name"] is None

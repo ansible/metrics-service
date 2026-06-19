@@ -1,10 +1,11 @@
 """
 Background tasks for dashboard reports data collection and cleanup.
 
-Provides four dispatcherd tasks:
+Provides five dispatcherd tasks:
 - collect_dashboard_reports_initial_data: full historical backfill (default 90 days)
 - collect_dashboard_reports_data: incremental sync from last known timestamp (deprecated)
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
+- sync_dashboard_host_summaries: writes host summary data from the hourly hook to JobHostSummary
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
 """
 
@@ -20,7 +21,7 @@ from metrics_utility.library.collectors.dashboard import (
     dashboard_jobs,
 )
 
-from apps.dashboard_reports.models import JobData
+from apps.dashboard_reports.models import JobData, JobHostSummary
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
 
 DEFAULT_DB_NAME = "awx"
@@ -350,6 +351,61 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     )
     return create_task_result(
         "success", data={"task_type": task_name, "job_count": len(assembled), "hour_timestamp": hour_timestamp}
+    )
+
+
+def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
+    """Write job_host_summary_service data to JobHostSummary records in the dashboard tables.
+
+    Scheduled automatically by the hourly job_host_summary_service hook so no extra Controller
+    DB queries are needed — the raw data is passed in task_data. Jobs not present in JobData
+    (e.g. sync-type or non-terminal jobs filtered out by the dashboard collector) are silently
+    skipped.
+    """
+    task_name = "sync_dashboard_host_summaries"
+    hour_timestamp = kwargs.get("hour_timestamp", "unknown")
+    raw_host_summaries = kwargs.get("raw_host_summaries", [])
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Syncing host summaries for {len(raw_host_summaries)} records ({hour_timestamp})",
+    )
+
+    # Group by job_remote_id and remap host_remote_id → host_id to match _sync_host_summaries.
+    by_job: dict[int, list] = {}
+    for row in raw_host_summaries:
+        job_id = row.get("job_remote_id")
+        if job_id is None:
+            continue
+        by_job.setdefault(job_id, []).append(
+            {
+                "id": row["id"],
+                "host_id": row.get("host_remote_id"),
+                "host_name": row.get("host_name"),
+            }
+        )
+
+    synced = 0
+    for job_remote_id, host_summaries in by_job.items():
+        try:
+            job_data = JobData.objects.get(job_id=job_remote_id)
+        except JobData.DoesNotExist:
+            continue  # sync/non-terminal job — no matching JobData record
+        try:
+            existing = {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}
+            JobData._sync_host_summaries(job_data, host_summaries, existing)
+            synced += 1
+        except Exception:
+            logger.exception("Error syncing host summaries for job %s", job_remote_id)
+
+    log_task_execution(
+        task_name=task_name,
+        operation="completed",
+        details=f"Synced host summaries for {synced} jobs ({hour_timestamp})",
+    )
+    return create_task_result(
+        "success", data={"task_type": task_name, "job_count": synced, "hour_timestamp": hour_timestamp}
     )
 
 
