@@ -3,10 +3,11 @@
 import base64
 import csv
 import decimal
+import html as html_module
 import logging
 import re
 from datetime import UTC, datetime
-from functools import wraps
+from functools import cache, wraps
 from typing import Any
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
@@ -290,6 +291,17 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             enum=["csv", "html"],
             description="Export file format. Options: 'csv', 'html'.",
         ),
+        OpenApiParameter(
+            name="currency",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            default="$",
+            description=(
+                "Currency symbol to display in HTML cost columns (e.g. '$', '€', '£'). "
+                "Defaults to '$'. Has no effect on CSV exports."
+            ),
+        ),
     ]
 
     versioning_class = None  # Disable versioning for this viewset
@@ -532,8 +544,10 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         return result
 
     @staticmethod
+    @cache
     def _read_static_file(relative_path: str) -> str:
-        """Return the content of a static file by its relative static path, or '' if not found."""
+        """Return the content of a static file by its relative static path, or '' if not found.
+        Results are cached for the process lifetime — static files never change at runtime."""
         abs_path = finders.find(relative_path)
         if not abs_path:
             return ""
@@ -541,6 +555,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             return fh.read()
 
     @staticmethod
+    @cache
     def _inline_fonts_in_css(css: str) -> str:
         """
         Replace url('../fonts/<path>') references with base64 woff2 data URIs so the
@@ -692,7 +707,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         # X axis labels — show at most 8 to avoid crowding
         tick_step = max(1, n // 8)
         for i in range(0, n, tick_step):
-            label = self._format_chart_label(items[i].get("label", ""), kind)
+            label = html_module.escape(self._format_chart_label(items[i].get("label", ""), kind))
             cx = pad_l + i * slot_w + slot_w / 2
             by = pad_t + plot_h
             svg.append(
@@ -899,6 +914,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         """Render the summary report as an HTML response."""
         start_date = self.kwargs["start_date"]
         end_date = self.kwargs["end_date"]
+        currency = request.query_params.get("currency", "$")
 
         base_qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
         agg_qs = self._build_aggregated_queryset(base_qs)
@@ -932,7 +948,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 }
             ).data,
             "enable_template_creation_time": SubscriptionCost.get().include_template_creation_time_in_costs,
-            "currency": "$",
+            "currency": currency,
             "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date.strftime("%Y-%m-%d"),
             "filters": self._build_filter_labels(request),
@@ -947,6 +963,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         """Render the ROI report as an HTML response."""
         start_date = self.kwargs["start_date"]
         end_date = self.kwargs["end_date"]
+        currency = request.query_params.get("currency", "$")
 
         base_qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
         agg_qs = self._build_aggregated_queryset(base_qs)
@@ -969,7 +986,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         context = {
             **self._build_inline_context(),
             "report_type": "roi",
-            "currency": "$",
+            "currency": currency,
             "cost_savings": round(savings, 2),
             "time_saved_hours": time_saved_hours,
             "automation_cost": round(automated_costs, 2),
