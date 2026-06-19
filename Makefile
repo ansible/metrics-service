@@ -31,6 +31,24 @@ validate-openapi-schema: generate-openapi-schema
 	@uv run openapi-spec-validator tools/openapi-schema/metrics-service.json
 	@echo "✓ OpenAPI schema files are valid!"
 
+help:
+	@echo help test coverage lint fix sync-requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc compose-clean compose-psql
+
+test:
+	uv run pytest -s -v
+
+coverage:
+	uv run pytest -s -v --cov --cov-branch --cov-report=html --cov-report=xml
+
+lint:
+	uv run ruff check
+	uv run ruff format --check
+
+fix:
+	uv run ruff check --fix
+	uv run ruff format
+
+
 METRICS_UTILITY_COMPOSE = ../metrics-utility/tools/docker/docker-compose.yaml
 COMPOSE_CMD ?= $(shell command -v podman-compose 2>/dev/null || echo "docker compose")
 
@@ -49,4 +67,4 @@ compose-clean:
 compose-psql:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) exec postgres psql -U awx
 
-.PHONY: sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc compose-clean compose-psql
+.PHONY: help test coverage lint fix sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc compose-clean compose-psql
