@@ -16,6 +16,7 @@ from django.db.models.functions import Cast, Coalesce, Trunc
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.templatetags.static import static
+from django.utils.safestring import mark_safe
 from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
@@ -550,7 +551,11 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             # CSS file sits one directory above fonts/; rewrite relative references.
             css = css.replace('url("../fonts/', f'url("{fonts_url}')
         logo = self._read_static_file("dashboard_reports/images/RedHatLogo.svg")
-        return {"inline_css": css, "inline_logo": logo}
+        # mark_safe: both values are read from trusted static files on disk — no user input reaches these strings.
+        return {
+            "inline_css": mark_safe(css),  # noqa: S308
+            "inline_logo": mark_safe(logo),  # noqa: S308
+        }
 
     @staticmethod
     def _format_chart_label(label: Any, kind: str) -> str:
@@ -582,7 +587,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         kind = chart_data.get("kind", "day")
 
         if not items:
-            return '<p style="color:#888;font-style:italic;text-align:center;margin:24px 0">No data available for this period.</p>'
+            # mark_safe: static string with no user input.
+            return mark_safe('<p style="color:#888;font-style:italic;text-align:center;margin:24px 0">No data available for this period.</p>')
 
         width, height = 700, 250
         pad_l, pad_r, pad_t, pad_b = 54, 16, 16, 52
@@ -666,7 +672,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         )
 
         svg.append("</svg>")
-        return "\n".join(svg)
+        # mark_safe: SVG is built entirely from server-side Python — no user data is interpolated into the markup.
+        return mark_safe("\n".join(svg))  # noqa: S308
 
     @staticmethod
     def _csv_safe(value: Any) -> Any:
