@@ -32,7 +32,7 @@ validate-openapi-schema: generate-openapi-schema
 	@echo "✓ OpenAPI schema files are valid!"
 
 help:
-	@echo help test coverage lint fix sync-requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc compose-clean compose-psql
+	@echo help test coverage lint fix sync-requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc clean psql
 
 test:
 	uv run pytest -s -v
@@ -61,10 +61,10 @@ compose-service:
 compose-pytest-svc:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) --profile pytest-svc up
 
-compose-clean:
-	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) down -v
+clean:
+	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) down -v --rmi local
 
-compose-psql:
+psql:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) exec postgres psql -U awx
 
-.PHONY: help test coverage lint fix sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc compose-clean compose-psql
+.PHONY: help test coverage lint fix sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc clean psql
