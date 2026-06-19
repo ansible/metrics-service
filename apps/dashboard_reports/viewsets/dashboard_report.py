@@ -1,8 +1,10 @@
 """ViewSet for the main dashboard report endpoint, providing job run metrics and cost analytics."""
 
+import base64
 import csv
 import decimal
 import logging
+import re
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
@@ -15,7 +17,6 @@ from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Su
 from django.db.models.functions import Cast, Coalesce, Trunc
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
-from django.templatetags.static import static
 from django.utils.safestring import mark_safe
 from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
@@ -539,17 +540,34 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         with open(abs_path, encoding="utf-8") as fh:
             return fh.read()
 
-    def _build_inline_context(self, request: Request) -> dict:
+    @staticmethod
+    def _inline_fonts_in_css(css: str) -> str:
         """
-        Return context entries for self-contained HTML export:
-          inline_css  — contents of style.css with font url() rewritten to absolute URLs
-          inline_logo — contents of RedHatLogo.svg for direct <svg> embedding
+        Replace url('../fonts/<path>') references with base64 woff2 data URIs so the
+        exported HTML is fully self-contained and renders correctly when saved offline.
+        Unresolvable font paths are left unchanged (graceful fallback to system fonts).
+        """
+
+        def _font_data_uri(match: re.Match) -> str:
+            font_path = match.group(1)
+            abs_path = finders.find(f"dashboard_reports/fonts/{font_path}")
+            if not abs_path:
+                return match.group(0)
+            with open(abs_path, "rb") as fh:
+                encoded = base64.b64encode(fh.read()).decode("ascii")
+            return f'url("data:font/woff2;base64,{encoded}")'
+
+        return re.sub(r'url\("\.\./fonts/([^"]+)"\)', _font_data_uri, css)
+
+    def _build_inline_context(self) -> dict:
+        """
+        Return context entries for a fully self-contained HTML export:
+          inline_css  — style.css with @font-face url() replaced by base64 data URIs
+          inline_logo — RedHatLogo.svg content for direct <svg> embedding
         """
         css = self._read_static_file("dashboard_reports/styles/style.css")
         if css:
-            fonts_url = request.build_absolute_uri(static("dashboard_reports/fonts/"))
-            # CSS file sits one directory above fonts/; rewrite relative references.
-            css = css.replace('url("../fonts/', f'url("{fonts_url}')
+            css = self._inline_fonts_in_css(css)
         logo = self._read_static_file("dashboard_reports/images/RedHatLogo.svg")
         # mark_safe: both values are read from trusted static files on disk — no user input reaches these strings.
         return {
@@ -901,7 +919,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         chart_data = self.get_chart_data()
 
         context = {
-            **self._build_inline_context(request),
+            **self._build_inline_context(),
             "report_type": "summary",
             "table_data": ReportSerializer(full_agg_qs, many=True).data,
             "details": ReportDetailSerializer(
@@ -949,7 +967,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         automation_value = manual_costs + savings
 
         context = {
-            **self._build_inline_context(request),
+            **self._build_inline_context(),
             "report_type": "roi",
             "currency": "$",
             "cost_savings": round(savings, 2),
@@ -1020,7 +1038,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         }
 
         context = {
-            **self._build_inline_context(request),
+            **self._build_inline_context(),
             "report_type": "trends",
             "granularity": kind,
             "rows": rows,
