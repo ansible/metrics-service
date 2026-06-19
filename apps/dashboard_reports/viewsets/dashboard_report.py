@@ -298,7 +298,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             required=False,
             default="$",
             description=(
-                "Currency symbol to display in HTML cost columns (e.g. '$', '€', '£'). "
+                "Currency symbol to display in HTML cost columns (e.g. '$', 'EUR', 'GBP'). "
                 "Defaults to '$'. Has no effect on CSV exports."
             ),
         ),

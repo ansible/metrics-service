@@ -1057,7 +1057,7 @@
                             "type": "string",
                             "default": "$"
                         },
-                        "description": "Currency symbol to display in HTML cost columns (e.g. '$', '\u20ac', '\u00a3'). Defaults to '$'. Has no effect on CSV exports."
+                        "description": "Currency symbol to display in HTML cost columns (e.g. '$', 'EUR', 'GBP'). Defaults to '$'. Has no effect on CSV exports."
                     },
                     {
                         "in": "query",
