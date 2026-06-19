@@ -587,7 +587,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             bh = (val / max_val) * plot_h
             bx = pad_l + i * slot_w + (slot_w - bar_w) / 2
             by = pad_t + plot_h - bh
-            parts.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="0.82" rx="2"/>')
+            parts.append(
+                f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="0.82" rx="2"/>'
+            )
         return parts
 
     @staticmethod
@@ -626,7 +628,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
         if not items:
             # mark_safe: static string with no user input.
-            return mark_safe('<p style="color:#888;font-style:italic;text-align:center;margin:24px 0">No data available for this period.</p>')
+            return mark_safe(
+                '<p style="color:#888;font-style:italic;text-align:center;margin:24px 0">No data available for this period.</p>'
+            )
 
         width, height = 700, 250
         pad_l, pad_r, pad_t, pad_b = 54, 16, 16, 52
