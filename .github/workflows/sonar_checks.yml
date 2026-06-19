@@ -20,12 +20,12 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
       - name: Fetch Code Coverage Report
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: coverage-report
           path: coverage-artifact
@@ -33,7 +33,7 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Fetch PR Number
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: pr_number
           path: pr-artifact
@@ -125,7 +125,7 @@ jobs:
 
       - name: SonarCloud Scan
         if: steps.pr_check.outputs.should_scan == 'true'
-        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e
+        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_ORGANIZATION: ansible
