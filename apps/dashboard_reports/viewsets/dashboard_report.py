@@ -575,6 +575,44 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         except (ValueError, TypeError, AttributeError):
             return str(label)
 
+    @staticmethod
+    def _render_bar_segments(
+        items: list, pad_l: float, pad_t: float, slot_w: float, plot_h: float, max_val: int, color: str
+    ) -> list:
+        """Return SVG <rect> elements for a bar chart."""
+        bar_w = max(slot_w * 0.62, 2.0)
+        parts = []
+        for i, item in enumerate(items):
+            val = int(item.get("value") or 0)
+            bh = (val / max_val) * plot_h
+            bx = pad_l + i * slot_w + (slot_w - bar_w) / 2
+            by = pad_t + plot_h - bh
+            parts.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="0.82" rx="2"/>')
+        return parts
+
+    @staticmethod
+    def _render_line_segments(
+        items: list, pad_l: float, pad_t: float, slot_w: float, plot_h: float, max_val: int, color: str
+    ) -> list:
+        """Return SVG path and circle elements for a line chart with a filled area underneath."""
+        pts = [
+            (pad_l + i * slot_w + slot_w / 2, pad_t + plot_h - (int(item.get("value") or 0) / max_val) * plot_h)
+            for i, item in enumerate(items)
+        ]
+        if len(pts) <= 1:
+            return []
+        area = (
+            f"M {pts[0][0]:.1f},{pad_t + plot_h} "
+            + " ".join(f"L {x:.1f},{y:.1f}" for x, y in pts)
+            + f" L {pts[-1][0]:.1f},{pad_t + plot_h} Z"
+        )
+        line_d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        return [
+            f'<path d="{area}" fill="{color}" opacity="0.10"/>',
+            f'<path d="{line_d}" fill="none" stroke="{color}" stroke-width="2"/>',
+            *[f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3" fill="{color}"/>' for cx, cy in pts],
+        ]
+
     def _render_svg_chart(self, chart_data: dict, chart_type: str) -> str:
         """
         Render chart data as an inline SVG bar or line chart.
@@ -625,31 +663,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         color = "#0066cc"
 
         if chart_type == "bar":
-            bar_w = max(slot_w * 0.62, 2.0)
-            for i, item in enumerate(items):
-                val = int(item.get("value") or 0)
-                bh = (val / max_val) * plot_h
-                bx = pad_l + i * slot_w + (slot_w - bar_w) / 2
-                by = pad_t + plot_h - bh
-                svg.append(
-                    f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{bh:.1f}" fill="{color}" opacity="0.82" rx="2"/>'
-                )
-        else:  # line chart
-            pts = [
-                (pad_l + i * slot_w + slot_w / 2, pad_t + plot_h - (int(item.get("value") or 0) / max_val) * plot_h)
-                for i, item in enumerate(items)
-            ]
-            if len(pts) > 1:
-                area = (
-                    f"M {pts[0][0]:.1f},{pad_t + plot_h} "
-                    + " ".join(f"L {x:.1f},{y:.1f}" for x, y in pts)
-                    + f" L {pts[-1][0]:.1f},{pad_t + plot_h} Z"
-                )
-                svg.append(f'<path d="{area}" fill="{color}" opacity="0.10"/>')
-                line_d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-                svg.append(f'<path d="{line_d}" fill="none" stroke="{color}" stroke-width="2"/>')
-                for cx, cy in pts:
-                    svg.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3" fill="{color}"/>')
+            svg.extend(self._render_bar_segments(items, pad_l, pad_t, slot_w, plot_h, max_val, color))
+        else:
+            svg.extend(self._render_line_segments(items, pad_l, pad_t, slot_w, plot_h, max_val, color))
 
         # X axis labels — show at most 8 to avoid crowding
         tick_step = max(1, n // 8)
