@@ -9,11 +9,13 @@ from typing import Any
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from dateutil.relativedelta import relativedelta
+from django.contrib.staticfiles import finders
 from django.db import models
 from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
 from django.db.models.functions import Cast, Coalesce, Trunc
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
+from django.templatetags.static import static
 from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
@@ -528,6 +530,29 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         return result
 
     @staticmethod
+    def _read_static_file(relative_path: str) -> str:
+        """Return the content of a static file by its relative static path, or '' if not found."""
+        abs_path = finders.find(relative_path)
+        if not abs_path:
+            return ""
+        with open(abs_path, encoding="utf-8") as fh:
+            return fh.read()
+
+    def _build_inline_context(self, request: Request) -> dict:
+        """
+        Return context entries for self-contained HTML export:
+          inline_css  — contents of style.css with font url() rewritten to absolute URLs
+          inline_logo — contents of RedHatLogo.svg for direct <svg> embedding
+        """
+        css = self._read_static_file("dashboard_reports/styles/style.css")
+        if css:
+            fonts_url = request.build_absolute_uri(static("dashboard_reports/fonts/"))
+            # CSS file sits one directory above fonts/; rewrite relative references.
+            css = css.replace('url("../fonts/', f'url("{fonts_url}')
+        logo = self._read_static_file("dashboard_reports/images/RedHatLogo.svg")
+        return {"inline_css": css, "inline_logo": logo}
+
+    @staticmethod
     def _format_chart_label(label: Any, kind: str) -> str:
         """Format a chart label (datetime or string) for display on a chart axis."""
         date_formats = {
@@ -839,6 +864,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         chart_data = self.get_chart_data()
 
         context = {
+            **self._build_inline_context(request),
             "report_type": "summary",
             "table_data": ReportSerializer(full_agg_qs, many=True).data,
             "details": ReportDetailSerializer(
@@ -886,6 +912,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         automation_value = manual_costs + savings
 
         context = {
+            **self._build_inline_context(request),
             "report_type": "roi",
             "currency": "$",
             "cost_savings": round(savings, 2),
@@ -956,6 +983,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         }
 
         context = {
+            **self._build_inline_context(request),
             "report_type": "trends",
             "granularity": kind,
             "rows": rows,

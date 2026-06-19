@@ -202,7 +202,8 @@ class TestExportHTMLContentType:
     def test_response_contains_red_hat_logo(self, admin_client):
         response = get_html(admin_client, build_html_query("summary"))
         assert response.status_code == 200
-        assert b"RedHatLogo" in response.content
+        # Logo is now inlined as SVG; check for its unique element ID
+        assert b"aap-logo_svg" in response.content
 
 
 # =============================================================================

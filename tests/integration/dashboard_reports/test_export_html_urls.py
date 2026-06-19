@@ -141,9 +141,9 @@ class TestExportHTMLResponseContract:
         response = self._get("summary")
         assert b"window.print()" in response.content
 
-    def test_summary_contains_stylesheet_link(self):
+    def test_summary_contains_inline_styles(self):
         response = self._get("summary")
-        assert b"style.css" in response.content
+        assert b"<style>" in response.content
 
     def test_summary_contains_template_name(self):
         response = self._get("summary")
