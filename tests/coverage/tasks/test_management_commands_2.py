@@ -112,16 +112,19 @@ def test_metrics_service_tasks_show(user):
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_metrics_service_tasks_create(user):
+    from apps.tasks.models import Task
+
     with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
-        try:
-            call_command(
-                "metrics_service",
-                "tasks",
-                "create",
-                "--function",
-                "hello_world",
-                "--name",
-                "test-created-task",
-            )
-        except (SystemExit, Exception):
-            pass  # May have different argument syntax
+        call_command(
+            "metrics_service",
+            "tasks",
+            "create",
+            "--function",
+            "hello_world",
+            "--name",
+            "test-created-task",
+        )
+
+    task = Task.objects.get(name="test-created-task")
+    assert task.function_name == "hello_world"
+    assert task.description == ""
