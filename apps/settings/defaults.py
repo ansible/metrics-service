@@ -142,7 +142,7 @@ TASK_TIMEOUT = 3600
 # At ~700–900 bytes/row in memory, 2 000 000 rows ≈ 1.4–1.8 GB.  Raise for
 # high-volume installations; lower for memory-constrained environments.
 # Override via METRICS_SERVICE_JOBEVENT_ROW_LIMIT env var.
-JOBEVENT_ROW_LIMIT = 2_000_000
+JOBEVENT_ROW_LIMIT = 1_000_000
 
 
 # Project-specific middleware additions
