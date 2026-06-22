@@ -74,8 +74,8 @@ def job_data(template_metadata):
     """
     now = get_now()
     job_configs = [
-        (1, 0, 1, 10, "Project A", JobStatusChoices.SUCCESSFUL, datetime.timedelta(minutes=5), 60, 10, 1, "test_user"),
-        (2, 0, 1, 10, "Project A", JobStatusChoices.FAILED, datetime.timedelta(minutes=1), 5, 10, 1, "test_user"),
+        (1, 0, 1, 10, "Project A", JobStatusChoices.SUCCESSFUL, datetime.timedelta(hours=3), 60, 10, 1, "test_user"),
+        (2, 0, 1, 10, "Project A", JobStatusChoices.FAILED, datetime.timedelta(hours=2), 5, 10, 1, "test_user"),
         (
             3,
             1,
