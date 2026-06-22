@@ -138,6 +138,12 @@ URL_PREFIX = None
 # Task execution timeout in seconds (override via METRICS_SERVICE_TASK_TIMEOUT env var)
 TASK_TIMEOUT = 3600
 
+# Maximum number of job event rows fetched per hourly collection run.
+# At ~700–900 bytes/row in memory, 2 000 000 rows ≈ 1.4–1.8 GB.  Raise for
+# high-volume installations; lower for memory-constrained environments.
+# Override via METRICS_SERVICE_JOBEVENT_ROW_LIMIT env var.
+JOBEVENT_ROW_LIMIT = 2_000_000
+
 
 # Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
