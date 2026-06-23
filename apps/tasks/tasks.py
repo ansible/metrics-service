@@ -218,6 +218,7 @@ TASK_METADATA = {
             {"name": "Unified jobs", "data": {"collector_type": "unified_jobs"}},
             {"name": "Credentials", "data": {"collector_type": "credentials_service"}},
             {"name": "Job events", "data": {"collector_type": "main_jobevent_service"}},
+            {"name": "Indirect managed nodes", "data": {"collector_type": "indirect_managed_nodes"}},
             {
                 "name": "Specific hour",
                 "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
