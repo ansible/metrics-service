@@ -18,7 +18,6 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import filters, serializers, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import BaseRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -79,12 +78,7 @@ def parse_period_param(
 
     try:
         if period_str == DateFilter.CUSTOM.value:
-            try:
-                validate_custom_period_dates(start_date_str, end_date_str)
-            except ValidationError as e:
-                # Extract the error message from the ValidationError detail
-                error_msg = str(e.detail.get("detail", "start_date and end_date are required when period is 'custom'."))
-                return None, None, error_msg
+            validate_custom_period_dates(start_date_str, end_date_str)
             start_date, end_date = DateFilter.custom_range_to_start_date_end_date(
                 start_date_str=start_date_str,
                 end_date_str=end_date_str,
@@ -93,7 +87,10 @@ def parse_period_param(
         else:
             start_date, end_date = DateFilter.to_start_date_end_date(value=period_str, tz_string=timezone_str)
     except ValueError as e:
-        msg = f"Invalid {param_name} format: {period_str}. Error: {str(e)}"
+        if period_str == DateFilter.CUSTOM.value:
+            msg = f"Invalid start_date or end_date: {str(e)}"
+        else:
+            msg = f"Invalid {param_name}: {period_str}. Error: {str(e)}"
         logger.error(msg)
         return None, None, msg
 

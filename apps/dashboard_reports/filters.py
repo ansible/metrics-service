@@ -26,7 +26,7 @@ FILTER_FIELDS: frozenset[str] = frozenset({"organization", "template", "label", 
 def validate_custom_period_dates(start_date_str: str | None, end_date_str: str | None) -> None:
     """Validate that both dates are provided for custom period."""
     if not start_date_str or not end_date_str:
-        raise ValidationError({"detail": "start_date and end_date are required when period is 'custom'."})
+        raise ValueError({"detail": "start_date and end_date are required when period is 'custom'."})
 
 
 class DateFilter(Enum):
@@ -79,17 +79,15 @@ class DateFilter(Enum):
         tz = cls.get_timezone(tz_string)
 
         try:
-            start = (
-                datetime.datetime.fromisoformat(start_date_str)
-                .replace(tzinfo=datetime.UTC)
-                .astimezone(tz)
-                .replace(hour=0, minute=0, second=0, microsecond=0)
+            start = datetime.datetime.combine(
+                datetime.date.fromisoformat(start_date_str),
+                datetime.time.min,
+                tzinfo=tz,
             )
-            end = (
-                datetime.datetime.fromisoformat(end_date_str)
-                .replace(tzinfo=datetime.UTC)
-                .astimezone(tz)
-                .replace(hour=23, minute=59, second=59, microsecond=999999)
+            end = datetime.datetime.combine(
+                datetime.date.fromisoformat(end_date_str),
+                datetime.time.max,
+                tzinfo=tz,
             )
         except ValueError as exc:
             raise ValueError(
@@ -196,9 +194,12 @@ class CustomReportFilter(filters.BaseFilterBackend):
                 start_date_str = request.query_params.get("start_date")
                 end_date_str = request.query_params.get("end_date")
                 validate_custom_period_dates(start_date_str, end_date_str)
-                start_date, end_date = DateFilter.custom_range_to_start_date_end_date(
-                    start_date_str=start_date_str, end_date_str=end_date_str, tz_string=tz
-                )
+                try:
+                    start_date, end_date = DateFilter.custom_range_to_start_date_end_date(
+                        start_date_str=start_date_str, end_date_str=end_date_str, tz_string=tz
+                    )
+                except ValueError as exc:
+                    raise ValidationError({"detail": str(exc)}) from exc
             else:
                 start_date, end_date = DateFilter.to_start_date_end_date(value=period, tz_string=tz)
 

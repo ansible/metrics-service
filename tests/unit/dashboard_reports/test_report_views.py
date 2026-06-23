@@ -155,7 +155,8 @@ class TestParsePeriodParam:
 
         assert start_date is None
         assert end_date is None
-        assert "Invalid period format" in msg
+        assert "Invalid start_date or end_date" in msg
+        assert "Invalid date format" in msg
 
     def test_custom_period_invalid_timezone_returns_error(self):
         """parse_period_param returns error tuple when timezone is invalid."""
@@ -163,7 +164,18 @@ class TestParsePeriodParam:
 
         assert start_date is None
         assert end_date is None
-        assert "Invalid period format" in msg
+        assert "Invalid start_date or end_date" in msg
+        assert "Invalid timezone" in msg
+
+    def test_non_custom_period_invalid_timezone_returns_error(self):
+        """parse_period_param returns error tuple when timezone is invalid for non-custom period."""
+        start_date, end_date, msg = parse_period_param("last_7_days", "period", "Invalid/TZ", None, None)
+
+        assert start_date is None
+        assert end_date is None
+        assert "Invalid period: last_7_days" in msg
+        assert "Error:" in msg
+        assert "Invalid timezone" in msg
 
 
 # Unit tests for require_date_range decorator

@@ -828,37 +828,31 @@ class TestCustomReportFilterCustomPeriod:
         return mock_request
 
     def test_custom_period_missing_start_date_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
-        """ValidationError is raised when period=custom but start_date is missing."""
-        from rest_framework.exceptions import ValidationError
-
+        """ValueError is raised when period=custom but start_date is missing."""
         request = self._mock_request({"period": ["custom"], "end_date": ["2024-06-30"]})
         mock_view.kwargs = {}
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             filter_backend.filter_queryset(request, mock_queryset, mock_view)
 
-        assert "start_date and end_date are required" in str(exc_info.value.detail)
+        assert "start_date and end_date are required" in str(exc_info.value)
 
     def test_custom_period_missing_end_date_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
-        """ValidationError is raised when period=custom but end_date is missing."""
-        from rest_framework.exceptions import ValidationError
-
+        """ValueError is raised when period=custom but end_date is missing."""
         request = self._mock_request({"period": ["custom"], "start_date": ["2024-06-01"]})
         mock_view.kwargs = {}
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             filter_backend.filter_queryset(request, mock_queryset, mock_view)
 
-        assert "start_date and end_date are required" in str(exc_info.value.detail)
+        assert "start_date and end_date are required" in str(exc_info.value)
 
     def test_custom_period_missing_both_dates_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
-        """ValidationError is raised when period=custom and both dates are missing."""
-        from rest_framework.exceptions import ValidationError
-
+        """ValueError is raised when period=custom and both dates are missing."""
         request = self._mock_request({"period": ["custom"]})
         mock_view.kwargs = {}
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError):
             filter_backend.filter_queryset(request, mock_queryset, mock_view)
 
     @patch("apps.dashboard_reports.filters.DateFilter.custom_range_to_start_date_end_date")
@@ -885,3 +879,45 @@ class TestCustomReportFilterCustomPeriod:
         )
         mock_queryset.after_date.assert_called_once_with(mock_start)
         mock_queryset.before_date.assert_called_once_with(mock_end)
+
+    def test_custom_period_invalid_date_format_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValidationError is raised when custom_range_to_start_date_end_date raises ValueError for invalid date format."""
+        from rest_framework.exceptions import ValidationError
+
+        request = self._mock_request(
+            {"period": ["custom"], "start_date": ["not-a-date"], "end_date": ["2024-06-30"], "tz": ["UTC"]}
+        )
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValidationError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "Invalid date format" in str(exc_info.value.detail)
+
+    def test_custom_period_invalid_timezone_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValidationError is raised when custom_range_to_start_date_end_date raises ValueError for invalid timezone."""
+        from rest_framework.exceptions import ValidationError
+
+        request = self._mock_request(
+            {"period": ["custom"], "start_date": ["2024-06-01"], "end_date": ["2024-06-30"], "tz": ["Bad/Zone"]}
+        )
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValidationError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "Invalid timezone" in str(exc_info.value.detail)
+
+    def test_custom_period_start_after_end_raises_validation_error(self, filter_backend, mock_queryset, mock_view):
+        """ValidationError is raised when start_date is after end_date."""
+        from rest_framework.exceptions import ValidationError
+
+        request = self._mock_request(
+            {"period": ["custom"], "start_date": ["2024-06-30"], "end_date": ["2024-06-01"], "tz": ["UTC"]}
+        )
+        mock_view.kwargs = {}
+
+        with pytest.raises(ValidationError) as exc_info:
+            filter_backend.filter_queryset(request, mock_queryset, mock_view)
+
+        assert "must be before or equal to" in str(exc_info.value.detail)
