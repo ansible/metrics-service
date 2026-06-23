@@ -2471,6 +2471,46 @@
                 "x-ai-description": "Retrieve single feature flags state"
             }
         },
+        "/api/v1/feature_flags_state/": {
+            "get": {
+                "operationId": "feature_flags_state_retrieve",
+                "description": "A view class for displaying feature flags",
+                "tags": [
+                    "feature_flags_state"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                },
+                                "examples": {
+                                    "Featureflags": {
+                                        "value": {
+                                            "FLAG1": true,
+                                            "FLAG2": false
+                                        },
+                                        "summary": "featureflags"
+                                    }
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "x-ai-description": "Retrieve single feature flags state"
+            }
+        },
         "/api/v1/organizations/": {
             "get": {
                 "operationId": "organizations_list",
@@ -10488,6 +10528,26 @@
                 "tags": [
                     "teams"
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
                 "security": [
                     {
                         "cookieAuth": []
@@ -10498,7 +10558,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrganizationDisassociate"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
                 "x-ai-description": "Disassociate organization from a team"
@@ -11146,46 +11213,6 @@
                 },
                 "x-ai-description": "Retrieve single ping"
             }
-        },
-        "/api/v1/feature_flags_state/": {
-            "get": {
-                "operationId": "feature_flags_state_retrieve",
-                "description": "A view class for displaying feature flags",
-                "tags": [
-                    "feature_flags_state"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {}
-                                },
-                                "examples": {
-                                    "Featureflags": {
-                                        "value": {
-                                            "FLAG1": true,
-                                            "FLAG2": false
-                                        },
-                                        "summary": "featureflags"
-                                    }
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                },
-                "x-ai-description": "Retrieve single feature flags state"
-            }
         }
     },
     "components": {
@@ -11418,6 +11445,7 @@
                             "disassociate"
                         ],
                         "type": "string",
+                        "x-spec-enum-id": "9d2b7b6e53dc82e9",
                         "description": "The type of change recorded by the entry (i.e. create/update/delete/etc).\n\n* `create` - Entity created\n* `update` - Entity updated\n* `delete` - Entity deleted\n* `associate` - Entity was associated with another entity\n* `disassociate` - Entity was disassociated with another entity"
                     },
                     "changes": {
@@ -11540,8 +11568,6 @@
                         "maxLength": 255
                     },
                     "filters": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON object containing the filter criteria"
                     },
                     "is_default": {
@@ -11565,8 +11591,6 @@
                         "maxLength": 255
                     },
                     "filters": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON object containing the filter criteria"
                     },
                     "is_default": {
@@ -11617,7 +11641,8 @@
                             "unhealthy"
                         ],
                         "type": "string",
-                        "description": "* `healthy` - healthy\n* `unhealthy` - unhealthy"
+                        "description": "* `healthy` - healthy\n* `unhealthy` - unhealthy",
+                        "x-spec-enum-id": "bbc1782083c528a6"
                     },
                     "checks": {
                         "$ref": "#/components/schemas/Checks"
@@ -11691,6 +11716,38 @@
                 },
                 "required": [
                     "name"
+                ]
+            },
+            "OrganizationDisassociate": {
+                "type": "object",
+                "description": "Serializer used for removing objects that are currently associated via a many-to-many relationship",
+                "properties": {
+                    "instances": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "A list of organizations to remove from this relationship."
+                    }
+                },
+                "required": [
+                    "instances"
+                ]
+            },
+            "OrganizationDisassociateRequest": {
+                "type": "object",
+                "description": "Serializer used for removing objects that are currently associated via a many-to-many relationship",
+                "properties": {
+                    "instances": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "A list of organizations to remove from this relationship."
+                    }
+                },
+                "required": [
+                    "instances"
                 ]
             },
             "OrganizationRequest": {
@@ -12343,8 +12400,6 @@
                         "maxLength": 255
                     },
                     "filters": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON object containing the filter criteria"
                     },
                     "is_default": {
@@ -12390,10 +12445,7 @@
                         "type": "string",
                         "minLength": 1
                     },
-                    "resource_data": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
+                    "resource_data": {}
                 }
             },
             "PatchedRoleDefinitionRequest": {
@@ -12464,7 +12516,8 @@
                             "cancelled"
                         ],
                         "type": "string",
-                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled"
+                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled",
+                        "x-spec-enum-id": "1b7374f2553d22cc"
                     },
                     "worker_id": {
                         "type": "string",
@@ -12473,8 +12526,6 @@
                         "maxLength": 100
                     },
                     "result_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON result data from this execution"
                     },
                     "error_message": {
@@ -12500,8 +12551,6 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON data to pass to the task function"
                     },
                     "scheduled_time": {
@@ -12863,10 +12912,7 @@
                         "type": "boolean",
                         "readOnly": true
                     },
-                    "resource_data": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    },
+                    "resource_data": {},
                     "url": {
                         "type": "string",
                         "readOnly": true
@@ -12942,10 +12988,7 @@
                         "type": "string",
                         "minLength": 1
                     },
-                    "resource_data": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
+                    "resource_data": {}
                 },
                 "required": [
                     "resource_data"
@@ -13326,7 +13369,8 @@
                             "failed"
                         ],
                         "type": "string",
-                        "description": "* `ok` - ok\n* `failed` - failed"
+                        "description": "* `ok` - ok\n* `failed` - failed",
+                        "x-spec-enum-id": "dd8f4a127103967e"
                     },
                     "last_failure_at": {
                         "type": "string"
@@ -13556,8 +13600,6 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON data to pass to the task function"
                     },
                     "scheduled_time": {
@@ -13587,6 +13629,7 @@
                         ],
                         "type": "string",
                         "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled",
+                        "x-spec-enum-id": "1b7374f2553d22cc",
                         "readOnly": true
                     },
                     "attempts": {
@@ -13601,8 +13644,6 @@
                         "description": "Maximum number of retry attempts"
                     },
                     "result_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "readOnly": true,
                         "description": "JSON result data from task execution"
                     },
@@ -13767,8 +13808,6 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON object with task parameters"
                     },
                     "scheduled_time": {
@@ -13817,8 +13856,6 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON object with task parameters"
                     },
                     "scheduled_time": {
@@ -13878,7 +13915,8 @@
                             "cancelled"
                         ],
                         "type": "string",
-                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled"
+                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled",
+                        "x-spec-enum-id": "1b7374f2553d22cc"
                     },
                     "started_at": {
                         "type": "string",
@@ -13898,8 +13936,6 @@
                         "maxLength": 100
                     },
                     "result_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON result data from this execution"
                     },
                     "error_message": {
@@ -13964,7 +14000,8 @@
                             "cancelled"
                         ],
                         "type": "string",
-                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled"
+                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled",
+                        "x-spec-enum-id": "1b7374f2553d22cc"
                     },
                     "worker_id": {
                         "type": "string",
@@ -13973,8 +14010,6 @@
                         "maxLength": 100
                     },
                     "result_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON result data from this execution"
                     },
                     "error_message": {
@@ -14028,7 +14063,8 @@
                             "cancelled"
                         ],
                         "type": "string",
-                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled"
+                        "description": "* `pending` - Pending\n* `running` - Running\n* `completed` - Completed\n* `failed` - Failed\n* `cancelled` - Cancelled",
+                        "x-spec-enum-id": "1b7374f2553d22cc"
                     },
                     "status_display": {
                         "type": "string",
@@ -14073,8 +14109,6 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "type": "object",
-                        "additionalProperties": {},
                         "description": "JSON data to pass to the task function"
                     },
                     "scheduled_time": {
