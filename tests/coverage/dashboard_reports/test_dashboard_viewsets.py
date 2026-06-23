@@ -99,49 +99,35 @@ def test_template_metadata_list(auth_client):
 
 # ---------------------------------------------------------------------------
 # filter_options viewset (organizations, templates, projects, labels)
+# Endpoints now serve from local AWX cache tables — no Controller DB connection
+# needed at request time, so no mocking required.
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_organizations(auth_client):
-    with (
-        patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()),
-        patch("apps.dashboard_reports.awx_queries.fetch_organizations", return_value=([], 0)),
-    ):
-        response = auth_client.get("/api/v1/dashboard_reports/organizations/")
-    assert response.status_code in (200, 404)
+    response = auth_client.get("/api/v1/dashboard_reports/organizations/")
+    assert response.status_code == 200
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_templates(auth_client):
-    with (
-        patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()),
-        patch("apps.dashboard_reports.awx_queries.fetch_templates", return_value=([], 0)),
-    ):
-        response = auth_client.get("/api/v1/dashboard_reports/templates/")
-    assert response.status_code in (200, 404)
+    response = auth_client.get("/api/v1/dashboard_reports/templates/")
+    assert response.status_code == 200
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_labels(auth_client):
-    with (
-        patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()),
-        patch("apps.dashboard_reports.awx_queries.fetch_labels", return_value=([], 0)),
-    ):
-        response = auth_client.get("/api/v1/dashboard_reports/labels/")
-    assert response.status_code in (200, 404)
+    response = auth_client.get("/api/v1/dashboard_reports/labels/")
+    assert response.status_code == 200
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_filter_options_projects(auth_client):
-    with (
-        patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection", return_value=MagicMock()),
-        patch("apps.dashboard_reports.awx_queries.fetch_projects", return_value=([], 0)),
-    ):
-        response = auth_client.get("/api/v1/dashboard_reports/projects/")
-    assert response.status_code in (200, 404)
+    response = auth_client.get("/api/v1/dashboard_reports/projects/")
+    assert response.status_code == 200
 
 
 # ---------------------------------------------------------------------------

@@ -1,11 +1,33 @@
 # test_sync_filter_caches.py — Unit tests for sync_dashboard_filter_caches task
 
-from unittest.mock import MagicMock, call, patch
+import sys
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from apps.dashboard_reports.models import AWXJobTemplate, AWXLabel, AWXOrganization, AWXProject
 from apps.dashboard_reports.tasks import _sync_cache, sync_dashboard_filter_caches
+
+# ---------------------------------------------------------------------------
+# The sync_dashboard_filter_caches task lazily imports
+# metrics_utility.library.collectors.dashboard.filter_options at call time.
+# That module lives in the companion metrics-utility PR and may not be
+# installed in CI yet.  We inject a stub into sys.modules so the import
+# succeeds regardless of what version of metrics-utility is installed.
+# ---------------------------------------------------------------------------
+
+_FILTER_OPTIONS_PATH = "metrics_utility.library.collectors.dashboard.filter_options"
+_DASHBOARD_PKG_PATH = "metrics_utility.library.collectors.dashboard"
+
+
+def _make_filter_options_stub(orgs=None, templates=None, projects=None, labels=None):
+    """Return a MagicMock module whose fetch_* functions return the given lists."""
+    stub = MagicMock()
+    stub.fetch_organizations.return_value = orgs or []
+    stub.fetch_job_templates.return_value = templates or []
+    stub.fetch_projects.return_value = projects or []
+    stub.fetch_labels.return_value = labels or []
+    return stub
 
 # ---------------------------------------------------------------------------
 # _sync_cache helper
@@ -53,39 +75,38 @@ class TestSyncCacheHelper:
 # sync_dashboard_filter_caches task
 # ---------------------------------------------------------------------------
 
-# Patch at the import site inside the task function (lazy imports inside the function body)
-_FILTER_OPTIONS_MOD = "metrics_utility.library.collectors.dashboard.filter_options"
 _TASKS_MOD = "apps.dashboard_reports.tasks"
-
-
-def _patch_fetchers(orgs=None, templates=None, projects=None, labels=None):
-    """Return a context manager that patches all four fetch_* functions."""
-    from contextlib import ExitStack
-
-    stack = ExitStack()
-    stack.enter_context(patch(f"{_FILTER_OPTIONS_MOD}.fetch_organizations", return_value=orgs or []))
-    stack.enter_context(patch(f"{_FILTER_OPTIONS_MOD}.fetch_job_templates", return_value=templates or []))
-    stack.enter_context(patch(f"{_FILTER_OPTIONS_MOD}.fetch_projects", return_value=projects or []))
-    stack.enter_context(patch(f"{_FILTER_OPTIONS_MOD}.fetch_labels", return_value=labels or []))
-    return stack
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestSyncDashboardFilterCaches:
-    def test_returns_success_with_counts(self):
-        mock_db = MagicMock()
-        with (
-            patch(f"{_TASKS_MOD}.get_db_connection", return_value=mock_db),
-            _patch_fetchers(
-                orgs=[{"id": 1, "name": "Default"}],
-                templates=[{"id": 10, "name": "Deploy"}],
-                projects=[{"id": 5, "name": "Proj"}],
-                labels=[{"id": 42, "name": "production"}],
-            ),
-        ):
-            result = sync_dashboard_filter_caches()
+    def _run_with_stub(self, orgs=None, templates=None, projects=None, labels=None, db_error=None):
+        """Run sync_dashboard_filter_caches with a stub filter_options module in sys.modules.
 
+        Injecting via sys.modules guarantees the lazy import inside the task function
+        resolves to our stub regardless of what version of metrics-utility is installed.
+        """
+        stub = _make_filter_options_stub(orgs=orgs, templates=templates, projects=projects, labels=labels)
+        # Ensure the parent package attribute also resolves so attribute-lookup patches work
+        extra = {
+            _FILTER_OPTIONS_PATH: stub,
+        }
+        mock_db = MagicMock() if db_error is None else None
+        with patch.dict(sys.modules, extra):
+            if db_error:
+                with patch(f"{_TASKS_MOD}.get_db_connection", side_effect=db_error):
+                    return sync_dashboard_filter_caches()
+            with patch(f"{_TASKS_MOD}.get_db_connection", return_value=mock_db):
+                return sync_dashboard_filter_caches()
+
+    def test_returns_success_with_counts(self):
+        result = self._run_with_stub(
+            orgs=[{"id": 1, "name": "Default"}],
+            templates=[{"id": 10, "name": "Deploy"}],
+            projects=[{"id": 5, "name": "Proj"}],
+            labels=[{"id": 42, "name": "production"}],
+        )
         assert result["status"] == "success"
         assert result["organizations"] == 1
         assert result["job_templates"] == 1
@@ -93,42 +114,29 @@ class TestSyncDashboardFilterCaches:
         assert result["labels"] == 1
 
     def test_populates_all_four_cache_models(self):
-        mock_db = MagicMock()
-        with (
-            patch(f"{_TASKS_MOD}.get_db_connection", return_value=mock_db),
-            _patch_fetchers(
-                orgs=[{"id": 1, "name": "Default"}],
-                templates=[{"id": 10, "name": "Deploy"}],
-                projects=[{"id": 5, "name": "Proj"}],
-                labels=[{"id": 42, "name": "production"}],
-            ),
-        ):
-            sync_dashboard_filter_caches()
-
+        self._run_with_stub(
+            orgs=[{"id": 1, "name": "Default"}],
+            templates=[{"id": 10, "name": "Deploy"}],
+            projects=[{"id": 5, "name": "Proj"}],
+            labels=[{"id": 42, "name": "production"}],
+        )
         assert AWXOrganization.objects.filter(org_id=1).exists()
         assert AWXJobTemplate.objects.filter(template_id=10).exists()
         assert AWXProject.objects.filter(project_id=5).exists()
         assert AWXLabel.objects.filter(label_id=42).exists()
 
     def test_returns_error_when_db_connection_fails(self):
-        with patch(f"{_TASKS_MOD}.get_db_connection", side_effect=Exception("DB unreachable")):
-            result = sync_dashboard_filter_caches()
+        result = self._run_with_stub(db_error=Exception("DB unreachable"))
         assert result["status"] == "error"
         assert "DB unreachable" in result["error"]
 
     def test_deletes_stale_entries_across_all_models(self):
         AWXOrganization.objects.create(org_id=99, name="Stale")
         AWXLabel.objects.create(label_id=99, name="OldLabel")
-        mock_db = MagicMock()
-        with (
-            patch(f"{_TASKS_MOD}.get_db_connection", return_value=mock_db),
-            _patch_fetchers(
-                orgs=[{"id": 1, "name": "Default"}],
-                labels=[{"id": 42, "name": "production"}],
-            ),
-        ):
-            sync_dashboard_filter_caches()
-
+        self._run_with_stub(
+            orgs=[{"id": 1, "name": "Default"}],
+            labels=[{"id": 42, "name": "production"}],
+        )
         assert not AWXOrganization.objects.filter(org_id=99).exists()
         assert not AWXLabel.objects.filter(label_id=99).exists()
         assert AWXOrganization.objects.filter(org_id=1).exists()

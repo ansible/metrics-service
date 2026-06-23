@@ -34,6 +34,7 @@ class FilterOptionsViewSet(GenericViewSet):
     versioning_class = None
     pagination_class = DefaultPaginator
     permission_classes = [IsSystemAdminOrAuditor]
+    serializer_class = FilterOptionWithIdSerializer
 
     list_error_msg = "Failed to fetch records"
     retrieve_error_msg = "Failed to fetch record"
