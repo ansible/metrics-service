@@ -1,5 +1,6 @@
 # test_tasks.py - Unit tests for dashboard_reports tasks
 
+import contextlib
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -816,6 +817,7 @@ class TestSyncDashboardHostSummaries:
     @patch("apps.dashboard_reports.tasks.JobHostSummary")
     @patch("apps.dashboard_reports.tasks.JobData.objects")
     @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_syncs_host_summaries_for_known_job(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """When JobData exists for job_remote_id, _sync_host_summaries is called with remapped fields."""
         job_data = MagicMock()
@@ -852,6 +854,7 @@ class TestSyncDashboardHostSummaries:
     @patch("apps.dashboard_reports.tasks.JobHostSummary")
     @patch("apps.dashboard_reports.tasks.JobData.objects")
     @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_continues_after_individual_job_failure(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """An exception on one job is logged and remaining jobs are still processed."""
         job_a = MagicMock()
@@ -873,6 +876,7 @@ class TestSyncDashboardHostSummaries:
     @patch("apps.dashboard_reports.tasks.JobHostSummary")
     @patch("apps.dashboard_reports.tasks.JobData.objects")
     @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_groups_multiple_summaries_per_job(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """Multiple host summary records for the same job are grouped and passed together."""
         job_data = MagicMock()
@@ -904,6 +908,7 @@ class TestSyncDashboardHostSummaries:
     @patch("apps.dashboard_reports.tasks.JobHostSummary")
     @patch("apps.dashboard_reports.tasks.JobData.objects")
     @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_null_host_remote_id_passed_as_none_host_id(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """host_remote_id=None is mapped to host_id=None in the dict passed to _sync_host_summaries."""
         job_data = MagicMock()
