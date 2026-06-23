@@ -393,8 +393,9 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
         except JobData.DoesNotExist:
             continue  # sync/non-terminal job — no matching JobData record
         try:
-            existing = {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}
-            JobData._sync_host_summaries(job_data, host_summaries, existing)
+            with transaction.atomic():
+                existing = {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}
+                JobData._sync_host_summaries(job_data, host_summaries, existing)
             synced += 1
         except Exception:
             logger.exception("Error syncing host summaries for job %s", job_remote_id)
