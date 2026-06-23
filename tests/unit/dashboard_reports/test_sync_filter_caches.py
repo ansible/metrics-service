@@ -29,6 +29,7 @@ def _make_filter_options_stub(orgs=None, templates=None, projects=None, labels=N
     stub.fetch_labels.return_value = labels or []
     return stub
 
+
 # ---------------------------------------------------------------------------
 # _sync_cache helper
 # ---------------------------------------------------------------------------
