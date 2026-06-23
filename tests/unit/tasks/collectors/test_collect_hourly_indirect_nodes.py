@@ -39,10 +39,16 @@ class TestIndirectManagedNodesCollector:
         mock_collector = MagicMock()
         mock_collector.gather.return_value = sample_data
 
+        mock_rollup_processor = MagicMock()
+        mock_rollup_processor.return_value.prepare.return_value = {
+            "indirect_node_ids": ["remote1", "remote2"],
+            "indirect_nodes_total": 2,
+        }
+
         mock_registry = {
             "indirect_managed_nodes": {
                 "collector_func": MagicMock(return_value=mock_collector),
-                "rollup_processor": _get_hourly_collectors()["indirect_managed_nodes"]["rollup_processor"],
+                "rollup_processor": mock_rollup_processor,
                 "description": "Test collector",
             }
         }
