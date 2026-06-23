@@ -541,10 +541,26 @@
         },
         "/api/v1/dashboard_reports/labels/": {
             "get": {
-                "operationId": "dashboard_reports_labels_retrieve",
-                "description": "Returns a list of labels from AWX database.",
-                "summary": "Get a list of labels from AWX database.",
+                "operationId": "dashboard_reports_labels_list",
+                "description": "Returns a list of labels cached from the AWX database.",
+                "summary": "Get a list of labels from the local AWX cache.",
                 "parameters": [
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
+                    {
+                        "in": "query",
+                        "name": "order_by",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
                     {
                         "in": "query",
                         "name": "page",
@@ -562,6 +578,14 @@
                             "default": 10
                         },
                         "description": "Results per page (default: 10)."
+                    },
+                    {
+                        "in": "query",
+                        "name": "role_level",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by role level for RBAC"
                     },
                     {
                         "in": "query",
@@ -570,6 +594,14 @@
                             "type": "string"
                         },
                         "description": "Search by label name."
+                    },
+                    {
+                        "in": "query",
+                        "name": "type",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by object type. Supports comma-separated values for multiple types."
                     }
                 ],
                 "tags": [
@@ -585,23 +617,30 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginatedFilterOptionWithIdList"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
-                "x-ai-description": "Retrieve single dashboard reports label"
+                "x-ai-description": "List all dashboard reports labels"
             }
         },
         "/api/v1/dashboard_reports/labels/{id}/": {
             "get": {
-                "operationId": "dashboard_reports_labels_retrieve_2",
-                "description": "Returns a single label record from AWX database by ID.",
-                "summary": "Get a specific label from AWX database by ID.",
+                "operationId": "dashboard_reports_labels_retrieve",
+                "description": "Returns a single label record by AWX label ID.",
+                "summary": "Get a specific label from the local AWX cache by ID.",
                 "parameters": [
                     {
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
                         "required": true
                     }
@@ -619,7 +658,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FilterOptionWithId"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
                 "x-ai-description": "Retrieve single dashboard reports label"
@@ -627,10 +673,26 @@
         },
         "/api/v1/dashboard_reports/organizations/": {
             "get": {
-                "operationId": "dashboard_reports_organizations_retrieve",
-                "description": "Returns a list of organizations from AWX database.",
-                "summary": "Get a list of organizations from AWX database.",
+                "operationId": "dashboard_reports_organizations_list",
+                "description": "Returns a list of organizations cached from the AWX database.",
+                "summary": "Get a list of organizations from the local AWX cache.",
                 "parameters": [
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
+                    {
+                        "in": "query",
+                        "name": "order_by",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
                     {
                         "in": "query",
                         "name": "page",
@@ -648,6 +710,14 @@
                             "default": 10
                         },
                         "description": "Results per page (default: 10)."
+                    },
+                    {
+                        "in": "query",
+                        "name": "role_level",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by role level for RBAC"
                     },
                     {
                         "in": "query",
@@ -656,6 +726,14 @@
                             "type": "string"
                         },
                         "description": "Search by organization name."
+                    },
+                    {
+                        "in": "query",
+                        "name": "type",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by object type. Supports comma-separated values for multiple types."
                     }
                 ],
                 "tags": [
@@ -671,23 +749,30 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginatedFilterOptionWithIdList"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
-                "x-ai-description": "Retrieve single dashboard reports organization"
+                "x-ai-description": "List all dashboard reports organizations"
             }
         },
         "/api/v1/dashboard_reports/organizations/{id}/": {
             "get": {
-                "operationId": "dashboard_reports_organizations_retrieve_2",
-                "description": "Returns a single organization record from AWX database by ID.",
-                "summary": "Get a specific organization from AWX database by ID.",
+                "operationId": "dashboard_reports_organizations_retrieve",
+                "description": "Returns a single organization record by AWX organization ID.",
+                "summary": "Get a specific organization from the local AWX cache by ID.",
                 "parameters": [
                     {
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
                         "required": true
                     }
@@ -705,7 +790,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FilterOptionWithId"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
                 "x-ai-description": "Retrieve single dashboard reports organization"
@@ -713,10 +805,26 @@
         },
         "/api/v1/dashboard_reports/projects/": {
             "get": {
-                "operationId": "dashboard_reports_projects_retrieve",
-                "description": "Returns a list of projects from AWX database.",
-                "summary": "Get a list of projects from AWX database.",
+                "operationId": "dashboard_reports_projects_list",
+                "description": "Returns a list of projects cached from the AWX database.",
+                "summary": "Get a list of projects from the local AWX cache.",
                 "parameters": [
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
+                    {
+                        "in": "query",
+                        "name": "order_by",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
                     {
                         "in": "query",
                         "name": "page",
@@ -737,11 +845,27 @@
                     },
                     {
                         "in": "query",
+                        "name": "role_level",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by role level for RBAC"
+                    },
+                    {
+                        "in": "query",
                         "name": "search",
                         "schema": {
                             "type": "string"
                         },
                         "description": "Search by project name."
+                    },
+                    {
+                        "in": "query",
+                        "name": "type",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by object type. Supports comma-separated values for multiple types."
                     }
                 ],
                 "tags": [
@@ -757,23 +881,30 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginatedFilterOptionWithIdList"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
-                "x-ai-description": "Retrieve single dashboard reports project"
+                "x-ai-description": "List all dashboard reports projects"
             }
         },
         "/api/v1/dashboard_reports/projects/{id}/": {
             "get": {
-                "operationId": "dashboard_reports_projects_retrieve_2",
-                "description": "Returns a single project record from AWX database by ID.",
-                "summary": "Get a specific project from AWX database by ID.",
+                "operationId": "dashboard_reports_projects_retrieve",
+                "description": "Returns a single project record by AWX project ID.",
+                "summary": "Get a specific project from the local AWX cache by ID.",
                 "parameters": [
                     {
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
                         "required": true
                     }
@@ -791,7 +922,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FilterOptionWithId"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
                 "x-ai-description": "Retrieve single dashboard reports project"
@@ -1613,10 +1751,26 @@
         },
         "/api/v1/dashboard_reports/templates/": {
             "get": {
-                "operationId": "dashboard_reports_templates_retrieve",
-                "description": "Returns a list of job templates from AWX database.",
-                "summary": "Get a list of job templates from AWX database.",
+                "operationId": "dashboard_reports_templates_list",
+                "description": "Returns a list of job templates cached from the AWX database.",
+                "summary": "Get a list of job templates from the local AWX cache.",
                 "parameters": [
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
+                    {
+                        "in": "query",
+                        "name": "order_by",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Order results by field name. Prefix with '-' for descending order. Supports comma-separated values for multiple fields."
+                    },
                     {
                         "in": "query",
                         "name": "page",
@@ -1637,11 +1791,27 @@
                     },
                     {
                         "in": "query",
+                        "name": "role_level",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by role level for RBAC"
+                    },
+                    {
+                        "in": "query",
                         "name": "search",
                         "schema": {
                             "type": "string"
                         },
                         "description": "Search by job template name."
+                    },
+                    {
+                        "in": "query",
+                        "name": "type",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by object type. Supports comma-separated values for multiple types."
                     }
                 ],
                 "tags": [
@@ -1657,23 +1827,30 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginatedFilterOptionWithIdList"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
-                "x-ai-description": "Retrieve single dashboard reports template"
+                "x-ai-description": "List all dashboard reports templates"
             }
         },
         "/api/v1/dashboard_reports/templates/{id}/": {
             "get": {
-                "operationId": "dashboard_reports_templates_retrieve_2",
-                "description": "Returns a single job template record from AWX database by ID.",
-                "summary": "Get a specific job template from AWX database by ID.",
+                "operationId": "dashboard_reports_templates_retrieve",
+                "description": "Returns a single job template record by AWX template ID.",
+                "summary": "Get a specific job template from the local AWX cache by ID.",
                 "parameters": [
                     {
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         },
                         "required": true
                     }
@@ -1691,7 +1868,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "No response body"
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FilterOptionWithId"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
                 "x-ai-description": "Retrieve single dashboard reports template"
@@ -2278,46 +2462,6 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/FeatureFlagStates"
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                },
-                "x-ai-description": "Retrieve single feature flags state"
-            }
-        },
-        "/api/v1/feature_flags_state/": {
-            "get": {
-                "operationId": "feature_flags_state_retrieve",
-                "description": "A view class for displaying feature flags",
-                "tags": [
-                    "feature_flags_state"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {}
-                                },
-                                "examples": {
-                                    "Featureflags": {
-                                        "value": {
-                                            "FLAG1": true,
-                                            "FLAG2": false
-                                        },
-                                        "summary": "featureflags"
-                                    }
                                 }
                             }
                         },
@@ -11002,6 +11146,46 @@
                 },
                 "x-ai-description": "Retrieve single ping"
             }
+        },
+        "/api/v1/feature_flags_state/": {
+            "get": {
+                "operationId": "feature_flags_state_retrieve",
+                "description": "A view class for displaying feature flags",
+                "tags": [
+                    "feature_flags_state"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                },
+                                "examples": {
+                                    "Featureflags": {
+                                        "value": {
+                                            "FLAG1": true,
+                                            "FLAG2": false
+                                        },
+                                        "summary": "featureflags"
+                                    }
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "x-ai-description": "Retrieve single feature flags state"
+            }
         }
     },
     "components": {
@@ -11323,6 +11507,24 @@
                     "name"
                 ]
             },
+            "FilterOptionWithId": {
+                "type": "object",
+                "description": "Serializer for a single filter dropdown option with an integer ID and display name.",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Option ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Option display name"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            },
             "FilterSet": {
                 "type": "object",
                 "description": "Serializer for FilterSet, exposing name, filter criteria, and default flag.",
@@ -11630,6 +11832,37 @@
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/FeatureFlagStates"
+                        }
+                    }
+                }
+            },
+            "PaginatedFilterOptionWithIdList": {
+                "type": "object",
+                "required": [
+                    "count",
+                    "results"
+                ],
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "example": 123
+                    },
+                    "next": {
+                        "type": "string",
+                        "nullable": true,
+                        "format": "uri",
+                        "example": "http://api.example.org/accounts/?page=4"
+                    },
+                    "previous": {
+                        "type": "string",
+                        "nullable": true,
+                        "format": "uri",
+                        "example": "http://api.example.org/accounts/?page=2"
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/FilterOptionWithId"
                         }
                     }
                 }
