@@ -68,9 +68,7 @@ class FilterOptionsViewSet(GenericViewSet):
             return self.get_paginated_response(items)
         return Response(items)
 
-    @extend_schema(
-        parameters=[OpenApiParameter("id", OpenApiTypes.INT, OpenApiParameter.PATH)]
-    )
+    @extend_schema(parameters=[OpenApiParameter("id", OpenApiTypes.INT, OpenApiParameter.PATH)])
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """Return a single filter option by its AWX entity ID."""
         try:
