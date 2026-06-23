@@ -433,7 +433,6 @@ paths:
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this AWX Label Cache.
         required: true
       tags:
       - dashboard_reports
@@ -517,7 +516,6 @@ paths:
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this AWX Organization Cache.
         required: true
       tags:
       - dashboard_reports
@@ -601,7 +599,6 @@ paths:
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this AWX Project Cache.
         required: true
       tags:
       - dashboard_reports
@@ -1197,7 +1194,6 @@ paths:
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this AWX Job Template Cache.
         required: true
       tags:
       - dashboard_reports

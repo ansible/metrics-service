@@ -5,6 +5,7 @@ from typing import Any
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -67,6 +68,9 @@ class FilterOptionsViewSet(GenericViewSet):
             return self.get_paginated_response(items)
         return Response(items)
 
+    @extend_schema(
+        parameters=[OpenApiParameter("id", OpenApiTypes.INT, OpenApiParameter.PATH)]
+    )
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """Return a single filter option by its AWX entity ID."""
         try:
