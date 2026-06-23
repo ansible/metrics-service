@@ -210,6 +210,7 @@ def test_get_all_enabled_tasks_excludes_disabled_group():
 
     tasks = get_all_enabled_tasks()
     assert "hourly_job_host_summary" not in tasks
+    assert "hourly_job_events" not in tasks
     assert "daily_metrics_rollup" not in tasks
 
 
@@ -247,12 +248,11 @@ def test_get_all_tasks_for_init_ignores_feature_flags():
 
 
 @pytest.mark.unit
-def test_get_all_tasks_for_init_excludes_individually_disabled():
+def test_get_all_tasks_for_init_includes_all_enabled_tasks():
     from apps.tasks.task_groups import get_all_tasks_for_init
 
     tasks = get_all_tasks_for_init()
-    # hourly_job_events has enabled=False in METRICS_COLLECTION_GROUP.tasks
-    assert "hourly_job_events" not in tasks
+    assert "hourly_job_events" in tasks
 
 
 @pytest.mark.unit
