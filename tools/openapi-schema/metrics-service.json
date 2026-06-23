@@ -10528,26 +10528,6 @@
                 "tags": [
                     "teams"
                 ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
-                            }
-                        },
-                        "application/x-www-form-urlencoded": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
-                            }
-                        },
-                        "multipart/form-data": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OrganizationDisassociateRequest"
-                            }
-                        }
-                    },
-                    "required": true
-                },
                 "security": [
                     {
                         "cookieAuth": []
@@ -10558,14 +10538,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/OrganizationDisassociate"
-                                }
-                            }
-                        },
-                        "description": ""
+                        "description": "No response body"
                     }
                 },
                 "x-ai-description": "Disassociate organization from a team"
@@ -12551,7 +12524,9 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "description": "JSON data to pass to the task function"
+                        "description": "JSON data to pass to the task function",
+                        "type": "object",
+                        "additionalProperties": {}
                     },
                     "scheduled_time": {
                         "type": "string",
@@ -13600,7 +13575,9 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "description": "JSON data to pass to the task function"
+                        "description": "JSON data to pass to the task function",
+                        "type": "object",
+                        "additionalProperties": {}
                     },
                     "scheduled_time": {
                         "type": "string",
@@ -13808,7 +13785,9 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "description": "JSON object with task parameters"
+                        "description": "JSON object with task parameters",
+                        "type": "object",
+                        "additionalProperties": {}
                     },
                     "scheduled_time": {
                         "type": "string",
@@ -13856,7 +13835,9 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "description": "JSON object with task parameters"
+                        "description": "JSON object with task parameters",
+                        "type": "object",
+                        "additionalProperties": {}
                     },
                     "scheduled_time": {
                         "type": "string",
@@ -14109,7 +14090,9 @@
                         "maxLength": 255
                     },
                     "task_data": {
-                        "description": "JSON data to pass to the task function"
+                        "description": "JSON data to pass to the task function",
+                        "type": "object",
+                        "additionalProperties": {}
                     },
                     "scheduled_time": {
                         "type": "string",
