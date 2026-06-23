@@ -18,6 +18,7 @@ from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    sync_dashboard_filter_caches,
     sync_dashboard_job_records,
 )
 
@@ -60,6 +61,7 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
+    "sync_dashboard_filter_caches": sync_dashboard_filter_caches,
     "sync_dashboard_job_records": sync_dashboard_job_records,
 }
 
@@ -429,6 +431,21 @@ TASK_METADATA = {
             },
         ],
     },
+    "sync_dashboard_filter_caches": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Sync AWX filter option caches (organizations, job templates, projects, labels) from Controller into local DB tables",
+        "parameters": {
+            "database": {
+                "type": "string",
+                "default": "awx",
+                "description": "Name of the AWX database connection to use",
+            },
+        },
+        "examples": [
+            {"name": "Default (uses awx DB connection)", "data": {}},
+        ],
+    },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
@@ -475,4 +492,6 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "sync_dashboard_filter_caches",
+    "sync_dashboard_job_records",
 ]

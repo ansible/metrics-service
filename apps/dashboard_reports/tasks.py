@@ -1,10 +1,12 @@
 """
 Background tasks for dashboard reports data collection and cleanup.
 
-Provides four dispatcherd tasks:
+Provides six dispatcherd tasks:
 - collect_dashboard_reports_initial_data: full historical backfill (default 90 days)
 - collect_dashboard_reports_data: incremental sync from last known timestamp (deprecated)
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
+- sync_dashboard_host_summaries: writes job_host_summary_service data to JobHostSummary
+- sync_dashboard_filter_caches: hourly cache of AWX orgs/templates/projects/labels
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
 """
 
@@ -20,7 +22,7 @@ from metrics_utility.library.collectors.dashboard import (
     dashboard_jobs,
 )
 
-from apps.dashboard_reports.models import JobData
+from apps.dashboard_reports.models import AWXJobTemplate, AWXLabel, AWXOrganization, AWXProject, JobData
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
 
 DEFAULT_DB_NAME = "awx"
@@ -351,6 +353,69 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     return create_task_result(
         "success", data={"task_type": task_name, "job_count": len(assembled), "hour_timestamp": hour_timestamp}
     )
+
+
+def _sync_cache(model, pk_field: str, rows: list[dict]) -> int:
+    """Upsert *rows* into *model* and delete stale entries not present in *rows*.
+
+    Returns the number of rows upserted. Each row must have ``{id, name}`` keys;
+    the AWX ID is mapped to *pk_field* on the model (e.g. ``"org_id"``).
+    """
+    synced_ids: set[int] = set()
+    for row in rows:
+        awx_id = row["id"]
+        model.objects.update_or_create(
+            **{pk_field: awx_id},
+            defaults={"name": row["name"]},
+        )
+        synced_ids.add(awx_id)
+    model.objects.exclude(**{f"{pk_field}__in": synced_ids}).delete()
+    return len(synced_ids)
+
+
+def sync_dashboard_filter_caches(**kwargs) -> dict[str, Any]:
+    """Pull orgs / templates / projects / labels from Controller into local cache tables.
+
+    Runs hourly so filter dropdown endpoints serve from local DB with no live Controller
+    dependency at request time. Deletes stale entries (removed from AWX) after each sync.
+    """
+    from metrics_utility.library.collectors.dashboard.filter_options import (
+        fetch_job_templates,
+        fetch_labels,
+        fetch_organizations,
+        fetch_projects,
+    )
+
+    task_name = "sync_dashboard_filter_caches"
+    db_name = kwargs.get("database", DEFAULT_DB_NAME)
+
+    log_task_execution(task_name=task_name, operation="processing", details="Syncing AWX filter option caches")
+
+    try:
+        db = get_db_connection(db_name)
+    except Exception as e:
+        logger.error("sync_dashboard_filter_caches: cannot connect to Controller DB: %s", e)
+        return create_task_result("error", error=f"Cannot connect to Controller DB: {e}")
+
+    counts: dict[str, int] = {}
+    try:
+        counts["organizations"] = _sync_cache(AWXOrganization, "org_id", fetch_organizations(db))
+        counts["job_templates"] = _sync_cache(AWXJobTemplate, "template_id", fetch_job_templates(db))
+        counts["projects"] = _sync_cache(AWXProject, "project_id", fetch_projects(db))
+        counts["labels"] = _sync_cache(AWXLabel, "label_id", fetch_labels(db))
+    except Exception as e:
+        logger.exception("sync_dashboard_filter_caches: error syncing caches")
+        return create_task_result("error", error=f"Cache sync failed: {e}")
+
+    log_task_execution(
+        task_name=task_name,
+        operation="completed",
+        details=(
+            f"Synced {counts['organizations']} orgs, {counts['job_templates']} templates, "
+            f"{counts['projects']} projects, {counts['labels']} labels"
+        ),
+    )
+    return create_task_result("success", data={"task_type": task_name, **counts})
 
 
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:

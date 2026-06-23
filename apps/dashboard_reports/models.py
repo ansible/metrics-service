@@ -257,6 +257,70 @@ class SubscriptionCost(CommonModel):
         return cost_per_unit.quantize(decimal.Decimal("0.0000000001"), rounding=decimal.ROUND_HALF_UP)
 
 
+class AWXOrganization(CommonModel):
+    """Local cache of AWX organization (id, name) pairs. Populated hourly by sync_dashboard_filter_caches."""
+
+    org_id = models.IntegerField(unique=True, db_index=True, help_text="AWX organization ID")
+    name = models.CharField(max_length=512, db_index=True, help_text="Organization name (from AWX)")
+
+    class Meta:
+        db_table = "dashboard_awx_organization"
+        ordering = ["name"]
+        verbose_name = "AWX Organization Cache"
+        verbose_name_plural = "AWX Organization Cache"
+
+    def __str__(self) -> str:
+        return f"{self.name} (ID: {self.org_id})"
+
+
+class AWXJobTemplate(CommonModel):
+    """Local cache of AWX job template (id, name) pairs. Populated hourly by sync_dashboard_filter_caches."""
+
+    template_id = models.IntegerField(unique=True, db_index=True, help_text="AWX job template ID")
+    name = models.CharField(max_length=512, db_index=True, help_text="Job template name (from AWX)")
+
+    class Meta:
+        db_table = "dashboard_awx_job_template"
+        ordering = ["name"]
+        verbose_name = "AWX Job Template Cache"
+        verbose_name_plural = "AWX Job Template Cache"
+
+    def __str__(self) -> str:
+        return f"{self.name} (ID: {self.template_id})"
+
+
+class AWXProject(CommonModel):
+    """Local cache of AWX project (id, name) pairs. Populated hourly by sync_dashboard_filter_caches."""
+
+    project_id = models.IntegerField(unique=True, db_index=True, help_text="AWX project ID")
+    name = models.CharField(max_length=512, db_index=True, help_text="Project name (from AWX)")
+
+    class Meta:
+        db_table = "dashboard_awx_project"
+        ordering = ["name"]
+        verbose_name = "AWX Project Cache"
+        verbose_name_plural = "AWX Project Cache"
+
+    def __str__(self) -> str:
+        return f"{self.name} (ID: {self.project_id})"
+
+
+class AWXLabel(CommonModel):
+    """Local cache of AWX label (id, name) pairs. Populated hourly by sync_dashboard_filter_caches."""
+
+    label_id = models.IntegerField(unique=True, db_index=True, help_text="AWX label ID")
+    name = models.CharField(max_length=512, db_index=True, help_text="Label name (from AWX)")
+
+    class Meta:
+        db_table = "dashboard_awx_label"
+        ordering = ["name"]
+        verbose_name = "AWX Label Cache"
+        verbose_name_plural = "AWX Label Cache"
+
+    def __str__(self) -> str:
+        return f"{self.name} (ID: {self.label_id})"
+
+
 class FilterSet(CommonModel):
     """
     Saved filter configurations (saved views) for dashboard filtering.

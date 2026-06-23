@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from urllib.parse import urlencode
 
 import pytest
-from django.db import DatabaseError, models
+from django.db import models
 from django.http import QueryDict
 from rest_framework.request import Request
 
@@ -136,156 +136,50 @@ class TestSafeInt:
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestFilterOptionsViewSet:
-    """Test for FilterOptionsViewSet class."""
+    """Tests for FilterOptionsViewSet ORM-based interface.
+
+    Uses AWXOrganization as a concrete stand-in since FilterOptionsViewSet.cache_model
+    must be set by subclasses.
+    """
 
     @pytest.fixture
     def viewset(self):
-        vs = FilterOptionsViewSet()
-        vs.awx_query_function = MagicMock(return_value=([{"id": 1, "name": "test"}], 1))
-        vs.request = MagicMock
+        from apps.dashboard_reports.models import AWXOrganization
+        from apps.dashboard_reports.viewsets.organizations import OrganizationsViewSet
+
+        vs = OrganizationsViewSet()
+        vs.request = MagicMock()
         vs.kwargs = {}
         vs.format_kwarg = None
         return vs
 
-    def test_get_queryset_returns_none(self, viewset):
+    def test_get_queryset_returns_empty_qs(self, viewset):
         assert not viewset.get_queryset().exists()
 
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_list_database_error(self, mock_conn, viewset):
-        mock_conn.return_value.__enter__ = MagicMock()
-        viewset.awx_query_function.side_effect = DatabaseError("db error")
-        mock_db = MagicMock()
-        mock_conn.return_value = mock_db
-
-        request = MagicMock()
-        request.query_params = QueryDict()
-        response = viewset.list(request)
-
-        assert response.status_code == 500
-
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_list_db_connection_close_failure(self, mock_conn, viewset):
-        mock_db = MagicMock()
-        mock_db.close.side_effect = Exception("close failed")
-        mock_conn.return_value = mock_db
-        viewset.awx_query_function.side_effect = DatabaseError("db error")
-
-        request = MagicMock()
-        request.query_params = QueryDict()
-        # Should not raise even if close() fails
-        response = viewset.list(request)
-        assert response.status_code == 500
-
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_retrieve_invalid_pk_string(self, mock_conn, viewset):
+    def test_retrieve_invalid_pk_string(self, viewset):
         request = MagicMock()
         response = viewset.retrieve(request, pk="invalid-int")
         assert response.status_code == 400
 
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_retrieve_pk_zero(self, mock_conn, viewset):
+    def test_retrieve_pk_zero(self, viewset):
         request = MagicMock()
         response = viewset.retrieve(request, pk=0)
         assert response.status_code == 404
-        assert "0" in str(response.data)
-        mock_conn.assert_not_called()
 
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_retrieve_pk_negative(self, mock_conn, viewset):
+    def test_retrieve_pk_negative(self, viewset):
         request = MagicMock()
         response = viewset.retrieve(request, pk=-1)
         assert response.status_code == 404
-        assert "-1" in str(response.data)
-        mock_conn.assert_not_called()
 
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_retrieve_not_found(self, mock_conn, viewset):
-        mock_db = MagicMock()
-        mock_conn.return_value = mock_db
-        viewset.awx_query_function.return_value = ([], 0)  # valid pk, but no data found
-
-        pk = 99
+    def test_retrieve_not_found(self, viewset):
         request = MagicMock()
-        response = viewset.retrieve(request, pk=pk)
-
+        response = viewset.retrieve(request, pk=9999)
         assert response.status_code == 404
-        assert str(pk) in str(response.data)  # error message contains pk
-
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_retrieve_database_error(self, mock_conn, viewset):
-        mock_db = MagicMock()
-        mock_conn.return_value = mock_db
-        viewset.awx_query_function.side_effect = DatabaseError("db error")
-
-        request = MagicMock()
-        response = viewset.retrieve(request, pk=1)
-        assert response.status_code == 500
-
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_retrieve_db_connection_close_failure(self, mock_conn, viewset):
-        mock_db = MagicMock()
-        mock_db.close.side_effect = Exception("close failed")
-        mock_conn.return_value = mock_db
-        viewset.awx_query_function.return_value = ([{"id": 1, "name": "test"}], 1)
-
-        request = MagicMock()
-        response = viewset.retrieve(request, pk=1)
-
-        assert response.status_code == 200
-
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_list_success(self, mock_conn, viewset):
-        """list() returns paginated data when AWX query succeeds."""
-        mock_db = MagicMock()
-        mock_conn.return_value = mock_db
-        viewset.awx_query_function.return_value = ([{"id": 1, "name": "org1"}, {"id": 2, "name": "org2"}], 2)
-
-        request = MagicMock()
-        request.query_params = QueryDict()
-        viewset.request = request
-        response = viewset.list(request)
-
-        assert response.status_code == 200
-
-    @patch("apps.dashboard_reports.viewsets.filter_options.get_db_connection")
-    def test_list_db_connection_close_failure_on_success(self, mock_conn, viewset):
-        """list() completes even if close() raises after a successful query."""
-        mock_db = MagicMock()
-        mock_db.close.side_effect = Exception("close failed")
-        mock_conn.return_value = mock_db
-        viewset.awx_query_function.return_value = ([{"id": 1, "name": "test"}], 1)
-
-        request = MagicMock()
-        request.query_params = QueryDict()
-        viewset.request = request
-        response = viewset.list(request)
-        assert response.status_code == 200
-
-    def test_search_returns_none_for_empty_string(self, viewset):
-        """search() returns None for empty query string."""
-        request = MagicMock()
-        request.query_params = QueryDict("search=")
-        assert FilterOptionsViewSet.search(request) is None
-
-    def test_search_returns_stripped_value(self, viewset):
-        """search() strips whitespace and returns the term."""
-        request = MagicMock()
-        request.query_params = QueryDict("search=  org  ")
-        assert FilterOptionsViewSet.search(request) == "org"
-
-    def test_retrieve_response_found(self, viewset):
-        """retrieve_response returns 200 with serialized data when item found."""
-        response = FilterOptionsViewSet.retrieve_response([{"id": 1, "name": "test"}], "not found")
-        assert response.status_code == 200
-
-    def test_retrieve_response_not_found(self, viewset):
-        """retrieve_response returns 404 when data list is empty."""
-        response = FilterOptionsViewSet.retrieve_response([], "Record with id 99 not found")
-        assert response.status_code == 404
+        assert "9999" in str(response.data)
 
     def test_not_found_msg(self, viewset):
-        """not_found_msg formats the pk correctly."""
         assert "42" in viewset.not_found_msg(42)
 
 

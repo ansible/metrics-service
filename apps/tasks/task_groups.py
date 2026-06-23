@@ -325,6 +325,22 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "description": "Initial dashboard report collection (backfill; window controlled by DASHBOARD_COLLECTION['INITIAL_BACKFILL_DAYS'], default 90 days)",
         },
         {
+            "task_id": "initial_filter_cache_sync",
+            "function": "sync_dashboard_filter_caches",
+            "cron": None,  # Run once on enable so caches are populated before the first hourly tick
+            "args": {},
+            "enabled": True,
+            "description": "Initial population of AWX filter option caches (organizations, templates, projects, labels)",
+        },
+        {
+            "task_id": "hourly_filter_cache_sync",
+            "function": "sync_dashboard_filter_caches",
+            "cron": "5 * * * *",  # 5 minutes past each hour
+            "args": {},
+            "enabled": True,
+            "description": "Hourly sync of AWX filter option caches (organizations, templates, projects, labels)",
+        },
+        {
             "task_id": "cleanup_dashboard_reports_old_data",
             "function": "cleanup_dashboard_reports_old_data",
             "cron": "30 5 * * *",  # Daily at 5:30 AM

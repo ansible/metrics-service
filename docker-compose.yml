@@ -72,6 +72,7 @@ services:
       # Development-only password. In production, override with secrets management.
       METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
       METRICS_SERVICE_MODE: development
+      METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION: "true"
     networks:
       - metrics-service
 

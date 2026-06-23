@@ -1,14 +1,15 @@
 # Dockerfile.dev - Fast local build using binary wheels (no Rust/C compiles).
 # Use for local development only. Production/Konflux should use the main Dockerfile.
 
-FROM registry.access.redhat.com/ubi9/python-312:9-1739552823
+FROM registry.access.redhat.com/ubi9/python-312:latest
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/app/.venv/bin:$PATH"
 
 # Minimal runtime deps only (psycopg needs libpq at runtime). No gcc/rust/-devel.
 USER root
@@ -31,7 +32,7 @@ USER 1001
 # Create virtual environment and install packages there
 RUN pip install --no-cache-dir uv && \
     uv venv --python python3.12 /app/.venv && \
-    uv pip install --python /app/.venv/bin/python --no-cache .
+    uv pip install --python /app/.venv/bin/python --no-cache . supervisor
 
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/

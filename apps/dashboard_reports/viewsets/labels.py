@@ -2,14 +2,14 @@
 
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema, extend_schema_view
 
-from apps.dashboard_reports.awx_queries import fetch_labels
+from apps.dashboard_reports.models import AWXLabel
 from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
 
 
 @extend_schema_view(
     list=extend_schema(
-        summary="Get a list of labels from AWX database.",
-        description="Returns a list of labels from AWX database.",
+        summary="Get a list of labels from the local AWX cache.",
+        description="Returns a list of labels cached from the AWX database.",
         parameters=[
             OpenApiParameter(name="page", type=OpenApiTypes.INT, default=1, description="Page number (default: 1)."),
             OpenApiParameter(
@@ -19,15 +19,15 @@ from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
         ],
     ),
     retrieve=extend_schema(
-        summary="Get a specific label from AWX database by ID.",
-        description="Returns a single label record from AWX database by ID.",
+        summary="Get a specific label from the local AWX cache by ID.",
+        description="Returns a single label record by AWX label ID.",
     ),
 )
 class LabelsViewSet(FilterOptionsViewSet):
     """
-    ViewSet for retrieving labels from AWX database.
+    ViewSet for retrieving AWX labels from the local cache.
 
-    Provides real-time label data for filter dropdowns with pagination support.
+    Data is populated hourly by the sync_dashboard_filter_caches task.
 
     Endpoints:
         GET /api/v1/dashboard_reports/labels/ - List all labels (paginated)
@@ -39,7 +39,8 @@ class LabelsViewSet(FilterOptionsViewSet):
         search (str): Search by label name
     """
 
-    awx_query_function = staticmethod(fetch_labels)
+    cache_model = AWXLabel
+    pk_field = "label_id"
     list_error_msg = "Failed to fetch labels"
     retrieve_error_msg = "Failed to fetch label"
 

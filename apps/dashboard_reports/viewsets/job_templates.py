@@ -2,14 +2,14 @@
 
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema, extend_schema_view
 
-from apps.dashboard_reports.awx_queries import fetch_templates
+from apps.dashboard_reports.models import AWXJobTemplate
 from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
 
 
 @extend_schema_view(
     list=extend_schema(
-        summary="Get a list of job templates from AWX database.",
-        description="Returns a list of job templates from AWX database.",
+        summary="Get a list of job templates from the local AWX cache.",
+        description="Returns a list of job templates cached from the AWX database.",
         parameters=[
             OpenApiParameter(name="page", type=OpenApiTypes.INT, default=1, description="Page number (default: 1)."),
             OpenApiParameter(
@@ -19,15 +19,15 @@ from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
         ],
     ),
     retrieve=extend_schema(
-        summary="Get a specific job template from AWX database by ID.",
-        description="Returns a single job template record from AWX database by ID.",
+        summary="Get a specific job template from the local AWX cache by ID.",
+        description="Returns a single job template record by AWX template ID.",
     ),
 )
 class JobTemplatesViewSet(FilterOptionsViewSet):
     """
-    ViewSet for retrieving job templates from AWX database.
+    ViewSet for retrieving AWX job templates from the local cache.
 
-    Provides real-time job template data for filter dropdowns with pagination support.
+    Data is populated hourly by the sync_dashboard_filter_caches task.
 
     Endpoints:
         GET /api/v1/dashboard_reports/templates/ - List all job templates (paginated)
@@ -39,7 +39,8 @@ class JobTemplatesViewSet(FilterOptionsViewSet):
         search (str): Search by job template name
     """
 
-    awx_query_function = staticmethod(fetch_templates)
+    cache_model = AWXJobTemplate
+    pk_field = "template_id"
     list_error_msg = "Failed to fetch job templates"
     retrieve_error_msg = "Failed to fetch job template"
 
