@@ -393,6 +393,7 @@ class TestCollectHourlyMetricsRowLimit:
             patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings,
         ):
             mock_settings.JOBEVENT_ROW_LIMIT = 2_000_000
+            mock_settings.JOBEVENT_JOB_LIMIT = 10_000
             kwargs = {"collector_type": collector_type}
             if hour_ts:
                 kwargs["hour_timestamp"] = hour_ts.isoformat()
@@ -409,14 +410,28 @@ class TestCollectHourlyMetricsRowLimit:
         )
         assert call_kwargs["collector_kwargs"]["row_limit"] == 2_000_000
 
+    def test_job_limit_injected_for_main_jobevent_service(self):
+        """job_limit must be added to collector_kwargs for main_jobevent_service."""
+        mock_generic = MagicMock(return_value={"status": "success"})
+        self._run("main_jobevent_service", mock_generic, hour_ts=datetime(2024, 1, 1, tzinfo=UTC))
+
+        _, call_kwargs = mock_generic.call_args
+        assert "job_limit" in call_kwargs["collector_kwargs"], (
+            "job_limit should be injected into collector_kwargs for main_jobevent_service"
+        )
+        assert call_kwargs["collector_kwargs"]["job_limit"] == 10_000
+
     def test_row_limit_not_injected_for_other_collectors(self):
-        """row_limit must NOT appear in collector_kwargs for other collector types."""
+        """row_limit and job_limit must NOT appear in collector_kwargs for other collector types."""
         mock_generic = MagicMock(return_value={"status": "success"})
         self._run("unified_jobs", mock_generic, hour_ts=datetime(2024, 1, 1, tzinfo=UTC))
 
         _, call_kwargs = mock_generic.call_args
         assert "row_limit" not in call_kwargs["collector_kwargs"], (
             "row_limit should not be injected for non-jobevent collectors"
+        )
+        assert "job_limit" not in call_kwargs["collector_kwargs"], (
+            "job_limit should not be injected for non-jobevent collectors"
         )
 
 

@@ -144,6 +144,14 @@ TASK_TIMEOUT = 3600
 # Override via METRICS_SERVICE_JOBEVENT_ROW_LIMIT env var.
 JOBEVENT_ROW_LIMIT = 1_000_000
 
+# Maximum number of jobs whose events are collected per hourly run.
+# Caps the job_id IN (...) list size, which directly controls query planning
+# time and total event volume processed.  At 46 000+ jobs the IN list is
+# ~270 KB and event parsing can exceed 12 minutes; capping at 10 000 jobs
+# keeps the query well under 3 minutes for typical event densities.
+# Override via METRICS_SERVICE_JOBEVENT_JOB_LIMIT env var.
+JOBEVENT_JOB_LIMIT = 10_000
+
 
 # Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
