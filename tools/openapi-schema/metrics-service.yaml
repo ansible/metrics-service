@@ -6753,12 +6753,28 @@ paths:
         required: true
       tags:
       - teams
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizationDisassociateRequest'
+        required: true
       security:
       - cookieAuth: []
       - basicAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationDisassociate'
+          description: ''
       x-ai-description: Disassociate organization from a team
   /api/v1/users/:
     get:
@@ -7560,6 +7576,30 @@ components:
           description: The user who created this resource.
       required:
       - name
+    OrganizationDisassociate:
+      type: object
+      description: Serializer used for removing objects that are currently associated
+        via a many-to-many relationship
+      properties:
+        instances:
+          type: array
+          items:
+            type: integer
+          description: A list of organizations to remove from this relationship.
+      required:
+      - instances
+    OrganizationDisassociateRequest:
+      type: object
+      description: Serializer used for removing objects that are currently associated
+        via a many-to-many relationship
+      properties:
+        instances:
+          type: array
+          items:
+            type: integer
+          description: A list of organizations to remove from this relationship.
+      required:
+      - instances
     OrganizationRequest:
       type: object
       description: Serializer for the Organization model with RBAC access mixin.
