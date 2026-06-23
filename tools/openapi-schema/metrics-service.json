@@ -2471,6 +2471,46 @@
                 "x-ai-description": "Retrieve single feature flags state"
             }
         },
+        "/api/v1/feature_flags_state/": {
+            "get": {
+                "operationId": "feature_flags_state_retrieve",
+                "description": "A view class for displaying feature flags",
+                "tags": [
+                    "feature_flags_state"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                },
+                                "examples": {
+                                    "Featureflags": {
+                                        "value": {
+                                            "FLAG1": true,
+                                            "FLAG2": false
+                                        },
+                                        "summary": "featureflags"
+                                    }
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "x-ai-description": "Retrieve single feature flags state"
+            }
+        },
         "/api/v1/organizations/": {
             "get": {
                 "operationId": "organizations_list",
@@ -11145,46 +11185,6 @@
                     }
                 },
                 "x-ai-description": "Retrieve single ping"
-            }
-        },
-        "/api/v1/feature_flags_state/": {
-            "get": {
-                "operationId": "feature_flags_state_retrieve",
-                "description": "A view class for displaying feature flags",
-                "tags": [
-                    "feature_flags_state"
-                ],
-                "security": [
-                    {
-                        "cookieAuth": []
-                    },
-                    {
-                        "basicAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {}
-                                },
-                                "examples": {
-                                    "Featureflags": {
-                                        "value": {
-                                            "FLAG1": true,
-                                            "FLAG2": false
-                                        },
-                                        "summary": "featureflags"
-                                    }
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                },
-                "x-ai-description": "Retrieve single feature flags state"
             }
         }
     },
