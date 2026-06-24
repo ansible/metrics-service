@@ -164,9 +164,10 @@ paths:
   /api/v1/dashboard_reports/collection_status/:
     get:
       operationId: dashboard_reports_collection_status_list
-      description: 'When enabled is false, next_run and initial_collection_status
-        are null. initial_collection-status reflects the status of the one-shot initial
-        collection task: ''pending'', ''running'', ''completed'', ''failed'' or ''canceled''.'
+      description: 'When enabled is false, next_run, initial_collection_status and
+        min_collection_timestamp are null. initial_collection_status reflects the
+        status of the one-shot initial collection task: ''pending'', ''running'',
+        ''completed'', ''failed'' or ''canceled''.'
       summary: Return dashboard collection feature flag status and task state.
       tags:
       - dashboard_reports
@@ -585,6 +586,12 @@ paths:
       summary: Returns summary, chart data, and top users/projects for dashboard
       parameters:
       - in: query
+        name: end_date
+        schema:
+          type: string
+          format: date
+        description: End date in 'YYYY-MM-DD' format. Required when period is 'custom'.
+      - in: query
         name: label
         schema:
           type: array
@@ -651,6 +658,7 @@ paths:
         schema:
           type: string
           enum:
+          - custom
           - last_14_days
           - last_30_days
           - last_60_days
@@ -665,6 +673,12 @@ paths:
           items:
             type: integer
         description: Filter by project ID (multiple allowed)
+      - in: query
+        name: start_date
+        schema:
+          type: string
+          format: date
+        description: Start date in 'YYYY-MM-DD' format. Required when period is 'custom'.
       - in: query
         name: template
         schema:
@@ -699,6 +713,12 @@ paths:
         format query parameters.
       summary: Exports report data as CSV
       parameters:
+      - in: query
+        name: end_date
+        schema:
+          type: string
+          format: date
+        description: End date in 'YYYY-MM-DD' format. Required when period is 'custom'.
       - in: query
         name: export_format
         schema:
@@ -760,6 +780,7 @@ paths:
         schema:
           type: string
           enum:
+          - custom
           - last_14_days
           - last_30_days
           - last_60_days
@@ -784,6 +805,12 @@ paths:
           - trends
           default: summary
         description: 'Type of report to export. Options: ''summary'', ''roi'', ''trends''.'
+      - in: query
+        name: start_date
+        schema:
+          type: string
+          format: date
+        description: Start date in 'YYYY-MM-DD' format. Required when period is 'custom'.
       - in: query
         name: template
         schema:
@@ -7136,9 +7163,14 @@ components:
         initial_collection_status:
           type: string
           nullable: true
+        min_collection_timestamp:
+          type: string
+          format: date-time
+          nullable: true
       required:
       - enabled
       - initial_collection_status
+      - min_collection_timestamp
       - next_run
     DashboardReportExportError:
       type: object
