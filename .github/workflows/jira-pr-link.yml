@@ -44,6 +44,8 @@ jobs:
               --jq '[.commits[] | .messageHeadline + " " + .messageBody] | join("\n")' \
               | grep -oP 'AAP-\d+' | sort -u || true)
 
+          TICKET=$(echo "$TICKETS" | head -1)
+
           if [[ -z "$TICKET" ]]; then
             echo "found=false" >> "$GITHUB_OUTPUT"
           else
