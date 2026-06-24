@@ -38,12 +38,11 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          FIRST_COMMIT_MSG=$(gh pr view "$PR_NUMBER" \
-            --repo "${{ github.repository }}" \
-            --json commits \
-            --jq '.commits[0].messageHeadline + " " + .commits[0].messageBody') || true
-
-          TICKET=$(echo "$FIRST_COMMIT_MSG" | grep -oP 'AAP-\d+' | head -1 || true)
+          TICKETS=$(gh pr view "$PR_NUMBER" \
+              --repo "${{ github.repository }}" \                                                                                                                                                                                                                            
+              --json commits \
+              --jq '[.commits[] | .messageHeadline + " " + .messageBody] | join("\n")' \
+              | grep -oP 'AAP-\d+' | sort -u || true)
 
           if [[ -z "$TICKET" ]]; then
             echo "found=false" >> "$GITHUB_OUTPUT"
