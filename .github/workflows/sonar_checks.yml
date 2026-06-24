@@ -16,7 +16,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Static Scans (PR)
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT != ''
 
     steps:
       - name: Checkout Code
