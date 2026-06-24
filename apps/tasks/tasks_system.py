@@ -247,7 +247,7 @@ def submit_task_to_dispatcher(task: Any) -> None:
         if task.can_retry():
             logger.warning(f"Error submitting task to dispatcher: {str(e)}")
         else:
-            logger.error(f"Error submitting task to dispatcher: {str(e)}")
+            logger.exception(f"Error submitting task to dispatcher: {str(e)}")
 
 
 # runs during `manage.py metrics_service init-system-tasks`
@@ -295,7 +295,7 @@ def create_system_tasks() -> dict[str, Any]:
             _create_task_from_group(task_id, config, results, Task)
         except Exception as e:
             results["tasks"].append(f"Error with {task_id}: {str(e)}")
-            logger.error(f"Failed to create task {task_id}: {e}")
+            logger.exception(f"Failed to create task {task_id}: {e}")
 
     return results
 

@@ -158,7 +158,7 @@ class TestReloadConfigCommand(TestCase):
                 command.handle(verbose=False)
 
             # Verify error logging
-            mock_logger.error.assert_called_once_with("Failed to reload configuration: Invalid config")
+            mock_logger.exception.assert_called_once_with("Failed to reload configuration: Invalid config")
 
     def test_add_arguments_method(self):
         """Test that add_arguments properly configures the verbose flag."""

@@ -184,7 +184,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
                 submit_task_to_dispatcher(self)
             except Exception as e:
                 # If submission fails, update the task status
-                logger.error(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")
+                logger.exception(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")
                 self.status = "failed"
                 self.error_message = f"Failed to submit to dispatcher: {str(e)}"
                 self.save(update_fields=["status", "error_message", "modified"])

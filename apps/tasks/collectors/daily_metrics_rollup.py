@@ -301,5 +301,5 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         )
 
     except Exception as e:
-        logger.error(f"Error in daily_metrics_rollup: {str(e)}")
+        logger.exception(f"Error in daily_metrics_rollup: {str(e)}")
         return create_task_result("error", error=f"Rollup failed: {str(e)}")

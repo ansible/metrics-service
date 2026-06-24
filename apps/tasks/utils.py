@@ -36,8 +36,11 @@ def _fetch_task_by_id(task_id: int) -> Any:
         from .models import Task
 
         return Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        logger.error(f"Task instance not found for task_id: {task_id}")
+        return None
     except Exception:
-        logger.error(f"Failed to get task instance for task_id: {task_id}")
+        logger.exception(f"Failed to get task instance for task_id: {task_id}")
         return None
 
 
@@ -47,8 +50,11 @@ def _fetch_execution_by_id(execution_id: int) -> Any:
         from .models import TaskExecution
 
         return TaskExecution.objects.get(id=execution_id)
+    except TaskExecution.DoesNotExist:
+        logger.error(f"Execution instance not found for execution_id: {execution_id}")
+        return None
     except Exception:
-        logger.error(f"Failed to get execution instance for execution_id: {execution_id}")
+        logger.exception(f"Failed to get execution instance for execution_id: {execution_id}")
         return None
 
 
@@ -118,7 +124,7 @@ def handle_task_error(
                 )
 
     except Exception as save_error:
-        logger.error(f"Failed to update task status after error: {save_error}")
+        logger.exception(f"Failed to update task status after error: {save_error}")
 
     # Deferred past the transaction so status=="failed" and attempts are incremented before can_retry() is called.
     # Defaults to ERROR when no task context is available.
