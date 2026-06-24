@@ -11,9 +11,9 @@ split into data and metadata files:
 Files are named after the collector type and timestamps.
 
 Usage:
-    uv run scripts/dump_hourly.py
-    uv run scripts/dump_hourly.py --output-dir ./dumps
-    uv run scripts/dump_hourly.py --status collected
+    uv run tools/tasks/dump_hourly.py
+    uv run tools/tasks/dump_hourly.py --output-dir ./dumps
+    uv run tools/tasks/dump_hourly.py --status collected
 """
 
 import argparse
@@ -27,7 +27,7 @@ from pathlib import Path
 import django
 
 # Add project root to path
-project_root = Path(__file__).resolve().parent.parent.parent.parent / "metrics-service"
+project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Set Django settings
