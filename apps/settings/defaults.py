@@ -142,12 +142,12 @@ TASK_TIMEOUT = 3600
 # At ~700–900 bytes/row in memory, 2 000 000 rows ≈ 1.4–1.8 GB.  Raise for
 # high-volume installations; lower for memory-constrained environments.
 # Override via METRICS_SERVICE_JOBEVENT_ROW_LIMIT env var.
-JOBEVENT_ROW_LIMIT = 400_000
+JOBEVENT_ROW_LIMIT = 200_000
 
 # Maximum finished jobs processed per hourly window by main_jobevent_service.
 # Keeps the SQL IN clause manageable; jobs are sorted by created time (oldest first).
 # Override via METRICS_SERVICE_JOBEVENT_JOB_LIMIT env var.
-JOBEVENT_JOB_LIMIT = 2_000
+JOBEVENT_JOB_LIMIT = 1_000
 
 
 # Project-specific middleware additions
