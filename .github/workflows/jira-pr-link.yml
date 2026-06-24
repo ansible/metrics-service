@@ -60,10 +60,10 @@ jobs:
           gh pr comment "$PR_NUMBER" \
             --repo "${{ github.repository }}" \
             --edit-last \
-            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`." || \
+            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the description, e.g. \`[AAP-12345] Your PR description\`." || \
           gh pr comment "$PR_NUMBER" \
             --repo "${{ github.repository }}" \
-            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`." || \
+            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the description, e.g. \`[AAP-12345] Your PR description\`." || \
           echo "::warning::Failed to post missing-ticket comment"
 
       - name: "Update Jira Git Pull Request field"
