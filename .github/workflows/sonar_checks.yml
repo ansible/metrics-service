@@ -16,7 +16,9 @@ jobs:
   sonarcloud:
     name: SonarCloud Static Scans (PR)
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT != ''
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    env:
+      HAS_SONAR_TOKEN: ${{ secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT != '' }}
 
     steps:
       - name: Checkout Code
@@ -124,7 +126,7 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
 
       - name: SonarCloud Scan
-        if: steps.pr_check.outputs.should_scan == 'true'
+        if: steps.pr_check.outputs.should_scan == 'true' && env.HAS_SONAR_TOKEN == 'true'
         uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
         env:
           SONAR_HOST_URL: https://sonarcloud.io
