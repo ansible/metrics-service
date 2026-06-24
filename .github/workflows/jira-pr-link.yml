@@ -18,10 +18,10 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          TICKET=$(echo "$PR_TITLE" | grep -oP 'AAP-\d+' | head -1)
+          TICKET=$(echo "$PR_TITLE" | grep -oP 'AAP-\d+' | head -1 || true)
 
           if [[ -z "$TICKET" ]]; then
-            TICKET=$(echo "$PR_BODY" | grep -oP 'AAP-\d+' | head -1)
+            TICKET=$(echo "$PR_BODY" | grep -oP 'AAP-\d+' | head -1 || true)
           fi
 
           if [[ -z "$TICKET" ]]; then
@@ -41,9 +41,9 @@ jobs:
           FIRST_COMMIT_MSG=$(gh pr view "$PR_NUMBER" \
             --repo "${{ github.repository }}" \
             --json commits \
-            --jq '.commits[0].messageHeadline + " " + .commits[0].messageBody')
+            --jq '.commits[0].messageHeadline + " " + .commits[0].messageBody') || true
 
-          TICKET=$(echo "$FIRST_COMMIT_MSG" | grep -oP 'AAP-\d+' | head -1)
+          TICKET=$(echo "$FIRST_COMMIT_MSG" | grep -oP 'AAP-\d+' | head -1 || true)
 
           if [[ -z "$TICKET" ]]; then
             echo "found=false" >> "$GITHUB_OUTPUT"
@@ -64,7 +64,8 @@ jobs:
             --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`." || \
           gh pr comment "$PR_NUMBER" \
             --repo "${{ github.repository }}" \
-            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`."
+            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`." || \
+          echo "::warning::Failed to post missing-ticket comment"
 
       - name: "Update Jira Git Pull Request field"
         id: jira-update
@@ -77,17 +78,19 @@ jobs:
           TICKET: ${{ steps.jira.outputs.ticket || steps.commit-check.outputs.ticket }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          if [[ -z "$JIRA_BASE_URL" || -z "$JIRA_API_TOKEN" ]]; then
-            echo "::warning::JIRA_BASE_URL (repo variable) and JIRA_API_TOKEN (repo secret) must be configured"
+          if [[ -z "$JIRA_BASE_URL" || -z "$JIRA_USER_EMAIL" || -z "$JIRA_API_TOKEN" ]]; then
+            echo "::warning::JIRA_BASE_URL, BOT_JIRA_EMAIL, and BOT_JIRA_API_TOKEN must be configured"
             exit 0
           fi
 
           HTTP_CODE=$(curl -s -o response.json -w "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
             -X PUT \
             -H "Content-Type: application/json" \
             -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
             "${JIRA_BASE_URL}/rest/api/2/issue/${TICKET}" \
-            -d "{\"fields\": {\"${JIRA_PR_FIELD_ID}\": \"${PR_URL}\"}}")
+            -d "{\"fields\": {\"${JIRA_PR_FIELD_ID}\": \"${PR_URL}\"}}") || true
 
           if [[ "$HTTP_CODE" -ge 200 && "$HTTP_CODE" -lt 300 ]]; then
             echo "Updated ${TICKET} Git Pull Request field with ${PR_URL}"
@@ -99,7 +102,7 @@ jobs:
       - name: "Comment on PR with linked ticket"
         if: steps.jira-update.outputs.linked == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           TICKET: ${{ steps.jira.outputs.ticket || steps.commit-check.outputs.ticket }}
         run: |
@@ -109,4 +112,5 @@ jobs:
             --body "This PR has been automatically linked to \`${TICKET}\` in Jira." || \
           gh pr comment "$PR_NUMBER" \
             --repo "${{ github.repository }}" \
-            --body "This PR has been automatically linked to \`${TICKET}\` in Jira."
+            --body "This PR has been automatically linked to \`${TICKET}\` in Jira." || \
+          echo "::warning::Failed to post linked-ticket comment"
