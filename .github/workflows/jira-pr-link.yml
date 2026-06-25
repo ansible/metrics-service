@@ -31,7 +31,7 @@ jobs:
             echo "ticket=$TICKET" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: "Check first commit message for ticket"
+      - name: "Check commit messages for ticket"
         if: steps.jira.outputs.found == 'false'
         id: commit-check
         env:
@@ -61,7 +61,7 @@ jobs:
         run: |
           MARKER="<!-- jira-pr-link-bot -->"
           BODY="${MARKER}
-          No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`."
+          No Jira ticket was found in the PR title, description, or commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`."
 
           COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
             --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -1 || true)
@@ -116,7 +116,7 @@ jobs:
         run: |
           MARKER="<!-- jira-pr-link-bot -->"
           BODY="${MARKER}
-          This PR has been automatically linked to \`${TICKET}\` in Jira."
+          This PR has been automatically linked to ${TICKET} in Jira."
 
           COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
             --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -1 || true)
