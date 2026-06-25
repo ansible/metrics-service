@@ -10,7 +10,7 @@ class User(AbstractDABUser):
 
     encrypted_fields = ["password"]
 
-    @functools.cached_property
+    @property
     def is_platform_auditor(self) -> bool:
         """True if the user holds the Platform Auditor global RBAC role.
 
