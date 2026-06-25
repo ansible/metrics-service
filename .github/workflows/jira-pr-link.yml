@@ -1,7 +1,7 @@
 name: "Jira PR Link"
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, reopened]
 
 permissions:
@@ -10,9 +10,6 @@ permissions:
 jobs:
   jira-pr-link:
     runs-on: ubuntu-latest
-
-    environment:
-      name: ${{ github.ref_name }}
 
     steps:
       - name: "Extract Jira ticket from PR"
