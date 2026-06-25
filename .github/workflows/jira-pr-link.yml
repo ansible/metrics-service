@@ -39,7 +39,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           TICKETS=$(gh pr view "$PR_NUMBER" \
-              --repo "${{ github.repository }}" \                                                                                                                                                                                                                            
+              --repo "${{ github.repository }}" \
               --json commits \
               --jq '[.commits[] | .messageHeadline + " " + .messageBody] | join("\n")' \
               | grep -oP 'AAP-\d+' | sort -u || true)
@@ -59,14 +59,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh pr comment "$PR_NUMBER" \
-            --repo "${{ github.repository }}" \
-            --edit-last \
-            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the description, e.g. \`[AAP-12345] Your PR description\`." || \
-          gh pr comment "$PR_NUMBER" \
-            --repo "${{ github.repository }}" \
-            --body "No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the description, e.g. \`[AAP-12345] Your PR description\`." || \
-          echo "::warning::Failed to post missing-ticket comment"
+          MARKER="<!-- jira-pr-link-bot -->"
+          BODY="${MARKER}
+          No Jira ticket was found in the PR title, description, or first commit message. To link this PR to a Jira issue, add the ticket number to the title, e.g. \`[AAP-12345] Your PR title\`."
+
+          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -1 || true)
+
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+              -X PATCH -f body="$BODY" || echo "::warning::Failed to update missing-ticket comment"
+          else
+            gh pr comment "$PR_NUMBER" \
+              --repo "${{ github.repository }}" \
+              --body "$BODY" || echo "::warning::Failed to post missing-ticket comment"
+          fi
 
       - name: "Update Jira Git Pull Request field"
         id: jira-update
@@ -107,11 +114,18 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           TICKET: ${{ steps.jira.outputs.ticket || steps.commit-check.outputs.ticket }}
         run: |
-          gh pr comment "$PR_NUMBER" \
-            --repo "${{ github.repository }}" \
-            --edit-last \
-            --body "This PR has been automatically linked to \`${TICKET}\` in Jira." || \
-          gh pr comment "$PR_NUMBER" \
-            --repo "${{ github.repository }}" \
-            --body "This PR has been automatically linked to \`${TICKET}\` in Jira." || \
-          echo "::warning::Failed to post linked-ticket comment"
+          MARKER="<!-- jira-pr-link-bot -->"
+          BODY="${MARKER}
+          This PR has been automatically linked to \`${TICKET}\` in Jira."
+
+          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -1 || true)
+
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+              -X PATCH -f body="$BODY" || echo "::warning::Failed to update linked-ticket comment"
+          else
+            gh pr comment "$PR_NUMBER" \
+              --repo "${{ github.repository }}" \
+              --body "$BODY" || echo "::warning::Failed to post linked-ticket comment"
+          fi
