@@ -159,6 +159,24 @@ class TestBuildDashboardSyncHook:
         assert len(first_call[1]["defaults"]["task_data"]["raw_jobs"]) == _SYNC_TASK_CHUNK_SIZE
         assert len(second_call[1]["defaults"]["task_data"]["raw_jobs"]) == 1
 
+    def test_hook_deletes_stale_pending_chunks_on_retry(self):
+        """After upsert, pending tasks for the same hour outside the new chunk set are deleted."""
+        df = _make_df([{"status": "successful", "launch_type": "manual"}])  # 1 record → 1 chunk
+        hook = self._enabled_hook()
+        hour_ts_str = HOUR_TS.isoformat()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        filter_call = mock_task.objects.filter.call_args
+        assert filter_call is not None
+        assert filter_call[1]["name__startswith"] == f"sync_dashboard_jobs_{hour_ts_str}_"
+        assert filter_call[1]["status"] == "pending"
+        expected_new_name = f"sync_dashboard_jobs_{hour_ts_str}_0"
+        exclude_call = mock_task.objects.filter.return_value.exclude.call_args
+        assert exclude_call[1]["name__in"] == {expected_new_name}
+        mock_task.objects.filter.return_value.exclude.return_value.delete.assert_called_once()
+
 
 @pytest.mark.unit
 class TestSerializeDashboardRecord:
@@ -519,6 +537,26 @@ class TestBuildDashboardHostSummarySyncHook:
         with patch(TASK_MODEL_PATH) as mock_task:
             hook(df)
         mock_task.objects.update_or_create.assert_not_called()
+
+    def test_hook_deletes_stale_pending_chunks_on_retry(self):
+        """After upsert, pending tasks for the same hour outside the new chunk set are deleted."""
+        df = _make_host_summary_df([{}])  # 1 job → 1 chunk (_0 only)
+        hook = self._enabled_hook()
+        hour_ts_str = HOUR_TS.isoformat()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        # filter().exclude().delete() chain must be called to purge stale chunks.
+        filter_call = mock_task.objects.filter.call_args
+        assert filter_call is not None
+        assert filter_call[1]["name__startswith"] == f"sync_dashboard_host_summaries_{hour_ts_str}_"
+        assert filter_call[1]["status"] == "pending"
+        # exclude must receive only the new chunk name
+        expected_new_name = f"sync_dashboard_host_summaries_{hour_ts_str}_0"
+        exclude_call = mock_task.objects.filter.return_value.exclude.call_args
+        assert exclude_call[1]["name__in"] == {expected_new_name}
+        mock_task.objects.filter.return_value.exclude.return_value.delete.assert_called_once()
 
 
 @pytest.mark.unit

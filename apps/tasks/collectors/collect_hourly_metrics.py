@@ -191,11 +191,9 @@ def _serialize_host_summary_record(row: dict) -> dict:
     job_remote_id and id are always non-null integers from main_jobhostsummary.
     """
     result: dict = {}
-    for field in ("id", "job_remote_id"):
+    for field in ("id", "job_remote_id", "host_remote_id"):
         val = row.get(field)
         result[field] = None if (val is None or (isinstance(val, float) and math.isnan(val))) else int(val)
-    val = row.get("host_remote_id")
-    result["host_remote_id"] = None if (val is None or (isinstance(val, float) and math.isnan(val))) else int(val)
     result["host_name"] = str(row["host_name"]) if row.get("host_name") is not None else None
     return result
 
@@ -226,7 +224,8 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
             )
             return
 
-        rows = raw_data[list(available)].where(raw_data[list(available)].notna(), other=None).to_dict("records")
+        subset = raw_data[list(available)]
+        rows = subset.where(subset.notna(), other=None).to_dict("records")
 
         by_job: dict[int, list] = {}
         for row in rows:
@@ -245,11 +244,14 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
 
         hour_ts_str = hour_timestamp.isoformat()
         job_ids = list(by_job.keys())
+        new_names: set[str] = set()
         for chunk_index, start in enumerate(range(0, len(job_ids), _SYNC_TASK_CHUNK_SIZE)):
             chunk_job_ids = job_ids[start : start + _SYNC_TASK_CHUNK_SIZE]
             chunk_summaries = [record for job_id in chunk_job_ids for record in by_job[job_id]]
+            chunk_name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
+            new_names.add(chunk_name)
             Task.objects.update_or_create(
-                name=f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}",
+                name=chunk_name,
                 defaults={
                     "description": (
                         f"Sync dashboard host summary records from job_host_summary_service"
@@ -264,6 +266,11 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
                     "is_system_task": False,
                 },
             )
+        # Remove pending chunks from a prior run that exceed the current chunk count.
+        Task.objects.filter(
+            name__startswith=f"sync_dashboard_host_summaries_{hour_ts_str}_",
+            status="pending",
+        ).exclude(name__in=new_names).delete()
 
     return hook
 
@@ -303,7 +310,8 @@ def _build_dashboard_sync_hook(hour_timestamp):
                 "unified_jobs_dashboard is missing expected columns: %s",
                 sorted(missing),
             )
-        records = filtered[available].where(filtered[available].notna(), other=None).to_dict("records")
+        subset = filtered[available]
+        records = subset.where(subset.notna(), other=None).to_dict("records")
         for row in records:
             _serialize_dashboard_record(row)
 
@@ -312,10 +320,13 @@ def _build_dashboard_sync_hook(hour_timestamp):
         from apps.tasks.models import Task
 
         hour_ts_str = hour_timestamp.isoformat()
+        new_names: set[str] = set()
         for chunk_index, start in enumerate(range(0, len(records), _SYNC_TASK_CHUNK_SIZE)):
             chunk = records[start : start + _SYNC_TASK_CHUNK_SIZE]
+            chunk_name = f"sync_dashboard_jobs_{hour_ts_str}_{chunk_index}"
+            new_names.add(chunk_name)
             Task.objects.update_or_create(
-                name=f"sync_dashboard_jobs_{hour_ts_str}_{chunk_index}",
+                name=chunk_name,
                 defaults={
                     "description": f"Sync dashboard job records from unified_jobs for {hour_ts_str} (chunk {chunk_index})",
                     "function_name": "sync_dashboard_job_records",
@@ -327,5 +338,10 @@ def _build_dashboard_sync_hook(hour_timestamp):
                     "is_system_task": False,
                 },
             )
+        # Remove pending chunks from a prior run that exceed the current chunk count.
+        Task.objects.filter(
+            name__startswith=f"sync_dashboard_jobs_{hour_ts_str}_",
+            status="pending",
+        ).exclude(name__in=new_names).delete()
 
     return hook

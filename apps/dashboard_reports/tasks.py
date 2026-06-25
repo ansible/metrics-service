@@ -386,15 +386,23 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
             }
         )
 
+    # Batch-fetch all matching JobData and their existing JobHostSummary records in two queries
+    # rather than 2N queries (one get + one filter per job).
+    job_data_by_id: dict[int, Any] = {}
+    existing_by_job_data_pk: dict[int, dict] = {}
+    if by_job:
+        job_data_by_id = {jd.job_id: jd for jd in JobData.objects.filter(job_id__in=by_job.keys())}
+        for hs in JobHostSummary.objects.filter(job_data__in=job_data_by_id.values()):
+            existing_by_job_data_pk.setdefault(hs.job_data_id, {})[hs.host_summary_id] = hs
+
     synced = 0
     for job_remote_id, host_summaries in by_job.items():
-        try:
-            job_data = JobData.objects.get(job_id=job_remote_id)
-        except JobData.DoesNotExist:
+        job_data = job_data_by_id.get(job_remote_id)
+        if job_data is None:
             continue  # sync/non-terminal job — no matching JobData record
         try:
             with transaction.atomic():
-                existing = {o.host_summary_id: o for o in JobHostSummary.objects.filter(job_data=job_data)}
+                existing = existing_by_job_data_pk.get(job_data.pk, {})
                 JobData._sync_host_summaries(job_data, host_summaries, existing)
             synced += 1
         except Exception:

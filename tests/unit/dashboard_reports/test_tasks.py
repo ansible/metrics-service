@@ -812,6 +812,13 @@ class TestSyncDashboardHostSummaries:
             "job_remote_id": job_remote_id,
         }
 
+    def _make_job_data(self, job_id, pk=None):
+        """Return a MagicMock with job_id and pk set to avoid auto-spec surprises."""
+        jd = MagicMock()
+        jd.job_id = job_id
+        jd.pk = pk if pk is not None else job_id
+        return jd
+
     @patch("apps.dashboard_reports.tasks.create_task_result")
     @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
     @patch("apps.dashboard_reports.tasks.JobHostSummary")
@@ -820,8 +827,8 @@ class TestSyncDashboardHostSummaries:
     @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_syncs_host_summaries_for_known_job(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """When JobData exists for job_remote_id, _sync_host_summaries is called with remapped fields."""
-        job_data = MagicMock()
-        mock_objects.get.return_value = job_data
+        job_data = self._make_job_data(job_id=123, pk=1)
+        mock_objects.filter.return_value = [job_data]
         mock_jhs.objects.filter.return_value = []
 
         record = self._raw_record(host_summary_id=7, host_name="db01", host_remote_id=99, job_remote_id=123)
@@ -837,11 +844,13 @@ class TestSyncDashboardHostSummaries:
         assert kwargs["data"]["job_count"] == 1
 
     @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
     @patch("apps.dashboard_reports.tasks.JobData.objects")
     @patch("apps.dashboard_reports.tasks.log_task_execution")
-    def test_skips_silently_when_job_data_not_found(self, mock_log, mock_objects, mock_result):
-        """When JobData.DoesNotExist is raised, the job is skipped without error."""
-        mock_objects.get.side_effect = JobData.DoesNotExist
+    def test_skips_silently_when_job_data_not_found(self, mock_log, mock_objects, mock_jhs, mock_result):
+        """When no JobData matches job_remote_id, the job is skipped without error."""
+        mock_objects.filter.return_value = []
+        mock_jhs.objects.filter.return_value = []
 
         sync_dashboard_host_summaries(raw_host_summaries=[self._raw_record()], hour_timestamp="2024-01-01T00:00:00")
 
@@ -857,9 +866,9 @@ class TestSyncDashboardHostSummaries:
     @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_continues_after_individual_job_failure(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """An exception on one job is logged and remaining jobs are still processed."""
-        job_a = MagicMock()
-        job_b = MagicMock()
-        mock_objects.get.side_effect = [job_a, job_b]
+        job_a = self._make_job_data(job_id=1, pk=1)
+        job_b = self._make_job_data(job_id=2, pk=2)
+        mock_objects.filter.return_value = [job_a, job_b]
         mock_jhs.objects.filter.return_value = []
         mock_sync.side_effect = [RuntimeError("oops"), None]
 
@@ -879,8 +888,8 @@ class TestSyncDashboardHostSummaries:
     @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_groups_multiple_summaries_per_job(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """Multiple host summary records for the same job are grouped and passed together."""
-        job_data = MagicMock()
-        mock_objects.get.return_value = job_data
+        job_data = self._make_job_data(job_id=42, pk=1)
+        mock_objects.filter.return_value = [job_data]
         mock_jhs.objects.filter.return_value = []
 
         records = [
@@ -889,7 +898,8 @@ class TestSyncDashboardHostSummaries:
         ]
         sync_dashboard_host_summaries(raw_host_summaries=records, hour_timestamp="2024-01-01T00:00:00")
 
-        mock_objects.get.assert_called_once_with(job_id=42)
+        # One batch filter call for JobData (not one get per job).
+        mock_objects.filter.assert_called_once()
         passed_summaries = mock_sync.call_args[0][1]
         assert len(passed_summaries) == 2
         assert {s["host_name"] for s in passed_summaries} == {"web01", "web02"}
@@ -897,7 +907,7 @@ class TestSyncDashboardHostSummaries:
     @patch("apps.dashboard_reports.tasks.create_task_result")
     @patch("apps.dashboard_reports.tasks.log_task_execution")
     def test_empty_raw_host_summaries(self, mock_log, mock_result):
-        """Empty input returns success with job_count=0."""
+        """Empty input returns success with job_count=0 without querying the DB."""
         sync_dashboard_host_summaries(raw_host_summaries=[], hour_timestamp="2024-01-01T00:00:00")
         args, kwargs = mock_result.call_args
         assert args[0] == "success"
@@ -911,8 +921,8 @@ class TestSyncDashboardHostSummaries:
     @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
     def test_null_host_remote_id_passed_as_none_host_id(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
         """host_remote_id=None is mapped to host_id=None in the dict passed to _sync_host_summaries."""
-        job_data = MagicMock()
-        mock_objects.get.return_value = job_data
+        job_data = self._make_job_data(job_id=42, pk=1)
+        mock_objects.filter.return_value = [job_data]
         mock_jhs.objects.filter.return_value = []
 
         record = self._raw_record(host_remote_id=None)
@@ -930,3 +940,27 @@ class TestSyncDashboardHostSummaries:
         args, kwargs = mock_result.call_args
         assert args[0] == "success"
         assert kwargs["data"]["job_count"] == 0
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
+    @patch("apps.dashboard_reports.tasks.JobHostSummary")
+    @patch("apps.dashboard_reports.tasks.JobData.objects")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
+    def test_uses_pre_fetched_existing_host_summaries(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
+        """Existing JobHostSummary objects are pre-fetched in one query and passed per job."""
+        job_data = self._make_job_data(job_id=42, pk=10)
+        mock_objects.filter.return_value = [job_data]
+
+        existing_hs = MagicMock()
+        existing_hs.job_data_id = 10
+        existing_hs.host_summary_id = 99
+        mock_jhs.objects.filter.return_value = [existing_hs]
+
+        record = self._raw_record(host_summary_id=99, job_remote_id=42)
+        sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
+
+        # Confirm the existing hs was passed in the dict keyed by host_summary_id.
+        passed_existing = mock_sync.call_args[0][2]
+        assert 99 in passed_existing
+        assert passed_existing[99] is existing_hs
