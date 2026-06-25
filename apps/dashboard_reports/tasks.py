@@ -343,13 +343,19 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
 
     assembled = []
     for row in raw_jobs:
-        label_ids_raw = row.get("label_ids")
-        if label_ids_raw is None or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
-            labels = []
-        elif isinstance(label_ids_raw, str):
-            labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]
+        if "label_ids" not in row:
+            # Column was absent in collected data (older metrics_utility without label support).
+            # Use None to signal that create_or_update_from_awx should preserve existing labels
+            # rather than clearing them.
+            labels: list[int] | None = None
         else:
-            labels = [int(label_ids_raw)]
+            label_ids_raw = row["label_ids"]
+            if label_ids_raw is None or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
+                labels = []
+            elif isinstance(label_ids_raw, str):
+                labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]
+            else:
+                labels = [int(label_ids_raw)]
         assembled.append(
             {
                 "id": row["id"],
