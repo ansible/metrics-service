@@ -164,6 +164,52 @@ class ModelValidationTestCase(TestCase):
 
 
 @pytest.mark.unit
+class UserIsPlatformAuditorTestCase(TestCase):
+    """Tests for User.is_platform_auditor property."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="auditortest")
+
+    def test_returns_false_when_no_role_assigned(self):
+        """User without Platform Auditor role is not a platform auditor."""
+        self.assertFalse(self.user.is_platform_auditor)
+
+    def test_returns_true_when_platform_auditor_role_assigned(self):
+        """User with Platform Auditor global role is a platform auditor."""
+        from ansible_base.rbac.models import RoleDefinition
+
+        rd = RoleDefinition.objects.filter(name="Platform Auditor", content_type=None).first()
+        if rd is None:
+            self.skipTest("Platform Auditor RoleDefinition not in DB (run init-system-tasks)")
+        rd.give_global_permission(self.user)
+        self.assertTrue(self.user.is_platform_auditor)
+
+    def test_returns_false_after_role_removed(self):
+        """is_platform_auditor is False once the global role assignment is removed."""
+        from ansible_base.rbac.models import RoleDefinition
+
+        rd = RoleDefinition.objects.filter(name="Platform Auditor", content_type=None).first()
+        if rd is None:
+            self.skipTest("Platform Auditor RoleDefinition not in DB (run init-system-tasks)")
+        rd.give_global_permission(self.user)
+        self.assertTrue(self.user.is_platform_auditor)
+        rd.remove_global_permission(self.user)
+        self.assertFalse(self.user.is_platform_auditor)
+
+    def test_does_not_affect_other_users(self):
+        """Auditor role on one user must not bleed to another."""
+        from ansible_base.rbac.models import RoleDefinition
+
+        rd = RoleDefinition.objects.filter(name="Platform Auditor", content_type=None).first()
+        if rd is None:
+            self.skipTest("Platform Auditor RoleDefinition not in DB (run init-system-tasks)")
+        other = User.objects.create_user(username="other_non_auditor")
+        rd.give_global_permission(self.user)
+        self.assertTrue(self.user.is_platform_auditor)
+        self.assertFalse(other.is_platform_auditor)
+
+
+@pytest.mark.unit
 class ModelMethodsTestCase(TestCase):
     """Test cases for model methods and properties."""
 

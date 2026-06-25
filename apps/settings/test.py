@@ -23,10 +23,7 @@ SEGMENT_WRITE_KEY = "test-only-segment-write-key-for-testing-only-purposes"
 
 ANSIBLE_BASE_BYPASS_SUPERUSER_FLAGS = ["is_superuser"]
 ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {
-    "create": "is_superuser",
-    "read": "is_superuser",
-    "update": "is_superuser",
-    "delete": "is_superuser",
+    "view": "is_platform_auditor",
 }
 
 # Additional DAB RBAC settings required for tests
