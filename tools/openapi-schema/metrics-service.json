@@ -51,6 +51,29 @@
                 "x-ai-description": "Retrieve single api"
             }
         },
+        "/api/metrics": {
+            "get": {
+                "operationId": "api_metrics_retrieve",
+                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
+                "tags": [
+                    "api"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                },
+                "x-ai-description": "Retrieve single api metric"
+            }
+        },
         "/api/v1/": {
             "get": {
                 "operationId": "root_retrieve_2",
@@ -190,7 +213,7 @@
         "/api/v1/dashboard_reports/collection_status/": {
             "get": {
                 "operationId": "dashboard_reports_collection_status_list",
-                "description": "When enabled is false, next_run and initial_collection_status are null. initial_collection-status reflects the status of the one-shot initial collection task: 'pending', 'running', 'completed', 'failed' or 'canceled'.",
+                "description": "When enabled is false, next_run, initial_collection_status and min_collection_timestamp are null. initial_collection_status reflects the status of the one-shot initial collection task: 'pending', 'running', 'completed', 'failed' or 'canceled'.",
                 "summary": "Return dashboard collection feature flag status and task state.",
                 "tags": [
                     "dashboard_reports"
@@ -911,6 +934,15 @@
                 "parameters": [
                     {
                         "in": "query",
+                        "name": "end_date",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "description": "End date in 'YYYY-MM-DD' format. Required when period is 'custom'."
+                    },
+                    {
+                        "in": "query",
                         "name": "label",
                         "schema": {
                             "type": "array",
@@ -1009,6 +1041,7 @@
                         "schema": {
                             "type": "string",
                             "enum": [
+                                "custom",
                                 "last_14_days",
                                 "last_30_days",
                                 "last_60_days",
@@ -1029,6 +1062,15 @@
                             }
                         },
                         "description": "Filter by project ID (multiple allowed)"
+                    },
+                    {
+                        "in": "query",
+                        "name": "start_date",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "description": "Start date in 'YYYY-MM-DD' format. Required when period is 'custom'."
                     },
                     {
                         "in": "query",
@@ -1084,6 +1126,15 @@
                 "description": "Exports report data as CSV based on the specific report type and format query parameters.",
                 "summary": "Exports report data as CSV",
                 "parameters": [
+                    {
+                        "in": "query",
+                        "name": "end_date",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "description": "End date in 'YYYY-MM-DD' format. Required when period is 'custom'."
+                    },
                     {
                         "in": "query",
                         "name": "export_format",
@@ -1176,6 +1227,7 @@
                         "schema": {
                             "type": "string",
                             "enum": [
+                                "custom",
                                 "last_14_days",
                                 "last_30_days",
                                 "last_60_days",
@@ -1210,6 +1262,15 @@
                             "default": "summary"
                         },
                         "description": "Type of report to export. Options: 'summary', 'roi', 'trends'."
+                    },
+                    {
+                        "in": "query",
+                        "name": "start_date",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "description": "Start date in 'YYYY-MM-DD' format. Required when period is 'custom'."
                     },
                     {
                         "in": "query",
@@ -11134,11 +11195,17 @@
                     "initial_collection_status": {
                         "type": "string",
                         "nullable": true
+                    },
+                    "min_collection_timestamp": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
                     }
                 },
                 "required": [
                     "enabled",
                     "initial_collection_status",
+                    "min_collection_timestamp",
                     "next_run"
                 ]
             },

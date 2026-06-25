@@ -295,6 +295,22 @@ def parse_datetime_string(date_str: str | None) -> Any:
         return None
 
 
+_AWX_PROBE_TABLES = ("main_unifiedjob",)
+
+
+def _check_db_ready(connection, probe_tables):
+    """Return True if at least one probe table exists in the database."""
+    with connection.cursor() as cursor:
+        for table in probe_tables:
+            cursor.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s)",
+                [table],
+            )
+            if cursor.fetchone()[0]:
+                return True
+    return False
+
+
 def get_db_connection(db_name: str = "awx"):
     """
     Get a raw database connection that supports PostgreSQL COPY commands.
@@ -303,14 +319,11 @@ def get_db_connection(db_name: str = "awx"):
     to use the raw connection for metrics-utility collectors that use COPY
     for efficient data extraction.
 
-    This function ensures the connection is healthy by calling close_old_connections()
-    which closes stale/unusable connections and respects CONN_MAX_AGE settings.
-
     Args:
         db_name: Database name from Django settings (default: 'awx')
 
     Returns:
-        Raw database connection object (psycopg2 connection)
+        Raw database connection object (psycopg3 connection)
 
     Note:
         DO NOT CLOSE the returned connection. It is a Django-managed singleton
@@ -324,11 +337,43 @@ def get_db_connection(db_name: str = "awx"):
     # including the default connection that may be holding advisory locks in run_with_lock()
     django_connection = connections[db_name]
 
-    # Ensure the connection is open
+    # Django's ensure_connection() only reconnects when self.connection is None.
+    # A connection dropped by the server is not None — it is a stale psycopg3
+    # object. Probe it with SELECT 1 before handing it to the collector:
+    #   - catches connections already marked closed (.closed == True)
+    #   - catches silent network drops where .closed is still False
+    # Five collectors run per hour so the round-trip overhead is negligible.
+    if django_connection.connection is not None:
+        try:
+            django_connection.connection.execute("SELECT 1")
+        except Exception:
+            logger.warning(f"Database connection '{db_name}' is stale, reconnecting")
+            django_connection.close()
+
     django_connection.ensure_connection()
 
-    # Return the raw psycopg2 connection
     return django_connection.connection
+
+
+def awx_db_ready() -> bool:
+    """
+    Check if AWX controller database tables are available.
+
+    This prevents scheduling collector tasks before controller migrations complete,
+    avoiding startup race conditions. Useful for any component that needs to wait
+    for controller DB initialization.
+
+    Returns:
+        True if at least one AWX probe table exists, False otherwise
+    """
+    try:
+        # Use get_db_connection() to inherit stale-connection recovery logic
+        # (SELECT 1 probe + reconnect), preventing false negatives on transient stale connections
+        raw_conn = get_db_connection("awx")
+        return _check_db_ready(raw_conn, _AWX_PROBE_TABLES)
+    except Exception as e:
+        logger.debug(f"AWX DB readiness check failed: {e}")
+        return False
 
 
 def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):

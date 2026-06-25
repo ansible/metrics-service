@@ -33,9 +33,8 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False) -> boo
     ``FEATURE_<setting_name>_ENABLED`` settings attribute (set directly in settings.yaml
     by the installer) → boolean ``AAPFlag`` ``FEATURE_<setting_name>_ENABLED`` → ``default``.
 
-    Feature keys omitted from ``FEATURE`` in defaults (e.g. ``DASHBOARD_COLLECTION``)
-    use the direct-attribute / AAPFlag / default path so platform toggles work without a
-    duplicate static default.
+    Feature keys omitted from ``FEATURE`` in defaults use the direct-attribute /
+    AAPFlag / default path so platform toggles work without a duplicate static default.
 
     Args:
         setting_name: Name of the feature enabled setting
@@ -205,8 +204,16 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {"collector_type": "main_jobevent_service"},
-            "enabled": False,  # NOT enabled by default, for performance
+            "enabled": True,
             "description": "Collect job events (event modules) metrics every hour",
+        },
+        {
+            "task_id": "hourly_indirect_managed_nodes",
+            "function": "collect_hourly_metrics",
+            "cron": "25 * * * *",  # Every hour at XX:25
+            "args": {"collector_type": "indirect_managed_nodes"},
+            "enabled": True,
+            "description": "Collect indirect managed node audit metrics every hour",
         },
         # Daily Snapshot Collection
         {
@@ -303,9 +310,8 @@ ANONYMIZATION_GROUP = TaskGroup(
 )
 
 # Dashboard Collection Group - automation-reports integration
-# Feature flag: DASHBOARD_COLLECTION (default: False — customer opt-in)
-# Enable via METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION, DAB AAPFlag
-# FEATURE_DASHBOARD_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+# Feature flag: DASHBOARD_COLLECTION (default: True — enabled by default)
+# Disable via METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION=false or dynamic_settings.Setting.
 DASHBOARD_COLLECTION_GROUP = TaskGroup(
     name="dashboard_collection",
     description="Automation-reports dashboard data collection (SQL-based, separate from anonymization)",
@@ -338,12 +344,33 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+# Indirect Node Collection Group - automation-reports integration
+# Feature flag: INDIRECT_NODE_COLLECTION (default: False — customer opt-in)
+# Enable via METRICS_SERVICE_FEATURE__INDIRECT_NODE_COLLECTION, installer top-level
+# FEATURE_INDIRECT_NODE_COLLECTION_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
+    name="indirect_node_collection",
+    description="Indirect managed node hourly collection (INDIRECT_NODE_COLLECTION feature flag)",
+    feature_flag="INDIRECT_NODE_COLLECTION",
+    tasks=[
+        {
+            "task_id": "hourly_collect_indirect_nodes",
+            "function": "collect_indirect_nodes",
+            "cron": "30 * * * *",  # Every hour at XX:30
+            "args": {},
+            "enabled": True,
+            "description": "Collect indirect managed node audit data every hour",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
+    INDIRECT_NODE_COLLECTION_GROUP,
 ]
 
 

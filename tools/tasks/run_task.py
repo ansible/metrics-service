@@ -4,25 +4,25 @@
 Run tasks directly from the command line.
 
 Usage:
-    uv run scripts/run_task.py <task_name_or_id> [task_params_json]
-    uv run scripts/run_task.py --groups                 # List all task groups
-    uv run scripts/run_task.py --list-groups            # List all task groups with tasks
-    uv run scripts/run_task.py --help <task_or_id>      # Show help for a specific task
+    uv run tools/tasks/run_task.py <task_name_or_id> [task_params_json]
+    uv run tools/tasks/run_task.py --groups                 # List all task groups
+    uv run tools/tasks/run_task.py --list-groups            # List all task groups with tasks
+    uv run tools/tasks/run_task.py --help <task_or_id>      # Show help for a specific task
 
 Examples:
     # Run task functions directly
-    uv run scripts/run_task.py hello_world
-    uv run scripts/run_task.py daily_metrics_rollup '{"summary_date": "2024-01-01"}'
-    uv run scripts/run_task.py cleanup_old_tasks '{"days_old": 7, "dry_run": true}'
-    uv run scripts/run_task.py collect_hourly_metrics '{"collector_type": "job_host_summary_service"}'
+    uv run tools/tasks/run_task.py hello_world
+    uv run tools/tasks/run_task.py daily_metrics_rollup '{"summary_date": "2024-01-01"}'
+    uv run tools/tasks/run_task.py cleanup_old_tasks '{"days_old": 7, "dry_run": true}'
+    uv run tools/tasks/run_task.py collect_hourly_metrics '{"collector_type": "job_host_summary_service"}'
 
     # Run tasks from task groups (uses default args from group config)
-    uv run scripts/run_task.py daily_task_cleanup
-    uv run scripts/run_task.py hourly_job_host_summary
+    uv run tools/tasks/run_task.py daily_task_cleanup
+    uv run tools/tasks/run_task.py hourly_job_host_summary
 
     # Override default args for task group tasks
-    uv run scripts/run_task.py daily_task_cleanup '{"days_old": 10, "dry_run": true}'
-    uv run scripts/run_task.py hourly_job_host_summary '{"collector_type": "unified_jobs"}'
+    uv run tools/tasks/run_task.py daily_task_cleanup '{"days_old": 10, "dry_run": true}'
+    uv run tools/tasks/run_task.py hourly_job_host_summary '{"collector_type": "unified_jobs"}'
 """
 
 import json

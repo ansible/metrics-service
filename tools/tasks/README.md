@@ -5,7 +5,7 @@ Standalone task management UI for local development. Talks directly to the Metri
 ## Setup
 
 ```bash
-# Start the dev server (if not already running)
+# Start the dev server
 python manage.py runserver
 
 # Serve the dashboard (from repo root)

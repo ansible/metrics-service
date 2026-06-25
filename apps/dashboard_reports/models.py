@@ -655,6 +655,14 @@ class JobData(CommonModel):
         return latest_awx_modified
 
     @classmethod
+    def min_timestamp(cls) -> datetime | None:
+        """Returns the earliest 'finished' timestamp from JobData, or None if no records exist."""
+        earliest_finished = cls.objects.filter(finished__isnull=False).aggregate(models.Min("finished"))[
+            "finished__min"
+        ]
+        return earliest_finished
+
+    @classmethod
     @transaction.atomic
     def create_or_update_from_awx(cls, awx_job: AWXJobType):
         """

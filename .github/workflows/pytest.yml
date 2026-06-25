@@ -13,6 +13,9 @@ permissions:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    env:
+      HAS_SONAR_TOKEN: ${{ secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT != '' }}
+      HAS_CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
 
     services:
       postgres:
@@ -31,7 +34,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           # Explicitly checkout the PR HEAD (not the GitHub-created merge commit) so that
           # coverage.xml line numbers match exactly what sonar_checks.yml checks out via
@@ -41,10 +44,10 @@ jobs:
           fetch-depth: 0
 
       - name: "Install uv"
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
 
       - name: "Set up Python"
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version-file: "pyproject.toml"
 
@@ -67,28 +70,28 @@ jobs:
           uv run pytest -s -v --cov --cov-branch --cov-report=xml
 
       - name: "Upload code coverage report"
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request' && env.HAS_SONAR_TOKEN == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
           path: coverage.xml
 
       - name: "Save off PR number"
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.HAS_SONAR_TOKEN == 'true'
         env:
           PR_NUM: ${{ github.event.pull_request.number }}
         run: echo "PR $PR_NUM" > pr_number.txt
 
       - name: "Upload PR number"
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request' && env.HAS_SONAR_TOKEN == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pr_number
           path: pr_number.txt
 
       - name: "Send code coverage report to SonarCloud (on push)"
-        if: github.event_name == 'push'
-        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
+        if: github.event_name == 'push' && env.HAS_SONAR_TOKEN == 'true'
+        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_ORGANIZATION: ansible
@@ -100,7 +103,8 @@ jobs:
             -Dsonar.python.coverage.reportPaths=coverage.xml
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
+        if: env.HAS_CODECOV_TOKEN == 'true'
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml

@@ -10,6 +10,7 @@ import math
 from datetime import timedelta
 from typing import Any
 
+from django.conf import settings
 from django.utils import timezone
 
 from ..utils import create_task_result, generic_collect_metrics, get_db_connection, parse_datetime_string
@@ -27,12 +28,14 @@ def _get_hourly_collectors():
     from metrics_utility.anonymized_rollups import (
         CredentialsAnonymizedRollup,
         EventModulesAnonymizedRollup,
+        IndirectManagedNodesAnonymizedRollup,
         JobHostSummaryAnonymizedRollup,
         JobsAnonymizedRollup,
     )
     from metrics_utility.library.collectors.controller import (
         credentials_service,
         job_host_summary_service,
+        main_indirectmanagednodeaudit,
         main_jobevent_service,
         unified_jobs_dashboard,
     )
@@ -62,6 +65,11 @@ def _get_hourly_collectors():
             "collector_func": main_jobevent_service,
             "rollup_processor": EventModulesAnonymizedRollup,
             "description": "Job events (event modules) metrics",
+        },
+        "indirect_managed_nodes": {
+            "collector_func": main_indirectmanagednodeaudit,
+            "rollup_processor": IndirectManagedNodesAnonymizedRollup,
+            "description": "Indirect managed node audit metrics",
         },
     }
 
@@ -113,6 +121,11 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     hook_factory = collector_registry.get(collector_type, {}).get("post_collect_hook_factory")
     post_collect_hook = hook_factory(start_datetime) if hook_factory else None
 
+    collector_kwargs: dict[str, Any] = {"since": start_datetime, "until": end_datetime}
+    if collector_type == "main_jobevent_service":
+        collector_kwargs["row_limit"] = settings.JOBEVENT_ROW_LIMIT
+        collector_kwargs["job_limit"] = settings.JOBEVENT_JOB_LIMIT
+
     # Use generic collector with hourly-specific time window
     return generic_collect_metrics(
         collector_type=collector_type,
@@ -120,7 +133,7 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
         collection_mode="hourly",
         timestamp=start_datetime,
         db_connection=db_connection,
-        collector_kwargs={"since": start_datetime, "until": end_datetime},
+        collector_kwargs=collector_kwargs,
         task_execution_id=execution_id,
         post_collect_hook=post_collect_hook,
     )

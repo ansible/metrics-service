@@ -674,3 +674,13 @@ def test_get_date_range_and_kind_46_days_is_month():
     vs = _make_viewset_with_dates(start, end)
     _, _, kind = vs._get_date_range_and_kind()
     assert kind == "month"
+
+
+@pytest.mark.unit
+def test_get_date_range_and_kind_exactly_24h_uses_daily():
+    # diff.days == 1 → daily, not hourly (intentional since PR #272)
+    start = datetime(2024, 6, 1, 0, 0, tzinfo=UTC)
+    end = datetime(2024, 6, 2, 0, 0, tzinfo=UTC)
+    vs = _make_viewset_with_dates(start, end)
+    _, _, kind = vs._get_date_range_and_kind()
+    assert kind == "day"

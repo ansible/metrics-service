@@ -12,8 +12,10 @@ from django.test import TestCase, override_settings
 
 from apps.tasks.task_groups import (
     ANONYMIZATION_GROUP,
+    INDIRECT_NODE_COLLECTION_GROUP,
     METRICS_COLLECTION_GROUP,
     SYSTEM_TASKS_GROUP,
+    TASK_GROUPS,
     TaskGroup,
     get_all_enabled_tasks,
     get_all_tasks_for_init,
@@ -182,6 +184,7 @@ class TestPredefinedTaskGroups(TestCase):
         assert len(task_ids) > 0
         # Hourly collection tasks
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "hourly_unified_jobs" in task_ids
         assert "hourly_credentials" in task_ids
         # Daily snapshot collection
@@ -272,6 +275,7 @@ class TestTaskGroupFunctions(TestCase):
 
         # Metrics collection tasks (METRICS_COLLECTION still true)
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "daily_metrics_rollup" in task_ids
         assert "cleanup_metrics_data" in task_ids
 
@@ -292,6 +296,7 @@ class TestTaskGroupFunctions(TestCase):
 
         assert "daily_anonymize" in task_ids
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "daily_metrics_rollup" in task_ids
 
     @override_settings(FEATURE=_FLAGS_METRICS_ON_ANON_OFF)
@@ -312,11 +317,10 @@ class TestTaskGroupFunctions(TestCase):
         assert "daily_metrics_rollup" in task_ids
         assert "daily_task_cleanup" in task_ids
 
-    def test_get_all_tasks_for_init_excludes_individually_disabled_tasks(self):
-        """get_all_tasks_for_init() still respects per-task enabled=False."""
+    def test_get_all_tasks_for_init_includes_all_enabled_tasks(self):
+        """get_all_tasks_for_init() includes all tasks with enabled=True."""
         all_tasks = get_all_tasks_for_init()
-        # hourly_job_events has enabled=False in METRICS_COLLECTION_GROUP
-        assert "hourly_job_events" not in all_tasks
+        assert "hourly_job_events" in all_tasks
 
     @override_settings(FEATURE={"METRICS_COLLECTION": False, "ANONYMIZED_DATA_COLLECTION": True})
     def test_get_all_enabled_tasks_metrics_collection_false_excludes_pipeline(self):
@@ -326,9 +330,36 @@ class TestTaskGroupFunctions(TestCase):
 
         assert "daily_task_cleanup" in task_ids
         assert "hourly_job_host_summary" not in task_ids
+        assert "hourly_job_events" not in task_ids
         assert "daily_metrics_rollup" not in task_ids
         assert "cleanup_metrics_data" not in task_ids
         assert "daily_anonymize" in task_ids
+
+
+class TestIndirectNodeCollectionGroup(TestCase):
+    """Test the INDIRECT_NODE_COLLECTION_GROUP task group."""
+
+    def test_indirect_node_collection_group_in_task_groups_registry(self):
+        """INDIRECT_NODE_COLLECTION_GROUP is registered in TASK_GROUPS."""
+        assert INDIRECT_NODE_COLLECTION_GROUP in TASK_GROUPS
+
+    @override_settings(FEATURE={"INDIRECT_NODE_COLLECTION": False})
+    def test_indirect_node_collection_group_disabled_by_default(self):
+        """When INDIRECT_NODE_COLLECTION is false, no tasks are returned."""
+        assert INDIRECT_NODE_COLLECTION_GROUP.feature_flag == "INDIRECT_NODE_COLLECTION"
+        assert INDIRECT_NODE_COLLECTION_GROUP.get_enabled_tasks() == []
+
+    @override_settings(FEATURE={"INDIRECT_NODE_COLLECTION": True})
+    def test_indirect_node_collection_group_enabled(self):
+        """When INDIRECT_NODE_COLLECTION is true, hourly_collect_indirect_nodes is returned."""
+        task_ids = [t["task_id"] for t in INDIRECT_NODE_COLLECTION_GROUP.get_enabled_tasks()]
+        assert "hourly_collect_indirect_nodes" in task_ids
+
+    def test_indirect_node_collection_group_uses_correct_cron(self):
+        """collect_indirect_nodes task is scheduled at 30 * * * *."""
+        task = next(t for t in INDIRECT_NODE_COLLECTION_GROUP.tasks if t["task_id"] == "hourly_collect_indirect_nodes")
+        assert task["cron"] == "30 * * * *"
+        assert task["function"] == "collect_indirect_nodes"
 
 
 class TestTaskGroupIntegration(TestCase):
@@ -376,6 +407,7 @@ class TestTaskGroupIntegration(TestCase):
 
         # Metrics collection tasks must still be present
         assert "hourly_job_host_summary" in task_ids
+        assert "hourly_job_events" in task_ids
         assert "hourly_unified_jobs" in task_ids
         assert "hourly_credentials" in task_ids
         assert "daily_metrics_rollup" in task_ids

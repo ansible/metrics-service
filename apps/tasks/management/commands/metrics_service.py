@@ -149,7 +149,7 @@ class Command(BaseCommand):
         create_parser.add_argument("--name", required=True, help="Task name")
         create_parser.add_argument("--function", required=True, help="Function name to execute")
         create_parser.add_argument("--data", help="JSON data for the task")
-        create_parser.add_argument("--description", help="Task description")
+        create_parser.add_argument("--description", default="", help="Task description")
         create_parser.add_argument("--scheduled-time", help="Schedule time (YYYY-MM-DD HH:MM:SS)")
         create_parser.add_argument("--cron", help="Cron expression for recurring tasks")
         create_parser.add_argument("--user", help="Username of task creator")
@@ -218,23 +218,9 @@ class Command(BaseCommand):
         """Handle the init-default-settings command."""
         try:
             from apps.dynamic_settings.utils import initialize_default_settings
-            from apps.tasks.apps import load_task_feature_flags, sync_flag_values_from_settings
 
             initialize_default_settings()
-            # Seed metrics-specific AAPFlags from feature_flags.yaml. This
-            # mirrors what the post_migrate signal does during `migrate`, but
-            # must also run here because init-default-settings is called in
-            # production without a preceding migrate (DB is pre-migrated).
-            flags_seeded = load_task_feature_flags()
-            # Propagate installer settings.yaml overrides (e.g. FEATURE_DASHBOARD_COLLECTION_ENABLED: True)
-            # to AAPFlag values so the Gateway UI reflects the installer's intent.
-            sync_flag_values_from_settings()
-            if flags_seeded:
-                self.output.success("Initialized default settings")
-            else:
-                self.output.warning(
-                    "Initialized default settings in the database, but task feature flags could not be seeded; see logs.",
-                )
+            self.output.success("Initialized default settings")
         except Exception as e:
             raise CommandError(f"Failed to initialize default settings: {e}") from e
 

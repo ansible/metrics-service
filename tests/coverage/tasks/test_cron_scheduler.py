@@ -366,6 +366,7 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
     # _periodic_database_sync also calls Task.immediate_tasks() etc. — mock them to return empty
     with (
         patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.utils.awx_db_ready", return_value=True),
         patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()),
         patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()),
         patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()),
@@ -390,3 +391,171 @@ def test_get_scheduler_returns_same_instance():
     s2 = cs.get_scheduler()
     assert s1 is s2
     cs._scheduler_instance = None  # cleanup
+
+
+# ---------------------------------------------------------------------------
+# awx_db_ready (moved to utils.py)
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+def test_awx_db_ready_returns_true_when_tables_exist():
+    """Test awx_db_ready returns True when probe tables exist."""
+    from unittest.mock import MagicMock
+
+    from apps.tasks.utils import awx_db_ready
+
+    # Mock get_db_connection to return a connection
+    mock_conn = MagicMock()
+
+    # Mock _check_db_ready to return True (tables found)
+    with (
+        patch("apps.tasks.utils.get_db_connection", return_value=mock_conn),
+        patch("apps.tasks.utils._check_db_ready", return_value=True),
+    ):
+        result = awx_db_ready()
+
+    assert result is True
+
+
+@pytest.mark.unit
+def test_awx_db_ready_returns_false_when_tables_missing():
+    """Test awx_db_ready returns False when probe tables don't exist."""
+    from unittest.mock import MagicMock
+
+    from apps.tasks.utils import awx_db_ready
+
+    # Mock get_db_connection to return a connection
+    mock_conn = MagicMock()
+
+    # Mock _check_db_ready to return False (tables not found)
+    with (
+        patch("apps.tasks.utils.get_db_connection", return_value=mock_conn),
+        patch("apps.tasks.utils._check_db_ready", return_value=False),
+    ):
+        result = awx_db_ready()
+
+    assert result is False
+
+
+@pytest.mark.unit
+def test_awx_db_ready_returns_false_on_exception():
+    """Test awx_db_ready returns False when an exception occurs."""
+    from apps.tasks.utils import awx_db_ready
+
+    # Mock get_db_connection to raise an exception
+    with patch("apps.tasks.utils.get_db_connection", side_effect=Exception("DB connection failed")):
+        result = awx_db_ready()
+
+    assert result is False
+
+
+# ---------------------------------------------------------------------------
+# DB readiness error escalation
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_periodic_sync_tracks_db_not_ready_during_grace_period(user, mock_apscheduler):
+    """Test that timestamp is set when DB is not ready within grace period."""
+    import apps.tasks.cron_scheduler as cs
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler.scheduler = mock_apscheduler
+
+    # Initially should be None
+    assert scheduler._db_not_ready_since is None
+
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.utils.awx_db_ready", return_value=False),
+        patch.object(cs.UnifiedTaskScheduler, "_fail_stuck_tasks"),
+        patch("apps.tasks.cron_scheduler.logger") as mock_logger,
+    ):
+        scheduler._periodic_database_sync()
+
+    # Timestamp should be set when DB is not ready
+    assert scheduler._db_not_ready_since is not None
+    # Should call warning, not error (during grace period)
+    mock_logger.warning.assert_called_once()
+    mock_logger.error.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_periodic_sync_escalates_to_error_after_grace_period(user, mock_apscheduler):
+    """Test that ERROR is logged when DB is not ready after grace period."""
+    import apps.tasks.cron_scheduler as cs
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler.scheduler = mock_apscheduler
+    # Simulate that DB has been unready for longer than grace period
+    scheduler._db_not_ready_since = timezone.now() - timedelta(minutes=15)
+
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.utils.awx_db_ready", return_value=False),
+        patch.object(cs.UnifiedTaskScheduler, "_fail_stuck_tasks"),
+        patch("apps.tasks.cron_scheduler.logger") as mock_logger,
+    ):
+        scheduler._periodic_database_sync()
+
+    # Should log error after grace period
+    mock_logger.error.assert_called_once()
+    mock_logger.warning.assert_not_called()
+    # Verify error message mentions migrations failed
+    error_call_args = mock_logger.error.call_args[0][0]
+    assert "migrations failed" in error_call_args
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_periodic_sync_clears_timestamp_when_db_ready(user, mock_apscheduler):
+    """Test that timestamp is cleared and info logged when DB becomes ready."""
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler.scheduler = mock_apscheduler
+    # Simulate that DB was unready for some time
+    scheduler._db_not_ready_since = timezone.now() - timedelta(seconds=120)
+
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.utils.awx_db_ready", return_value=True),
+        patch.object(cs.UnifiedTaskScheduler, "_fail_stuck_tasks"),
+        patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()),
+        patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()),
+        patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()),
+        patch("apps.tasks.cron_scheduler.logger") as mock_logger,
+    ):
+        scheduler._periodic_database_sync()
+
+    # Should log info that DB is ready
+    mock_logger.info.assert_called()
+    info_call_args = mock_logger.info.call_args[0][0]
+    assert "AWX database is now ready" in info_call_args
+    # Timestamp should be cleared
+    assert scheduler._db_not_ready_since is None
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_periodic_sync_shows_elapsed_time_in_logs(user, mock_apscheduler):
+    """Test that elapsed time is shown in warning messages."""
+    import apps.tasks.cron_scheduler as cs
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler.scheduler = mock_apscheduler
+    # Simulate that DB has been unready for 3 minutes
+    scheduler._db_not_ready_since = timezone.now() - timedelta(minutes=3)
+
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.utils.awx_db_ready", return_value=False),
+        patch.object(cs.UnifiedTaskScheduler, "_fail_stuck_tasks"),
+        patch("apps.tasks.cron_scheduler.logger") as mock_logger,
+    ):
+        scheduler._periodic_database_sync()
+
+    # Should show elapsed time (around 180 seconds)
+    mock_logger.warning.assert_called_once()
+    warning_call_args = mock_logger.warning.call_args[0][0]
+    assert "s elapsed" in warning_call_args

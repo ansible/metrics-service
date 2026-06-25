@@ -16,18 +16,16 @@ A modern Django-based service built for the Ansible Automation Platform (AAP) ec
 
 ## Quick Start
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker + dev server (Recommended)
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd metrics-service
+# Requires a sibling ../metrics-utility checkout.
 
-# Start all services
-docker-compose up -d
+# Start base containers (postgres, minio)
+make compose
 
-# Create a superuser (optional)
-docker-compose exec metrics-service python manage.py createsuperuser
+# In another terminal — run migrations, start dev server
+tools/dev.sh --init
 ```
 
 Your service will be available at:
@@ -75,7 +73,7 @@ uv sync
 uv run ./manage.py migrate
 uv run ./manage.py createsuperuser
 uv run ./manage.py metrics_service run
-uv run ./scripts/run_task.py hello_world # debugging individual tasks
+uv run tools/tasks/run_task.py hello_world # debugging individual tasks
 ```
 
 ### Endpoints
@@ -108,8 +106,6 @@ GET /api/v1/tasks/available_functions/
 
 - `cleanup_old_tasks` - Clean up completed/failed tasks
 - `hello_world` - Simple test task for dispatcherd integration
-- `execute_db_task` - Execute database-defined tasks with lifecycle management
-
 **Metrics Collection Tasks** (controlled by `METRICS_COLLECTION`, default: enabled):
 
 - `collect_hourly_metrics` - Collect time-series metrics every hour (collector type via `collector_type` parameter)
@@ -177,9 +173,9 @@ Feature flags are resolved at runtime with this precedence:
 2. **Env var** (`METRICS_SERVICE_FEATURE__*`) — used on fresh installs or when no DB row exists
 3. **Static default** in `settings.FEATURE` — fallback if neither of the above is set
 
-`init-default-settings` no longer pre-seeds these flags into the database, so env vars take effect on fresh installs without a DB row overriding them. Existing DB rows (from prior deploys or manual updates) continue to take precedence — a pod restart is required for env var changes to be picked up by the running service.
+`init-default-settings` does not pre-seed feature flags into the database, so env vars take effect on fresh installs unless a DB row exists. DB rows always take precedence over env vars. A pod restart is required for env var changes to be picked up by the running service.
 
-After upgrading to a version that adds `METRICS_COLLECTION`, run `python manage.py metrics_service init-system-tasks` once so system tasks include `_feature_flag` for metrics collection templates.
+If system tasks are missing `_feature_flag` for metrics collection templates, run `python manage.py metrics_service init-system-tasks` to sync them.
 
 
 ## Development

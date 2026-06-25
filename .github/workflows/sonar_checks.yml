@@ -17,15 +17,17 @@ jobs:
     name: SonarCloud Static Scans (PR)
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    env:
+      HAS_SONAR_TOKEN: ${{ secrets.CICD_ORG_SONAR_TOKEN_CICD_BOT != '' }}
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
       - name: Fetch Code Coverage Report
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: coverage-report
           path: coverage-artifact
@@ -33,7 +35,7 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Fetch PR Number
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: pr_number
           path: pr-artifact
@@ -124,8 +126,8 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
 
       - name: SonarCloud Scan
-        if: steps.pr_check.outputs.should_scan == 'true'
-        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
+        if: steps.pr_check.outputs.should_scan == 'true' && env.HAS_SONAR_TOKEN == 'true'
+        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_ORGANIZATION: ansible

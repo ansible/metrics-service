@@ -11,9 +11,9 @@ split into data and metadata files:
 Files are named after the collector type and timestamps.
 
 Usage:
-    uv run scripts/dump_hourly.py
-    uv run scripts/dump_hourly.py --output-dir ./dumps
-    uv run scripts/dump_hourly.py --status collected
+    uv run tools/tasks/dump_hourly.py
+    uv run tools/tasks/dump_hourly.py --output-dir ./dumps
+    uv run tools/tasks/dump_hourly.py --status collected
 """
 
 import argparse
