@@ -9,7 +9,9 @@ import pytest
 from apps.tasks.collectors.collect_hourly_metrics import (
     _build_dashboard_host_summary_sync_hook,
     _build_dashboard_sync_hook,
+    _build_host_summary_task_chunks,
     _get_hourly_collectors,
+    _group_host_summary_rows,
     _serialize_dashboard_record,
     _serialize_host_summary_record,
 )
@@ -488,7 +490,7 @@ class TestBuildDashboardHostSummarySyncHook:
         assert call_kwargs["defaults"]["function_name"] == "sync_dashboard_host_summaries"
 
     def test_hook_serialises_raw_host_summaries_into_task_data(self):
-        """raw_host_summaries in task_data contains id, host_name, host_remote_id, job_remote_id."""
+        """raw_host_summaries in task_data contains id, host_name, host_id, job_remote_id."""
         df = _make_host_summary_df([{"id": 7, "host_name": "db01", "host_remote_id": 99, "job_remote_id": 123}])
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
@@ -499,7 +501,7 @@ class TestBuildDashboardHostSummarySyncHook:
         assert len(records) == 1
         assert records[0]["id"] == 7
         assert records[0]["host_name"] == "db01"
-        assert records[0]["host_remote_id"] == 99
+        assert records[0]["host_id"] == 99
         assert records[0]["job_remote_id"] == 123
 
     def test_hook_uses_update_or_create_for_idempotency(self):
@@ -589,23 +591,110 @@ class TestSerializeHostSummaryRecord:
 
         row = {"id": np.int64(5), "host_name": "web01", "host_remote_id": np.int64(10), "job_remote_id": np.int64(42)}
         result = _serialize_host_summary_record(row)
-        assert result == {"id": 5, "host_name": "web01", "host_remote_id": 10, "job_remote_id": 42}
+        assert result == {"id": 5, "host_name": "web01", "host_id": 10, "job_remote_id": 42}
         assert isinstance(result["id"], int)
 
     def test_null_host_remote_id_stays_none(self):
-        """host_remote_id=None (deleted AWX host) is preserved as None."""
+        """host_id=None (deleted AWX host) is preserved as None."""
         row = {"id": 1, "host_name": "h1", "host_remote_id": None, "job_remote_id": 7}
         result = _serialize_host_summary_record(row)
-        assert result["host_remote_id"] is None
+        assert result["host_id"] is None
 
     def test_nan_host_remote_id_becomes_none(self):
         """NaN in host_remote_id (pandas float64 upcast of nullable int) is coerced to None."""
         row = {"id": 1, "host_name": "h1", "host_remote_id": float("nan"), "job_remote_id": 7}
         result = _serialize_host_summary_record(row)
-        assert result["host_remote_id"] is None
+        assert result["host_id"] is None
 
     def test_null_host_name_stays_none(self):
         """host_name=None is preserved as None."""
         row = {"id": 1, "host_name": None, "host_remote_id": 10, "job_remote_id": 7}
         result = _serialize_host_summary_record(row)
         assert result["host_name"] is None
+
+
+@pytest.mark.unit
+class TestGroupHostSummaryRows:
+    """Tests for _group_host_summary_rows."""
+
+    def test_basic_grouping(self):
+        """Rows with the same job_remote_id are grouped together."""
+        rows = [
+            {"id": 1, "host_name": "h1", "host_remote_id": 10, "job_remote_id": 42},
+            {"id": 2, "host_name": "h2", "host_remote_id": 11, "job_remote_id": 42},
+            {"id": 3, "host_name": "h3", "host_remote_id": 12, "job_remote_id": 99},
+        ]
+        result = _group_host_summary_rows(rows)
+        assert set(result.keys()) == {42, 99}
+        assert len(result[42]) == 2
+        assert len(result[99]) == 1
+
+    def test_drops_rows_with_null_job_remote_id(self):
+        """Rows where job_remote_id serialises to None are excluded."""
+        rows = [
+            {"id": 1, "host_name": "h1", "host_remote_id": 10, "job_remote_id": None},
+            {"id": 2, "host_name": "h2", "host_remote_id": 11, "job_remote_id": 42},
+        ]
+        result = _group_host_summary_rows(rows)
+        assert list(result.keys()) == [42]
+
+    def test_empty_input_returns_empty_dict(self):
+        """Empty rows list produces an empty by_job dict."""
+        assert _group_host_summary_rows([]) == {}
+
+    def test_output_records_use_host_id_key(self):
+        """Serialised records in the output use host_id, not host_remote_id."""
+        rows = [{"id": 5, "host_name": "h1", "host_remote_id": 77, "job_remote_id": 1}]
+        result = _group_host_summary_rows(rows)
+        record = result[1][0]
+        assert "host_id" in record
+        assert "host_remote_id" not in record
+        assert record["host_id"] == 77
+
+
+@pytest.mark.unit
+class TestBuildHostSummaryTaskChunks:
+    """Tests for _build_host_summary_task_chunks."""
+
+    def _make_records(self, n):
+        return [{"id": i, "host_id": i, "host_name": f"h{i}", "job_remote_id": i} for i in range(n)]
+
+    def test_single_chunk_when_below_limit(self):
+        """All records fit in one chunk when total count is below the limit."""
+        from apps.tasks.collectors.collect_hourly_metrics import _HOST_SUMMARY_RECORD_CHUNK_SIZE
+
+        by_job = {i: [{"id": i, "host_id": i, "host_name": f"h{i}", "job_remote_id": i}] for i in range(5)}
+        result = _build_host_summary_task_chunks(by_job, "2024-01-01T00:00:00+00:00")
+        assert len(result) == 1
+        chunk_name = list(result.keys())[0]
+        assert chunk_name.endswith("_0")
+        assert len(list(result.values())[0]) == 5
+
+    def test_splits_into_two_chunks_at_limit(self):
+        """Records exceeding the limit across distinct jobs split into two chunks."""
+        from apps.tasks.collectors.collect_hourly_metrics import _HOST_SUMMARY_RECORD_CHUNK_SIZE
+
+        # Each job has exactly 1 record; limit + 1 jobs → 2 chunks
+        by_job = {i: [{"id": i, "host_id": i, "host_name": f"h{i}"}] for i in range(_HOST_SUMMARY_RECORD_CHUNK_SIZE + 1)}
+        result = _build_host_summary_task_chunks(by_job, "2024-01-01T00:00:00+00:00")
+        assert len(result) == 2
+        names = list(result.keys())
+        assert names[0].endswith("_0")
+        assert names[1].endswith("_1")
+
+    def test_single_oversized_job_stays_in_one_chunk(self):
+        """A job with more records than the limit is never split across chunks."""
+        from apps.tasks.collectors.collect_hourly_metrics import _HOST_SUMMARY_RECORD_CHUNK_SIZE
+
+        oversized = [{"id": i} for i in range(_HOST_SUMMARY_RECORD_CHUNK_SIZE + 50)]
+        by_job = {42: oversized}
+        result = _build_host_summary_task_chunks(by_job, "2024-01-01T00:00:00+00:00")
+        assert len(result) == 1
+        assert len(list(result.values())[0]) == _HOST_SUMMARY_RECORD_CHUNK_SIZE + 50
+
+    def test_chunk_names_include_hour_ts_str(self):
+        """Chunk names embed the hour timestamp so stale-chunk cleanup targets the right hour."""
+        by_job = {1: [{"id": 1}]}
+        result = _build_host_summary_task_chunks(by_job, "2024-06-01T12:00:00+00:00")
+        name = list(result.keys())[0]
+        assert "2024-06-01T12:00:00+00:00" in name

@@ -188,15 +188,57 @@ def _serialize_dashboard_record(row: dict) -> None:
 def _serialize_host_summary_record(row: dict) -> dict:
     """Coerce numpy/pandas types to Python natives for a single host summary row.
 
-    host_remote_id is nullable (None when the AWX host record has been deleted).
-    job_remote_id and id are always non-null integers from main_jobhostsummary.
+    id and job_remote_id are always non-null integers from main_jobhostsummary.
+    host_remote_id (the AWX DB column name) is read from the input row and written
+    as host_id in the result — the canonical wire/model field name used by
+    _sync_host_summaries. host_id is nullable (None when the AWX host record has
+    been deleted).
     """
     result: dict = {}
-    for field in ("id", "job_remote_id", "host_remote_id"):
+    for field in ("id", "job_remote_id"):
         val = row.get(field)
         result[field] = None if (val is None or (isinstance(val, float) and math.isnan(val))) else int(val)
+    # host_remote_id (AWX column) → host_id (canonical wire/model field name).
+    val = row.get("host_remote_id")
+    result["host_id"] = None if (val is None or (isinstance(val, float) and math.isnan(val))) else int(val)
     result["host_name"] = str(row["host_name"]) if row.get("host_name") is not None else None
     return result
+
+
+def _group_host_summary_rows(rows: list[dict]) -> dict[int, list]:
+    """Group serialised host-summary rows by job_remote_id, dropping rows with a null job id."""
+    by_job: dict[int, list] = {}
+    for row in rows:
+        record = _serialize_host_summary_record(row)
+        job_id = record.get("job_remote_id")
+        if job_id is None:
+            continue
+        by_job.setdefault(job_id, []).append(record)
+    return by_job
+
+
+def _build_host_summary_task_chunks(by_job: dict[int, list], hour_ts_str: str) -> dict[str, list]:
+    """Partition host-summary records into named chunks for Task scheduling.
+
+    All records for a single job stay in the same chunk because _sync_host_summaries
+    deletes stale records — splitting a job across chunks would cause data loss.
+    """
+    chunks: dict[str, list] = {}
+    chunk_index = 0
+    current_chunk: list = []
+
+    for job_records in by_job.values():
+        if current_chunk and len(current_chunk) + len(job_records) > _HOST_SUMMARY_RECORD_CHUNK_SIZE:
+            name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
+            chunks[name] = current_chunk
+            chunk_index += 1
+            current_chunk = []
+        current_chunk.extend(job_records)
+
+    # Flush the final (or only) chunk — always non-empty because by_job is non-empty.
+    name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
+    chunks[name] = current_chunk
+    return chunks
 
 
 def _build_dashboard_host_summary_sync_hook(hour_timestamp):
@@ -209,6 +251,9 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
     # Lazy import: circular dependency (collect_hourly_metrics → task_groups → tasks → collect_hourly_metrics).
     from apps.tasks.task_groups import get_feature_enabled_from_db
 
+    # The flag is intentionally evaluated at hook-build time (when the hourly task starts),
+    # not when the hook executes after gather(). A flag change mid-task takes effect on the
+    # next collection cycle. This is acceptable — the window is the duration of one gather() call.
     if not get_feature_enabled_from_db("DASHBOARD_COLLECTION"):
         return None
 
@@ -227,15 +272,7 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
 
         subset = raw_data[list(available)]
         rows = subset.where(subset.notna(), other=None).to_dict("records")
-
-        by_job: dict[int, list] = {}
-        for row in rows:
-            record = _serialize_host_summary_record(row)
-            job_id = record.get("job_remote_id")
-            if job_id is None:
-                continue
-            by_job.setdefault(job_id, []).append(record)
-
+        by_job = _group_host_summary_rows(rows)
         if not by_job:
             return
 
@@ -243,59 +280,30 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
         # patch apps.tasks.models.Task after the hook is built (same circular-import reason).
         from apps.tasks.models import Task
 
-        # Chunk by total record count, keeping all records for a single job together.
-        # _sync_host_summaries deletes stale records, so splitting one job's records
-        # across tasks would cause the first chunk to delete the second chunk's records.
         hour_ts_str = hour_timestamp.isoformat()
+        chunks = _build_host_summary_task_chunks(by_job, hour_ts_str)
         new_names: set[str] = set()
-        chunk_index = 0
-        current_chunk: list = []
-
-        for job_id in by_job:
-            job_records = by_job[job_id]
-            if current_chunk and len(current_chunk) + len(job_records) > _HOST_SUMMARY_RECORD_CHUNK_SIZE:
-                chunk_name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
-                new_names.add(chunk_name)
-                Task.objects.update_or_create(
-                    name=chunk_name,
-                    defaults={
-                        "description": (
-                            f"Sync dashboard host summary records from job_host_summary_service"
-                            f" for {hour_ts_str} (chunk {chunk_index})"
-                        ),
-                        "function_name": "sync_dashboard_host_summaries",
-                        "task_data": {
-                            "raw_host_summaries": current_chunk,
-                            "hour_timestamp": hour_ts_str,
-                            "_feature_flag": "DASHBOARD_COLLECTION",
-                        },
-                        "is_system_task": False,
+        for chunk_index, (chunk_name, chunk) in enumerate(chunks.items()):
+            new_names.add(chunk_name)
+            Task.objects.update_or_create(
+                name=chunk_name,
+                defaults={
+                    "description": (
+                        f"Sync dashboard host summary records from job_host_summary_service"
+                        f" for {hour_ts_str} (chunk {chunk_index})"
+                    ),
+                    "function_name": "sync_dashboard_host_summaries",
+                    "task_data": {
+                        "raw_host_summaries": chunk,
+                        "hour_timestamp": hour_ts_str,
+                        "_feature_flag": "DASHBOARD_COLLECTION",
                     },
-                )
-                chunk_index += 1
-                current_chunk = []
-            current_chunk.extend(job_records)
-
-        # Flush the final (or only) chunk — always non-empty because by_job is non-empty.
-        chunk_name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
-        new_names.add(chunk_name)
-        Task.objects.update_or_create(
-            name=chunk_name,
-            defaults={
-                "description": (
-                    f"Sync dashboard host summary records from job_host_summary_service"
-                    f" for {hour_ts_str} (chunk {chunk_index})"
-                ),
-                "function_name": "sync_dashboard_host_summaries",
-                "task_data": {
-                    "raw_host_summaries": current_chunk,
-                    "hour_timestamp": hour_ts_str,
-                    "_feature_flag": "DASHBOARD_COLLECTION",
+                    "is_system_task": False,
                 },
-                "is_system_task": False,
-            },
-        )
+            )
         # Remove pending chunks from a prior run that exceed the current chunk count.
+        if not new_names:
+            return
         Task.objects.filter(
             name__startswith=f"sync_dashboard_host_summaries_{hour_ts_str}_",
             status="pending",

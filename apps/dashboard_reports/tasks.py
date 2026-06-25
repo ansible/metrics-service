@@ -372,16 +372,19 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
         details=f"Syncing host summaries for {len(raw_host_summaries)} records ({hour_timestamp})",
     )
 
-    # Group by job_remote_id and remap host_remote_id → host_id to match _sync_host_summaries.
+    # Group by job_remote_id; the hook's serializer already maps host_remote_id → host_id.
     by_job: dict[int, list] = {}
     for row in raw_host_summaries:
         job_id = row.get("job_remote_id")
         if job_id is None:
             continue
+        summary_id = row.get("id")
+        if summary_id is None:
+            continue
         by_job.setdefault(job_id, []).append(
             {
-                "id": row["id"],
-                "host_id": row.get("host_remote_id"),
+                "id": summary_id,
+                "host_id": row.get("host_id"),
                 "host_name": row.get("host_name"),
             }
         )

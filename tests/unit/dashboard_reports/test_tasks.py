@@ -803,12 +803,12 @@ class TestProcessBatches:
 class TestSyncDashboardHostSummaries:
     """Tests for sync_dashboard_host_summaries — the hourly hook-driven host summary sync task."""
 
-    def _raw_record(self, host_summary_id=1, host_name="web01", host_remote_id=10, job_remote_id=42):
-        """Return a minimal raw host summary dict as produced by the hook."""
+    def _raw_record(self, host_summary_id=1, host_name="web01", host_id=10, job_remote_id=42):
+        """Return a minimal raw host summary dict as produced by the hook (wire format)."""
         return {
             "id": host_summary_id,
             "host_name": host_name,
-            "host_remote_id": host_remote_id,
+            "host_id": host_id,
             "job_remote_id": job_remote_id,
         }
 
@@ -831,7 +831,7 @@ class TestSyncDashboardHostSummaries:
         mock_objects.filter.return_value = [job_data]
         mock_jhs.objects.filter.return_value = []
 
-        record = self._raw_record(host_summary_id=7, host_name="db01", host_remote_id=99, job_remote_id=123)
+        record = self._raw_record(host_summary_id=7, host_name="db01", host_id=99, job_remote_id=123)
         sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
 
         mock_sync.assert_called_once_with(
@@ -920,13 +920,13 @@ class TestSyncDashboardHostSummaries:
     @patch("apps.dashboard_reports.tasks.JobData.objects")
     @patch("apps.dashboard_reports.tasks.log_task_execution")
     @patch("django.db.transaction.atomic", new=contextlib.nullcontext)
-    def test_null_host_remote_id_passed_as_none_host_id(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
-        """host_remote_id=None is mapped to host_id=None in the dict passed to _sync_host_summaries."""
+    def test_null_host_id_is_preserved(self, mock_log, mock_objects, mock_jhs, mock_sync, mock_result):
+        """host_id=None (deleted AWX host) is passed as None to _sync_host_summaries."""
         job_data = self._make_job_data(job_id=42, pk=1)
         mock_objects.filter.return_value = [job_data]
         mock_jhs.objects.filter.return_value = []
 
-        record = self._raw_record(host_remote_id=None)
+        record = self._raw_record(host_id=None)
         sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
 
         passed_summaries = mock_sync.call_args[0][1]
@@ -936,7 +936,17 @@ class TestSyncDashboardHostSummaries:
     @patch("apps.dashboard_reports.tasks.log_task_execution")
     def test_records_with_null_job_remote_id_are_dropped(self, mock_log, mock_result):
         """Records where job_remote_id is None are ignored without error."""
-        record = {"id": 1, "host_name": "h1", "host_remote_id": 5, "job_remote_id": None}
+        record = {"id": 1, "host_name": "h1", "host_id": 5, "job_remote_id": None}
+        sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
+        args, kwargs = mock_result.call_args
+        assert args[0] == "success"
+        assert kwargs["data"]["job_count"] == 0
+
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    def test_records_with_null_id_are_dropped(self, mock_log, mock_result):
+        """Records where id is None are ignored without error."""
+        record = {"id": None, "host_name": "h1", "host_id": 5, "job_remote_id": 42}
         sync_dashboard_host_summaries(raw_host_summaries=[record], hour_timestamp="2024-01-01T00:00:00")
         args, kwargs = mock_result.call_args
         assert args[0] == "success"
