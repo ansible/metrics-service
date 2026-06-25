@@ -77,6 +77,7 @@ TASK_LOCKS = {
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
     "sync_dashboard_job_records",
+    "sync_dashboard_host_summaries",
 }
 
 
