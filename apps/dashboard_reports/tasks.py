@@ -1,10 +1,11 @@
 """
 Background tasks for dashboard reports data collection and cleanup.
 
-Provides four dispatcherd tasks:
+Provides five dispatcherd tasks:
 - collect_dashboard_reports_initial_data: full historical backfill (default 90 days)
 - collect_dashboard_reports_data: incremental sync from last known timestamp (deprecated)
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
+- sync_dashboard_host_summaries: writes host summary data from the hourly hook to JobHostSummary
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
 """
 
@@ -20,7 +21,7 @@ from metrics_utility.library.collectors.dashboard import (
     dashboard_jobs,
 )
 
-from apps.dashboard_reports.models import JobData
+from apps.dashboard_reports.models import JobData, JobHostSummary
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
 
 DEFAULT_DB_NAME = "awx"
@@ -350,6 +351,80 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     )
     return create_task_result(
         "success", data={"task_type": task_name, "job_count": len(assembled), "hour_timestamp": hour_timestamp}
+    )
+
+
+def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
+    """Write job_host_summary_service data to JobHostSummary records in the dashboard tables.
+
+    Scheduled automatically by the hourly job_host_summary_service hook so no extra Controller
+    DB queries are needed — the raw data is passed in task_data. Jobs not present in JobData
+    (e.g. sync-type or non-terminal jobs filtered out by the dashboard collector) are silently
+    skipped.
+    """
+    task_name = "sync_dashboard_host_summaries"
+    hour_timestamp = kwargs.get("hour_timestamp", "unknown")
+    raw_host_summaries = kwargs.get("raw_host_summaries", [])
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Syncing host summaries for {len(raw_host_summaries)} records ({hour_timestamp})",
+    )
+
+    # Group by job_remote_id; the hook's serializer already maps host_remote_id → host_id.
+    by_job: dict[int, list] = {}
+    for row in raw_host_summaries:
+        job_id = row.get("job_remote_id")
+        if job_id is None:
+            continue
+        summary_id = row.get("id")
+        if summary_id is None:
+            continue
+        by_job.setdefault(job_id, []).append(
+            {
+                "id": summary_id,
+                "host_id": row.get("host_id"),
+                "host_name": row.get("host_name"),
+            }
+        )
+
+    # Batch-fetch all matching JobData and their existing JobHostSummary records in two queries
+    # rather than 2N queries (one get + one filter per job).
+    job_data_by_id: dict[int, Any] = {}
+    existing_by_job_data_pk: dict[int, dict] = {}
+    if by_job:
+        job_data_by_id = {jd.job_id: jd for jd in JobData.objects.filter(job_id__in=by_job.keys())}
+        for hs in JobHostSummary.objects.filter(job_data__in=job_data_by_id.values()):
+            existing_by_job_data_pk.setdefault(hs.job_data_id, {})[hs.host_summary_id] = hs
+
+    synced = 0
+    failed = 0
+    for job_remote_id, host_summaries in by_job.items():
+        job_data = job_data_by_id.get(job_remote_id)
+        if job_data is None:
+            continue  # sync/non-terminal job — no matching JobData record
+        try:
+            with transaction.atomic():
+                existing = existing_by_job_data_pk.get(job_data.pk, {})
+                JobData._sync_host_summaries(job_data, host_summaries, existing)
+            synced += 1
+        except Exception:
+            logger.exception("Error syncing host summaries for job %s", job_remote_id)
+            failed += 1
+
+    log_task_execution(
+        task_name=task_name,
+        operation="completed",
+        details=f"Synced host summaries for {synced} jobs, {failed} failed ({hour_timestamp})",
+    )
+    if failed:
+        return create_task_result(
+            "error",
+            data={"task_type": task_name, "job_count": synced, "failed": failed, "hour_timestamp": hour_timestamp},
+        )
+    return create_task_result(
+        "success", data={"task_type": task_name, "job_count": synced, "hour_timestamp": hour_timestamp}
     )
 
 

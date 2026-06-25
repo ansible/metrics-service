@@ -18,6 +18,7 @@ from ..dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    sync_dashboard_host_summaries,
     sync_dashboard_job_records,
 )
 
@@ -61,6 +62,7 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
     "sync_dashboard_job_records": sync_dashboard_job_records,
+    "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -75,6 +77,7 @@ TASK_LOCKS = {
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
     "sync_dashboard_job_records",
+    "sync_dashboard_host_summaries",
 }
 
 
@@ -430,6 +433,37 @@ TASK_METADATA = {
             },
         ],
     },
+    "sync_dashboard_host_summaries": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Write job_host_summary_service data collected during the hourly rollup to the dashboard JobHostSummary table",
+        "parameters": {
+            "hour_timestamp": {
+                "type": "string",
+                "description": "ISO timestamp of the hour being synced",
+            },
+            "raw_host_summaries": {
+                "type": "array",
+                "description": "Serialised job_host_summary_service rows from the hourly collector hook",
+            },
+        },
+        "examples": [
+            {
+                "name": "Sync one hour of host summary records",
+                "data": {
+                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "raw_host_summaries": [
+                        {
+                            "id": 1,
+                            "host_name": "web01",
+                            "host_remote_id": 10,
+                            "job_remote_id": 42,
+                        }
+                    ],
+                },
+            },
+        ],
+    },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
@@ -476,4 +510,6 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
+    "sync_dashboard_job_records",
+    "sync_dashboard_host_summaries",
 ]
