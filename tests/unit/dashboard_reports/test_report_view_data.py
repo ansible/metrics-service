@@ -962,3 +962,45 @@ class TestReportViewLabelIds:
         assert template_a_row["runs"] == 2
         assert template_a_row["successful_runs"] == 1
         assert template_a_row["failed_runs"] == 1
+
+    def test_null_label_ids_excluded(self, job_data, admin_client):
+        """JobLabel rows with label_id=None must not appear in label_ids (label_id is nullable)."""
+        # Add a null-label_id record for one of Template A's jobs
+        template_a_job = JobData.objects.get(job_id=1)
+        JobLabel.objects.create(job_data=template_a_job, label_id=None)
+
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, data=build_filtered_query())
+
+        assert response.status_code == 200
+        template_a_row = next(r for r in response.data["results"] if r["template_name"] == "Template A")
+        assert None not in template_a_row["label_ids"]
+        # Existing real labels (1, 2) still present
+        assert sorted(template_a_row["label_ids"]) == [1, 2]
+
+    def test_label_ids_scoped_to_report_date_range(self, job_data, template_metadata, admin_client):
+        """Labels from jobs outside the report date range must not appear in label_ids."""
+        # Create a job for Template A that finished 30 days ago (outside the 14-day window)
+        now = self.FIXED_NOW
+        old_job = JobData.objects.create(
+            job_id=999,
+            template_name="Template A",
+            template_id=template_metadata[0].template_id,
+            organization_id=1,
+            status=JobStatusChoices.SUCCESSFUL,
+            started=now - datetime.timedelta(days=30, minutes=10),
+            finished=now - datetime.timedelta(days=30),
+            elapsed=60,
+            num_hosts=1,
+            template_metadata=template_metadata[0],
+        )
+        # Attach label 99 — should NOT appear in the 14-day report
+        JobLabel.objects.create(job_data=old_job, label_id=99)
+
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, data=build_filtered_query())
+
+        assert response.status_code == 200
+        template_a_row = next(r for r in response.data["results"] if r["template_name"] == "Template A")
+        assert 99 not in template_a_row["label_ids"]
+        assert sorted(template_a_row["label_ids"]) == [1, 2]
