@@ -396,6 +396,7 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
             existing_by_job_data_pk.setdefault(hs.job_data_id, {})[hs.host_summary_id] = hs
 
     synced = 0
+    failed = 0
     for job_remote_id, host_summaries in by_job.items():
         job_data = job_data_by_id.get(job_remote_id)
         if job_data is None:
@@ -407,12 +408,18 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
             synced += 1
         except Exception:
             logger.exception("Error syncing host summaries for job %s", job_remote_id)
+            failed += 1
 
     log_task_execution(
         task_name=task_name,
         operation="completed",
-        details=f"Synced host summaries for {synced} jobs ({hour_timestamp})",
+        details=f"Synced host summaries for {synced} jobs, {failed} failed ({hour_timestamp})",
     )
+    if failed:
+        return create_task_result(
+            "error",
+            data={"task_type": task_name, "job_count": synced, "failed": failed, "hour_timestamp": hour_timestamp},
+        )
     return create_task_result(
         "success", data={"task_type": task_name, "job_count": synced, "hour_timestamp": hour_timestamp}
     )

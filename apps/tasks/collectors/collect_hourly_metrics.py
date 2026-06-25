@@ -127,7 +127,8 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
     )
 
 
-_SYNC_TASK_CHUNK_SIZE = 500  # max jobs per sync_dashboard_* task
+_SYNC_TASK_CHUNK_SIZE = 500  # max jobs per sync_dashboard_job_records task
+_HOST_SUMMARY_RECORD_CHUNK_SIZE = 2000  # max host summary records per sync_dashboard_host_summaries task
 
 _HOST_SUMMARY_COLUMNS = ("id", "host_name", "host_remote_id", "job_remote_id")
 
@@ -242,30 +243,58 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
         # patch apps.tasks.models.Task after the hook is built (same circular-import reason).
         from apps.tasks.models import Task
 
+        # Chunk by total record count, keeping all records for a single job together.
+        # _sync_host_summaries deletes stale records, so splitting one job's records
+        # across tasks would cause the first chunk to delete the second chunk's records.
         hour_ts_str = hour_timestamp.isoformat()
-        job_ids = list(by_job.keys())
         new_names: set[str] = set()
-        for chunk_index, start in enumerate(range(0, len(job_ids), _SYNC_TASK_CHUNK_SIZE)):
-            chunk_job_ids = job_ids[start : start + _SYNC_TASK_CHUNK_SIZE]
-            chunk_summaries = [record for job_id in chunk_job_ids for record in by_job[job_id]]
-            chunk_name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
-            new_names.add(chunk_name)
-            Task.objects.update_or_create(
-                name=chunk_name,
-                defaults={
-                    "description": (
-                        f"Sync dashboard host summary records from job_host_summary_service"
-                        f" for {hour_ts_str} (chunk {chunk_index})"
-                    ),
-                    "function_name": "sync_dashboard_host_summaries",
-                    "task_data": {
-                        "raw_host_summaries": chunk_summaries,
-                        "hour_timestamp": hour_ts_str,
-                        "_feature_flag": "DASHBOARD_COLLECTION",
+        chunk_index = 0
+        current_chunk: list = []
+
+        for job_id in by_job:
+            job_records = by_job[job_id]
+            if current_chunk and len(current_chunk) + len(job_records) > _HOST_SUMMARY_RECORD_CHUNK_SIZE:
+                chunk_name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
+                new_names.add(chunk_name)
+                Task.objects.update_or_create(
+                    name=chunk_name,
+                    defaults={
+                        "description": (
+                            f"Sync dashboard host summary records from job_host_summary_service"
+                            f" for {hour_ts_str} (chunk {chunk_index})"
+                        ),
+                        "function_name": "sync_dashboard_host_summaries",
+                        "task_data": {
+                            "raw_host_summaries": current_chunk,
+                            "hour_timestamp": hour_ts_str,
+                            "_feature_flag": "DASHBOARD_COLLECTION",
+                        },
+                        "is_system_task": False,
                     },
-                    "is_system_task": False,
+                )
+                chunk_index += 1
+                current_chunk = []
+            current_chunk.extend(job_records)
+
+        # Flush the final (or only) chunk — always non-empty because by_job is non-empty.
+        chunk_name = f"sync_dashboard_host_summaries_{hour_ts_str}_{chunk_index}"
+        new_names.add(chunk_name)
+        Task.objects.update_or_create(
+            name=chunk_name,
+            defaults={
+                "description": (
+                    f"Sync dashboard host summary records from job_host_summary_service"
+                    f" for {hour_ts_str} (chunk {chunk_index})"
+                ),
+                "function_name": "sync_dashboard_host_summaries",
+                "task_data": {
+                    "raw_host_summaries": current_chunk,
+                    "hour_timestamp": hour_ts_str,
+                    "_feature_flag": "DASHBOARD_COLLECTION",
                 },
-            )
+                "is_system_task": False,
+            },
+        )
         # Remove pending chunks from a prior run that exceed the current chunk count.
         Task.objects.filter(
             name__startswith=f"sync_dashboard_host_summaries_{hour_ts_str}_",
@@ -339,6 +368,8 @@ def _build_dashboard_sync_hook(hour_timestamp):
                 },
             )
         # Remove pending chunks from a prior run that exceed the current chunk count.
+        if not new_names:
+            return
         Task.objects.filter(
             name__startswith=f"sync_dashboard_jobs_{hour_ts_str}_",
             status="pending",

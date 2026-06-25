@@ -511,11 +511,12 @@ class TestBuildDashboardHostSummarySyncHook:
             hook(df)
         assert mock_task.objects.update_or_create.called
 
-    def test_hook_chunks_by_job(self):
-        """Records for more than _SYNC_TASK_CHUNK_SIZE unique jobs are split across multiple Tasks."""
-        from apps.tasks.collectors.collect_hourly_metrics import _SYNC_TASK_CHUNK_SIZE
+    def test_hook_chunks_by_record_count(self):
+        """Total records exceeding _HOST_SUMMARY_RECORD_CHUNK_SIZE are split across multiple Tasks."""
+        from apps.tasks.collectors.collect_hourly_metrics import _HOST_SUMMARY_RECORD_CHUNK_SIZE
 
-        rows = [{"id": i, "job_remote_id": i} for i in range(_SYNC_TASK_CHUNK_SIZE + 1)]
+        # One record per unique job so the boundary falls cleanly at the record limit.
+        rows = [{"id": i, "job_remote_id": i} for i in range(_HOST_SUMMARY_RECORD_CHUNK_SIZE + 1)]
         df = _make_host_summary_df(rows)
         hook = self._enabled_hook()
         with patch(TASK_MODEL_PATH) as mock_task:
@@ -527,6 +528,25 @@ class TestBuildDashboardHostSummarySyncHook:
         second_call = mock_task.objects.update_or_create.call_args_list[1]
         assert first_call[1]["name"].endswith("_0")
         assert second_call[1]["name"].endswith("_1")
+
+    def test_hook_keeps_single_job_records_in_one_chunk(self):
+        """All records for a single job stay in one chunk even if the count exceeds the record limit.
+
+        _sync_host_summaries deletes records not present in its batch, so splitting a job
+        across tasks would cause the first task to delete the second task's records.
+        """
+        from apps.tasks.collectors.collect_hourly_metrics import _HOST_SUMMARY_RECORD_CHUNK_SIZE
+
+        rows = [{"id": i, "job_remote_id": 42} for i in range(_HOST_SUMMARY_RECORD_CHUNK_SIZE + 10)]
+        df = _make_host_summary_df(rows)
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        assert mock_task.objects.update_or_create.call_count == 1
+        task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
+        assert len(task_data["raw_host_summaries"]) == _HOST_SUMMARY_RECORD_CHUNK_SIZE + 10
 
     def test_hook_skips_rows_with_null_job_remote_id(self):
         """Rows where job_remote_id is None are dropped and no Task is created."""

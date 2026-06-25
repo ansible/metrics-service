@@ -877,8 +877,9 @@ class TestSyncDashboardHostSummaries:
 
         assert mock_sync.call_count == 2
         args, kwargs = mock_result.call_args
-        assert args[0] == "success"
+        assert args[0] == "error"
         assert kwargs["data"]["job_count"] == 1  # only job_b succeeded
+        assert kwargs["data"]["failed"] == 1
 
     @patch("apps.dashboard_reports.tasks.create_task_result")
     @patch("apps.dashboard_reports.tasks.JobData._sync_host_summaries")
