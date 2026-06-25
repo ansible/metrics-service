@@ -11,6 +11,9 @@ jobs:
   jira-pr-link:
     runs-on: ubuntu-latest
 
+    environment:
+      name: ${{ github.ref_name }}
+
     steps:
       - name: "Extract Jira ticket from PR"
         id: jira
