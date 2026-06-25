@@ -24,7 +24,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, validate_custom_period_dates
-from apps.dashboard_reports.models import JobData, JobHostSummary, JobStatusChoices, SubscriptionCost
+from apps.dashboard_reports.models import JobData, JobHostSummary, JobLabel, JobStatusChoices, SubscriptionCost
 from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
     ReportSerializer,
@@ -420,12 +420,42 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 queryset = backend().filter_queryset(self.request, queryset, self)
         return queryset
 
+    @staticmethod
+    def _inject_label_ids(rows: list[dict]) -> None:
+        """Add a label_ids list to each aggregated row by querying JobLabel.
+
+        Runs a single batch query for all template_metadata_ids in the page,
+        then mutates each row dict in place. Avoids annotating the ValuesQuerySet
+        (which would inflate row counts via the labels FK JOIN and corrupt aggregates).
+        """
+        template_ids = [row["template_metadata_id"] for row in rows if row.get("template_metadata_id") is not None]
+        label_map: dict[int, list[int]] = {}
+        if template_ids:
+            for item in (
+                JobLabel.objects.filter(job_data__template_metadata_id__in=template_ids)
+                .values("job_data__template_metadata_id", "label_id")
+                .distinct()
+            ):
+                tid = item["job_data__template_metadata_id"]
+                label_map.setdefault(tid, []).append(item["label_id"])
+        for row in rows:
+            row["label_ids"] = label_map.get(row.get("template_metadata_id"), [])
+
     @require_date_range
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
-        Returns paginated report data for dashboard.
+        Returns paginated report data for dashboard, including label IDs per template row.
         """
-        return super().list(request, *args, **kwargs)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            self._inject_label_ids(page)
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        rows = list(queryset)
+        self._inject_label_ids(rows)
+        serializer = self.get_serializer(rows, many=True)
+        return Response(serializer.data)
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
