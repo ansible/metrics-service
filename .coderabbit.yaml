@@ -5,3 +5,8 @@ reviews:
   auto_review:
       base_branches:
         - FB-Automation-Dashboard
+  path_instructions:
+    - path: "**/Dockerfile*"
+      instructions: >
+        Do not flag floating `:latest` tags on base images. The UBI9 registry
+        does not retain old tags long enough for pinned tags to be useful.

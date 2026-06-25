@@ -16,11 +16,11 @@ AnonymizedMetricsPayload:
 - anonymized_{YYYYMMDD}.metadata.json - Contains all other fields (excluding anonymized_data)
 
 Usage:
-    uv run scripts/dump_daily_anonymized.py
-    uv run scripts/dump_daily_anonymized.py --output-dir ./dumps
-    uv run scripts/dump_daily_anonymized.py --status aggregated
-    uv run scripts/dump_daily_anonymized.py --type daily
-    uv run scripts/dump_daily_anonymized.py --type anonymized
+    uv run tools/tasks/dump_daily_anonymized.py
+    uv run tools/tasks/dump_daily_anonymized.py --output-dir ./dumps
+    uv run tools/tasks/dump_daily_anonymized.py --status aggregated
+    uv run tools/tasks/dump_daily_anonymized.py --type daily
+    uv run tools/tasks/dump_daily_anonymized.py --type anonymized
 """
 
 import argparse
