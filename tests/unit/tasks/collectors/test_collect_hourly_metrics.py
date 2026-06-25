@@ -675,7 +675,9 @@ class TestBuildHostSummaryTaskChunks:
         from apps.tasks.collectors.collect_hourly_metrics import _HOST_SUMMARY_RECORD_CHUNK_SIZE
 
         # Each job has exactly 1 record; limit + 1 jobs → 2 chunks
-        by_job = {i: [{"id": i, "host_id": i, "host_name": f"h{i}"}] for i in range(_HOST_SUMMARY_RECORD_CHUNK_SIZE + 1)}
+        by_job = {
+            i: [{"id": i, "host_id": i, "host_name": f"h{i}"}] for i in range(_HOST_SUMMARY_RECORD_CHUNK_SIZE + 1)
+        }
         result = _build_host_summary_task_chunks(by_job, "2024-01-01T00:00:00+00:00")
         assert len(result) == 2
         names = list(result.keys())
