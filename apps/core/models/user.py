@@ -1,5 +1,3 @@
-from functools import cached_property
-
 from ansible_base.lib.abstract_models.user import AbstractDABUser
 
 
@@ -12,7 +10,7 @@ class User(AbstractDABUser):
 
     encrypted_fields = ["password"]
 
-    @cached_property
+    @property
     def is_platform_auditor(self) -> bool:
         """True if the user holds the Platform Auditor global RBAC role.
 
