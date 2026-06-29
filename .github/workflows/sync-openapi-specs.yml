@@ -27,7 +27,7 @@ jobs:
         uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7
 
       - name: Install dependencies
-        run: uv sync --frozen --no-build
+        run: uv sync --frozen
 
       - name: Generate OpenAPI schema
         env:
@@ -36,12 +36,12 @@ jobs:
           SECRET_KEY: "ci-placeholder-not-secret"
           DATABASE_URL: "sqlite://:memory:"
         run: |
-          uv run --frozen --no-build python manage.py spectacular \
+          uv run --frozen python manage.py spectacular \
             --color \
             --file openapi-schema.yaml \
             --validate
           # Produce both YAML and JSON for downstream consumers
-          uv run --frozen --no-build python manage.py spectacular \
+          uv run --frozen python manage.py spectacular \
             --color \
             --file openapi-schema.json \
             --validate \
