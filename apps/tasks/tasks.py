@@ -96,6 +96,14 @@ _DASHBOARD_REPORTS_CATEGORY = "Dashboard Reports"
 
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
+    # System sync
+    "sync_resources_from_gateway": {
+        "queue": "maintenance",
+        "category": "Maintenance",
+        "description": "Sync users, organizations, teams and RBAC role assignments from the gateway resource server",
+        "parameters": {},
+        "examples": [{"name": "Full resource sync", "data": {}}],
+    },
     # Testing
     "hello_world": {
         "queue": "maintenance",
