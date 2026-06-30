@@ -162,14 +162,6 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "enabled": True,
             "description": "Hourly system health check",
         },
-        {
-            "task_id": "periodic_resource_sync",
-            "function": "sync_resources_from_gateway",
-            "cron": "*/15 * * * *",  # Every 15 minutes (RESOURCE_SYNC_INTERVAL_SECONDS=900)
-            "args": {},
-            "enabled": True,
-            "description": "Sync users, orgs, teams and RBAC role assignments from the gateway",
-        },
     ],
 )
 
