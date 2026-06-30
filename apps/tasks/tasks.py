@@ -39,6 +39,7 @@ from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
+from .simple.resource_sync import sync_resources_from_gateway
 from .tasks_system import create_system_tasks, submit_task_to_dispatcher
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ TASK_FUNCTIONS = {
     # System tasks
     "hello_world": hello_world,
     "cleanup_old_tasks": cleanup_old_tasks,
+    "sync_resources_from_gateway": sync_resources_from_gateway,
     "cleanup_activitystream": cleanup_activitystream,
     "cleanup_metrics_data": cleanup_metrics_data,
     # Metrics Collection (hourly time-series, daily snapshots, and daily time-range)

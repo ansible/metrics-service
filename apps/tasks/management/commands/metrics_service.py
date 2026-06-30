@@ -281,6 +281,21 @@ class Command(BaseCommand):
         except Exception as e:
             raise CommandError(f"❌ Failed to initialize system tasks: {e}") from e
 
+        # One-time backfill: sync all shared resources and RBAC assignments from the
+        # gateway so existing Platform Auditor users work immediately after upgrade
+        # without waiting for the first scheduled sync tick.
+        self.output.info("Syncing shared resources from gateway (one-time backfill)...")
+        try:
+            from ansible_base.resource_registry.tasks.sync import SyncExecutor
+
+            executor = SyncExecutor()
+            executor.run()
+            self.output.success("Resource sync complete")
+        except Exception as e:
+            # Non-fatal — gateway may not be reachable during init (e.g. air-gapped
+            # or sequencing issue). The periodic task will retry every 15 minutes.
+            self.output.warning(f"Resource sync skipped (will retry on schedule): {e}")
+
     def _display_system_tasks_results(self, results, elapsed_time):
         """Display the results of system tasks initialization."""
         # Display results summary
