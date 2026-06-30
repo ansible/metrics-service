@@ -8,6 +8,7 @@ import pytest
 
 from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.tasks import (
+    DEFAULT_RETENTION_DAYS,
     _collect_data,
     _collect_jobs,
     _get_job_id_range,
@@ -18,6 +19,7 @@ from apps.dashboard_reports.tasks import (
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
     collect_dashboard_reports_initial_data,
+    get_retention_days,
     sync_dashboard_host_summaries,
     sync_dashboard_job_records,
 )
@@ -498,6 +500,12 @@ class TestCleanupDashboardReportsOldData:
         with patch("apps.dashboard_reports.tasks._save_telemetry_details"):
             yield
 
+    @pytest.fixture(autouse=True)
+    def mock_retention_days(self):
+        """Patch get_retention_days so cleanup tests don't need an AWX DB connection."""
+        with patch("apps.dashboard_reports.tasks.get_retention_days", return_value=DEFAULT_RETENTION_DAYS) as mock:
+            yield mock
+
     def test_cleanup_success(self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup):
         """Successful deletion returns a success result with the correct record count."""
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 5
@@ -527,29 +535,40 @@ class TestCleanupDashboardReportsOldData:
         assert args[0] == "error"
         assert "Cleanup failed" in kwargs["error"]
 
-    def test_cleanup_defaults_to_initial_backfill_days_setting(
-        self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    def test_cleanup_defaults_to_get_retention_days(
+        self, mock_retention_days, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
-        """When retention_period_days is omitted, INITIAL_BACKFILL_DAYS from settings is used."""
-        from django.test import override_settings
-
+        """When retention_period_days is omitted, get_retention_days() determines the default."""
+        mock_retention_days.return_value = 60
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
-        with override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": 60}):
-            cleanup_dashboard_reports_old_data()
+        cleanup_dashboard_reports_old_data()
         _, kwargs = mock_create_task_result_cleanup.call_args
         assert kwargs["data"]["retention_period_days"] == 60
 
-    def test_cleanup_defaults_to_90_when_no_setting(
+    def test_cleanup_passes_db_name_to_get_retention_days(
+        self, mock_retention_days, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """The 'database' kwarg is forwarded to get_retention_days so retention and collection use the same connection."""
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
+        cleanup_dashboard_reports_old_data(database="custom_db")
+        mock_retention_days.assert_called_once_with("custom_db")
+
+    def test_cleanup_passes_default_db_name_when_no_database_kwarg(
+        self, mock_retention_days, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """When 'database' kwarg is absent, get_retention_days is called with the 'awx' alias."""
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
+        cleanup_dashboard_reports_old_data()
+        mock_retention_days.assert_called_once_with("awx")
+
+    def test_cleanup_defaults_to_default_retention_days(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
-        """Falls back to 90 when DASHBOARD_COLLECTION is not configured."""
-        from django.test import override_settings
-
+        """Falls back to DEFAULT_RETENTION_DAYS when get_retention_days returns the default."""
         mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
-        with override_settings(DASHBOARD_COLLECTION=None):
-            cleanup_dashboard_reports_old_data()
+        cleanup_dashboard_reports_old_data()
         _, kwargs = mock_create_task_result_cleanup.call_args
-        assert kwargs["data"]["retention_period_days"] == 90
+        assert kwargs["data"]["retention_period_days"] == DEFAULT_RETENTION_DAYS
 
     def test_cleanup_custom_retention(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
@@ -625,6 +644,7 @@ class TestResolveCollectionParams:
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_explicit_since_until_used_directly(self, mock_jobdata):
         """When since and until are provided they are used without touching DB."""
+
         since = datetime(2024, 1, 1, tzinfo=UTC)
         until = datetime(2024, 2, 1, tzinfo=UTC)
         db_name, got_since, got_until, batch_size = _resolve_collection_params(
@@ -643,24 +663,35 @@ class TestResolveCollectionParams:
         _, got_since, _, _ = _resolve_collection_params({})
         assert got_since == ts
 
+    @patch("apps.dashboard_reports.tasks.get_retention_days", return_value=30)
     @patch("apps.dashboard_reports.tasks.JobData")
-    def test_since_computed_from_backfill_days_when_no_timestamp(self, mock_jobdata):
-        """When since is absent and last_timestamp() is None, compute since from INITIAL_BACKFILL_DAYS."""
+    def test_since_computed_from_retention_days_when_no_timestamp(self, mock_jobdata, mock_retention):
+        """When since is absent and last_timestamp() is None, compute since from get_retention_days()."""
         from django.test import override_settings
 
         mock_jobdata.last_timestamp.return_value = None
         until = datetime(2024, 6, 1, tzinfo=UTC)
 
-        with override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": 30, "BACKFILL_BATCH_SIZE": 500}):
+        with override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": 500}):
             _, got_since, _, batch_size = _resolve_collection_params({"until": until.isoformat()})
 
         expected_since = (until - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         assert got_since == expected_since
         assert batch_size == 500
+        mock_retention.assert_called_once_with("awx")
+
+    @patch("apps.dashboard_reports.tasks.get_retention_days", return_value=30)
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_custom_database_kwarg_forwarded_to_retention(self, mock_jobdata, mock_retention):
+        """When 'database' kwarg is given and no prior timestamp exists, db_name is passed to get_retention_days."""
+        mock_jobdata.last_timestamp.return_value = None
+        until = datetime(2024, 6, 1, tzinfo=UTC)
+        _resolve_collection_params({"database": "custom_db", "until": until.isoformat()})
+        mock_retention.assert_called_once_with("custom_db")
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_custom_database_kwarg(self, mock_jobdata):
-        """The 'database' kwarg overrides the DEFAULT_DB_NAME."""
+        """The 'database' kwarg overrides the DEFAULT_AWX_DB_NAME."""
         mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
         db_name, *_ = _resolve_collection_params({"database": "custom_db"})
         assert db_name == "custom_db"
@@ -684,17 +715,130 @@ class TestResolveCollectionParams:
         ):
             _resolve_collection_params({})
 
+    @patch("apps.dashboard_reports.tasks.get_retention_days", return_value=0)
     @patch("apps.dashboard_reports.tasks.JobData")
-    def test_invalid_backfill_days_raises_value_error(self, mock_jobdata):
-        """A non-integer INITIAL_BACKFILL_DAYS raises ValueError with a descriptive message."""
-        from django.test import override_settings
-
+    def test_zero_retention_days_raises_value_error(self, mock_jobdata, mock_retention):
+        """get_retention_days returning 0 raises ValueError (retention must be > 0)."""
         mock_jobdata.last_timestamp.return_value = None
-        with (
-            override_settings(DASHBOARD_COLLECTION={"INITIAL_BACKFILL_DAYS": "not-a-number"}),
-            pytest.raises(ValueError, match="INITIAL_BACKFILL_DAYS"),
-        ):
+        with pytest.raises(ValueError, match="Retention days must be > 0"):
             _resolve_collection_params({})
+
+
+# ---------------------------------------------------------------------------
+# get_retention_days
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+class TestGetRetentionDays:
+    """Tests for get_retention_days — all branches, no real AWX DB needed."""
+
+    def _row(self, job_type="cleanup_jobs", enabled=True, retention_days=30, next_run=None):
+        return {
+            "job_type": job_type,
+            "template_name": "Cleanup",
+            "schedule_name": "Daily Cleanup",
+            "schedule_enabled": enabled,
+            "rrule": "FREQ=DAILY",
+            "next_run": next_run,
+            "retention_days": retention_days,
+        }
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings", side_effect=Exception("db down"))
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_db_error_returns_default(self, mock_conn, mock_fetch):
+        """Returns DEFAULT_RETENTION_DAYS when the AWX DB is unreachable."""
+        assert get_retention_days() == DEFAULT_RETENTION_DAYS
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings", return_value=([], 0))
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_empty_result_returns_default(self, mock_conn, mock_fetch):
+        """Returns DEFAULT_RETENTION_DAYS when no schedules are returned."""
+        assert get_retention_days() == DEFAULT_RETENTION_DAYS
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_no_active_schedules_returns_default(self, mock_conn, mock_fetch):
+        """Returns DEFAULT_RETENTION_DAYS when all cleanup_jobs schedules are disabled."""
+        mock_fetch.return_value = ([self._row(enabled=False, retention_days=7)], 1)
+        assert get_retention_days() == DEFAULT_RETENTION_DAYS
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_null_retention_days_ignored(self, mock_conn, mock_fetch):
+        """Rows with retention_days=None are excluded; falls back to DEFAULT_RETENTION_DAYS when all are None."""
+        mock_fetch.return_value = ([self._row(retention_days=None)], 1)
+        assert get_retention_days() == DEFAULT_RETENTION_DAYS
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_single_active_schedule(self, mock_conn, mock_fetch):
+        """Returns retention_days of the single active cleanup_jobs schedule."""
+        mock_fetch.return_value = ([self._row(retention_days=45)], 1)
+        assert get_retention_days() == 45
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_lowest_retention_days_wins(self, mock_conn, mock_fetch):
+        """When multiple schedules exist, the lowest retention_days is used."""
+        rows = [self._row(retention_days=60), self._row(retention_days=30), self._row(retention_days=90)]
+        mock_fetch.return_value = (rows, 3)
+        assert get_retention_days() == 30
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_tie_broken_by_soonest_next_run(self, mock_conn, mock_fetch):
+        """On equal retention_days, the schedule with the soonest next_run wins."""
+        rows = [
+            self._row(retention_days=30, next_run="2024-06-10T00:00:00+00:00"),
+            self._row(retention_days=30, next_run="2024-06-05T00:00:00+00:00"),
+        ]
+        mock_fetch.return_value = (rows, 2)
+        result = get_retention_days()
+        assert result == 30
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_bad_next_run_type_skips_tiebreak(self, mock_conn, mock_fetch):
+        """A TypeError from _parse_dt during tie-break is caught; current best is kept without crashing."""
+        rows = [
+            self._row(retention_days=30, next_run="2024-06-01T00:00:00+00:00"),
+            self._row(retention_days=30, next_run=99999),  # int → TypeError from _parse_dt
+        ]
+        mock_fetch.return_value = (rows, 2)
+        assert get_retention_days() == 30
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_activitystream_schedules_ignored(self, mock_conn, mock_fetch):
+        """cleanup_activitystream schedules do not influence JobData retention."""
+        rows = [
+            self._row(job_type="cleanup_activitystream", retention_days=7),
+            self._row(job_type="cleanup_jobs", retention_days=60),
+        ]
+        mock_fetch.return_value = (rows, 2)
+        assert get_retention_days() == 60
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_only_activitystream_present_returns_default(self, mock_conn, mock_fetch):
+        """Returns DEFAULT_RETENTION_DAYS when only cleanup_activitystream schedules exist."""
+        mock_fetch.return_value = ([self._row(job_type="cleanup_activitystream", retention_days=7)], 1)
+        assert get_retention_days() == DEFAULT_RETENTION_DAYS
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_default_awx_db_name_passed_to_connection(self, mock_conn, mock_fetch):
+        """get_db_connection is called with the 'awx' alias by default."""
+        mock_fetch.return_value = ([self._row(retention_days=30)], 1)
+        get_retention_days()
+        mock_conn.assert_called_once_with("awx")
+
+    @patch("apps.dashboard_reports.tasks.fetch_retention_settings")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_custom_db_name_passed_to_connection(self, mock_conn, mock_fetch):
+        """A custom db_name argument is forwarded to get_db_connection."""
+        mock_fetch.return_value = ([self._row(retention_days=30)], 1)
+        get_retention_days("custom_db")
+        mock_conn.assert_called_once_with("custom_db")
 
 
 # ---------------------------------------------------------------------------
