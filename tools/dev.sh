@@ -55,7 +55,13 @@ echo "Dev server running (runserver + dispatcherd + scheduler)"
 echo "Press Ctrl+C to stop"
 
 # Wait for any child to exit — if one crashes, cleanup trap stops the rest.
-wait -n
-code=$?
+# `wait -n` requires bash 4.3+; macOS ships with bash 3.2 so fall back to polling.
+if [[ "${BASH_VERSINFO[0]}" -gt 4 ]] || [[ "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+    wait -n
+    code=$?
+else
+    while kill -0 "${PIDS[@]}" 2>/dev/null; do sleep 1; done
+    code=1
+fi
 echo "A service exited with code $code, shutting down..."
 exit "$code"
