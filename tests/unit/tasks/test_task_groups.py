@@ -362,6 +362,15 @@ class TestIndirectNodeCollectionGroup(TestCase):
         assert task["function"] == "collect_snapshot_metrics"
         assert task["args"]["collector_type"] == "indirect_managed_nodes"
 
+    def test_indirect_managed_nodes_not_in_metrics_collection_group(self):
+        """indirect_managed_nodes must not be scheduled by METRICS_COLLECTION_GROUP.
+
+        Prevents a duplicate snapshot run at 55 1 * * * when both groups are active.
+        INDIRECT_NODE_COLLECTION_GROUP is the sole, feature-flag-gated owner.
+        """
+        task_ids = [t["task_id"] for t in METRICS_COLLECTION_GROUP.tasks]
+        assert "daily_indirect_managed_nodes" not in task_ids
+
 
 class TestTaskGroupIntegration(TestCase):
     """Test integration between task groups and other components."""
