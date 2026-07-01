@@ -55,7 +55,9 @@ class TestIndirectManagedNodesSnapshotCollector:
 
         ts = datetime(2024, 1, 1, tzinfo=UTC)
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
         ):
             result = collect_snapshot_metrics(
@@ -88,7 +90,9 @@ class TestIndirectManagedNodesSnapshotCollector:
 
         ts = datetime(2024, 1, 1, tzinfo=UTC)
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
         ):
             result = collect_snapshot_metrics(
@@ -117,7 +121,9 @@ class TestIndirectManagedNodesSnapshotCollector:
 
         ts = datetime(2024, 1, 1, tzinfo=UTC)
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
         ):
             result = collect_snapshot_metrics(
@@ -156,7 +162,9 @@ class TestIndirectManagedNodesSnapshotCollector:
 
         ts = datetime(2024, 1, 1, tzinfo=UTC)
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
         ):
             result = collect_snapshot_metrics(
@@ -190,7 +198,9 @@ class TestIndirectManagedNodesSnapshotCollector:
 
         ts = datetime(2024, 1, 1, tzinfo=UTC)
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
         ):
             result1 = collect_snapshot_metrics(
@@ -205,10 +215,13 @@ class TestIndirectManagedNodesSnapshotCollector:
         assert result1["status"] == "success"
         assert result2["status"] == "success"
         assert result1["collection_id"] == result2["collection_id"]
-        assert HourlyMetricsCollection.objects.filter(
-            collector_type="indirect_managed_nodes",
-            collection_timestamp=ts,
-        ).count() == 1
+        assert (
+            HourlyMetricsCollection.objects.filter(
+                collector_type="indirect_managed_nodes",
+                collection_timestamp=ts,
+            ).count()
+            == 1
+        )
 
     @pytest.mark.django_db
     def test_invalid_timestamp_format_returns_error(self):
@@ -246,7 +259,9 @@ class TestIndirectManagedNodesSnapshotCollector:
         }
 
         with (
-            patch("apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry),
+            patch(
+                "apps.tasks.collectors.collect_snapshot_metrics._get_snapshot_collectors", return_value=mock_registry
+            ),
             patch("apps.tasks.collectors.collect_snapshot_metrics.get_db_connection", return_value=MagicMock()),
         ):
             result = collect_snapshot_metrics(collector_type="indirect_managed_nodes")
