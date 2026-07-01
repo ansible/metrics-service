@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import psycopg2
 import pandas as pd
 import pytest
 from psycopg2 import errors as pg_errors
@@ -211,8 +212,6 @@ class TestIndirectManagedNodesCollector:
         as a warning in the metrics-utility CLI layer. OperationalError bypasses that catch
         and must not be silently swallowed by the metrics-service task layer.
         """
-        import psycopg2
-
         def raise_connection_error(**kwargs):
             raise psycopg2.OperationalError("could not connect to server")
 
