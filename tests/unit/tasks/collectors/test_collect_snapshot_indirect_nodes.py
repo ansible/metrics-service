@@ -178,7 +178,7 @@ class TestIndirectManagedNodesSnapshotCollector:
             collection_timestamp=ts,
         )
         assert collection.status == "failed"
-        assert collection.error_message is not None
+        assert "could not connect to server" in collection.error_message
 
     @pytest.mark.django_db
     def test_retry_with_same_timestamp_uses_existing_record(self):
