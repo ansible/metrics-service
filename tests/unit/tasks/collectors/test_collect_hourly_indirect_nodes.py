@@ -241,7 +241,7 @@ class TestIndirectManagedNodesCollector:
             collection_timestamp=ts,
         )
         assert collection.status == "failed"
-        assert collection.error_message is not None
+        assert "could not connect to server" in collection.error_message
 
     @pytest.mark.django_db
     def test_default_timestamp_when_not_provided(self):
