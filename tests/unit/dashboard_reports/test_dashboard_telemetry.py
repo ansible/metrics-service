@@ -444,6 +444,18 @@ class TestCleanupDashboardTelemetry:
         # The cutoff date should be 60 days back; verify filter was called
         assert mock_model.objects.filter.called
 
+    def test_deprecated_retention_period_days_kwarg_still_honored(self):
+        """The pre-rename 'retention_period_days' kwarg still sets retention_days rather than being silently dropped."""
+        with patch("apps.dashboard_reports.tasks.DashboardTelemetry") as mock_model:
+            mock_qs = MagicMock()
+            mock_qs.delete.return_value = (0, {})
+            mock_model.objects.filter.return_value = mock_qs
+            with patch("apps.dashboard_reports.tasks.log_task_execution"):
+                result = cleanup_dashboard_telemetry(retention_period_days=15)
+
+        assert result["status"] == "success"
+        assert result["retention_days"] == 15
+
     def test_invalid_retention_period_returns_error(self):
         """A non-integer retention_days returns an error result."""
         result = cleanup_dashboard_telemetry(retention_days="not_a_number")
@@ -451,22 +463,19 @@ class TestCleanupDashboardTelemetry:
         assert result["status"] == "error"
         assert "Invalid retention_days" in result["error"]
 
-    def test_negative_retention_period_is_clamped_to_zero(self):
-        """A negative retention_days is clamped to 0 (delete everything)."""
-        with patch("apps.dashboard_reports.tasks.DashboardTelemetry") as mock_model:
-            mock_qs = MagicMock()
-            mock_qs.delete.return_value = (5, {})
-            mock_model.objects.filter.return_value = mock_qs
-            with (
-                patch("apps.dashboard_reports.tasks.log_task_execution"),
-                patch("apps.dashboard_reports.tasks.logger") as mock_logger,
-            ):
-                result = cleanup_dashboard_telemetry(retention_days=-10)
+    def test_negative_retention_period_returns_error(self):
+        """A negative retention_days is rejected rather than clamped, since a cutoff of 'now' would delete everything."""
+        result = cleanup_dashboard_telemetry(retention_days=-10)
 
-        assert result["status"] == "success"
-        mock_logger.warning.assert_called_once()
-        warning_msg = mock_logger.warning.call_args[0][0]
-        assert "negative" in warning_msg
+        assert result["status"] == "error"
+        assert "retention_days must be > 0" in result["error"]
+
+    def test_zero_retention_period_returns_error(self):
+        """A retention_days of 0 is rejected rather than deleting all rows."""
+        result = cleanup_dashboard_telemetry(retention_days=0)
+
+        assert result["status"] == "error"
+        assert "retention_days must be > 0" in result["error"]
 
     def test_exception_during_delete_returns_error(self):
         """When DashboardTelemetry.objects.filter().delete() raises, returns error result."""

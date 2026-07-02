@@ -36,6 +36,25 @@ class _PartialSyncRollbackError(Exception):
     """Sentinel raised inside a transaction.atomic() block to roll back all saves when any job fails to sync."""
 
 
+_MISSING = object()
+
+
+def _get_renamed_kwarg(kwargs: dict, new_key: str, old_key: str, task_name: str) -> Any:
+    """Look up ``new_key`` in kwargs, falling back to the deprecated ``old_key`` with a warning.
+
+    Operators dispatch these tasks with free-form ``task_data`` via the task API, so a
+    stale kwarg name (from an old runbook or script) would otherwise be silently dropped
+    and replaced by whatever default the caller applies. Returns ``_MISSING`` if neither
+    key is present.
+    """
+    if new_key in kwargs:
+        return kwargs[new_key]
+    if old_key in kwargs:
+        logger.warning(f"{task_name}: '{old_key}' is deprecated; use '{new_key}' instead")
+        return kwargs[old_key]
+    return _MISSING
+
+
 def get_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
     """
     Return the effective retention period in days derived from active AWX cleanup schedules.
@@ -174,7 +193,7 @@ def _sync_jobs_atomically(job_results: list) -> list:
     return failed_jobs
 
 
-def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, int]:
+def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datetime, datetime, int]:
     """Resolve db_name, since, until, and batch_size from task kwargs with defaults applied.
 
     When ``since`` is not provided and no prior ``JobData`` timestamp exists, the initial
@@ -182,7 +201,8 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
     schedules) rather than a static setting.
     """
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-    db_name = kwargs.get("awx_database", DEFAULT_AWX_DB_NAME)
+    db_name = _get_renamed_kwarg(kwargs, "awx_database", "database", task_name)
+    db_name = DEFAULT_AWX_DB_NAME if db_name is _MISSING else db_name
     until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
     since = _parse_dt(kwargs.get("since")) or JobData.last_timestamp()
     if since is None:
@@ -249,7 +269,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         "data": {"task_type": task_name, "date_range": {"start": None, "end": None}, "job_count": 0},
     }
     try:
-        db_name, since, until, batch_size = _resolve_collection_params(kwargs)
+        db_name, since, until, batch_size = _resolve_collection_params(task_name, kwargs)
     except ValueError as e:
         result["error"] = True
         result["message"] = str(e)
@@ -546,20 +566,21 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
 
 
 def _normalize_retention_days(task_name: str, retention_days: Any) -> tuple[int, dict[str, Any] | None]:
-    """Validate and clamp a retention_days value shared by the cleanup tasks below.
+    """Validate a retention_days value shared by the cleanup tasks below.
 
-    Returns ``(retention_days, None)`` on success (negative values clamped to 0 with a
-    warning logged), or ``(0, error_result)`` when the value can't be coerced to an int —
-    callers must check ``error_result`` before using the returned int.
+    Returns ``(retention_days, None)`` on success, or ``(0, error_result)`` when the value
+    can't be coerced to an int, or is <= 0 — a cutoff of "now" would silently delete every
+    row, so this is treated as an error rather than clamped. Callers must check
+    ``error_result`` before using the returned int.
     """
     try:
         retention_days = int(retention_days)
     except (TypeError, ValueError):
         logger.error(f"{task_name}: retention_days={retention_days!r} is not a valid integer; aborting cleanup")
         return 0, create_task_result("error", error=f"Invalid retention_days value: {retention_days!r}")
-    if retention_days < 0:
-        logger.warning(f"{task_name}: retention_days={retention_days} is negative; clamping to 0")
-        retention_days = 0
+    if retention_days <= 0:
+        logger.error(f"{task_name}: retention_days={retention_days} must be > 0; aborting cleanup")
+        return 0, create_task_result("error", error=f"retention_days must be > 0, got {retention_days!r}")
     return retention_days, None
 
 
@@ -574,9 +595,12 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
 
     Returns a task result dict with the number of deleted records, cutoff date, and any error details.
     """
-    db_name = kwargs.get("awx_database", DEFAULT_AWX_DB_NAME)
-    retention_days = kwargs["retention_days"] if "retention_days" in kwargs else get_retention_days(db_name)
-    retention_days, error_result = _normalize_retention_days("cleanup_dashboard_reports_old_data", retention_days)
+    task_name = "cleanup_dashboard_reports_old_data"
+    db_name = _get_renamed_kwarg(kwargs, "awx_database", "database", task_name)
+    db_name = DEFAULT_AWX_DB_NAME if db_name is _MISSING else db_name
+    retention_days = _get_renamed_kwarg(kwargs, "retention_days", "retention_period_days", task_name)
+    retention_days = get_retention_days(db_name) if retention_days is _MISSING else retention_days
+    retention_days, error_result = _normalize_retention_days(task_name, retention_days)
     if error_result is not None:
         return error_result
     cutoff_date = datetime.now(tz=UTC) - timedelta(days=retention_days)
@@ -584,7 +608,7 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     cutoff_date_str = cutoff_date.isoformat()
 
     log_task_execution(
-        task_name="cleanup_dashboard_reports_old_data",
+        task_name=task_name,
         operation="processing",
         details=f"Cleaning up JobData records older than {cutoff_date_str} (retention period: {retention_days} days)",
     )
@@ -592,7 +616,6 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     start_time = time.monotonic()
     duration_db_ms = 0
     jobdata_count = 0
-    task_name = "cleanup_dashboard_reports_old_data"
     try:
         start_db_time = time.monotonic()
         queryset = JobData.objects.filter(finished__lt=cutoff_date)
@@ -647,7 +670,9 @@ def cleanup_dashboard_telemetry(**kwargs) -> dict[str, Any]:
     Returns a task result dict with the number of deleted rows and cutoff date.
     """
     task_name = "cleanup_dashboard_telemetry"
-    retention_days, error_result = _normalize_retention_days(task_name, kwargs.get("retention_days", 60))
+    retention_days = _get_renamed_kwarg(kwargs, "retention_days", "retention_period_days", task_name)
+    retention_days = 60 if retention_days is _MISSING else retention_days
+    retention_days, error_result = _normalize_retention_days(task_name, retention_days)
     if error_result is not None:
         return error_result
 

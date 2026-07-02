@@ -8,10 +8,12 @@ import pytest
 
 from apps.dashboard_reports.models import JobData
 from apps.dashboard_reports.tasks import (
+    _MISSING,
     DEFAULT_RETENTION_DAYS,
     _collect_data,
     _collect_jobs,
     _get_job_id_range,
+    _get_renamed_kwarg,
     _parse_dt,
     _process_batches,
     _resolve_collection_params,
@@ -561,6 +563,23 @@ class TestCleanupDashboardReportsOldData:
         cleanup_dashboard_reports_old_data()
         mock_retention_days.assert_called_once_with("awx")
 
+    def test_cleanup_deprecated_database_kwarg_still_honored(
+        self, mock_retention_days, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """The pre-rename 'database' kwarg still resolves db_name rather than being silently dropped."""
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
+        cleanup_dashboard_reports_old_data(database="legacy_db")
+        mock_retention_days.assert_called_once_with("legacy_db")
+
+    def test_cleanup_deprecated_retention_period_days_kwarg_still_honored(
+        self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """The pre-rename 'retention_period_days' kwarg still sets retention_days rather than being silently dropped."""
+        mock_jobdata_objects.objects.filter.return_value.count.return_value = 0
+        cleanup_dashboard_reports_old_data(retention_period_days=15)
+        _, kwargs = mock_create_task_result_cleanup.call_args
+        assert kwargs["data"]["retention_days"] == 15
+
     def test_cleanup_defaults_to_default_retention_days(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
@@ -597,15 +616,23 @@ class TestCleanupDashboardReportsOldData:
         assert args[0] == "error"
         assert "Invalid retention_days" in kwargs["error"]
 
-    def test_cleanup_negative_retention_clamped(
+    def test_cleanup_negative_retention_returns_error(
         self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
     ):
-        """Negative retention_days is clamped to 0 (deletes everything up to now)."""
-        mock_jobdata_objects.objects.filter.return_value.delete.return_value = (10, {})
+        """Negative retention_days is rejected rather than clamped, since a cutoff of 'now' would delete everything."""
         cleanup_dashboard_reports_old_data(retention_days=-5)
         args, kwargs = mock_create_task_result_cleanup.call_args
-        assert args[0] == "success"
-        assert kwargs["data"]["retention_days"] == 0
+        assert args[0] == "error"
+        assert "retention_days must be > 0" in kwargs["error"]
+
+    def test_cleanup_zero_retention_returns_error(
+        self, mock_jobdata_objects, mock_log_task_execution, mock_create_task_result_cleanup
+    ):
+        """Zero retention_days is rejected rather than deleting all records."""
+        cleanup_dashboard_reports_old_data(retention_days=0)
+        args, kwargs = mock_create_task_result_cleanup.call_args
+        assert args[0] == "error"
+        assert "retention_days must be > 0" in kwargs["error"]
 
     @pytest.mark.integration
     @pytest.mark.django_db
@@ -648,7 +675,7 @@ class TestResolveCollectionParams:
         since = datetime(2024, 1, 1, tzinfo=UTC)
         until = datetime(2024, 2, 1, tzinfo=UTC)
         db_name, got_since, got_until, batch_size = _resolve_collection_params(
-            {"since": since.isoformat(), "until": until.isoformat()}
+            "collect_dashboard_reports_data", {"since": since.isoformat(), "until": until.isoformat()}
         )
         assert got_since == since
         assert got_until == until
@@ -660,7 +687,7 @@ class TestResolveCollectionParams:
         """When since is absent and last_timestamp() has a value, it is used as since."""
         ts = datetime(2024, 3, 15, tzinfo=UTC)
         mock_jobdata.last_timestamp.return_value = ts
-        _, got_since, _, _ = _resolve_collection_params({})
+        _, got_since, _, _ = _resolve_collection_params("collect_dashboard_reports_data", {})
         assert got_since == ts
 
     @patch("apps.dashboard_reports.tasks.get_retention_days", return_value=30)
@@ -673,7 +700,9 @@ class TestResolveCollectionParams:
         until = datetime(2024, 6, 1, tzinfo=UTC)
 
         with override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": 500}):
-            _, got_since, _, batch_size = _resolve_collection_params({"until": until.isoformat()})
+            _, got_since, _, batch_size = _resolve_collection_params(
+                "collect_dashboard_reports_data", {"until": until.isoformat()}
+            )
 
         expected_since = (until - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         assert got_since == expected_since
@@ -686,21 +715,23 @@ class TestResolveCollectionParams:
         """When 'awx_database' kwarg is given and no prior timestamp exists, db_name is passed to get_retention_days."""
         mock_jobdata.last_timestamp.return_value = None
         until = datetime(2024, 6, 1, tzinfo=UTC)
-        _resolve_collection_params({"awx_database": "custom_db", "until": until.isoformat()})
+        _resolve_collection_params(
+            "collect_dashboard_reports_data", {"awx_database": "custom_db", "until": until.isoformat()}
+        )
         mock_retention.assert_called_once_with("custom_db")
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_custom_database_kwarg(self, mock_jobdata):
         """The 'awx_database' kwarg overrides the DEFAULT_AWX_DB_NAME."""
         mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        db_name, *_ = _resolve_collection_params({"awx_database": "custom_db"})
+        db_name, *_ = _resolve_collection_params("collect_dashboard_reports_data", {"awx_database": "custom_db"})
         assert db_name == "custom_db"
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_default_batch_size_applied(self, mock_jobdata):
         """BACKFILL_BATCH_SIZE defaults to 5_000 when not set."""
         mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        _, _, _, batch_size = _resolve_collection_params({})
+        _, _, _, batch_size = _resolve_collection_params("collect_dashboard_reports_data", {})
         assert batch_size == 5_000
 
     @patch("apps.dashboard_reports.tasks.JobData")
@@ -713,7 +744,7 @@ class TestResolveCollectionParams:
             override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": "not-a-number"}),
             pytest.raises(ValueError, match="BACKFILL_BATCH_SIZE"),
         ):
-            _resolve_collection_params({})
+            _resolve_collection_params("collect_dashboard_reports_data", {})
 
     @patch("apps.dashboard_reports.tasks.get_retention_days", return_value=0)
     @patch("apps.dashboard_reports.tasks.JobData")
@@ -721,7 +752,44 @@ class TestResolveCollectionParams:
         """get_retention_days returning 0 raises ValueError (retention must be > 0)."""
         mock_jobdata.last_timestamp.return_value = None
         with pytest.raises(ValueError, match="Retention days must be > 0"):
-            _resolve_collection_params({})
+            _resolve_collection_params("collect_dashboard_reports_data", {})
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_deprecated_database_kwarg_still_honored(self, mock_jobdata):
+        """The old 'database' kwarg name (pre-rename) still resolves db_name, with a warning."""
+        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        db_name, *_ = _resolve_collection_params("collect_dashboard_reports_data", {"database": "legacy_db"})
+        assert db_name == "legacy_db"
+
+    @patch("apps.dashboard_reports.tasks.JobData")
+    def test_new_kwarg_takes_precedence_over_deprecated(self, mock_jobdata):
+        """When both 'awx_database' and 'database' are given, the new name wins."""
+        mock_jobdata.last_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
+        db_name, *_ = _resolve_collection_params(
+            "collect_dashboard_reports_data", {"awx_database": "new_db", "database": "old_db"}
+        )
+        assert db_name == "new_db"
+
+
+# ---------------------------------------------------------------------------
+# _get_renamed_kwarg
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+class TestGetRenamedKwarg:
+    """Tests for the _get_renamed_kwarg deprecated-alias helper."""
+
+    def test_new_key_present_returns_its_value(self):
+        assert _get_renamed_kwarg({"new": 1, "old": 2}, "new", "old", "task") == 1
+
+    def test_only_old_key_present_returns_its_value_and_warns(self):
+        with patch("apps.dashboard_reports.tasks.logger") as mock_logger:
+            result = _get_renamed_kwarg({"old": 2}, "new", "old", "task")
+        assert result == 2
+        mock_logger.warning.assert_called_once()
+        assert "deprecated" in mock_logger.warning.call_args[0][0]
+
+    def test_neither_key_present_returns_missing_sentinel(self):
+        assert _get_renamed_kwarg({}, "new", "old", "task") is _MISSING
 
 
 # ---------------------------------------------------------------------------
