@@ -141,7 +141,7 @@ The task system has several layers:
 - **`METRICS_COLLECTION_GROUP`** — Controlled by `METRICS_COLLECTION` feature flag (default: enabled). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`.
 - **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains `daily_anonymize_and_prepare` — the tasks that transmit data to Red Hat.
 - **`DASHBOARD_COLLECTION_GROUP`** — Controlled by `DASHBOARD_COLLECTION` feature flag (default: enabled). Dashboard report collection via automation-reports.
-- **`INDIRECT_NODE_COLLECTION_GROUP`** — Controlled by `INDIRECT_NODE_COLLECTION` feature flag. Hourly indirect managed node audit data collection.
+- **`INDIRECT_NODE_COLLECTION_GROUP`** — Controlled by `INDIRECT_NODE_COLLECTION` feature flag. Daily indirect managed node audit data collection.
 
 Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE` in Django settings if not in DB. DB flags are checked at task execution time — no restart needed when toggling via DB/API. Env var changes require a restart.
 
