@@ -2,7 +2,7 @@
 Background tasks for dashboard reports data collection and cleanup.
 
 Provides five dispatcherd tasks:
-- collect_dashboard_reports_initial_data: full historical backfill (default 90 days)
+- collect_dashboard_reports_initial_data: full historical backfill (window from the Controller's retention schedule, default 90 days)
 - collect_dashboard_reports_data: incremental sync from last known timestamp (deprecated)
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
 - sync_dashboard_host_summaries: writes host summary data from the hourly hook to JobHostSummary
@@ -45,9 +45,13 @@ def get_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
     then applies the most aggressive (lowest) retention policy:
 
     - Only enabled schedules (``schedule_enabled = True``) are considered.
+    - Schedules whose ``retention_days`` is missing or not a valid integer are skipped
+      individually, so one malformed schedule doesn't affect the others.
     - When multiple schedules exist, the one with the lowest ``retention_days`` wins;
       ties are broken by the soonest ``next_run``.
-    - Falls back to ``DEFAULT_RETENTION_DAYS`` if the query fails or returns no active rows.
+    - Falls back to ``DEFAULT_RETENTION_DAYS`` if the query fails or no valid active rows remain.
+
+    Always returns a valid int, so callers don't need to re-validate the return value.
 
     Note: ``cleanup_activitystream`` schedules are intentionally excluded — they govern
     a different resource (activity stream entries) and must not drive ``JobData`` retention.
@@ -56,16 +60,22 @@ def get_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
         db_connection = get_db_connection(db_name)
         retention_data, _ = fetch_retention_settings(db_connection=db_connection)
     except Exception:
-        logger.exception("Error fetching retention settings; using default %d days", DEFAULT_RETENTION_DAYS)
+        logger.exception(f"Error fetching retention settings; using default {DEFAULT_RETENTION_DAYS} days")
         return DEFAULT_RETENTION_DAYS
 
-    active = [
-        row
-        for row in retention_data
-        if row.get("job_type") == "cleanup_jobs"
-        and row.get("schedule_enabled")
-        and row.get("retention_days") is not None
-    ]
+    active = []
+    for row in retention_data:
+        if row.get("job_type") != "cleanup_jobs" or not row.get("schedule_enabled"):
+            continue
+        raw_days = row.get("retention_days")
+        if raw_days is None:
+            continue
+        try:
+            days = int(raw_days)
+        except (TypeError, ValueError):
+            logger.warning(f"get_retention_days: skipping schedule with invalid retention_days={raw_days!r}")
+            continue
+        active.append({**row, "retention_days": days})
     if not active:
         return DEFAULT_RETENTION_DAYS
 
@@ -77,7 +87,7 @@ def get_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
             try:
                 row_next = _parse_dt(row.get("next_run"))
                 best_next = _parse_dt(best.get("next_run"))
-            except (TypeError, ValueError):
+            except TypeError:
                 continue
             if row_next is not None and (best_next is None or row_next < best_next):
                 best = row
@@ -168,23 +178,19 @@ def _resolve_collection_params(kwargs: dict) -> tuple[str, datetime, datetime, i
     """Resolve db_name, since, until, and batch_size from task kwargs with defaults applied.
 
     When ``since`` is not provided and no prior ``JobData`` timestamp exists, the initial
-    backfill window is determined by ``get_retention_days`` (queried from active AWX cleanup
+    retention window is determined by ``get_retention_days`` (queried from active AWX cleanup
     schedules) rather than a static setting.
     """
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-    db_name = kwargs.get("database", DEFAULT_AWX_DB_NAME)
+    db_name = kwargs.get("awx_database", DEFAULT_AWX_DB_NAME)
     until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
     since = _parse_dt(kwargs.get("since")) or JobData.last_timestamp()
     if since is None:
-        raw_backfill_days = get_retention_days(db_name)
-        try:
-            backfill_days = int(raw_backfill_days)
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"get_retention_days returned a non-integer value: {raw_backfill_days!r}") from e
-        if backfill_days <= 0:
-            raise ValueError(f"Retention days must be > 0, got {backfill_days!r}")
+        retention_days = get_retention_days(db_name)
+        if retention_days <= 0:
+            raise ValueError(f"Retention days must be > 0, got {retention_days!r}")
         since = (
-            (until - timedelta(days=backfill_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
+            (until - timedelta(days=retention_days)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
         )
     raw_batch_size = dashboard_cfg.get("BACKFILL_BATCH_SIZE", 5_000)
     try:
@@ -324,7 +330,7 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     """
     Collect historical AWX job data as a one-time backfill.
 
-    The backfill window is determined by ``get_retention_days`` (queried from active AWX
+    The retention window is determined by ``get_retention_days`` (queried from active AWX
     cleanup schedules), falling back to ``DEFAULT_RETENTION_DAYS`` when the AWX DB is
     unreachable or no active schedules exist. The window can be overridden by passing
     ``since`` or ``until`` in kwargs.
@@ -521,7 +527,7 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
                 JobData._sync_host_summaries(job_data, host_summaries, existing)
             synced += 1
         except Exception:
-            logger.exception("Error syncing host summaries for job %s", job_remote_id)
+            logger.exception(f"Error syncing host summaries for job {job_remote_id}")
             failed += 1
 
     log_task_execution(
@@ -539,54 +545,48 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
     )
 
 
+def _normalize_retention_days(task_name: str, retention_days: Any) -> tuple[int, dict[str, Any] | None]:
+    """Validate and clamp a retention_days value shared by the cleanup tasks below.
+
+    Returns ``(retention_days, None)`` on success (negative values clamped to 0 with a
+    warning logged), or ``(0, error_result)`` when the value can't be coerced to an int —
+    callers must check ``error_result`` before using the returned int.
+    """
+    try:
+        retention_days = int(retention_days)
+    except (TypeError, ValueError):
+        logger.error(f"{task_name}: retention_days={retention_days!r} is not a valid integer; aborting cleanup")
+        return 0, create_task_result("error", error=f"Invalid retention_days value: {retention_days!r}")
+    if retention_days < 0:
+        logger.warning(f"{task_name}: retention_days={retention_days} is negative; clamping to 0")
+        retention_days = 0
+    return retention_days, None
+
+
 def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     """
-    Delete JobData records with a finished date older than retention_period_days.
+    Delete JobData records with a finished date older than retention_days.
 
     The default retention period is resolved from active AWX ``cleanup_jobs`` schedules via
     ``get_retention_days`` (lowest ``retention_days`` across enabled schedules), falling back
     to ``DEFAULT_RETENTION_DAYS`` when the AWX DB is unreachable or no active schedules exist.
-    The caller may override this default by passing ``retention_period_days`` in kwargs.
+    The caller may override this default by passing ``retention_days`` in kwargs.
 
     Returns a task result dict with the number of deleted records, cutoff date, and any error details.
     """
-    db_name = kwargs.get("database", DEFAULT_AWX_DB_NAME)
-    if "retention_period_days" in kwargs:
-        retention_period_days = kwargs["retention_period_days"]
-    else:
-        raw_default_retention = get_retention_days(db_name)
-        try:
-            retention_period_days = int(raw_default_retention)
-        except (TypeError, ValueError):
-            logger.warning(
-                "cleanup_dashboard_reports_old_data: get_retention_days returned %r which is not a valid integer; falling back to %d",
-                raw_default_retention,
-                DEFAULT_RETENTION_DAYS,
-            )
-            retention_period_days = DEFAULT_RETENTION_DAYS
-    try:
-        retention_period_days = int(retention_period_days)
-    except (TypeError, ValueError):
-        logger.error(
-            "cleanup_dashboard_reports_old_data: retention_period_days=%r is not a valid integer; aborting cleanup",
-            retention_period_days,
-        )
-        return create_task_result("error", error=f"Invalid retention_period_days value: {retention_period_days!r}")
-    if retention_period_days < 0:
-        logger.warning(
-            "cleanup_dashboard_reports_old_data: retention_period_days=%d is negative which would produce a future "
-            "cutoff date and delete current records; clamping to 0",
-            retention_period_days,
-        )
-        retention_period_days = 0
-    cutoff_date = datetime.now(tz=UTC) - timedelta(days=retention_period_days)
+    db_name = kwargs.get("awx_database", DEFAULT_AWX_DB_NAME)
+    retention_days = kwargs["retention_days"] if "retention_days" in kwargs else get_retention_days(db_name)
+    retention_days, error_result = _normalize_retention_days("cleanup_dashboard_reports_old_data", retention_days)
+    if error_result is not None:
+        return error_result
+    cutoff_date = datetime.now(tz=UTC) - timedelta(days=retention_days)
     cutoff_date = cutoff_date.replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff_date_str = cutoff_date.isoformat()
 
     log_task_execution(
         task_name="cleanup_dashboard_reports_old_data",
         operation="processing",
-        details=f"Cleaning up JobData records older than {cutoff_date_str} (retention period: {retention_period_days} days)",
+        details=f"Cleaning up JobData records older than {cutoff_date_str} (retention period: {retention_days} days)",
     )
 
     start_time = time.monotonic()
@@ -621,7 +621,7 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
             data={
                 "deleted_records": jobdata_count,
                 "cutoff_date": cutoff_date_str,
-                "retention_period_days": retention_period_days,
+                "retention_days": retention_days,
             },
         )
     except Exception as e:
@@ -640,36 +640,22 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
 
 def cleanup_dashboard_telemetry(**kwargs) -> dict[str, Any]:
     """
-    Delete DashboardTelemetry rows older than retention_period_days (default: 60).
+    Delete DashboardTelemetry rows older than retention_days (default: 60).
 
     Keeps the telemetry table bounded; the API window is 30 days so rows beyond
     60 days are no longer surfaced and can safely be purged.
     Returns a task result dict with the number of deleted rows and cutoff date.
     """
     task_name = "cleanup_dashboard_telemetry"
-    retention_period_days = kwargs.get("retention_period_days", 60)
-    try:
-        retention_period_days = int(retention_period_days)
-    except (TypeError, ValueError):
-        logger.error(
-            "%s: retention_period_days=%r is not a valid integer; aborting cleanup",
-            task_name,
-            retention_period_days,
-        )
-        return create_task_result("error", error=f"Invalid retention_period_days value: {retention_period_days!r}")
-    if retention_period_days < 0:
-        logger.warning(
-            "%s: retention_period_days=%d is negative; clamping to 0",
-            task_name,
-            retention_period_days,
-        )
-        retention_period_days = 0
+    retention_days, error_result = _normalize_retention_days(task_name, kwargs.get("retention_days", 60))
+    if error_result is not None:
+        return error_result
 
-    cutoff_date = (datetime.now(tz=UTC) - timedelta(days=retention_period_days)).date()
+    cutoff_date = (datetime.now(tz=UTC) - timedelta(days=retention_days)).date()
     log_task_execution(
         task_name=task_name,
         operation="processing",
-        details=f"Deleting DashboardTelemetry rows with collection_run_date < {cutoff_date} (retention: {retention_period_days} days)",
+        details=f"Deleting DashboardTelemetry rows with collection_run_date < {cutoff_date} (retention: {retention_days} days)",
     )
 
     try:
@@ -684,7 +670,7 @@ def cleanup_dashboard_telemetry(**kwargs) -> dict[str, Any]:
             data={
                 "deleted_records": deleted_count,
                 "cutoff_date": str(cutoff_date),
-                "retention_period_days": retention_period_days,
+                "retention_days": retention_days,
             },
         )
     except Exception as e:

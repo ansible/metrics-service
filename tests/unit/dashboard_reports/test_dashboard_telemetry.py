@@ -402,7 +402,7 @@ class TestCleanupDashboardTelemetry:
 
     @pytest.mark.django_db
     def test_deletes_old_rows_and_returns_success(self):
-        """Rows older than retention_period_days are deleted; status is 'success'."""
+        """Rows older than retention_days are deleted; status is 'success'."""
         old_date = date.today() - timedelta(days=70)
         DashboardTelemetry.objects.create(
             task_name="old_task",
@@ -424,7 +424,7 @@ class TestCleanupDashboardTelemetry:
             cache_hit_rate=None,
         )
 
-        result = cleanup_dashboard_telemetry(retention_period_days=60)
+        result = cleanup_dashboard_telemetry(retention_days=60)
 
         assert result["status"] == "success"
         assert result["deleted_records"] == 1
@@ -432,7 +432,7 @@ class TestCleanupDashboardTelemetry:
         assert DashboardTelemetry.objects.first().task_name == "recent_task"
 
     def test_default_retention_is_60_days(self):
-        """When no retention_period_days kwarg is given, 60 days is used."""
+        """When no retention_days kwarg is given, 60 days is used."""
         with patch("apps.dashboard_reports.tasks.DashboardTelemetry") as mock_model:
             mock_qs = MagicMock()
             mock_qs.delete.return_value = (0, {})
@@ -445,14 +445,14 @@ class TestCleanupDashboardTelemetry:
         assert mock_model.objects.filter.called
 
     def test_invalid_retention_period_returns_error(self):
-        """A non-integer retention_period_days returns an error result."""
-        result = cleanup_dashboard_telemetry(retention_period_days="not_a_number")
+        """A non-integer retention_days returns an error result."""
+        result = cleanup_dashboard_telemetry(retention_days="not_a_number")
 
         assert result["status"] == "error"
-        assert "Invalid retention_period_days" in result["error"]
+        assert "Invalid retention_days" in result["error"]
 
     def test_negative_retention_period_is_clamped_to_zero(self):
-        """A negative retention_period_days is clamped to 0 (delete everything)."""
+        """A negative retention_days is clamped to 0 (delete everything)."""
         with patch("apps.dashboard_reports.tasks.DashboardTelemetry") as mock_model:
             mock_qs = MagicMock()
             mock_qs.delete.return_value = (5, {})
@@ -461,7 +461,7 @@ class TestCleanupDashboardTelemetry:
                 patch("apps.dashboard_reports.tasks.log_task_execution"),
                 patch("apps.dashboard_reports.tasks.logger") as mock_logger,
             ):
-                result = cleanup_dashboard_telemetry(retention_period_days=-10)
+                result = cleanup_dashboard_telemetry(retention_days=-10)
 
         assert result["status"] == "success"
         mock_logger.warning.assert_called_once()
@@ -476,20 +476,20 @@ class TestCleanupDashboardTelemetry:
                 patch("apps.dashboard_reports.tasks.log_task_execution"),
                 patch("apps.dashboard_reports.tasks.logger") as mock_logger,
             ):
-                result = cleanup_dashboard_telemetry(retention_period_days=60)
+                result = cleanup_dashboard_telemetry(retention_days=60)
 
         assert result["status"] == "error"
         assert "Cleanup failed" in result["error"]
         mock_logger.exception.assert_called_once()
 
     def test_result_contains_cutoff_date_and_retention(self):
-        """The success result includes cutoff_date and retention_period_days."""
+        """The success result includes cutoff_date and retention_days."""
         with patch("apps.dashboard_reports.tasks.DashboardTelemetry") as mock_model:
             mock_model.objects.filter.return_value.delete.return_value = (3, {})
             with patch("apps.dashboard_reports.tasks.log_task_execution"):
-                result = cleanup_dashboard_telemetry(retention_period_days=30)
+                result = cleanup_dashboard_telemetry(retention_days=30)
 
         assert result["status"] == "success"
         assert "cutoff_date" in result
-        assert result["retention_period_days"] == 30
+        assert result["retention_days"] == 30
         assert result["deleted_records"] == 3

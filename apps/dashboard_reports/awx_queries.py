@@ -36,7 +36,7 @@ class AWXQuery(enum.Enum):
         "s.enabled AS schedule_enabled, "
         "s.rrule, "
         "s.next_run, "
-        "(s.extra_data::jsonb ->> 'days')::int AS retention_days "
+        "(s.extra_data::jsonb ->> 'days') AS retention_days "
         "FROM main_systemjobtemplate sjt "
         "JOIN main_unifiedjobtemplate ujt "
         "ON ujt.id = sjt.unifiedjobtemplate_ptr_id "
