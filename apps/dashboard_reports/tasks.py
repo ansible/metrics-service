@@ -125,8 +125,8 @@ def _parse_dt(value: Any) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, str):
-        dt = datetime.fromisoformat(value)
-        return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+        dt = None if value == "NaT" else datetime.fromisoformat(value)  # NaT: pandas null serialised as string
+        return dt if dt is None or dt.tzinfo is not None else dt.replace(tzinfo=UTC)
     if isinstance(value, datetime):
         return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
     raise TypeError(f"_parse_dt: expected str, datetime, or None; got {type(value).__name__!r}")
@@ -204,7 +204,10 @@ def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datet
     db_name = _get_renamed_kwarg(kwargs, "awx_database", "database", task_name)
     db_name = DEFAULT_AWX_DB_NAME if db_name is _MISSING else db_name
     until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
-    since = _parse_dt(kwargs.get("since")) or JobData.last_timestamp()
+    # Use MAX(finished) as the watermark because all collection queries use date_field='finished'.
+    # This aligns the watermark with the query filter so the Controller DB finished index is
+    # used correctly and no jobs are missed in the gap between MAX(finished) and MAX(awx_modified).
+    since = _parse_dt(kwargs.get("since")) or JobData.last_finished_timestamp()
     if since is None:
         retention_days = get_retention_days(db_name)
         if retention_days <= 0:
@@ -502,6 +505,7 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
     task_name = "sync_dashboard_host_summaries"
     hour_timestamp = kwargs.get("hour_timestamp", "unknown")
     raw_host_summaries = kwargs.get("raw_host_summaries", [])
+    start_time = time.monotonic()
 
     log_task_execution(
         task_name=task_name,
@@ -549,6 +553,17 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
         except Exception:
             logger.exception(f"Error syncing host summaries for job {job_remote_id}")
             failed += 1
+
+    duration_ms = (time.monotonic() - start_time) * 1000
+    success = not failed
+    _save_telemetry_details(
+        task_name=task_name,
+        success=success,
+        collection_duration_ms=duration_ms,
+        number_of_records_processed=synced,
+        database_query_time_ms=None,
+        cache_hit_rate=None,
+    )
 
     log_task_execution(
         task_name=task_name,
