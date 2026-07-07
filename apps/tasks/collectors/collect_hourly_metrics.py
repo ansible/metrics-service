@@ -48,6 +48,9 @@ def _get_hourly_collectors():
     The events collector function is chosen at call time based on EVENTS_COLLECTOR:
       'created'  → main_jobevent_created_service (filters by job_created partition key)
       'finished' → main_jobevent_service          (filters by job.finished, legacy)
+
+    If main_jobevent_created_service is not available in the installed metrics_utility
+    version, EVENTS_COLLECTOR=created falls back to main_jobevent_service with a warning.
     """
     from metrics_utility.anonymized_rollups import (
         CredentialsAnonymizedRollup,
@@ -58,13 +61,25 @@ def _get_hourly_collectors():
     from metrics_utility.library.collectors.controller import (
         credentials_service,
         job_host_summary_service,
-        main_jobevent_created_service,
         main_jobevent_service,
         unified_jobs_dashboard,
     )
 
+    try:
+        from metrics_utility.library.collectors.controller import main_jobevent_created_service
+    except ImportError:
+        main_jobevent_created_service = None
+
     events_mode = _get_events_collector_mode()
-    events_collector_func = main_jobevent_created_service if events_mode == "created" else main_jobevent_service
+    if events_mode == "created" and main_jobevent_created_service is not None:
+        events_collector_func = main_jobevent_created_service
+    else:
+        if events_mode == "created":
+            logger.warning(
+                "EVENTS_COLLECTOR=created requested but main_jobevent_created_service is not "
+                "available in the installed metrics_utility version; falling back to main_jobevent_service."
+            )
+        events_collector_func = main_jobevent_service
 
     # Registry mapping collector_type to (collector_func, rollup_processor_class)
     return {

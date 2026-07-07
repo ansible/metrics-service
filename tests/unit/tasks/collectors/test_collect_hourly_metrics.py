@@ -564,7 +564,20 @@ class TestGetEventsCollectorMode:
             assert _get_events_collector_mode() == "created"
 
 
+try:
+    from metrics_utility.library.collectors.controller import (
+        main_jobevent_created_service as _created_svc,  # noqa: F401
+    )
+
+    _created_service_available = True
+except ImportError:
+    _created_service_available = False
+
+
 @pytest.mark.unit
+@pytest.mark.skipif(
+    not _created_service_available, reason="main_jobevent_created_service not in installed metrics_utility"
+)
 class TestEventsCollectorRegistry:
     """Pin that the registry wires the right collector function based on EVENTS_COLLECTOR."""
 
