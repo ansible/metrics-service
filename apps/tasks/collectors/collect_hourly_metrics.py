@@ -31,8 +31,7 @@ def _get_events_collector_mode() -> str:
         value = value.lower()
     if value not in _VALID_EVENTS_COLLECTORS:
         logger.error(
-            "EVENTS_COLLECTOR has invalid value %r; expected 'created' or 'finished'. "
-            "Falling back to 'created'.",
+            "EVENTS_COLLECTOR has invalid value %r; expected 'created' or 'finished'. Falling back to 'created'.",
             value,
         )
         return "created"
