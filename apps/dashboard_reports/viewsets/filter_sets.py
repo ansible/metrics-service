@@ -2,10 +2,11 @@ import logging
 from typing import Any
 
 from ansible_base.rest_pagination import DefaultPaginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin, UpdateModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -73,47 +74,32 @@ class FilterSetsViewSet(ListModelMixin, CreateModelMixin, UpdateModelMixin, Dest
         """Return filter sets belonging to the currently authenticated user."""
         return FilterSet.objects.filter(user=self.request.user)
 
+    def _clear_other_defaults(self, exclude_pk: int | None = None) -> None:
+        """Clear is_default on the user's other filter sets, optionally excluding one by pk."""
+        queryset = FilterSet.objects.filter(user=self.request.user, is_default=True)
+        if exclude_pk is not None:
+            queryset = queryset.exclude(pk=exclude_pk)
+        queryset.update(is_default=False)
+
     def perform_create(self, serializer: FilterSetSerializer) -> None:
         """Create a filter set, clearing any existing default if the new one is marked default."""
-        with transaction.atomic():
-            if serializer.validated_data.get("is_default", False):
-                FilterSet.objects.filter(user=self.request.user, is_default=True).update(is_default=False)
-            serializer.save(user=self.request.user)
+        try:
+            with transaction.atomic():
+                if serializer.validated_data.get("is_default", False):
+                    self._clear_other_defaults()
+                serializer.save(user=self.request.user)
+        except IntegrityError as exc:
+            raise ValidationError({"is_default": "Unable to set this filter set as default."}) from exc
 
-    def update(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        """
-        Updates the filter set. (PUT method)
-        """
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=False)
-        serializer.is_valid(raise_exception=True)
-        with transaction.atomic():
-            validated = serializer.validated_data
-            if validated.get("is_default", False):
-                FilterSet.objects.filter(user=self.request.user, is_default=True).exclude(pk=instance.pk).update(
-                    is_default=False
-                )
-            serializer.save(user=self.request.user)
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def partial_update(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        """
-        Partially updates the filter set. (PATCH method)
-        """
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-
-        with transaction.atomic():
-            validated = serializer.validated_data
-            if validated.get("is_default", False):
-                FilterSet.objects.filter(user=self.request.user, is_default=True).exclude(pk=instance.pk).update(
-                    is_default=False
-                )
-            serializer.save()
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    def perform_update(self, serializer: FilterSetSerializer) -> None:
+        """Update a filter set, clearing any existing default if the new one is marked default."""
+        try:
+            with transaction.atomic():
+                if serializer.validated_data.get("is_default", False):
+                    self._clear_other_defaults(exclude_pk=serializer.instance.pk)
+                serializer.save(user=self.request.user)
+        except IntegrityError as exc:
+            raise ValidationError({"is_default": "Unable to set this filter set as default."}) from exc
 
     def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
