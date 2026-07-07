@@ -144,16 +144,39 @@ ANSIBLE_BASE_BYPASS_ACTION_FLAGS = {"view": "is_platform_auditor"}
 # Task execution timeout in seconds (override via METRICS_SERVICE_TASK_TIMEOUT env var)
 TASK_TIMEOUT = 3600
 
-# Maximum number of job event rows fetched per hourly collection run.
+# Maximum event rows fetched per hourly run by main_jobevent_service (EVENTS_COLLECTOR=finished).
 # At ~700–900 bytes/row in memory, 2 000 000 rows ≈ 1.4–1.8 GB.  Raise for
 # high-volume installations; lower for memory-constrained environments.
 # Override via METRICS_SERVICE_JOBEVENT_ROW_LIMIT env var.
 JOBEVENT_ROW_LIMIT = 200_000
 
+# Maximum event rows fetched per hourly run by main_jobevent_created_service (EVENTS_COLLECTOR=created).
+# Higher than JOBEVENT_ROW_LIMIT because the created collector scans a single partition
+# with no intermediate job-ID lookup, making it fast enough to handle more rows.
+# Override via METRICS_SERVICE_JOBEVENT_CREATED_ROW_LIMIT env var.
+JOBEVENT_CREATED_ROW_LIMIT = 400_000
+
 # Maximum finished jobs processed per hourly window by main_jobevent_service.
+# Only applies when EVENTS_COLLECTOR=finished.
 # Keeps the SQL IN clause manageable; jobs are sorted by created time (oldest first).
 # Override via METRICS_SERVICE_JOBEVENT_JOB_LIMIT env var.
 JOBEVENT_JOB_LIMIT = 1_000
+
+# Which events collector to use for hourly job-event collection.
+#   "created"  – main_jobevent_created_service: filters events by job_created (partition key),
+#                targeting exactly one hourly partition per run.  The collection window is
+#                shifted backwards by JOBEVENT_DIFF_HOURS so jobs have time to finish.
+#   "finished" – main_jobevent_service: filters events by job.finished time (legacy behaviour).
+#                JOBEVENT_DIFF_HOURS is ignored; JOBEVENT_JOB_LIMIT applies instead.
+# Override via METRICS_SERVICE_EVENTS_COLLECTOR env var.
+EVENTS_COLLECTOR = "created"
+
+# How many hours to shift the collection window backwards when EVENTS_COLLECTOR=created.
+# Ensures jobs created in the target hour have had time to finish before their events
+# are collected.  Most jobs complete within minutes; 24 h covers virtually all real
+# workloads.  Ignored when EVENTS_COLLECTOR=finished.
+# Override via METRICS_SERVICE_JOBEVENT_DIFF_HOURS env var.
+JOBEVENT_DIFF_HOURS = 24
 
 
 # Project-specific middleware additions

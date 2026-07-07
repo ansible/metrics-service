@@ -1,6 +1,6 @@
 """Unit tests for collect_hourly_metrics — specifically _build_dashboard_sync_hook."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -415,6 +415,9 @@ class TestCollectHourlyMetricsRowLimit:
             patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings,
         ):
             mock_settings.JOBEVENT_ROW_LIMIT = 2_000_000
+            mock_settings.JOBEVENT_CREATED_ROW_LIMIT = 2_000_000
+            mock_settings.JOBEVENT_DIFF_HOURS = 24
+            mock_settings.EVENTS_COLLECTOR = "finished"
             kwargs = {"collector_type": collector_type}
             if hour_ts:
                 kwargs["hour_timestamp"] = hour_ts.isoformat()
@@ -440,6 +443,150 @@ class TestCollectHourlyMetricsRowLimit:
         assert "row_limit" not in call_kwargs["collector_kwargs"], (
             "row_limit should not be injected for non-jobevent collectors"
         )
+
+
+@pytest.mark.unit
+class TestEventsCollectorMode:
+    """Cover EVENTS_COLLECTOR / JOBEVENT_DIFF_HOURS behaviour in collect_hourly_metrics."""
+
+    def _run(
+        self,
+        mock_generic,
+        events_collector,
+        diff_hours=24,
+        job_limit=1_000,
+        row_limit=200_000,
+        created_row_limit=400_000,
+        hour_ts=None,
+    ):
+        from apps.tasks.collectors.collect_hourly_metrics import collect_hourly_metrics
+
+        with (
+            patch("apps.tasks.collectors.collect_hourly_metrics.get_db_connection", return_value=MagicMock()),
+            patch(
+                "apps.tasks.collectors.collect_hourly_metrics._get_hourly_collectors",
+                return_value={
+                    "main_jobevent_service": {"collector_func": MagicMock(), "rollup_processor": None},
+                },
+            ),
+            patch("apps.tasks.collectors.collect_hourly_metrics.generic_collect_metrics", mock_generic),
+            patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings,
+        ):
+            mock_settings.EVENTS_COLLECTOR = events_collector
+            mock_settings.JOBEVENT_ROW_LIMIT = row_limit
+            mock_settings.JOBEVENT_CREATED_ROW_LIMIT = created_row_limit
+            mock_settings.JOBEVENT_JOB_LIMIT = job_limit
+            mock_settings.JOBEVENT_DIFF_HOURS = diff_hours
+            ts = hour_ts or datetime(2025, 6, 13, 10, 0, 0, tzinfo=UTC)
+            collect_hourly_metrics(collector_type="main_jobevent_service", hour_timestamp=ts.isoformat())
+
+        _, call_kwargs = mock_generic.call_args
+        return call_kwargs["collector_kwargs"]
+
+    def test_created_mode_shifts_window_by_diff_hours(self):
+        """EVENTS_COLLECTOR=created shifts since/until back by JOBEVENT_DIFF_HOURS."""
+        hour_ts = datetime(2025, 6, 13, 10, 0, 0, tzinfo=UTC)
+        kwargs = self._run(MagicMock(return_value={"status": "success"}), "created", diff_hours=24, hour_ts=hour_ts)
+
+        expected_since = hour_ts - timedelta(hours=24)
+        expected_until = hour_ts + timedelta(hours=1) - timedelta(hours=24)
+        assert kwargs["since"] == expected_since
+        assert kwargs["until"] == expected_until
+
+    def test_created_mode_does_not_inject_job_limit(self):
+        """EVENTS_COLLECTOR=created must not pass job_limit to the collector."""
+        kwargs = self._run(MagicMock(return_value={"status": "success"}), "created")
+        assert "job_limit" not in kwargs
+
+    def test_finished_mode_does_not_shift_window(self):
+        """EVENTS_COLLECTOR=finished keeps the original since/until window."""
+        hour_ts = datetime(2025, 6, 13, 10, 0, 0, tzinfo=UTC)
+        kwargs = self._run(MagicMock(return_value={"status": "success"}), "finished", hour_ts=hour_ts)
+
+        assert kwargs["since"] == hour_ts
+        assert kwargs["until"] == hour_ts + timedelta(hours=1)
+
+    def test_finished_mode_injects_job_limit(self):
+        """EVENTS_COLLECTOR=finished must pass job_limit to the collector."""
+        kwargs = self._run(MagicMock(return_value={"status": "success"}), "finished", job_limit=500)
+        assert kwargs.get("job_limit") == 500
+
+    def test_invalid_events_collector_falls_back_to_created(self):
+        """An invalid EVENTS_COLLECTOR value falls back to 'created' and shifts the window."""
+        hour_ts = datetime(2025, 6, 13, 10, 0, 0, tzinfo=UTC)
+        kwargs = self._run(MagicMock(return_value={"status": "success"}), "bad_value", diff_hours=24, hour_ts=hour_ts)
+
+        expected_since = hour_ts - timedelta(hours=24)
+        assert kwargs["since"] == expected_since
+        assert "job_limit" not in kwargs
+
+    def test_created_mode_uses_jobevent_created_row_limit(self):
+        """EVENTS_COLLECTOR=created uses JOBEVENT_CREATED_ROW_LIMIT (400k default)."""
+        kwargs = self._run(MagicMock(return_value={"status": "success"}), "created", created_row_limit=400_000)
+        assert kwargs.get("row_limit") == 400_000
+
+    def test_finished_mode_uses_jobevent_row_limit(self):
+        """EVENTS_COLLECTOR=finished uses JOBEVENT_ROW_LIMIT (200k default)."""
+        kwargs = self._run(MagicMock(return_value={"status": "success"}), "finished", row_limit=200_000)
+        assert kwargs.get("row_limit") == 200_000
+
+
+@pytest.mark.unit
+class TestGetEventsCollectorMode:
+    """Unit tests for the _get_events_collector_mode helper."""
+
+    def test_returns_created_by_default(self):
+        from apps.tasks.collectors.collect_hourly_metrics import _get_events_collector_mode
+
+        with patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings:
+            mock_settings.EVENTS_COLLECTOR = "created"
+            assert _get_events_collector_mode() == "created"
+
+    def test_returns_finished(self):
+        from apps.tasks.collectors.collect_hourly_metrics import _get_events_collector_mode
+
+        with patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings:
+            mock_settings.EVENTS_COLLECTOR = "finished"
+            assert _get_events_collector_mode() == "finished"
+
+    def test_case_insensitive(self):
+        from apps.tasks.collectors.collect_hourly_metrics import _get_events_collector_mode
+
+        with patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings:
+            mock_settings.EVENTS_COLLECTOR = "CREATED"
+            assert _get_events_collector_mode() == "created"
+
+    def test_invalid_value_falls_back_to_created(self):
+        from apps.tasks.collectors.collect_hourly_metrics import _get_events_collector_mode
+
+        with patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings:
+            mock_settings.EVENTS_COLLECTOR = "events"
+            assert _get_events_collector_mode() == "created"
+
+
+@pytest.mark.unit
+class TestEventsCollectorRegistry:
+    """Pin that the registry wires the right collector function based on EVENTS_COLLECTOR."""
+
+    def test_created_mode_uses_main_jobevent_created_service(self):
+        with patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings:
+            mock_settings.EVENTS_COLLECTOR = "created"
+            from metrics_utility.library.collectors.controller import main_jobevent_created_service
+
+            registry = _get_hourly_collectors()
+
+        entry = registry["main_jobevent_service"]
+        assert entry["collector_func"] is main_jobevent_created_service
+
+    def test_finished_mode_uses_main_jobevent_service(self):
+        with patch("apps.tasks.collectors.collect_hourly_metrics.settings") as mock_settings:
+            mock_settings.EVENTS_COLLECTOR = "finished"
+            from metrics_utility.library.collectors.controller import main_jobevent_service
+
+            registry = _get_hourly_collectors()
+
+        entry = registry["main_jobevent_service"]
+        assert entry["collector_func"] is main_jobevent_service
 
 
 @pytest.mark.unit

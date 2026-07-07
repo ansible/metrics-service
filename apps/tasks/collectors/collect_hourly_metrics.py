@@ -18,12 +18,37 @@ from ..utils import create_task_result, generic_collect_metrics, get_db_connecti
 logger = logging.getLogger(__name__)
 
 
+_VALID_EVENTS_COLLECTORS = frozenset(("created", "finished"))
+
+
+def _get_events_collector_mode() -> str:
+    """Return the validated EVENTS_COLLECTOR setting ('created' or 'finished').
+
+    Logs an error and falls back to 'created' if the setting is invalid.
+    """
+    value = getattr(settings, "EVENTS_COLLECTOR", "created")
+    if isinstance(value, str):
+        value = value.lower()
+    if value not in _VALID_EVENTS_COLLECTORS:
+        logger.error(
+            "EVENTS_COLLECTOR has invalid value %r; expected 'created' or 'finished'. "
+            "Falling back to 'created'.",
+            value,
+        )
+        return "created"
+    return value
+
+
 def _get_hourly_collectors():
     """
     Get hourly collectors registry with lazy imports.
 
     Lazy imports prevent metrics_utility dependency from breaking
     unrelated task registration (e.g., hello_world, cleanup_old_tasks).
+
+    The events collector function is chosen at call time based on EVENTS_COLLECTOR:
+      'created'  → main_jobevent_created_service (filters by job_created partition key)
+      'finished' → main_jobevent_service          (filters by job.finished, legacy)
     """
     from metrics_utility.anonymized_rollups import (
         CredentialsAnonymizedRollup,
@@ -34,9 +59,13 @@ def _get_hourly_collectors():
     from metrics_utility.library.collectors.controller import (
         credentials_service,
         job_host_summary_service,
+        main_jobevent_created_service,
         main_jobevent_service,
         unified_jobs_dashboard,
     )
+
+    events_mode = _get_events_collector_mode()
+    events_collector_func = main_jobevent_created_service if events_mode == "created" else main_jobevent_service
 
     # Registry mapping collector_type to (collector_func, rollup_processor_class)
     return {
@@ -61,7 +90,10 @@ def _get_hourly_collectors():
             "description": "Credentials usage metrics",
         },
         "main_jobevent_service": {
-            "collector_func": main_jobevent_service,
+            # The collector_func is resolved from EVENTS_COLLECTOR at registry-build time.
+            # The registry key stays "main_jobevent_service" for backwards-compat with task
+            # scheduling, daily_metrics_rollup, and daily_anonymize_and_prepare.
+            "collector_func": events_collector_func,
             "rollup_processor": EventModulesAnonymizedRollup,
             "description": "Job events (event modules) metrics",
         },
@@ -117,8 +149,16 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
 
     collector_kwargs: dict[str, Any] = {"since": start_datetime, "until": end_datetime}
     if collector_type == "main_jobevent_service":
-        collector_kwargs["row_limit"] = settings.JOBEVENT_ROW_LIMIT
-        collector_kwargs["job_limit"] = settings.JOBEVENT_JOB_LIMIT
+        events_mode = _get_events_collector_mode()
+        if events_mode == "finished":
+            collector_kwargs["row_limit"] = settings.JOBEVENT_ROW_LIMIT
+            collector_kwargs["job_limit"] = settings.JOBEVENT_JOB_LIMIT
+        else:
+            collector_kwargs["row_limit"] = settings.JOBEVENT_CREATED_ROW_LIMIT
+            # Shift the window back so jobs created in that hour have had time to finish.
+            diff = timedelta(hours=settings.JOBEVENT_DIFF_HOURS)
+            collector_kwargs["since"] = start_datetime - diff
+            collector_kwargs["until"] = end_datetime - diff
 
     # Use generic collector with hourly-specific time window
     return generic_collect_metrics(
