@@ -32,6 +32,45 @@ def _authenticated_client(user):
 
 
 # ---------------------------------------------------------------------------
+# DashboardReportPagination — pinned page_size (regression test for the
+# DefaultPaginator default-page-size drift: 25 expected, not ansible_base's own 50)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_dashboard_report_pagination_page_size_matches_rest_framework_setting():
+    from rest_framework.settings import api_settings
+
+    from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportPagination
+
+    paginator = DashboardReportPagination()
+    assert paginator.page_size == api_settings.PAGE_SIZE
+    assert paginator.page_size == 25
+
+
+# ---------------------------------------------------------------------------
+# OpenAPI schema — list endpoint must document page_size/count_disabled/order_by
+# the same way as /report/details/ and /report/export/ (regression test: the list
+# action's extend_schema() previously had no `parameters=`, so drf-spectacular fell
+# back to the generic auto-generated "ordering" description with no order_by mention)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_list_endpoint_schema_documents_pagination_and_order_by_alias():
+    from drf_spectacular.generators import SchemaGenerator
+
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    list_op = schema["paths"]["/api/v1/dashboard_reports/report/"]["get"]
+    params_by_name = {p["name"]: p for p in list_op["parameters"]}
+
+    assert params_by_name["page_size"]["schema"]["default"] == 25
+    assert "count_disabled" in params_by_name
+    assert "order_by" in params_by_name["ordering"]["description"]
+
+
+# ---------------------------------------------------------------------------
 # require_date_range decorator — start_date > end_date path (lines 74-83)
 # ---------------------------------------------------------------------------
 
@@ -205,13 +244,11 @@ def test_filter_raw_jobdata_queryset_skips_ordering():
     CustomReportFilter.  Verify the loop calls filter_queryset on exactly the
     non-ordering backend and returns whatever that backend produces.
     """
-    from rest_framework import filters
-
     from apps.dashboard_reports.filters import CustomReportFilter
-    from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
+    from apps.dashboard_reports.viewsets.dashboard_report import AliasedOrderingFilter, DashboardReportViewSet
 
     vs = DashboardReportViewSet()
-    vs.filter_backends = [CustomReportFilter, filters.OrderingFilter]
+    vs.filter_backends = [CustomReportFilter, AliasedOrderingFilter]
     vs.request = MagicMock()
     vs.kwargs = {}
 
