@@ -4,6 +4,7 @@
   "tekton": {
     "enabled": true,
     "automerge": true,
-    "schedule": ["0 */12 * * 1-5"]
+    // must use * for minutes, Renovate doesn't support minutes (#286)
+    "schedule": ["* */12 * * 1-5"]
   }
 }
