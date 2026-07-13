@@ -71,12 +71,14 @@ def _get_segment_client():
         return _segment_client
 
 
-def _jitter_minutes(segment_user_id: str, max_minutes: int = 240) -> int:
+def _jitter_minutes(segment_user_id: str, max_minutes: int = 1440) -> int:
     """Return a stable per-installation offset in [1, max_minutes].
 
     Derived from the installation's segment_user_id so every payload from the
-    same installation uses the same offset, spreading ~200 customers evenly
-    across a 4-hour window without storing anything extra in the DB.
+    same installation uses the same offset. Default 1440 minutes (24 hours)
+    spreads 4000+ customers to ~2-3 sends/minute — well within Segment's
+    limits and avoids thundering-herd spikes after the nightly 3 AM cron.
+    Daily metrics have no urgency so a same-day send is acceptable.
     """
     digest = hashlib.sha256(segment_user_id.encode("utf-8")).digest()
     return 1 + (int.from_bytes(digest[:4], "big") % max_minutes)
