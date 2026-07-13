@@ -71,6 +71,15 @@ def _get_segment_client():
         return _segment_client
 
 
+def _retry_backoff_minutes(retry_count: int, base_minutes: int = 8, cap_minutes: int = 480) -> int:
+    """Exponential backoff for retries: 8, 16, 32, 64, 128, 256, 480 minutes.
+
+    Mirrors the old dispatcherd backoff schedule so Segment outages are handled
+    gracefully without hammering the endpoint every 5 minutes.
+    """
+    return min(base_minutes * (2 ** (retry_count - 1)), cap_minutes)
+
+
 def _jitter_minutes(segment_user_id: str, max_minutes: int = 1440) -> int:
     """Return a stable per-installation offset in [1, max_minutes].
 
@@ -157,13 +166,29 @@ def apscheduler_poll_and_send(max_payloads: int = 5, stale_minutes: int = 10) ->
     ).order_by("created")[:max_payloads]
 
     for payload in payloads:
-        # Respect the per-installation jitter so all ~200 customers don't hit
-        # Segment simultaneously after the nightly 3 AM cron.  The offset is
-        # derived from segment_user_id (stable per installation, no extra DB field).
-        due_at = payload.created + timedelta(minutes=_jitter_minutes(payload.segment_user_id))
-        if due_at > now:
-            logger.debug("Payload %d not yet due (due at %s)", payload.id, due_at.isoformat())
-            continue
+        if payload.status in ("pending",):
+            # Respect the per-installation jitter so all customers don't hit
+            # Segment simultaneously after the nightly 3 AM cron.
+            due_at = payload.created + timedelta(minutes=_jitter_minutes(payload.segment_user_id))
+            if due_at > now:
+                logger.debug("Payload %d not yet due (due at %s)", payload.id, due_at.isoformat())
+                continue
+
+        elif payload.status == "retry":
+            # Exponential backoff: 8, 16, 32 ... 480 minutes from last failure.
+            # payload.modified is auto-updated when status is set to "retry", so
+            # it captures the most recent failure time without a separate DB field.
+            backoff = timedelta(minutes=_retry_backoff_minutes(payload.retry_count))
+            retry_due_at = payload.modified + backoff
+            if retry_due_at > now:
+                logger.debug(
+                    "Payload %d in backoff until %s (retry %d, backoff %s)",
+                    payload.id,
+                    retry_due_at.isoformat(),
+                    payload.retry_count,
+                    backoff,
+                )
+                continue
 
         if payload.status == "retry" and not payload.can_retry():
             payload.status = "failed"

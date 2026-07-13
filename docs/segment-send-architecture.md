@@ -115,6 +115,68 @@ block-beta
 
 ---
 
+## Retry and backoff
+
+Both paths retry on failure, but the backoff schedules differ.
+
+### Old path — dispatcherd backoff
+
+Dispatcherd scheduled a new Task execution with exponential delay, handled entirely by the task system.
+
+```mermaid
+sequenceDiagram
+    participant D as dispatcherd
+    participant DB as Postgres Task
+
+    D->>D: send fails
+    D->>DB: Task.status = "retry"<br/>scheduled_time = now + backoff
+    note over DB: backoff: 8→16→32→64→128→256→480 min<br/>max 7 attempts
+    DB-->>D: APScheduler fires Task at scheduled_time
+    D->>D: retry send
+```
+
+### New path — APScheduler backoff
+
+The APScheduler poller uses `payload.modified` (auto-updated on each save) as the
+failure timestamp and skips payloads that haven't waited long enough.
+
+```mermaid
+sequenceDiagram
+    participant A as APScheduler poller
+    participant DB as AnonymizedMetricsPayload
+
+    A->>A: send fails
+    A->>DB: retry_count += 1<br/>status = "retry"<br/>modified = now  (auto)
+    loop every 5 min
+        A->>DB: poll status=retry
+        A->>A: check modified + backoff(retry_count) <= now
+        alt backoff not elapsed
+            A->>A: skip — log "in backoff until …"
+        else backoff elapsed
+            A->>A: retry send
+        end
+    end
+```
+
+### Backoff schedule comparison
+
+| Attempt | Old (dispatcherd) | New (APScheduler) |
+|--------:|------------------:|------------------:|
+| 1 | 8 min | 8 min |
+| 2 | 16 min | 16 min |
+| 3 | 32 min | 32 min |
+| 4 | 64 min | 64 min |
+| 5 | 128 min | 128 min |
+| 6 | 256 min | 256 min |
+| 7 | 480 min (cap) | 480 min (cap) |
+| Max attempts | 7 (SEGMENT_MAX_ATTEMPTS) | `payload.max_retries` (model field) |
+
+The backoff formula is `min(8 × 2^(retry_count − 1), 480)` in both paths.
+`payload.modified` is `auto_now=True` so it captures the last failure time without a
+separate DB field.
+
+---
+
 ## Component ownership
 
 ```mermaid
