@@ -15,7 +15,6 @@ from typing import Any
 
 from django.utils import timezone
 
-from ..task_groups import SEGMENT_MAX_ATTEMPTS
 from ..utils import create_task_result, generate_salt, log_task_execution
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     from django.db import transaction
     from metrics_utility.anonymized_rollups import anonymize_rollups
 
-    from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary, Task
+    from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
     # Determine summary date
     summary_date_str = kwargs.get("summary_date")
@@ -95,13 +94,8 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         # Get dashboard telemetry
         anonymized_data["dashboard_telemetry"] = metrics.get("dashboard_telemetry", [])
 
-        offset_minutes = random_offset()
-        send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)
-
-        # Use atomic transaction to prevent duplicate payloads and ensure the
-        # send task is only created when the payload is successfully persisted.
+        # Use atomic transaction to prevent duplicate payloads.
         with transaction.atomic():
-            # Create AnonymizedMetricsPayload
             event_name = "Controller Metrics Daily Rollup"
             payload = AnonymizedMetricsPayload.objects.create(
                 summary_date=summary_date,
@@ -117,21 +111,11 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
             daily_summary.status = "anonymized"
             daily_summary.save()
 
-            Task.objects.create(
-                name=f"send_to_segment_{summary_date}",
-                description=f"Send anonymized metrics payload {payload.id} to Segment (scheduled with jitter)",
-                function_name="send_anonymized_to_segment",
-                task_data={"payload_id": payload.id},
-                scheduled_time=send_scheduled_time,
-                is_system_task=False,
-                max_attempts=SEGMENT_MAX_ATTEMPTS,
-            )
-
-        logger.info(
-            "Anonymization complete. Scheduling Segment upload for %s (Offset: %d minutes)",
-            send_scheduled_time.isoformat(),
-            offset_minutes,
-        )
+        # No Task record created — the APScheduler segment_payload_poll job (running
+        # every 5 minutes in the web process) picks up pending AnonymizedMetricsPayload
+        # records directly.  This lets the long-lived process hold a persistent
+        # analytics.Client so the SDK can batch all chunks into one /v1/batch POST.
+        logger.info("Anonymization complete. Payload %d is pending; APScheduler will send.", payload.id)
         log_task_execution("daily_anonymize_and_prepare", "completed", f"Created anonymized payload ID: {payload.id}")
 
         return create_task_result(
@@ -141,8 +125,6 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
                 "payload_id": payload.id,
                 "summary_date": str(summary_date),
                 "payload_size_bytes": payload.payload_size_bytes,
-                "segment_send_scheduled_time": send_scheduled_time.isoformat(),
-                "segment_send_offset_minutes": offset_minutes,
             },
         )
 

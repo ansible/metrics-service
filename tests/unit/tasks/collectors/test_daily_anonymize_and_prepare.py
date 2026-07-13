@@ -308,8 +308,15 @@ class TestDailyAnonymizeAndPrepare:
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")
-    def test_creates_send_task_on_success(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
-        """Test a one-time send_anonymized_to_segment Task is created after successful anonymization."""
+    def test_payload_left_pending_for_apscheduler(self, mock_generate_salt, mock_anonymize_rollups, daily_summary_factory):
+        """Anonymization leaves payload in pending status — no Task record created.
+
+        The APScheduler segment_payload_poll job (running every 5 minutes in the
+        web process) picks up AnonymizedMetricsPayload records with status=pending
+        directly, so daily_anonymize_and_prepare no longer creates a Task record.
+        This allows the long-lived process to hold a persistent analytics.Client
+        and batch all chunks into a single /v1/batch POST.
+        """
         summary_date = timezone.now().date() - timedelta(days=1)
         mock_generate_salt.return_value = "test-salt"
         mock_anonymize_rollups.return_value = {"statistics": {}}
@@ -320,16 +327,16 @@ class TestDailyAnonymizeAndPrepare:
             aggregated_metrics={"job_host_summary_service": {}, "unified_jobs": {}, "execution_environments": {}},
         )
 
-        now = timezone.now()
-        with patch("apps.tasks.collectors.daily_anonymize_and_prepare.timezone.now", return_value=now):
-            result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
+        result = daily_anonymize_and_prepare(summary_date=summary_date.isoformat())
 
-        from apps.tasks.models import Task
+        from apps.tasks.models import AnonymizedMetricsPayload, Task
 
         assert result["status"] == "success"
-        task = Task.objects.get(function_name="send_anonymized_to_segment")
-        assert task.task_data["payload_id"] == result["payload_id"]
-        assert now < task.scheduled_time <= now + timedelta(minutes=240)
+        # No dispatcherd Task record — APScheduler polls directly
+        assert not Task.objects.filter(function_name="send_anonymized_to_segment").exists()
+        # Payload is pending, ready for the APScheduler poller
+        payload = AnonymizedMetricsPayload.objects.get(id=result["payload_id"])
+        assert payload.status == "pending"
 
     @patch("metrics_utility.anonymized_rollups.anonymize_rollups")
     @patch("apps.tasks.collectors.daily_anonymize_and_prepare.generate_salt")

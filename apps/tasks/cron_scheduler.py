@@ -143,6 +143,22 @@ class UnifiedTaskScheduler:
                     max_instances=1,  # Prevent overlapping executions
                 )
 
+                # Poll pending AnonymizedMetricsPayload records and send to Segment
+                # directly in this (long-lived web) process.  Running here instead of
+                # dispatcherd means the module-level analytics.Client persists across
+                # payloads, letting the SDK batch multiple chunks into a single
+                # gzip-compressed /v1/batch POST rather than one POST per chunk.
+                self.scheduler.add_job(
+                    func=self._poll_segment_payloads,
+                    trigger="interval",
+                    minutes=5,
+                    id="segment_payload_poll",
+                    name="Segment Payload Sender",
+                    replace_existing=True,
+                    max_instances=1,
+                    coalesce=True,
+                )
+
                 logger.info("Task scheduler started")
                 logger.info(f"Loaded {len(self._db_task_jobs)} database tasks")
                 logger.info(f"Periodic database sync will run every {self.check_interval} seconds")
@@ -482,6 +498,20 @@ class UnifiedTaskScheduler:
 
         except Exception as e:
             logger.exception(f"Failed to execute database task {task_id}: {e}")
+
+    def _poll_segment_payloads(self):
+        """Poll pending AnonymizedMetricsPayload records and send to Segment.
+
+        Executed directly by APScheduler every 5 minutes so the persistent
+        analytics.Client in send_anonymized_to_segment can batch all chunks
+        from a payload into one gzip-compressed /v1/batch POST.
+        """
+        try:
+            from .collectors.send_anonymized_to_segment import apscheduler_poll_and_send
+
+            apscheduler_poll_and_send()
+        except Exception:
+            logger.exception("Error in Segment payload poll")
 
     def _remove_database_task(self, task_id: int):
         """Remove a database task from the scheduler."""

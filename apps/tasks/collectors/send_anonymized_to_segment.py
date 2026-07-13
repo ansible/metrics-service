@@ -1,12 +1,24 @@
 """
 Send anonymized payload to Segment.
 
-This task fetches pending anonymized payloads from the database and sends them
-to Segment.com, handling retries and stale payload recovery.
+Two execution paths exist:
+
+1. APScheduler-native (preferred): ``apscheduler_poll_and_send()`` is called
+   directly by UnifiedTaskScheduler on a 5-minute interval.  It holds a
+   module-level ``analytics.Client`` (``sync_mode=False``, ``gzip=True``) so the
+   SDK's background thread can batch multiple chunks from the same payload into a
+   single compressed ``/v1/batch`` POST.  No dispatcherd involvement.
+
+2. Dispatcherd fallback: ``send_anonymized_to_segment()`` remains in
+   ``TASK_FUNCTIONS`` so operators can trigger a one-off send via the task API.
+   It uses the same persistent client when available.
 """
 
+import hashlib
 import logging
-from datetime import timedelta
+import threading
+import uuid as uuid_module
+from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Any
 
 from django.conf import settings
@@ -19,6 +31,153 @@ from ..utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Persistent Segment client — owned by the web/APScheduler process.
+# sync_mode=False lets the SDK batch chunks across track() calls into a single
+# gzip-compressed /v1/batch POST.  Each payload's chunks are flushed together
+# so they land as one batch request, giving much better compression than
+# sync_mode=True (which sends each chunk as its own individual POST).
+# ---------------------------------------------------------------------------
+
+_segment_client: "Any | None" = None
+_segment_client_lock = threading.Lock()
+
+
+def _get_segment_client():
+    """Return the process-level analytics.Client, creating it on first call."""
+    global _segment_client
+    if _segment_client is not None:
+        return _segment_client
+    with _segment_client_lock:
+        if _segment_client is not None:
+            return _segment_client
+        try:
+            import segment.analytics as analytics
+        except ImportError:
+            logger.warning("segment-analytics-python not installed; Segment sending disabled")
+            return None
+        write_key = getattr(settings, "SEGMENT_WRITE_KEY", None)
+        if not write_key:
+            logger.warning("SEGMENT_WRITE_KEY not configured; Segment sending disabled")
+            return None
+        _segment_client = analytics.Client(
+            write_key=write_key,
+            gzip=True,
+            debug=getattr(settings, "DEBUG", False),
+            on_error=lambda err, batch: logger.error("Segment client error: %s", err),
+        )
+        logger.info("Persistent Segment client initialised (gzip=True, sync_mode=False)")
+        return _segment_client
+
+
+def _chunk_and_track(payload, client) -> int:
+    """Chunk a payload and queue track() calls on *client*.
+
+    Uses StorageSegment's chunking algorithm but drives the provided client
+    directly, bypassing StorageSegment's own client management so the
+    persistent process-level client is used instead.
+
+    Returns the number of chunks queued.
+    """
+    from metrics_utility.library.storage.segment import StorageSegment
+
+    chunks = StorageSegment()._split_into_chunks(payload.anonymized_data, StorageSegment.REGULAR_MESSAGE_LIMIT)
+
+    anonymous_id = str(uuid_module.uuid4())
+    base_message_id = str(payload.created)
+    total_chunks = len(chunks)
+
+    event_name = payload.segment_event_name
+    if getattr(settings, "SEGMENT_TEST_MODE", False):
+        event_name = f"{event_name}_Test"
+
+    for i, chunk in enumerate(chunks, 1):
+        chunk_message_id = hashlib.sha256(
+            f"{base_message_id}_{i}".encode("utf-8", errors="replace")
+        ).hexdigest()
+        client.track(
+            anonymous_id=anonymous_id,
+            event=event_name,
+            properties={
+                "artifact_name": f"metrics_collection_{payload.segment_user_id}",
+                "data": chunk,
+                "upload_timestamp": datetime.now(tz=dt_timezone.utc).isoformat(),
+                "chunk_info": {"chunk_number": i, "total_chunks": total_chunks},
+            },
+            message_id=chunk_message_id,
+            timestamp=payload.created,
+        )
+
+    return total_chunks
+
+
+def apscheduler_poll_and_send(max_payloads: int = 5, stale_minutes: int = 10) -> None:
+    """Poll for pending payloads and send to Segment — called directly by APScheduler.
+
+    Runs in the web container's APScheduler thread pool.  Uses the persistent
+    module-level client so chunks for each payload are batched together in a
+    single gzip-compressed /v1/batch POST.
+
+    The ANONYMIZED_DATA_COLLECTION feature flag is re-checked on every poll so
+    disabling it takes effect within one interval without a restart.
+    """
+    from django.db import close_old_connections
+
+    close_old_connections()
+
+    from apps.tasks.task_groups import get_feature_enabled_from_db
+
+    if not get_feature_enabled_from_db("ANONYMIZED_DATA_COLLECTION"):
+        return
+
+    client = _get_segment_client()
+    if client is None:
+        return
+
+    from apps.tasks.models import AnonymizedMetricsPayload
+
+    stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
+    payloads = AnonymizedMetricsPayload.objects.filter(
+        Q(status__in=["pending", "retry"]) | Q(status="sending", modified__lt=stale_threshold)
+    ).order_by("created")[:max_payloads]
+
+    for payload in payloads:
+        if payload.status == "retry" and not payload.can_retry():
+            payload.status = "failed"
+            payload.error_message = "Max retries exceeded"
+            payload.save()
+            continue
+
+        payload.status = "sending"
+        payload.save()
+
+        try:
+            n_chunks = _chunk_and_track(payload, client)
+            # flush() blocks until all queued chunks for this payload are delivered,
+            # so status is only set to "sent" after confirmed receipt.
+            client.flush()
+
+            payload.status = "sent"
+            payload.sent_at = timezone.now()
+            payload.error_message = ""
+            payload.save()
+
+            try:
+                if payload.daily_summary:
+                    payload.daily_summary.status = "sent"
+                    payload.daily_summary.save()
+            except Exception as summary_err:
+                logger.warning("Failed to update daily_summary for payload %d: %s", payload.id, summary_err)
+
+            logger.info("Sent payload %d to Segment via APScheduler (%d chunks)", payload.id, n_chunks)
+
+        except Exception:
+            logger.exception("Error sending payload %d to Segment", payload.id)
+            payload.retry_count += 1
+            payload.status = "retry" if payload.retry_count < payload.max_retries else "failed"
+            payload.error_message = "APScheduler send failed — see logs"
+            payload.save()
 
 
 def _get_payloads_to_send(payload_id: int | None, max_payloads: int, stale_threshold) -> list:
