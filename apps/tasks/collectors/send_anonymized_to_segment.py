@@ -71,6 +71,17 @@ def _get_segment_client():
         return _segment_client
 
 
+def _jitter_minutes(segment_user_id: str, max_minutes: int = 240) -> int:
+    """Return a stable per-installation offset in [1, max_minutes].
+
+    Derived from the installation's segment_user_id so every payload from the
+    same installation uses the same offset, spreading ~200 customers evenly
+    across a 4-hour window without storing anything extra in the DB.
+    """
+    digest = hashlib.sha256(segment_user_id.encode("utf-8")).digest()
+    return 1 + (int.from_bytes(digest[:4], "big") % max_minutes)
+
+
 def _chunk_and_track(payload, client) -> int:
     """Chunk a payload and queue track() calls on *client*.
 
@@ -137,12 +148,21 @@ def apscheduler_poll_and_send(max_payloads: int = 5, stale_minutes: int = 10) ->
 
     from apps.tasks.models import AnonymizedMetricsPayload
 
-    stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
+    now = timezone.now()
+    stale_threshold = now - timedelta(minutes=stale_minutes)
     payloads = AnonymizedMetricsPayload.objects.filter(
         Q(status__in=["pending", "retry"]) | Q(status="sending", modified__lt=stale_threshold)
     ).order_by("created")[:max_payloads]
 
     for payload in payloads:
+        # Respect the per-installation jitter so all ~200 customers don't hit
+        # Segment simultaneously after the nightly 3 AM cron.  The offset is
+        # derived from segment_user_id (stable per installation, no extra DB field).
+        due_at = payload.created + timedelta(minutes=_jitter_minutes(payload.segment_user_id))
+        if due_at > now:
+            logger.debug("Payload %d not yet due (due at %s)", payload.id, due_at.isoformat())
+            continue
+
         if payload.status == "retry" and not payload.can_retry():
             payload.status = "failed"
             payload.error_message = "Max retries exceeded"
