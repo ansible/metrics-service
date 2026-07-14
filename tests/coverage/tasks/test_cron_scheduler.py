@@ -344,6 +344,85 @@ def test_execute_database_task_cancelled_task_removed(user, mock_apscheduler):
 
 
 # ---------------------------------------------------------------------------
+# _execute_database_task — submit errors
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_execute_database_task_recurring_submit_error_logs_warning(user, mock_apscheduler, mock_dispatcherd_config):
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    task = Task.objects.create(
+        name="template",
+        function_name="hello_world",
+        cron_expression="0 * * * *",
+        task_data={},
+        created_by=user,
+        is_system_task=True,
+    )
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler.scheduler = mock_apscheduler
+
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.tasks_system.submit_task_to_dispatcher", side_effect=RuntimeError("broker down")),
+    ):
+        scheduler._execute_database_task(task.id)
+
+    # Child task was still created despite submit failure
+    assert Task.objects.exclude(id=task.id).filter(function_name="hello_world").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_execute_database_task_nonrecurring_submit_error_removes_tracking(
+    user, mock_apscheduler, mock_dispatcherd_config
+):
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    task = Task.objects.create(
+        name="one_shot", function_name="hello_world", task_data={}, created_by=user, status="pending"
+    )
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler.scheduler = mock_apscheduler
+    scheduler._db_task_jobs[task.id] = "job_id"
+
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.tasks_system.submit_task_to_dispatcher", side_effect=RuntimeError("broker down")),
+    ):
+        scheduler._execute_database_task(task.id)
+
+    # Task removed from tracking even on submit failure (finally block)
+    assert task.id not in scheduler._db_task_jobs
+
+
+# ---------------------------------------------------------------------------
+# _periodic_database_sync — retry error handling
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_periodic_sync_continues_when_retry_failed_tasks_raises(user, mock_apscheduler):
+    import apps.tasks.cron_scheduler as cs
+    from apps.tasks.models import Task
+
+    scheduler = cs.UnifiedTaskScheduler()
+    scheduler.scheduler = mock_apscheduler
+
+    with (
+        patch("apps.tasks.cron_scheduler.close_old_connections"),
+        patch("apps.tasks.utils.awx_db_ready", return_value=True),
+        patch.object(scheduler, "_retry_failed_tasks", side_effect=RuntimeError("db error")),
+        patch("apps.tasks.models.Task.immediate_tasks", return_value=Task.objects.none()),
+        patch("apps.tasks.models.Task.scheduled_tasks", return_value=Task.objects.none()),
+        patch("apps.tasks.models.Task.recurring_tasks", return_value=Task.objects.none()),
+    ):
+        scheduler._periodic_database_sync()
+
+
+# ---------------------------------------------------------------------------
 # _periodic_database_sync — stuck tasks
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
@@ -353,7 +432,13 @@ def test_periodic_sync_fails_stuck_tasks(user, mock_apscheduler):
     from apps.tasks.models import Task, TaskExecution
 
     task = Task.objects.create(
-        name="stuck", function_name="hello_world", task_data={}, created_by=user, status="running"
+        name="stuck",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="running",
+        max_attempts=1,
+        attempts=1,
     )
     # Backdate started_at to trigger stuck detection
     started = timezone.now() - timedelta(seconds=cs.STUCK_TASK_TIMEOUT_SECONDS + 60)

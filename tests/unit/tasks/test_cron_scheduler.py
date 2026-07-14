@@ -637,7 +637,7 @@ class TestStuckTaskDetection:
             scheduler._periodic_database_sync()
 
     def test_fails_task_stuck_beyond_timeout(self, user):
-        """Task running longer than TASK_TIMEOUT is marked failed."""
+        """Task running longer than TASK_TIMEOUT is marked failed (non-retryable)."""
         from apps.tasks.models import Task
 
         task = Task.objects.create(
@@ -646,8 +646,9 @@ class TestStuckTaskDetection:
             task_data={},
             created_by=user,
             status="running",
+            max_attempts=1,
         )
-        Task.objects.filter(id=task.id).update(started_at=timezone.now() - timedelta(hours=2))
+        Task.objects.filter(id=task.id).update(started_at=timezone.now() - timedelta(hours=2), attempts=1)
 
         self._run_sync(UnifiedTaskScheduler())
 
@@ -706,3 +707,104 @@ class TestStuckTaskDetection:
         execution.refresh_from_db()
         assert execution.status == "failed"
         assert execution.completed_at is not None
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestRetryFailedTasks:
+    """Test _retry_failed_tasks picks up failed retryable tasks."""
+
+    def _run_sync(self, scheduler):
+        """Run _periodic_database_sync with scheduling methods and connection teardown stubbed out."""
+        from apps.tasks.models import Task
+
+        with (
+            patch("apps.tasks.cron_scheduler.close_old_connections"),
+            patch("apps.tasks.utils.awx_db_ready", return_value=True),
+            patch.object(Task, "immediate_tasks", return_value=[]),
+            patch.object(Task, "scheduled_tasks", return_value=[]),
+            patch.object(Task, "recurring_tasks", return_value=[]),
+        ):
+            scheduler._periodic_database_sync()
+
+    def test_retries_failed_task_with_remaining_attempts(self, user):
+        """A failed task with attempts < max_attempts is retried."""
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name="Retryable Task",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="failed",
+            max_attempts=3,
+        )
+        Task.objects.filter(id=task.id).update(attempts=1)
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        task.refresh_from_db()
+        assert task.status == "pending"
+        assert task.scheduled_time is not None
+
+    def test_skips_failed_task_at_max_attempts(self, user):
+        """A failed task with attempts >= max_attempts is not retried."""
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name="Exhausted Task",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="failed",
+            max_attempts=3,
+        )
+        Task.objects.filter(id=task.id).update(attempts=3)
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        task.refresh_from_db()
+        assert task.status == "failed"
+
+    def test_skips_recurring_template_tasks(self, user):
+        """Recurring (cron) template tasks are never retried by the periodic check."""
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name="Recurring Template",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="failed",
+            max_attempts=3,
+            cron_expression="0 * * * *",
+        )
+        Task.objects.filter(id=task.id).update(attempts=1)
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        task.refresh_from_db()
+        assert task.status == "failed"
+
+    def test_stuck_task_then_retried_in_same_sync(self, user):
+        """A stuck task force-failed by _fail_stuck_tasks is retried in the same sync tick."""
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name="Stuck Then Retry",
+            function_name="hello_world",
+            task_data={},
+            created_by=user,
+            status="running",
+            max_attempts=3,
+        )
+        Task.objects.filter(id=task.id).update(
+            attempts=1,
+            started_at=timezone.now() - timedelta(hours=2),
+        )
+
+        self._run_sync(UnifiedTaskScheduler())
+
+        task.refresh_from_db()
+        assert task.status == "pending"
+        assert task.scheduled_time is not None

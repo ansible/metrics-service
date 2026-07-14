@@ -170,9 +170,9 @@ class TestExecuteDbTask(TestCase):
         assert execution.status == "failed"
         assert "Boom" in execution.error_message
 
-        # The Task should be auto-retried (back to pending) since max_attempts=3
+        # Task stays failed — the periodic scheduler handles retries
         self.task.refresh_from_db()
-        assert self.task.status == "pending"
+        assert self.task.status == "failed"
 
     @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_with_advisory_lock(self):
@@ -189,8 +189,8 @@ class TestExecuteDbTask(TestCase):
         assert mock_lock.call_args[0][0] == "daily_metrics_rollup"
 
     @pytest.mark.django_db(transaction=True)
-    def test_execute_db_task_contended_lock_triggers_retry(self):
-        """Test that a task which cannot acquire its advisory lock fails and is retried."""
+    def test_execute_db_task_contended_lock_marks_failed(self):
+        """Test that a task which cannot acquire its advisory lock is marked failed."""
         self.task.function_name = "daily_metrics_rollup"
         self.task.max_attempts = 3
         self.task.save()
@@ -203,20 +203,15 @@ class TestExecuteDbTask(TestCase):
         assert "lock" in result["error"].lower()
 
         self.task.refresh_from_db()
-        # Task should have been auto-retried (back to pending)
-        assert self.task.status == "pending"
+        assert self.task.status == "failed"
 
     @pytest.mark.django_db(transaction=True)
-    def test_execute_db_task_auto_retry_with_delay(self):
-        """Test auto-retry sets delay from task_data retry_delay_seconds."""
-        from django.utils import timezone
-
+    def test_execute_db_task_failure_marks_failed_for_scheduler_retry(self):
+        """Failed task is marked failed; the periodic scheduler handles retry."""
         self.task.function_name = "hello_world"
         self.task.max_attempts = 3
         self.task.task_data = {"retry_delay_seconds": 120}
         self.task.save()
-
-        before = timezone.now()
 
         with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
             mock_fns.__contains__.return_value = True
@@ -225,46 +220,8 @@ class TestExecuteDbTask(TestCase):
 
         assert result["status"] == "error"
         self.task.refresh_from_db()
-        # Task should have been retried with delay
-        assert self.task.status == "pending"
-        assert self.task.scheduled_time is not None
-        # scheduled_time should be ~120s after the retry call
-        delta = (self.task.scheduled_time - before).total_seconds()
-        assert 118 <= delta <= 125, f"Expected scheduled_time ~120s in the future, got {delta:.1f}s"
-
-    @pytest.mark.django_db(transaction=True)
-    def test_execute_db_task_invalid_retry_delay_falls_back_to_default(self):
-        """Invalid retry_delay_seconds values fall back to RETRY_BASE_DELAY_SECONDS."""
-        from django.utils import timezone
-
-        from apps.tasks.tasks_system import RETRY_BASE_DELAY_SECONDS
-
-        for bad_value in ("banana", -1, 0, None):
-            task = Task(
-                function_name="hello_world",
-                name=f"invalid_delay_test_{bad_value}",
-                max_attempts=3,
-                attempts=0,
-                status="pending",
-                task_data={"retry_delay_seconds": bad_value},
-            )
-            task.save()
-
-            before = timezone.now()
-
-            with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
-                mock_fns.__contains__.return_value = True
-                mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
-                execute_db_task(task_id=task.id)
-
-            task.refresh_from_db()
-            assert task.status == "pending", f"Expected pending for bad_value={bad_value!r}"
-            assert task.scheduled_time is not None
-            delta = (task.scheduled_time - before).total_seconds()
-            # First attempt with default base: RETRY_BASE_DELAY_SECONDS * 2^0 = RETRY_BASE_DELAY_SECONDS
-            assert delta >= RETRY_BASE_DELAY_SECONDS - 2, (
-                f"Expected fallback delay ~{RETRY_BASE_DELAY_SECONDS}s for bad_value={bad_value!r}, got {delta:.1f}s"
-            )
+        assert self.task.status == "failed"
+        assert self.task.attempts < self.task.max_attempts
 
 
 # =============================================================================
@@ -473,16 +430,16 @@ class TestTaskDispatcher(TestCase):
         self.task.save()
 
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
-    def test_submit_task_to_dispatcher_handles_exception(self, mock_ensure_config):
-        """Test submit_task_to_dispatcher handles exceptions gracefully."""
+    def test_submit_task_to_dispatcher_raises_on_failure(self, mock_ensure_config):
+        """Test submit_task_to_dispatcher propagates exceptions to caller."""
         mock_ensure_config.side_effect = Exception("Connection error")
 
-        submit_task_to_dispatcher(self.task)
+        with pytest.raises(Exception, match="Connection error"):
+            submit_task_to_dispatcher(self.task)
 
-        # Task should be marked as failed
+        # Task status unchanged — caller decides error policy
         self.task.refresh_from_db()
-        assert self.task.status == "failed"
-        assert "Failed to submit to dispatcher" in self.task.error_message
+        assert self.task.status == "pending"
 
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
@@ -551,16 +508,13 @@ class TestTaskRetryBehavior(TestCase):
             username="testuser", email="test@example.com", password=get_test_password()
         )
 
-    # Tests from test_task_retry_bug.py
-    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
-    def test_retry_with_existing_executions_should_submit_task(self, mock_submit):
+    def test_retry_with_existing_executions_sets_pending(self):
         """
-        Test that retry() actually submits the task even when TaskExecution records exist.
+        Test that retry() resets status even when TaskExecution records exist.
 
         IMPORTANT: The attempts counter should NOT be reset to 0 on retry.
         This ensures max_attempts is properly enforced across all retries.
         """
-        # Create a failed task with execution history
         task = Task(
             name="Failed Task",
             function_name="hello_world",
@@ -571,29 +525,17 @@ class TestTaskRetryBehavior(TestCase):
         )
         task.save()
 
-        # Create a TaskExecution record to simulate previous failed attempt
         TaskExecution.objects.create(task=task, status="failed", error_message="Something went wrong")
 
-        # Call retry() - this should submit the task despite existing executions
         result = task.retry()
 
-        # Verify retry returned success
         assert result is True
 
-        # Verify task status was updated to pending
         task.refresh_from_db()
         assert task.status == "pending"
-
-        # CRITICAL: Verify attempts was NOT reset to 0
-        # This is essential for max_attempts enforcement
         assert task.attempts == 1
 
-        # CRITICAL: Verify task was actually submitted to dispatcher
-        # This is the bug fix - tasks with existing executions should still be submitted
-        mock_submit.assert_called_once()
-
-    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
-    def test_retry_updates_error_message(self, mock_submit):
+    def test_retry_updates_error_message(self):
         """Test that retry() clears the error message."""
         task = Task(
             name="Failed Task",
@@ -611,9 +553,7 @@ class TestTaskRetryBehavior(TestCase):
         task.refresh_from_db()
         assert task.error_message == ""
 
-    # Tests from test_retry_max_attempts_bypass.py
-    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
-    def test_retry_does_not_bypass_max_attempts(self, mock_submit):
+    def test_retry_does_not_bypass_max_attempts(self):
         """
         Test that repeated retry() calls respect max_attempts limit.
 
@@ -671,8 +611,7 @@ class TestTaskRetryBehavior(TestCase):
         assert task.status == "failed"
         assert task.attempts == 3
 
-    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
-    def test_retry_tracks_total_attempts_not_per_retry_attempts(self, mock_submit):
+    def test_retry_tracks_total_attempts_not_per_retry_attempts(self):
         """
         Test that attempts counter tracks total execution attempts, not per-retry attempts.
 
@@ -754,7 +693,8 @@ class TestTaskRetryBehavior(TestCase):
         Test that handle_task_error does NOT double-increment attempts for a task
         that already reached "running" status (late failure scenario).
         """
-        from apps.tasks.utils import handle_task_error, update_task_status
+        from apps.tasks.tasks_system import _claim_task
+        from apps.tasks.utils import handle_task_error
 
         # Create a task in pending status
         task = Task(
@@ -767,12 +707,9 @@ class TestTaskRetryBehavior(TestCase):
         )
         task.save()
 
-        execution = TaskExecution.objects.create(task=task, status="pending", worker_id="test-worker")
-
-        # First, transition to "running" status (this should increment attempts to 1)
-        update_task_status(task, execution, status="running")
-        task.refresh_from_db()
-        assert task.attempts == 1, "Attempts should be 1 after transitioning to running"
+        # Transition to running via _claim_task (the real path, increments attempts atomically)
+        task, execution = _claim_task(task.id)
+        assert task.attempts == 1, "Attempts should be 1 after _claim_task"
         assert task.status == "running"
 
         # Now simulate an error that occurs during task execution
@@ -956,9 +893,8 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
     @patch("dispatcherd.publish.submit_task")
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
     @patch("apps.tasks.tasks.get_queue_for_function")
-    def test_submit_task_handles_submission_error(self, mock_get_queue, mock_ensure_config, mock_submit):
-        """Test submit_task_to_dispatcher handles submission errors."""
-        # Arrange
+    def test_submit_task_raises_on_submission_error(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """Test submit_task_to_dispatcher propagates submission errors."""
         task = Task.objects.create(
             name="Test Task",
             function_name="hello_world",
@@ -967,14 +903,12 @@ class TestSubmitTaskToDispatcherSuccess(TestCase):
         mock_get_queue.return_value = "maintenance"
         mock_submit.side_effect = Exception("Submission failed")
 
-        # Act
-        submit_task_to_dispatcher(task)
+        with pytest.raises(Exception, match="Submission failed"):
+            submit_task_to_dispatcher(task)
 
-        # Assert
+        # Task status unchanged
         task.refresh_from_db()
-        assert task.status == "failed"
-        assert "Failed to submit to dispatcher" in task.error_message
-        assert "Submission failed" in task.error_message
+        assert task.status == "pending"
 
 
 @pytest.mark.unit
@@ -1105,70 +1039,37 @@ class TestRetryBackoffProgression(TestCase):
 
     @pytest.mark.django_db(transaction=True)
     def test_second_retry_scheduled_further_than_first(self):
-        """
-        Run a task twice, both times returning an error result.
-
-        The second retry's scheduled_time should be strictly further in the
-        future than the first retry's scheduled_time, demonstrating that
-        exponential backoff is applied based on the current attempt count.
-
-        Note: the second execution calls execute_claimed directly rather than
-        execute_db_task to avoid _claim_task incrementing attempts a second
-        time. The test manually sets attempts=2 to simulate the state that
-        _claim_task would produce, keeping the test focused on the backoff
-        formula rather than the claim mechanism.
-        """
+        """Backoff increases with attempt count when the periodic scheduler retries."""
         from django.utils import timezone
+
+        from apps.tasks.tasks_system import _schedule_retry
 
         task = Task(
             name="Backoff Test Task",
             function_name="hello_world",
-            status="pending",
-            attempts=0,
+            status="failed",
+            attempts=1,
             max_attempts=7,
             task_data={},
         )
         task.save()
 
         before_first = timezone.now()
-
-        with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
-            mock_fns.__contains__.return_value = True
-            mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
-            execute_db_task(task_id=task.id)
-
+        _schedule_retry(task)
         task.refresh_from_db()
         assert task.status == "pending"
-        assert task.scheduled_time is not None
         first_scheduled_time = task.scheduled_time
 
-        # Simulate the scheduler picking the task back up (reset to pending/running manually)
+        # Simulate second failure at higher attempt count
         task.status = "failed"
-        task.save()
-
-        # Manually bump attempts as _claim_task would on a second execution
         task.attempts = 2
-        task.status = "pending"
         task.scheduled_time = None
         task.save()
 
         before_second = timezone.now()
-
-        with patch("apps.tasks.tasks.TASK_FUNCTIONS") as mock_fns:
-            mock_fns.__contains__.return_value = True
-            mock_fns.__getitem__.return_value = Mock(return_value={"status": "error", "error": "fail"})
-            # Execute directly via execute_claimed to skip _claim_task incrementing attempts
-            from apps.tasks.models import TaskExecution
-            from apps.tasks.tasks_system import execute_claimed
-
-            execution = TaskExecution.objects.create(task=task, status="running")
-            task.status = "running"
-            task.save()
-            execute_claimed(task, execution)
-
+        _schedule_retry(task)
         task.refresh_from_db()
         assert task.status == "pending"
-        assert task.scheduled_time is not None
 
         first_delay = (first_scheduled_time - before_first).total_seconds()
         second_delay = (task.scheduled_time - before_second).total_seconds()

@@ -222,19 +222,12 @@ class TaskViewSet(BaseViewSet):
         """
         task = self.get_object()
 
-        if not task.can_retry():
+        if not task.retry():
             error_response = build_error_response(
                 f"Cannot retry task: status={task.status}, attempts={task.attempts}/{task.max_attempts}",
                 status_code=400,
             )
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
-
-        # Reset task status for retry (same logic as manage_tasks.py)
-        task.status = "pending"
-        task.error_message = ""
-        task.started_at = None
-        task.completed_at = None
-        task.save(update_fields=["status", "error_message", "started_at", "completed_at", "modified"])
 
         return Response({"message": f"Task '{task.name}' queued for retry"})
 

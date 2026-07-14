@@ -126,8 +126,7 @@ def test_task_retry_resets_to_pending(user):
         attempts=1,
         max_attempts=3,
     )
-    with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
-        result = task.retry()
+    result = task.retry()
 
     assert result is True
     task.refresh_from_db()
@@ -150,8 +149,7 @@ def test_task_retry_with_delay_sets_scheduled_time(user):
         attempts=1,
         max_attempts=3,
     )
-    with patch("apps.tasks.tasks_system.submit_task_to_dispatcher"):
-        task.retry(delay_seconds=300)
+    task.retry(delay_seconds=300)
 
     task.refresh_from_db()
     assert task.scheduled_time is not None

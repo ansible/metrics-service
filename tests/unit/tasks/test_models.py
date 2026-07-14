@@ -82,8 +82,7 @@ class TestTaskModel:
 
         assert task.can_retry() is False
 
-    @patch("apps.tasks.tasks_system.submit_task_to_dispatcher")
-    def test_retry_with_delay_sets_scheduled_time(self, mock_submit):
+    def test_retry_with_delay_sets_scheduled_time(self):
         """Test retry(delay_seconds=...) sets scheduled_time in the future."""
         task = Task.objects.create(
             name="Delayed Retry Task",

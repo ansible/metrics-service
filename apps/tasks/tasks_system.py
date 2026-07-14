@@ -117,8 +117,10 @@ def _schedule_retry(task) -> None:
         return
     base_delay = _get_base_delay(task)
     retry_delay = compute_retry_delay(base_delay, task.attempts)
-    logger.info(f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}) (delay {retry_delay}s)")
-    task.retry(delay_seconds=retry_delay)
+    if task.retry(delay_seconds=retry_delay):
+        logger.info(
+            f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}) (delay {retry_delay}s)"
+        )
 
 
 def execute_claimed(task, execution):
@@ -153,9 +155,6 @@ def execute_claimed(task, execution):
         error_msg = f"{task.function_name} task failed: {error_message}"
         log_task_execution(task.function_name, "error", error_msg, level="error")
     log_task_execution(task.name, "completed", f"Task execution finished with status: {status}")
-
-    if status == "failed":
-        _schedule_retry(task)
 
     return result
 
@@ -209,45 +208,32 @@ def submit_task_to_dispatcher(task: Any) -> None:
     """
     Submit a task to the dispatcher for execution.
 
+    Raises on failure so callers can decide error policy.
+    The task's status is never modified here.
+
     Args:
         task: The task to submit
     """
     from .models import TaskExecution
 
-    try:
-        # Guard against duplicate submissions
-        if TaskExecution.objects.filter(task=task, status__in=["pending", "running"]).exists():
-            logger.warning(f"Task {task.name} (ID: {task.id}) already has a pending or running execution, skipping")
-            return
+    # Guard against duplicate submissions
+    if TaskExecution.objects.filter(task=task, status__in=["pending", "running"]).exists():
+        logger.warning(f"Task {task.name} (ID: {task.id}) already has a pending or running execution, skipping")
+        return
 
-        # Ensure dispatcherd is configured before attempting to submit tasks
-        from .dispatcherd_config import ensure_dispatcherd_configured
+    from .dispatcherd_config import ensure_dispatcherd_configured
 
-        ensure_dispatcherd_configured()
+    ensure_dispatcherd_configured()
 
-        # Import dispatcherd submit function
-        from dispatcherd.publish import submit_task
+    from dispatcherd.publish import submit_task
 
-        # Determine the appropriate queue based on task type
-        from .tasks import get_queue_for_function
+    from .tasks import get_queue_for_function
 
-        queue = get_queue_for_function(task.function_name)
+    queue = get_queue_for_function(task.function_name)
 
-        # Submit to dispatcherd using execute_db_task as the entry point
-        # TaskExecution is created inside _claim_task to avoid orphaned records
-        submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
+    submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
 
-        logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
-
-    except Exception as e:
-        task.status = "failed"
-        task.error_message = f"Failed to submit to dispatcher: {str(e)}"
-        task.save(update_fields=["status", "error_message", "modified"])
-        # status must be "failed" before can_retry() is called; log WARNING while retries remain, ERROR on final failure.
-        if task.can_retry():
-            logger.warning(f"Error submitting task to dispatcher: {str(e)}")
-        else:
-            logger.exception(f"Error submitting task to dispatcher: {str(e)}")
+    logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 
 
 # runs during `manage.py metrics_service init-system-tasks`

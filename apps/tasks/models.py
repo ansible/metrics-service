@@ -142,7 +142,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         """
         return self.attempts < self.max_attempts and self.status == "failed"
 
-    def retry(self, delay_seconds: int = 0) -> bool:
+    def retry(self, delay_seconds: int = 0, force: bool = False) -> bool:
         """
         Retry a failed task by resetting its status to pending.
 
@@ -154,11 +154,14 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
             delay_seconds: Optional delay before the task becomes eligible for execution.
                 When set, scheduled_time is set to now + delay so the periodic sync
                 won't pick it up until the delay has elapsed.
+            force: Bypass the can_retry() check (still requires status == "failed").
 
         Returns:
             bool: True if task was successfully reset for retry, False otherwise
         """
-        if not self.can_retry():
+        if not force and not self.can_retry():
+            return False
+        if force and self.status != "failed":
             return False
 
         self.status = "pending"
@@ -174,20 +177,6 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
             self.scheduled_time = None
 
         self.save(update_fields=["status", "error_message", "started_at", "completed_at", "scheduled_time", "modified"])
-
-        # Submit the task for immediate execution if it has no scheduled time
-        # and is not recurring (otherwise it will be picked up by the scheduler)
-        if not self.scheduled_time and not self.cron_expression:
-            try:
-                from .tasks_system import submit_task_to_dispatcher
-
-                submit_task_to_dispatcher(self)
-            except Exception as e:
-                # If submission fails, update the task status
-                logger.exception(f"Failed to submit retried task {self.id} to dispatcher: {str(e)}")
-                self.status = "failed"
-                self.error_message = f"Failed to submit to dispatcher: {str(e)}"
-                self.save(update_fields=["status", "error_message", "modified"])
 
         return True
 

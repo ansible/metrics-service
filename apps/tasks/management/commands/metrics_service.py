@@ -170,6 +170,7 @@ class Command(BaseCommand):
         # Retry task
         retry_parser = task_subparsers.add_parser("retry", help="Retry a failed task")
         retry_parser.add_argument("task_id", type=int, help="Task ID")
+        retry_parser.add_argument("--force", action="store_true", help="Bypass max_attempts check")
 
     def handle(self, *args, **options):
         """
@@ -471,17 +472,22 @@ class Command(BaseCommand):
     def _handle_task_retry(self, options: dict[str, Any]) -> None:
         """Handle task retry."""
         task_id = options["task_id"]
+        force = options.get("force", False)
         try:
             task = Task.objects.get(id=task_id)
         except Task.DoesNotExist as e:
             raise CommandError(f"Task with ID {task_id} not found") from e
 
-        if task.status == "failed":
-            task.status = "pending"
-            task.save(update_fields=["status", "modified"])
-            self.output.success(f"✅ Retrying task: {task.name}")
-        else:
-            self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be retried")
+        if not task.retry(force=force):
+            if task.status != "failed":
+                self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be retried")
+            else:
+                self.output.warning(
+                    f"⚠️ Task {task.name} has exhausted attempts ({task.attempts}/{task.max_attempts}), use --force to override"
+                )
+            return
+
+        self.output.success(f"✅ Retrying task: {task.name}")
 
     def _start_services(self, config: dict[str, Any]) -> None:
         """

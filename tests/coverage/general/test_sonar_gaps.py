@@ -345,31 +345,6 @@ def test_dab_fallback_classes_available():
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_task_retry_submit_failure(user):
-    """When submit_task_to_dispatcher raises during retry, task is marked failed."""
-    from apps.tasks.models import Task
-
-    task = Task.objects.create(
-        name="retry_fail",
-        function_name="hello_world",
-        task_data={},
-        created_by=user,
-        status="failed",
-        attempts=1,
-        max_attempts=3,
-    )
-
-    with patch("apps.tasks.tasks_system.submit_task_to_dispatcher", side_effect=RuntimeError("broker down")):
-        result = task.retry()
-
-    assert result is True
-    task.refresh_from_db()
-    assert task.status == "failed"
-    assert "broker down" in task.error_message
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
 def test_task_get_next_run_time_invalid_expression(user):
     """get_next_run_time returns 'Invalid cron_expression' for bad cron."""
     from apps.tasks.models import Task

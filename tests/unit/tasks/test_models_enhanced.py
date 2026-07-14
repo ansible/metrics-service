@@ -30,8 +30,7 @@ class TestTaskRetry:
     """Test Task.retry() method including error handling."""
 
     def test_retry_success_immediate_task(self, user):
-        """Test retry submits immediate task to dispatcher (lines 158-178)."""
-        # Arrange
+        """Test retry sets task to pending and clears error state."""
         task = Task.objects.create(
             name="Failed Task",
             function_name="hello_world",
@@ -42,23 +41,18 @@ class TestTaskRetry:
             error_message="Previous error",
         )
 
-        # Act
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
-            result = task.retry()
+        result = task.retry()
 
-        # Assert
         assert result is True
         task.refresh_from_db()
         assert task.status == "pending"
         assert task.error_message == ""
         assert task.started_at is None
         assert task.completed_at is None
-        assert task.attempts == 1  # Attempts NOT reset
-        mock_submit.assert_called_once_with(task)
+        assert task.attempts == 1
 
-    def test_retry_clears_scheduled_time_and_submits(self, user):
-        """Test retry without delay clears scheduled_time and submits immediately."""
-        # Arrange
+    def test_retry_clears_scheduled_time(self, user):
+        """Test retry without delay clears scheduled_time."""
         future_time = timezone.now() + timedelta(hours=1)
         task = Task.objects.create(
             name="Scheduled Failed Task",
@@ -70,66 +64,15 @@ class TestTaskRetry:
             created_by=user,
         )
 
-        # Act
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
-            result = task.retry()
+        result = task.retry()
 
-        # Assert
         assert result is True
         task.refresh_from_db()
         assert task.status == "pending"
         assert task.scheduled_time is None
-        mock_submit.assert_called_once_with(task)
-
-    def test_retry_skips_recurring_task(self, user):
-        """Test retry doesn't submit recurring task (lines 174-178)."""
-        # Arrange
-        task = Task.objects.create(
-            name="Recurring Failed Task",
-            function_name="hello_world",
-            status="failed",
-            attempts=1,
-            max_attempts=3,
-            cron_expression="0 * * * *",
-            created_by=user,
-        )
-
-        # Act
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
-            result = task.retry()
-
-        # Assert
-        assert result is True
-        task.refresh_from_db()
-        assert task.status == "pending"
-        mock_submit.assert_not_called()  # Not submitted, handled by scheduler
-
-    def test_retry_handles_submission_failure(self, user):
-        """Test retry handles dispatcher submission failure (lines 179-184)."""
-        # Arrange
-        task = Task.objects.create(
-            name="Failed Task",
-            function_name="hello_world",
-            status="failed",
-            attempts=1,
-            max_attempts=3,
-            created_by=user,
-        )
-
-        # Act
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher", side_effect=Exception("Dispatcher error")):
-            result = task.retry()
-
-        # Assert
-        assert result is True  # retry() returns True even if submission fails
-        task.refresh_from_db()
-        assert task.status == "failed"
-        assert "Failed to submit to dispatcher" in task.error_message
-        assert "Dispatcher error" in task.error_message
 
     def test_retry_returns_false_when_cannot_retry(self, user):
-        """Test retry returns False when can_retry() is False (lines 158-159)."""
-        # Arrange - max attempts reached
+        """Test retry returns False when can_retry() is False."""
         task = Task.objects.create(
             name="Failed Task",
             function_name="hello_world",
@@ -139,15 +82,45 @@ class TestTaskRetry:
             created_by=user,
         )
 
-        # Act
-        with patch("apps.tasks.tasks_system.submit_task_to_dispatcher") as mock_submit:
-            result = task.retry()
+        result = task.retry()
 
-        # Assert
         assert result is False
         task.refresh_from_db()
-        assert task.status == "failed"  # Status unchanged
-        mock_submit.assert_not_called()
+        assert task.status == "failed"
+
+    def test_retry_force_bypasses_max_attempts(self, user):
+        """Test retry(force=True) resets an exhausted task."""
+        task = Task.objects.create(
+            name="Exhausted Task",
+            function_name="hello_world",
+            status="failed",
+            attempts=3,
+            max_attempts=3,
+            created_by=user,
+        )
+
+        result = task.retry(force=True)
+
+        assert result is True
+        task.refresh_from_db()
+        assert task.status == "pending"
+
+    def test_retry_force_rejects_non_failed(self, user):
+        """Test retry(force=True) still requires status == 'failed'."""
+        task = Task.objects.create(
+            name="Running Task",
+            function_name="hello_world",
+            status="running",
+            attempts=1,
+            max_attempts=3,
+            created_by=user,
+        )
+
+        result = task.retry(force=True)
+
+        assert result is False
+        task.refresh_from_db()
+        assert task.status == "running"
 
 
 @pytest.mark.unit

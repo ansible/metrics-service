@@ -201,84 +201,21 @@ def test_submit_task_skips_if_pending_execution_exists(user, mock_dispatcherd, m
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_submit_task_handles_submit_error(user, mock_dispatcherd_config):
+def test_submit_task_raises_on_submit_error(user, mock_dispatcherd_config):
+    """submit_task_to_dispatcher propagates exceptions — task status unchanged."""
     from apps.tasks.models import Task
     from apps.tasks.tasks_system import submit_task_to_dispatcher
 
     task = Task.objects.create(name="err_task", function_name="hello_world", task_data={}, created_by=user)
 
-    with patch("dispatcherd.publish.submit_task", side_effect=RuntimeError("broker down")):
-        submit_task_to_dispatcher(task)
-
-    task.refresh_from_db()
-    assert task.status == "failed"
-    assert "broker down" in task.error_message
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_submit_task_dispatcher_error_logs_warning_when_retriable(user, mock_dispatcherd_config):
-    """submit_task_to_dispatcher logs WARNING when task still has retry attempts remaining."""
-    from apps.tasks.models import Task
-    from apps.tasks.tasks_system import submit_task_to_dispatcher
-
-    # attempts=0, max_attempts=3 → can_retry() returns True after status set to "failed"
-    task = Task.objects.create(
-        name="retry_dispatch_task",
-        function_name="hello_world",
-        task_data={},
-        created_by=user,
-        attempts=0,
-        max_attempts=3,
-    )
-
     with (
-        patch("dispatcherd.publish.submit_task", side_effect=RuntimeError("broker unavailable")),
-        patch("apps.tasks.tasks_system.logger") as mock_logger,
+        patch("dispatcherd.publish.submit_task", side_effect=RuntimeError("broker down")),
+        pytest.raises(RuntimeError, match="broker down"),
     ):
         submit_task_to_dispatcher(task)
 
     task.refresh_from_db()
-    assert task.status == "failed"
-    mock_logger.warning.assert_called_once()
-    warning_msg = mock_logger.warning.call_args[0][0]
-    assert "broker unavailable" in warning_msg
-    # Must NOT log at ERROR level for the dispatcher error
-    error_calls = [str(call) for call in mock_logger.error.call_args_list]
-    assert not any("broker unavailable" in c for c in error_calls)
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_submit_task_dispatcher_error_logs_error_when_exhausted(user, mock_dispatcherd_config):
-    """submit_task_to_dispatcher logs ERROR when task has no retry attempts remaining."""
-    from apps.tasks.models import Task
-    from apps.tasks.tasks_system import submit_task_to_dispatcher
-
-    # attempts == max_attempts → can_retry() returns False
-    task = Task.objects.create(
-        name="exhausted_dispatch_task",
-        function_name="hello_world",
-        task_data={},
-        created_by=user,
-        attempts=3,
-        max_attempts=3,
-    )
-
-    with (
-        patch("dispatcherd.publish.submit_task", side_effect=RuntimeError("broker gone")),
-        patch("apps.tasks.tasks_system.logger") as mock_logger,
-    ):
-        submit_task_to_dispatcher(task)
-
-    task.refresh_from_db()
-    assert task.status == "failed"
-    mock_logger.exception.assert_called_once()
-    error_msg = mock_logger.exception.call_args[0][0]
-    assert "broker gone" in error_msg
-    # Must NOT log at WARNING level for the dispatcher error
-    warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
-    assert not any("broker gone" in c for c in warning_calls)
+    assert task.status == "pending"
 
 
 # ---------------------------------------------------------------------------

@@ -178,6 +178,21 @@ def test_handle_task_retry_completed(user):
 
 @pytest.mark.unit
 @pytest.mark.django_db
+def test_handle_task_retry_exhausted_attempts(user):
+    from apps.tasks.models import Task
+
+    task = Task.objects.create(
+        name="exhausted", function_name="hello_world", task_data={}, created_by=user, status="failed", max_attempts=2
+    )
+    Task.objects.filter(pk=task.pk).update(attempts=2)
+    cmd = get_cmd()
+    cmd._handle_task_retry({"task_id": str(task.id)})
+    task.refresh_from_db()
+    assert task.status == "failed"  # Not changed — attempts exhausted
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
 def test_handle_task_retry_not_found():
     from django.core.management.base import CommandError
 

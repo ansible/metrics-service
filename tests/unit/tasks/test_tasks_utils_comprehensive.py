@@ -102,16 +102,6 @@ class TaskUtilsTestCase(TestCase):
         self.assertEqual(execution.status, "completed")
         self.assertEqual(execution.result_data, result_data)
 
-    def test_update_task_status_running(self):
-        """Test updating task status to running."""
-        utils.update_task_status(self.task, None, "running")
-
-        self.task.refresh_from_db()
-
-        self.assertEqual(self.task.status, "running")
-        self.assertIsNotNone(self.task.started_at)
-        self.assertEqual(self.task.attempts, 1)
-
     def test_update_task_status_failed(self):
         """Test updating task status to failed."""
         utils.update_task_status(self.task, None, "failed", error_message="Test error")

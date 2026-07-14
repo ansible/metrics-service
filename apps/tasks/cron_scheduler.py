@@ -214,6 +214,11 @@ class UnifiedTaskScheduler:
         except Exception as e:
             logger.exception(f"Error failing stuck tasks: {e}")
 
+        try:
+            self._retry_failed_tasks()
+        except Exception as e:
+            logger.exception(f"Error retrying failed tasks: {e}")
+
         # Early exit if AWX DB is not ready yet (during controller startup).
         # This prevents collector tasks from being scheduled before migrations complete,
         # without blocking API responses or individual tasks. The scheduler will retry
@@ -292,6 +297,22 @@ class UnifiedTaskScheduler:
                     status="failed", error_message=error_msg, completed_at=now
                 )
             logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+
+    def _retry_failed_tasks(self):
+        """Schedule retries for failed tasks that still have attempts remaining."""
+        from django.db import models as db_models
+
+        from .models import Task
+        from .tasks_system import _schedule_retry
+
+        retryable = (
+            Task.objects.filter(status="failed")
+            .exclude(attempts__gte=db_models.F("max_attempts"))
+            .exclude(cron_expression__isnull=False)
+        )
+
+        for task in retryable:
+            _schedule_retry(task)
 
     def _cleanup_stale_advisory_locks(self):
         """Terminate database sessions holding advisory locks that appear stale.
@@ -411,6 +432,7 @@ class UnifiedTaskScheduler:
         close_old_connections()
         try:
             from .models import Task
+            from .task_groups import get_feature_enabled_from_db
 
             # Get the task (don't filter by status for recurring tasks)
             try:
@@ -427,14 +449,11 @@ class UnifiedTaskScheduler:
 
             # Check feature flag at runtime so toggling takes effect without restart
             feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
-            if feature_flag:
-                from .task_groups import get_feature_enabled_from_db
-
-                if not get_feature_enabled_from_db(feature_flag):
-                    logger.debug(f"Skipping task '{task.name}': feature flag '{feature_flag}' is disabled")
-                    if not task.cron_expression:
-                        self._remove_database_task(task_id)
-                    return
+            if feature_flag and not get_feature_enabled_from_db(feature_flag):
+                logger.debug(f"Skipping task '{task.name}': feature flag '{feature_flag}' is disabled")
+                if not task.cron_expression:
+                    self._remove_database_task(task_id)
+                return
 
             # Handle recurring tasks by creating a new execution record
             if task.cron_expression:
@@ -457,7 +476,10 @@ class UnifiedTaskScheduler:
                 # Submit the execution task (not the original recurring task)
                 from .tasks_system import submit_task_to_dispatcher
 
-                submit_task_to_dispatcher(execution_task)
+                try:
+                    submit_task_to_dispatcher(execution_task)
+                except Exception as e:
+                    logger.warning(f"Failed to submit execution of recurring task {task.name}: {e}")
 
                 # Keep the original recurring task unchanged (it stays as template)
                 logger.info(f"Recurring task {task.name} (ID: {task_id}) remains as template for future executions")
@@ -471,14 +493,14 @@ class UnifiedTaskScheduler:
 
             logger.info(f"Executing database task: {task.name} (ID: {task_id})")
 
-            # Import submit function here to avoid circular imports
             from .tasks_system import submit_task_to_dispatcher
 
-            # Submit to dispatcherd
-            submit_task_to_dispatcher(task)
-
-            # Remove from tracking after submission (since it's not recurring)
-            self._remove_database_task(task_id)
+            try:
+                submit_task_to_dispatcher(task)
+            except Exception as e:
+                logger.warning(f"Failed to submit task {task.name}: {e}")
+            finally:
+                self._remove_database_task(task_id)
 
         except Exception as e:
             logger.exception(f"Failed to execute database task {task_id}: {e}")

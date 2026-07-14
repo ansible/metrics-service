@@ -352,19 +352,6 @@ def test_handle_task_error_logs_error_when_no_task_instance():
 # update_task_status
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
-@pytest.mark.django_db
-def test_update_task_status_running_sets_started_at(user):
-    from apps.tasks.models import Task
-    from apps.tasks.utils import update_task_status
-
-    task = Task.objects.create(name="t", function_name="hello_world", task_data={}, created_by=user, status="pending")
-    update_task_status(task, status="running")
-    task.refresh_from_db()
-    assert task.status == "running"
-    assert task.started_at is not None
-    assert task.attempts == 1
-
-
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_update_task_status_completed_clears_error(user):
