@@ -34,19 +34,7 @@ project_applications = [
     "apps.dynamic_settings",
     "apps.tasks",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
-    "apps.service_ingest",  # External service telemetry ingest pipeline
 ]
-
-# --- External service ingest ---
-# Map of service_name -> static pre-shared token (POC; replaced by gateway tokens later).
-# Override via METRICS_SERVICE_SERVICE_INGEST_TOKENS__<service_name>=<token>
-SERVICE_INGEST_TOKENS: dict = {}
-
-# Segment event name emitted per service when sending to Segment.com
-SERVICE_SEGMENT_EVENTS: dict = {
-    "eda-server": "EDA Analytics",
-    "aap-mcp-server": "MCP Tool Analytics",
-}
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
 INSTALLED_APPS = [
@@ -142,8 +130,6 @@ FEATURE = {
     "ANONYMIZED_DATA_COLLECTION": True,
     # Dashboard data collection for automation-reports — see DASHBOARD_COLLECTION_GROUP.
     "DASHBOARD_COLLECTION": True,
-    # Daily rollup of per-event telemetry from external AAP services — see EXTERNAL_INGEST_GROUP.
-    "EXTERNAL_INGEST": True,
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"

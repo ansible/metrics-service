@@ -34,9 +34,7 @@ from .collectors.collect_hourly_metrics import collect_hourly_metrics
 from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
-from .collectors.rollup_external_events_to_segment import rollup_external_events_to_segment
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
-from .collectors.send_external_batch_to_segment import send_external_batch_to_segment
 
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
@@ -62,9 +60,6 @@ TASK_FUNCTIONS = {
     "daily_metrics_rollup": daily_metrics_rollup,
     "daily_anonymize_and_prepare": daily_anonymize_and_prepare,
     "send_anonymized_to_segment": send_anonymized_to_segment,
-    # External service ingest
-    "send_external_batch_to_segment": send_external_batch_to_segment,
-    "rollup_external_events_to_segment": rollup_external_events_to_segment,
     # Dashboard reports
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
@@ -83,7 +78,6 @@ TASK_LOCKS = {
     "daily_metrics_rollup",
     "daily_anonymize_and_prepare",
     "send_anonymized_to_segment",
-    "rollup_external_events_to_segment",
     "collect_dashboard_reports_initial_data",
     "cleanup_dashboard_reports_old_data",
     "cleanup_dashboard_telemetry",
@@ -518,26 +512,6 @@ TASK_METADATA = {
             {"name": "Default (60 days)", "data": {}},
             {"name": "30-day retention", "data": {"retention_days": 30}},
         ],
-    },
-    # External service ingest
-    "send_external_batch_to_segment": {
-        "queue": "metrics",
-        "category": "External Ingest",
-        "description": "Send a received batch ExternalEvent payload to Segment immediately",
-        "parameters": {
-            "event_id": {
-                "type": "integer",
-                "description": "Primary key of the ExternalEvent to send",
-            },
-        },
-        "examples": [],
-    },
-    "rollup_external_events_to_segment": {
-        "queue": "metrics",
-        "category": "External Ingest",
-        "description": "Aggregate and send previous day's per-event ExternalEvents to Segment",
-        "parameters": {},
-        "examples": [{"name": "Daily rollup", "data": {}}],
     },
 }
 

@@ -370,25 +370,6 @@ INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
-# External Service Ingest Group — daily rollup of per-event telemetry from AAP services.
-# Batch sends are dispatched immediately from the ingest view, not via this group.
-# Feature flag: EXTERNAL_INGEST (default: True)
-EXTERNAL_INGEST_GROUP = TaskGroup(
-    name="external_ingest",
-    description="Daily rollup and Segment send for per-event telemetry from external AAP services",
-    feature_flag="EXTERNAL_INGEST",
-    tasks=[
-        {
-            "task_id": "daily_external_event_rollup",
-            "function": "rollup_external_events_to_segment",
-            "cron": "0 0 * * *",  # Daily at midnight
-            "args": {},
-            "enabled": True,
-            "description": "Aggregate and send previous day's per-event telemetry to Segment",
-        },
-    ],
-)
-
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
@@ -396,7 +377,6 @@ TASK_GROUPS = [
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
     INDIRECT_NODE_COLLECTION_GROUP,
-    EXTERNAL_INGEST_GROUP,
 ]
 
 
