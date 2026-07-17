@@ -155,6 +155,11 @@ JOBEVENT_ROW_LIMIT = 200_000
 # Override via METRICS_SERVICE_JOBEVENT_JOB_LIMIT env var.
 JOBEVENT_JOB_LIMIT = 1_000
 
+# Install type — how this metrics-service instance was deployed.
+# The operator sets METRICS_SERVICE_INSTALL_TYPE=operator; the containerized installer
+# leaves this at the default so no extra configuration is needed there.
+INSTALL_TYPE = "containerized"
+
 
 # Project-specific middleware additions
 MIDDLEWARE = "@merge_unique whitenoise.middleware.WhiteNoiseMiddleware"
