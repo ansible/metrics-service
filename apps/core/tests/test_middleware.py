@@ -395,11 +395,10 @@ class TestNullByteQueryParamMiddleware(TestCase):
 
         self.assertTrue(NullByteQueryParamMiddleware._contains_null_byte("operation=%00"))
 
-    def test_contains_null_byte_detects_percent_encoded_uppercase(self):
-        """'%00' check is case-insensitive ('%00', '%0F' etc.)."""
+    def test_contains_null_byte_detects_percent_encoded_among_other_params(self):
+        """'%00' is detected when other query params are also present."""
         from apps.core.middleware.null_byte import NullByteQueryParamMiddleware
 
-        # %00 is always all-zeros, but verify the lower() path doesn't break other cases
         self.assertTrue(NullByteQueryParamMiddleware._contains_null_byte("q=%00&other=val"))
 
     def test_contains_null_byte_detects_literal_null(self):

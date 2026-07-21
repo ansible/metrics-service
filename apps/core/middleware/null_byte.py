@@ -53,10 +53,10 @@ class NullByteQueryParamMiddleware:
         """Return True if *query_string* contains a null byte, encoded or literal.
 
         Checks for:
-        - ``%00`` — the percent-encoded form (case-insensitive)
+        - ``%00`` — the percent-encoded form (``%00`` is all digits; no case variants exist)
         - A literal ``\\x00`` character (rare in HTTP but defensive)
         """
-        if "%00" in query_string.lower():
+        if "%00" in query_string:
             return True
         # Check for a literal null byte (unlikely in HTTP but defensive)
         return "\x00" in query_string
