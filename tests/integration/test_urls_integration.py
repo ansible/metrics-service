@@ -129,12 +129,15 @@ class TestAPIEndpoints(TestCase):
 
     def test_authenticated_api_endpoints(self):
         """Test authenticated API endpoints."""
-        self.client.force_authenticate(user=self.user)
+        admin = User.objects.create_superuser(
+            username="adminuser", email="admin@example.com", password=get_test_password()
+        )
+        self.client.force_authenticate(user=admin)
 
         response = self.client.get("/api/v1/users/")
         assert response.status_code == 200
 
-        response = self.client.get(f"/api/v1/users/{self.user.id}/")
+        response = self.client.get(f"/api/v1/users/{admin.id}/")
         assert response.status_code == 200
 
 
@@ -237,7 +240,10 @@ class TestURLIntegrationWithViews(TestCase):
 
     def test_api_view_integration(self):
         """Test API view integration through URLs."""
-        self.api_client.force_authenticate(user=self.user)
+        admin = User.objects.create_superuser(
+            username="adminuser2", email="admin2@example.com", password=get_test_password()
+        )
+        self.api_client.force_authenticate(user=admin)
 
         response = self.api_client.get("/api/v1/users/")
         assert response.status_code == 200
