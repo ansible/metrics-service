@@ -110,8 +110,6 @@ def _get_base_delay(task) -> int:
 
 def _schedule_retry(task) -> None:
     """Schedule a retry for a failed task if attempts remain."""
-    if not task.can_retry():
-        return
     task.refresh_from_db()
     if not task.can_retry():
         return

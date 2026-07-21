@@ -300,14 +300,14 @@ class UnifiedTaskScheduler:
 
     def _retry_failed_tasks(self):
         """Schedule retries for failed tasks that still have attempts remaining."""
-        from django.db import models as db_models
+        from django.db.models import F
 
         from .models import Task
         from .tasks_system import _schedule_retry
 
         retryable = (
             Task.objects.filter(status="failed")
-            .exclude(attempts__gte=db_models.F("max_attempts"))
+            .exclude(attempts__gte=F("max_attempts"))
             .exclude(cron_expression__isnull=False)
         )
 
