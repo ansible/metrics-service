@@ -159,25 +159,28 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         Returns:
             bool: True if task was successfully reset for retry, False otherwise
         """
-        if not force and not self.can_retry():
-            return False
-        if force and self.status != "failed":
+        scheduled_time = timezone.now() + timedelta(seconds=delay_seconds) if delay_seconds > 0 else None
+
+        qs = Task.objects.filter(pk=self.pk, status="failed")
+        if not force:
+            qs = qs.filter(attempts__lt=models.F("max_attempts"))
+
+        # Do NOT reset attempts — the counter must persist to enforce max_attempts.
+        updated = qs.update(
+            status="pending",
+            error_message="",
+            started_at=None,
+            completed_at=None,
+            scheduled_time=scheduled_time,
+        )
+        if not updated:
             return False
 
         self.status = "pending"
         self.error_message = ""
         self.started_at = None
         self.completed_at = None
-        # NOTE: Do NOT reset attempts to 0 here. The attempts counter must persist
-        # across retries to properly enforce the max_attempts limit.
-
-        if delay_seconds > 0:
-            self.scheduled_time = timezone.now() + timedelta(seconds=delay_seconds)
-        else:
-            self.scheduled_time = None
-
-        self.save(update_fields=["status", "error_message", "started_at", "completed_at", "scheduled_time", "modified"])
-
+        self.scheduled_time = scheduled_time
         return True
 
     def can_delete(self) -> bool:
