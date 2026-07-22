@@ -168,7 +168,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             "cron": None,  # Run once on init — backfills users and RBAC assignments from gateway
             "args": {
                 # Short base delay so retries align with the gateway's 60s service-id
-                # populate cooldown.  Backoff: 60s → 120s → 240s → 480s → 480s.
+                # populate cooldown.  Backoff: 60s → 120s → 240s → 480s.
                 "retry_delay_seconds": 60,
             },
             "max_attempts": 5,
