@@ -1,5 +1,7 @@
 """Settings specific for tasks application."""
 
+import os
+
 DISPATCHERD_ENABLED = True
 """Background Task Configuration (Dispatcherd)
 Dispatcherd is always enabled in this service (can be disabled in tests)
@@ -11,11 +13,12 @@ When True, appends '_Test' to all Segment event names to separate end-to-end
 test data from real customer data. Override with METRICS_SERVICE_SEGMENT_TEST_MODE
 environment variable."""
 
-SEGMENT_URL = ""
+SEGMENT_URL = os.environ.get("MOCK_SEGMENT_URL", "")
 """Custom Segment API endpoint URL.
 When set, Segment track calls are sent to this URL instead of the default
 (https://api.segment.io). Useful for development and testing with a mock
-Segment server. Override with METRICS_SERVICE_SEGMENT_URL environment variable."""
+Segment server. Override with METRICS_SERVICE_SEGMENT_URL or MOCK_SEGMENT_URL
+environment variable."""
 
 # SEGMENT_WRITE_KEY = "test-segment-write-key-change-in-production"
 # """Segment Write Key this needs to be set in environment variables to run locally in producitoon its mounted as a file"""

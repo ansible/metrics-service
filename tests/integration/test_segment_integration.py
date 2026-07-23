@@ -5,20 +5,21 @@ import urllib.request
 from datetime import date
 
 import pytest
+from django.conf import settings
 from django.test import TestCase, override_settings
 
-MOCK_SEGMENT_URL = "http://localhost:8765"
+MOCK_SEGMENT_URL = getattr(settings, "SEGMENT_URL", "") or "http://localhost:8765"
 
 
 def _mock_segment_get(path):
     """GET a path on the mock segment server."""
-    with urllib.request.urlopen(f"http://localhost:8765{path}") as resp:  # noqa: S310
+    with urllib.request.urlopen(f"{MOCK_SEGMENT_URL}{path}") as resp:  # noqa: S310
         return json.loads(resp.read())
 
 
 def _mock_segment_post(path):
     """POST to a path on the mock segment server."""
-    req = urllib.request.Request(f"http://localhost:8765{path}", method="POST")
+    req = urllib.request.Request(f"{MOCK_SEGMENT_URL}{path}", method="POST")  # noqa: S310
     urllib.request.urlopen(req)  # noqa: S310
 
 

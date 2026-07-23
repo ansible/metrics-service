@@ -54,6 +54,25 @@ jobs:
       - name: "Remove stale coverage report"
         run: rm -f coverage.xml .coverage
 
+      - name: "Clone metrics-utility (for mock servers)"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ansible/metrics-utility
+          ref: devel
+          path: metrics-utility-checkout
+
+      - name: "Set up Go"
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: metrics-utility-checkout/tools/mock-segment-server/go.mod
+
+      - name: "Start mock segment server"
+        timeout-minutes: 1
+        run: |
+          go build -C metrics-utility-checkout/tools/mock-segment-server -o /tmp/mock-segment-server .
+          /tmp/mock-segment-server &
+          until curl -sf http://localhost:8765/requests > /dev/null; do sleep 1; done
+
       - name: "Run pytest"
         env:
           METRICS_SERVICE_DATABASES__default__HOST: localhost
@@ -62,10 +81,12 @@ jobs:
           METRICS_SERVICE_DATABASES__default__PASSWORD: metrics_service
           METRICS_SERVICE_DATABASES__default__NAME: metrics_service
           METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: disable
-          METRICS_SERVICE_DATABASES__awx__HOST: "127.0.0.1"
-          METRICS_SERVICE_DATABASES__awx__PASSWORD: mypassword
+          METRICS_SERVICE_DATABASES__awx__HOST: localhost
+          METRICS_SERVICE_DATABASES__awx__USER: awx
+          METRICS_SERVICE_DATABASES__awx__PASSWORD: awx
           DJANGO_SETTINGS_MODULE: metrics_service.settings
           METRICS_SERVICE_MODE: test
+          MOCK_SEGMENT_URL: "http://localhost:8765"
         run: |
           uv run pytest -s -v --cov --cov-branch --cov-report=xml
 
