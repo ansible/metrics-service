@@ -35,3 +35,7 @@ ENABLE_DEBUG_TOOLBAR = True
 # Controls the verbosity of application logs
 # Valid values: DEBUG, INFO, WARNING, ERROR
 LOG_LEVEL = "INFO"
+
+# Segment Configuration
+# Custom Segment API endpoint for development/testing with a mock server
+# SEGMENT_URL = "http://localhost:8765"

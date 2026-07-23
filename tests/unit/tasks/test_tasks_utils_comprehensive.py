@@ -538,6 +538,7 @@ class TestSendToSegment(TestCase):
         ):
             mock_settings.SEGMENT_WRITE_KEY = "test-write-key"
             mock_settings.DEBUG = False
+            mock_settings.SEGMENT_URL = ""
 
             result = send_to_segment("user1", "test_event", {"data": "test"})
 
@@ -546,6 +547,7 @@ class TestSendToSegment(TestCase):
                 write_key="test-write-key",
                 user_id="user1",
                 debug=False,
+                host=None,
             )
 
     @patch("apps.tasks.collectors.send_anonymized_to_segment.logger")
