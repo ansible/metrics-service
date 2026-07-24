@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Explicitly checkout the PR HEAD (not the GitHub-created merge commit) so that
           # coverage.xml line numbers match exactly what sonar_checks.yml checks out via
@@ -55,7 +55,7 @@ jobs:
         run: rm -f coverage.xml .coverage
 
       - name: "Clone metrics-utility (for mock servers)"
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ansible/metrics-utility
           ref: devel
