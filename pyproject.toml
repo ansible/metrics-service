@@ -43,7 +43,7 @@ dependencies = [
     "django-generate-series>=2026.2.1", # Required for generating time series data for dashboard report charts
     "urllib3==2.7.0",
     "pyjwt==2.13.0",
-    "pyasn1~=0.6.4",
+    "pyasn1>=0.6.4",
 ]
 
 [project.optional-dependencies]
