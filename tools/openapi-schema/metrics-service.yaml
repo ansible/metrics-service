@@ -592,8 +592,8 @@ paths:
         schema:
           type: string
         description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
-          'savings', etc.). `order_by` is accepted as an alias for this parameter;
-          if both are given, `ordering` takes precedence.
+          'savings', 'time_savings', etc.). `order_by` is accepted as an alias for
+          this parameter; if both are given, `ordering` takes precedence.
       - in: query
         name: organization
         schema:
@@ -752,8 +752,8 @@ paths:
         schema:
           type: string
         description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
-          'savings', etc.). `order_by` is accepted as an alias for this parameter;
-          if both are given, `ordering` takes precedence.
+          'savings', 'time_savings', etc.). `order_by` is accepted as an alias for
+          this parameter; if both are given, `ordering` takes precedence.
       - in: query
         name: organization
         schema:
@@ -889,8 +889,8 @@ paths:
         schema:
           type: string
         description: Field to order by (e.g. 'template_metadata__template_name', 'successful_runs',
-          'savings', etc.). `order_by` is accepted as an alias for this parameter;
-          if both are given, `ordering` takes precedence.
+          'savings', 'time_savings', etc.). `order_by` is accepted as an alias for
+          this parameter; if both are given, `ordering` takes precedence.
       - in: query
         name: organization
         schema:

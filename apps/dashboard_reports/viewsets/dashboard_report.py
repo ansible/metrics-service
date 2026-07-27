@@ -302,7 +302,7 @@ DETAIL_QUERY_PARAMETERS = [
         location=OpenApiParameter.QUERY,
         required=False,
         description=(
-            "Field to order by (e.g. 'template_metadata__template_name', 'successful_runs', 'savings', etc.). "
+            "Field to order by (e.g. 'template_metadata__template_name', 'successful_runs', 'savings', 'time_savings', etc.). "
             "`order_by` is accepted as an alias for this parameter; if both are given, `ordering` takes precedence."
         ),
     ),
@@ -346,7 +346,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         template (int): Filter by job template ID (multiple allowed)
         label (int): Filter by label ID (multiple allowed)
         project (int): Filter by project ID (multiple allowed)
-        ordering (str): Field to order by (e.g. "template_metadata__template_name", "successful_runs", "savings", etc.)
+        ordering (str): Field to order by (e.g. "template_metadata__template_name", "successful_runs", "savings", "time_savings", etc.)
             `order_by` is accepted as an alias for this parameter; if both are given, `ordering` takes precedence.
         report_type (string): Type of report to export. Options: 'summary', 'roi', 'trends' (default: 'summary', used for export endpoint)
         export_format (string): Export file format. Options: 'csv' (default: 'csv', used for export endpoint)
@@ -403,6 +403,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         "automated_costs",
         "savings",
         "runs",
+        "time_savings",
     ]
 
     # `template_name` is the response field name (see ReportSerializer); the aggregated queryset
