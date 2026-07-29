@@ -172,6 +172,7 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
             started_at=None,
             completed_at=None,
             scheduled_time=scheduled_time,
+            modified=timezone.now(),
         )
         if not updated:
             return False
