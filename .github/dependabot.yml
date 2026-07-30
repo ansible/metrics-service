@@ -4,8 +4,16 @@ updates:
     directory: '/'
     schedule:
       interval: 'monthly'
+    groups:
+      monthly-batch:
+        patterns:
+          - '*'
 
   - package-ecosystem: 'uv'
     directory: '/'
     schedule:
       interval: 'monthly'
+    groups:
+      monthly-batch:
+        patterns:
+          - '*'
