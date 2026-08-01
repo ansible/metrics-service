@@ -47,7 +47,7 @@ dependencies = [
 
 [project.optional-dependencies]
 ldap = [
-    "python-ldap>=3.4.0",
+    "python-ldap>=3.4.7",
     "django-auth-ldap>=5.2.0",
     "ldap-filter>=1.0.1",
 ]
