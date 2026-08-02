@@ -158,7 +158,16 @@ def update_task_status(
 
     Returns:
         None
+
+    Note:
+        This does not handle the transition to "running". Claiming a task
+        (setting started_at and incrementing attempts) is owned exclusively by
+        _claim_task, which does it atomically. Passing status="running" here
+        would set the status without those side effects, so it is rejected.
     """
+    if status == "running":
+        raise ValueError("update_task_status cannot set status='running'; use _claim_task to claim a task")
+
     with transaction.atomic():
         # Refresh from database to get latest state
         task_instance.refresh_from_db()

@@ -479,6 +479,9 @@ class UnifiedTaskScheduler:
                 try:
                     submit_task_to_dispatcher(execution_task)
                 except Exception as e:
+                    # The execution_task stays "pending" and was never tracked in _db_task_jobs,
+                    # so the next _periodic_database_sync immediate_tasks scan re-submits it.
+                    # (Not the _retry_failed_tasks path — that only handles status="failed".)
                     logger.warning(f"Failed to submit execution of recurring task {task.name}: {e}")
 
                 # Keep the original recurring task unchanged (it stays as template)
