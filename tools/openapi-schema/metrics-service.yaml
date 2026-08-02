@@ -4665,7 +4665,8 @@ paths:
     post:
       operationId: tasks_retry_create
       description: 'This endpoint replicates the functionality of: ''python manage.py
-        manage_tasks retry <task_id>'''
+        manage_tasks retry <task_id>''. Pass {"force": true} to bypass the max_attempts
+        check (task must still be failed).'
       summary: Retry a failed task.
       parameters:
       - in: path
@@ -4680,14 +4681,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/TaskRetryRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
+              $ref: '#/components/schemas/TaskRetryRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/TaskRequest'
-        required: true
+              $ref: '#/components/schemas/TaskRetryRequestRequest'
       security:
       - cookieAuth: []
       - basicAuth: []
@@ -9523,6 +9523,12 @@ components:
           type: string
       required:
       - error
+    TaskRetryRequestRequest:
+      type: object
+      properties:
+        force:
+          type: boolean
+          default: false
     TaskRetryResponse:
       type: object
       properties:
