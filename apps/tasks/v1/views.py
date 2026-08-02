@@ -201,7 +201,7 @@ class TaskViewSet(BaseViewSet):
         summary="Retry a failed task.",
         description=(
             "This endpoint replicates the functionality of: 'python manage.py manage_tasks retry <task_id>'. "
-            "Pass {\"force\": true} to bypass the max_attempts check (task must still be failed)."
+            'Pass {"force": true} to bypass the max_attempts check (task must still be failed).'
         ),
         request=inline_serializer(
             name="TaskRetryRequest",
