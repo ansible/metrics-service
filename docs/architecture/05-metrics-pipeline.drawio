@@ -1,0 +1,120 @@
+<mxGraphModel dx="1422" dy="762" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <mxCell id="stage1" value="Stage 1 — Hourly Collection&#xa;feature: METRICS_COLLECTION" style="swimlane;startSize=40;fillColor=#dae8fc;strokeColor=#6c8ebf;rounded=1;arcSize=4;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="200" y="20" width="600" height="220" as="geometry" />
+    </mxCell>
+
+    <mxCell id="h1" value="AWX PostgreSQL — Hourly Collectors&#xa;:05 unified_jobs&#xa;:10 job_host_summary&#xa;:15 credentials&#xa;:20 job_events (max JOBEVENT_ROW_LIMIT=200000)" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="stage1">
+      <mxGeometry x="20" y="55" width="260" height="90" as="geometry" />
+    </mxCell>
+
+    <mxCell id="h2" value="AWX PostgreSQL — Snapshot Collectors&#xa;01:00 execution_environments&#xa;01:30 config · 01:35 controller_version&#xa;01:40 table_metadata · 01:45 feature_flags&#xa;01:50 task_executions · 01:55 indirect_managed_nodes" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="stage1">
+      <mxGeometry x="20" y="155" width="260" height="50" as="geometry" />
+    </mxCell>
+
+    <mxCell id="col" value="metrics_utility collector.gather()&#xa;pandas DataFrame&#xa;AnonymizedRollup.prepare() → JSON" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="stage1">
+      <mxGeometry x="320" y="70" width="240" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="hmc" value="HourlyMetricsCollection&#xa;collector_type + collection_timestamp&#xa;(unique_together)&#xa;raw_data JSON · status: collected" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="stage1">
+      <mxGeometry x="320" y="155" width="240" height="50" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_h1_col" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="h1" target="col" parent="stage1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_h2_col" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="h2" target="col" parent="stage1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_col_hmc" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="col" target="hmc" parent="stage1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="stage2" value="Stage 2 — Daily Rollup — 02:00 AM" style="swimlane;startSize=40;fillColor=#e1d5e7;strokeColor=#9673a6;rounded=1;arcSize=4;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="200" y="280" width="600" height="140" as="geometry" />
+    </mxCell>
+
+    <mxCell id="roll" value="daily_metrics_rollup()&#xa;rollup_processor.merge()&#xa;24 hourly blobs per collector_type" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="stage2">
+      <mxGeometry x="40" y="55" width="230" height="60" as="geometry" />
+    </mxCell>
+
+    <mxCell id="dms" value="DailyMetricsSummary&#xa;summary_date (unique)&#xa;aggregated_metrics JSON&#xa;status: aggregated" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="stage2">
+      <mxGeometry x="330" y="55" width="230" height="60" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_roll_dms" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="roll" target="dms" parent="stage2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="stage3" value="Stage 3 — Anonymize — 03:00 AM&#xa;feature: ANONYMIZED_DATA_COLLECTION" style="swimlane;startSize=40;fillColor=#f8cecc;strokeColor=#b85450;rounded=1;arcSize=4;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="200" y="460" width="600" height="160" as="geometry" />
+    </mxCell>
+
+    <mxCell id="anon" value="daily_anonymize_and_prepare()&#xa;anonymize_rollups()&#xa;strip PII · hash IDs (daily-rotated salt)&#xa;add summary_metadata + dashboard_telemetry" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="stage3">
+      <mxGeometry x="40" y="55" width="230" height="75" as="geometry" />
+    </mxCell>
+
+    <mxCell id="amp" value="AnonymizedMetricsPayload&#xa;summary_date&#xa;anonymized_data JSON&#xa;status: pending → sending → sent" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="stage3">
+      <mxGeometry x="330" y="55" width="230" height="75" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_anon_amp" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="anon" target="amp" parent="stage3">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="stage4" value="Stage 4 — Ship to Segment — 1–240 min random jitter after 03:00" style="swimlane;startSize=40;fillColor=#ffe6cc;strokeColor=#d6b656;rounded=1;arcSize=4;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="200" y="660" width="600" height="140" as="geometry" />
+    </mxCell>
+
+    <mxCell id="ship" value="send_anonymized_to_segment()&#xa;StorageSegment.put()&#xa;max SEGMENT_MAX_ATTEMPTS=7&#xa;exponential backoff" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="stage4">
+      <mxGeometry x="40" y="55" width="230" height="65" as="geometry" />
+    </mxCell>
+
+    <mxCell id="seg" value="Segment.com&#xa;Event: Controller Metrics Daily Rollup&#xa;SEGMENT_TEST_MODE appends _Test&#xa;Key: SEGMENT_WRITE_KEY" style="rounded=1;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=1;" vertex="1" parent="stage4">
+      <mxGeometry x="330" y="55" width="230" height="65" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_ship_seg" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="ship" target="seg" parent="stage4">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="clean" value="cleanup_metrics_data()&#xa;04:00 AM&#xa;purge old HourlyMetricsCollection&#xa;and DailyMetricsSummary rows" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;dashed=1;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="850" y="320" width="200" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_stage1_stage2" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="hmc" target="roll" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_stage2_stage3" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="dms" target="anon" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_stage3_stage4" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="amp" target="ship" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_hmc_clean" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;fontSize=9;" edge="1" source="hmc" target="clean" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1050" y="240" />
+          <mxPoint x="1050" y="360" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <mxCell id="e_dms_clean" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;fontSize=9;" edge="1" source="dms" target="clean" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="950" y="355" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+  </root>
+</mxGraphModel>

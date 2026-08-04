@@ -1,0 +1,94 @@
+<mxfile host="app.diagrams.net" modified="2026-07-24T00:00:00.000Z" agent="Claude Code" version="21.0.0" type="device">
+  <diagram id="apscheduler-task-groups" name="APScheduler Task Groups">
+    <mxGraphModel dx="1422" dy="762" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="maint-group" value="MAINTENANCE_GROUP&#xa;(no feature flag)" style="swimlane;startSize=40;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="180" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="M1" value="daily_task_cleanup&#xa;cleanup_old_tasks&#xa;daily 05:00" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="maint-group">
+          <mxGeometry x="10" y="55" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="M2" value="hourly_health_check&#xa;hello_world&#xa;every hour :00" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="maint-group">
+          <mxGeometry x="10" y="115" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="M3" value="initial_resource_sync&#xa;sync_resources_from_gateway&#xa;one-shot on init" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="maint-group">
+          <mxGeometry x="10" y="175" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="metrics-group" value="METRICS_GROUP&#xa;feature: METRICS_COLLECTION" style="swimlane;startSize=40;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontStyle=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="220" y="20" width="180" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="ME1" value="hourly_unified_jobs :05&#xa;hourly_job_host_summary :10&#xa;hourly_credentials :15&#xa;hourly_job_events :20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="metrics-group">
+          <mxGeometry x="10" y="50" width="160" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="ME2" value="daily EEs 01:00 · config 01:30&#xa;controller_version 01:35&#xa;table_metadata 01:40&#xa;feature_flags 01:45" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="metrics-group">
+          <mxGeometry x="10" y="125" width="160" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="ME3" value="daily_task_executions 01:50&#xa;daily_metrics_rollup 02:00&#xa;cleanup_metrics_data 04:00" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="metrics-group">
+          <mxGeometry x="10" y="190" width="160" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="anon-group" value="ANONYMIZED_GROUP&#xa;feature: ANONYMIZED_DATA_COLLECTION" style="swimlane;startSize=40;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontStyle=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="20" width="180" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="A1" value="daily_anonymize_and_prepare&#xa;daily 03:00" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="anon-group">
+          <mxGeometry x="10" y="55" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="A2" value="send_anonymized_to_segment&#xa;1-240 min jitter after 03:00" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="anon-group">
+          <mxGeometry x="10" y="115" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="dash-group" value="DASHBOARD_GROUP&#xa;feature: DASHBOARD_COLLECTION" style="swimlane;startSize=40;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;fontStyle=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="20" width="180" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="D1" value="initial_dashboard_collection&#xa;one-shot on enable" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="dash-group">
+          <mxGeometry x="10" y="55" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="D2" value="cleanup_dashboard_reports_old_data&#xa;daily 05:30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="dash-group">
+          <mxGeometry x="10" y="115" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="D3" value="cleanup_dashboard_telemetry&#xa;daily 05:45" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="dash-group">
+          <mxGeometry x="10" y="175" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="indirect-group" value="INDIRECT_GROUP&#xa;feature: INDIRECT_NODE_COLLECTION&#xa;(default: disabled)" style="swimlane;startSize=50;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontStyle=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="20" width="180" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="I1" value="daily_collect_indirect_nodes&#xa;collect_daily_metrics&#xa;indirect_managed_nodes&#xa;daily 01:55" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="indirect-group">
+          <mxGeometry x="10" y="65" width="160" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="UTS" value="UnifiedTaskScheduler&#xa;APScheduler&#xa;poll DB every 60s&#xa;insert Task rows for due jobs&#xa;dispatch via pg_notify" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="320" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="DB" value="PostgreSQL&#xa;Task queue&#xa;(Task model rows)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="460" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-maint-uts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;" edge="1" source="maint-group" target="UTS" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-metrics-uts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;" edge="1" source="metrics-group" target="UTS" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-anon-uts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;" edge="1" source="anon-group" target="UTS" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-dash-uts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;" edge="1" source="dash-group" target="UTS" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-indirect-uts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;" edge="1" source="indirect-group" target="UTS" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-uts-db" style="edgeStyle=orthogonalEdgeStyle;rounded=1;" edge="1" source="UTS" target="DB" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

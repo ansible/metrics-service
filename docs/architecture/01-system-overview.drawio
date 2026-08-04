@@ -1,0 +1,95 @@
+<mxGraphModel adaptiveColors="auto">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+
+    <mxCell id="client" value="Admin / BI Client" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="50" y="80" width="120" height="60" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="gw" value="AAP Gateway&#xa;OAuth2 + JWT&#xa;Service Router" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+      <mxGeometry x="420" y="60" width="160" height="80" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="ctl" value="AWX / Controller&#xa;PostgreSQL (awx DB)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+      <mxGeometry x="620" y="60" width="160" height="80" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="platform_label" value="AAP Platform" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="390" y="20" width="160" height="30" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="init" value="init&#xa;migrations + init-system-tasks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+      <mxGeometry x="200" y="300" width="140" height="60" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="web" value="web&#xa;Gunicorn + Nginx&#xa;REST API :8080/:8443" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+      <mxGeometry x="370" y="300" width="140" height="60" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="sched" value="scheduler&#xa;APScheduler&#xa;cron dispatch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+      <mxGeometry x="540" y="300" width="130" height="60" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="disp" value="dispatcherd&#xa;pg_notify workers&#xa;task execution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+      <mxGeometry x="700" y="300" width="140" height="60" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="ms_label" value="metrics-service (4-container stack)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="200" y="265" width="300" height="30" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="T" value="Task / TaskExecution&#xa;(task queue)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+      <mxGeometry x="200" y="520" width="150" height="70" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="H" value="HourlyMetricsCollection&#xa;DailyMetricsSummary&#xa;AnonymizedMetricsPayload" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+      <mxGeometry x="380" y="510" width="190" height="90" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="D" value="JobData / TemplateMetadata&#xa;JobHostSummary&#xa;(dashboard data)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+      <mxGeometry x="600" y="510" width="170" height="70" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="S" value="Setting&#xa;(dynamic feature flags)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+      <mxGeometry x="600" y="600" width="170" height="50" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="msdb_label" value="metrics-service PostgreSQL" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="200" y="480" width="250" height="30" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="seg" value="Segment.com&#xa;Red Hat Telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+      <mxGeometry x="900" y="310" width="150" height="60" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="e1" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="client" target="gw" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="e2" value="JWT auth&#xa;resource sync" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="gw" target="web" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="e3" value="direct SQL read-only&#xa;psycopg3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="ctl" target="disp" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="e4" value="Django ORM" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="web" target="T" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="e5" value="INSERT Task rows&#xa;poll every 60s" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="sched" target="T" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="e6" value="pg_notify LISTEN/NOTIFY&#xa;claim + execute tasks" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="disp" target="T" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="e7" value="anonymized daily payload&#xa;Segment write key" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="disp" target="seg" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+  </root>
+</mxGraphModel>

@@ -166,13 +166,21 @@ class UnifiedTaskScheduler:
                 logger.exception(f"Error stopping cron scheduler: {str(e)}")
 
     def _task_feature_flag_enabled(self, task) -> bool:
-        """Return False if the task carries a feature flag that is currently disabled."""
-        feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
-        if not feature_flag:
+        """Return False if the task's group flag or per-collector flag is currently disabled."""
+        task_data = task.task_data or {}
+        feature_flag = task_data.get("_feature_flag")
+        collector_flag = task_data.get("_collector_flag")
+
+        if not feature_flag and not collector_flag:
             return True
+
         from .task_groups import get_feature_enabled_from_db
 
-        return get_feature_enabled_from_db(feature_flag)
+        if feature_flag and not get_feature_enabled_from_db(feature_flag):
+            return False
+        if collector_flag and not get_feature_enabled_from_db(collector_flag, default=True):
+            return False
+        return True
 
     def _sync_database_tasks(self):
         """Synchronize database tasks with the scheduler."""

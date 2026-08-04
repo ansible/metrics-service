@@ -199,6 +199,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "5 * * * *",  # Every hour at XX:05
             "args": {"collector_type": "unified_jobs"},
+            "collector_flag": "UNIFIED_JOBS_COLLECTION",
             "enabled": True,
             "description": "Collect unified jobs metrics every hour",
         },
@@ -207,6 +208,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "10 * * * *",  # Every hour at XX:10 — after hourly_unified_jobs so JobData rows exist
             "args": {"collector_type": "job_host_summary_service"},
+            "collector_flag": "JOB_HOST_SUMMARY_COLLECTION",
             "enabled": True,
             "description": "Collect job host summary metrics every hour (service variant)",
         },
@@ -215,6 +217,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "15 * * * *",  # Every hour at XX:15
             "args": {"collector_type": "credentials_service"},
+            "collector_flag": "CREDENTIALS_COLLECTION",
             "enabled": True,
             "description": "Collect credentials metrics every hour",
         },
@@ -223,6 +226,7 @@ METRICS_COLLECTION_GROUP = TaskGroup(
             "function": "collect_hourly_metrics",
             "cron": "20 * * * *",  # Every hour at XX:20
             "args": {"collector_type": "main_jobevent_service"},
+            "collector_flag": "EVENTS_COLLECTION",
             "enabled": True,
             "description": "Collect job events (event modules) metrics every hour",
         },
@@ -320,6 +324,26 @@ ANONYMIZATION_GROUP = TaskGroup(
     ],
 )
 
+# Core Dashboard Collection Group — lightweight JobData sync from already-collected hourly metrics.
+# No additional AWX DB queries: the hook re-uses data gathered by METRICS_COLLECTION_GROUP.
+# Feature flag: CORE_DASHBOARD_COLLECTION (default: True).
+# cleanup_dashboard_telemetry lives here because it cleans up rows written by the core sync hooks.
+CORE_DASHBOARD_COLLECTION_GROUP = TaskGroup(
+    name="core_dashboard_collection",
+    description="Core JobData/JobHostSummary sync from hourly metrics (no extra AWX DB load)",
+    feature_flag="CORE_DASHBOARD_COLLECTION",
+    tasks=[
+        {
+            "task_id": "cleanup_dashboard_telemetry",
+            "function": "cleanup_dashboard_telemetry",
+            "cron": "45 5 * * *",  # Daily at 5:45 AM
+            "args": {},  # retention_days defaults to 60
+            "enabled": True,
+            "description": "Delete DashboardTelemetry rows older than 60 days to prevent unbounded table growth",
+        },
+    ],
+)
+
 # Dashboard Collection Group - automation-reports integration
 # Feature flag: DASHBOARD_COLLECTION (default: True — enabled by default)
 # Disable via METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION=false or dynamic_settings.Setting.
@@ -343,14 +367,6 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "args": {},  # retention_days defaults to the Controller's cleanup_jobs retention schedule
             "enabled": True,
             "description": "Clean up old dashboard report data based on retention policy",
-        },
-        {
-            "task_id": "cleanup_dashboard_telemetry",
-            "function": "cleanup_dashboard_telemetry",
-            "cron": "45 5 * * *",  # Daily at 5:45 AM
-            "args": {},  # retention_days defaults to 60
-            "enabled": True,
-            "description": "Delete DashboardTelemetry rows older than 60 days to prevent unbounded table growth",
         },
     ],
 )
@@ -380,6 +396,7 @@ TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
     METRICS_COLLECTION_GROUP,
     ANONYMIZATION_GROUP,
+    CORE_DASHBOARD_COLLECTION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
     INDIRECT_NODE_COLLECTION_GROUP,
 ]

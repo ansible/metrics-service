@@ -126,9 +126,18 @@ DATABASES = {
 FEATURE = {
     # Local hourly/daily collectors, rollup, cleanup_metrics_data — see METRICS_COLLECTION_GROUP.
     "METRICS_COLLECTION": True,
+    # Per-collector flags — only evaluated when METRICS_COLLECTION is enabled.
+    # Setting any of these to False disables just that collector's hourly task.
+    "UNIFIED_JOBS_COLLECTION": True,
+    "JOB_HOST_SUMMARY_COLLECTION": True,
+    "CREDENTIALS_COLLECTION": True,
+    "EVENTS_COLLECTION": True,
     # Anonymization and Segment transmission only — does not gate METRICS_COLLECTION_GROUP.
     "ANONYMIZED_DATA_COLLECTION": True,
-    # Dashboard data collection for automation-reports — see DASHBOARD_COLLECTION_GROUP.
+    # Core dashboard sync — writes JobData/JobHostSummary from already-collected hourly metrics.
+    # No additional AWX DB load. Required for dashboard report queries. See CORE_DASHBOARD_COLLECTION_GROUP.
+    "CORE_DASHBOARD_COLLECTION": True,
+    # Full dashboard pipeline (initial backfill + old-data cleanup). See DASHBOARD_COLLECTION_GROUP.
     "DASHBOARD_COLLECTION": True,
 }
 

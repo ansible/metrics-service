@@ -269,7 +269,7 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
     # The flag is intentionally evaluated at hook-build time (when the hourly task starts),
     # not when the hook executes after gather(). A flag change mid-task takes effect on the
     # next collection cycle. This is acceptable — the window is the duration of one gather() call.
-    if not get_feature_enabled_from_db("DASHBOARD_COLLECTION"):
+    if not get_feature_enabled_from_db("CORE_DASHBOARD_COLLECTION"):
         return None
 
     def hook(raw_data):
@@ -311,7 +311,7 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
                     "task_data": {
                         "raw_host_summaries": chunk,
                         "hour_timestamp": hour_ts_str,
-                        "_feature_flag": "DASHBOARD_COLLECTION",
+                        "_feature_flag": "CORE_DASHBOARD_COLLECTION",
                     },
                     "is_system_task": False,
                 },
@@ -341,7 +341,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
     # The flag is intentionally evaluated at hook-build time (when the hourly task starts),
     # not when the hook executes after gather(). A flag change mid-task takes effect on the
     # next collection cycle. This is acceptable — the window is the duration of one gather() call.
-    if not get_feature_enabled_from_db("DASHBOARD_COLLECTION"):
+    if not get_feature_enabled_from_db("CORE_DASHBOARD_COLLECTION"):
         return None
 
     def hook(raw_data):
@@ -385,7 +385,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
                     "task_data": {
                         "raw_jobs": chunk,
                         "hour_timestamp": hour_ts_str,
-                        "_feature_flag": "DASHBOARD_COLLECTION",
+                        "_feature_flag": "CORE_DASHBOARD_COLLECTION",
                     },
                     "is_system_task": False,
                 },

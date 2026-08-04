@@ -336,6 +336,8 @@ def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[
     task_data = config.get("args", {}).copy()
     if config.get("feature_flag"):
         task_data["_feature_flag"] = config["feature_flag"]
+    if config.get("collector_flag"):
+        task_data["_collector_flag"] = config["collector_flag"]
 
     kwargs = {
         "name": task_id,
