@@ -7,7 +7,12 @@ Coverage:
     - Admin GET returns all settings grouped by category
     - Admin GET shows registry default for keys with no DB row
     - Admin GET returns null for sensitive settings
+    - Admin GET exposes requires list and effective_value per entry
+    - effective_value is False when a required parent flag is disabled
+    - effective_value is True when all dependencies are satisfied
     - Admin PATCH updates a setting and returns the new value
+    - Admin PATCH returns warnings when a required dependency is broken
+    - Admin PATCH returns no warnings when all dependencies are satisfied
     - Admin PATCH rejects unknown keys
     - Admin PATCH rejects wrong types
     - Admin PATCH rejects sensitive settings
@@ -131,7 +136,7 @@ def test_admin_get_entry_shape(admin_user):
     data = response.json()
 
     entry = data["collection"]["METRICS_COLLECTION"]
-    for field in ("value", "default", "type", "label", "description", "parent_flag", "modified", "modified_by"):
+    for field in ("value", "effective_value", "default", "type", "label", "description", "requires", "modified", "modified_by"):
         assert field in entry, f"Field {field!r} missing from setting entry"
 
 
@@ -225,6 +230,98 @@ def test_admin_patch_empty_dict_returns_400(admin_user):
         format="json",
     )
     assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# effective_value and requires
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_requires_list_present_on_dependent_flags(admin_user):
+    """Flags with dependencies expose a non-empty requires list."""
+    response = _admin_client(admin_user).get(SETTINGS_URL)
+    data = response.json()
+    # EVENTS_COLLECTION requires METRICS_COLLECTION
+    assert data["collection"]["EVENTS_COLLECTION"]["requires"] == ["METRICS_COLLECTION"]
+    # CORE_DASHBOARD_COLLECTION requires two flags
+    assert set(data["dashboard"]["CORE_DASHBOARD_COLLECTION"]["requires"]) == {
+        "UNIFIED_JOBS_COLLECTION",
+        "JOB_HOST_SUMMARY_COLLECTION",
+    }
+    # METRICS_COLLECTION has no requirements
+    assert data["collection"]["METRICS_COLLECTION"]["requires"] == []
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_effective_value_false_when_parent_disabled(admin_user):
+    """effective_value is False for a flag when a required parent is disabled."""
+    # Disable METRICS_COLLECTION — all collection sub-flags should be effectively off
+    Setting.objects.filter(setting_key="METRICS_COLLECTION").delete()
+    from apps.dynamic_settings.utils import log_setting_change
+
+    log_setting_change(admin_user, "METRICS_COLLECTION", False, True)
+
+    response = _admin_client(admin_user).get(SETTINGS_URL)
+    data = response.json()
+
+    # EVENTS_COLLECTION is still "on" (value=True) but effective_value must be False
+    events = data["collection"]["EVENTS_COLLECTION"]
+    assert events["value"] is True
+    assert events["effective_value"] is False
+
+    # CORE_DASHBOARD_COLLECTION transitively needs METRICS_COLLECTION → also False
+    core = data["dashboard"]["CORE_DASHBOARD_COLLECTION"]
+    assert core["effective_value"] is False
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_effective_value_true_when_all_deps_satisfied(admin_user):
+    """effective_value equals value when all required flags are enabled."""
+    response = _admin_client(admin_user).get(SETTINGS_URL)
+    data = response.json()
+    # Default state: all flags enabled — effective_value should match value
+    for category in data.values():
+        for key, entry in category.items():
+            if entry["value"] is True and entry["effective_value"] is not None:
+                assert entry["effective_value"] is True, (
+                    f"{key}: value=True but effective_value={entry['effective_value']}"
+                )
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_patch_returns_warnings_when_dependency_broken(admin_user):
+    """PATCH that disables a required flag returns warnings for dependent enabled flags."""
+    response = _admin_client(admin_user).patch(
+        SETTINGS_URL,
+        data={"METRICS_COLLECTION": False},
+        format="json",
+    )
+    assert response.status_code == 200
+    data = response.json()
+    # warnings key present because EVENTS_COLLECTION, ANONYMIZED_DATA_COLLECTION, etc.
+    # are still enabled but their required METRICS_COLLECTION is now off
+    assert "warnings" in data
+    assert any("METRICS_COLLECTION" in msg for msg in data["warnings"].values())
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_patch_no_warnings_when_deps_satisfied(admin_user):
+    """PATCH that doesn't break any dependency returns no warnings key."""
+    response = _admin_client(admin_user).patch(
+        SETTINGS_URL,
+        data={"INDIRECT_NODE_COLLECTION": True},
+        format="json",
+    )
+    assert response.status_code == 200
+    data = response.json()
+    # INDIRECT_NODE_COLLECTION has no requires — no warnings expected
+    assert "warnings" not in data or data["warnings"] == {}
 
 
 # ---------------------------------------------------------------------------
