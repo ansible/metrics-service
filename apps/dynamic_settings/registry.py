@@ -1,7 +1,7 @@
 """
 Registry of all known settings exposed via the settings API.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -12,6 +12,7 @@ class SettingDef:
     type: str  # "boolean" | "integer" | "string"
     default: bool | int | str
     parent_flag: str | None = None
+    sensitive: bool = False  # when True, GET returns null; the actual value is never echoed back
 
 
 SETTINGS_REGISTRY: dict[str, SettingDef] = {

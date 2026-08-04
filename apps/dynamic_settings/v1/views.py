@@ -16,8 +16,17 @@ from apps.dynamic_settings.utils import log_setting_change
 logger = logging.getLogger(__name__)
 
 
-def _resolve_current_value(key: str, row: Setting | None, defn) -> bool | int | str | None:
-    """Return the effective value: DB row > FEATURE dict > registry default."""
+_SENSITIVE_SENTINEL = None  # returned in GET responses for sensitive settings
+
+
+def _resolve_current_value(key: str, row: "Setting | None", defn) -> "bool | int | str | None":
+    """Return the effective value: DB row > FEATURE dict > registry default.
+
+    Returns None for sensitive settings — the actual value is never exposed via the API.
+    """
+    if defn.sensitive:
+        return _SENSITIVE_SENTINEL
+
     if row and row.current_value:
         try:
             return json.loads(row.current_value)
@@ -77,6 +86,9 @@ class SettingsView(APIView):
                 errors[key] = f"Unknown setting. Valid keys: {sorted(SETTINGS_REGISTRY)}."
                 continue
             defn = SETTINGS_REGISTRY[key]
+            if defn.sensitive:
+                errors[key] = "This setting is sensitive and cannot be updated via the API."
+                continue
             if defn.type == "boolean" and not isinstance(value, bool):
                 errors[key] = "Must be a boolean (true or false)."
                 continue

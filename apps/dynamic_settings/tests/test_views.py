@@ -6,21 +6,23 @@ Coverage:
     - Non-admin access is rejected
     - Admin GET returns all settings grouped by category
     - Admin GET shows registry default for keys with no DB row
+    - Admin GET returns null for sensitive settings
     - Admin PATCH updates a setting and returns the new value
     - Admin PATCH rejects unknown keys
     - Admin PATCH rejects wrong types
+    - Admin PATCH rejects sensitive settings
     - Admin PATCH with empty dict is rejected
     - After PATCH the Setting DB row carries the correct JSON value
 """
 
 import json
+from unittest.mock import patch
 
 import pytest
-from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.dynamic_settings.models import Setting
-from apps.dynamic_settings.registry import SETTINGS_REGISTRY
+from apps.dynamic_settings.registry import SETTINGS_REGISTRY, SettingDef
 
 
 SETTINGS_URL = "/api/v1/settings/"
@@ -223,3 +225,46 @@ def test_admin_patch_empty_dict_returns_400(admin_user):
         format="json",
     )
     assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Sensitive setting masking
+# ---------------------------------------------------------------------------
+
+_SENSITIVE_REGISTRY = {
+    **SETTINGS_REGISTRY,
+    "SECRET_TOKEN": SettingDef(
+        category="advanced",
+        label="Secret Token",
+        type="string",
+        default="",
+        sensitive=True,
+        description="A sensitive credential — never echoed back.",
+    ),
+}
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_sensitive_setting_returns_null_in_get(admin_user):
+    """GET returns null for any setting marked sensitive=True in the registry."""
+    with patch("apps.dynamic_settings.v1.views.SETTINGS_REGISTRY", _SENSITIVE_REGISTRY):
+        response = _admin_client(admin_user).get(SETTINGS_URL)
+    data = response.json()
+    assert response.status_code == 200
+    entry = data["advanced"]["SECRET_TOKEN"]
+    assert entry["value"] is None
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_sensitive_setting_patch_returns_400(admin_user):
+    """PATCH of a sensitive setting returns 400 — values cannot be set via the API."""
+    with patch("apps.dynamic_settings.v1.views.SETTINGS_REGISTRY", _SENSITIVE_REGISTRY):
+        response = _admin_client(admin_user).patch(
+            SETTINGS_URL,
+            data={"SECRET_TOKEN": "my-secret"},
+            format="json",
+        )
+    assert response.status_code == 400
+    assert "SECRET_TOKEN" in response.json()
