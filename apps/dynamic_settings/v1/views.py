@@ -37,11 +37,20 @@ def _resolve_current_value(key: str, row: "Setting | None", defn) -> "bool | int
 
     # Lazy import — avoids a circular import at module load time while still reaching
     # the full resolution chain: FEATURE dict → settings attr → AAPFlag → default.
-    try:
-        from apps.tasks.task_groups import get_feature_enabled_from_db
+    if defn.type == "boolean":
+        try:
+            from apps.tasks.task_groups import get_feature_enabled_from_db
 
-        return get_feature_enabled_from_db(key, default=defn.default)
-    except Exception:
+            return get_feature_enabled_from_db(key, default=defn.default)
+        except Exception:
+            return defn.default
+    else:
+        # For integer/string settings: check Django settings attr, then default
+        from django.conf import settings as django_settings
+
+        value = getattr(django_settings, key, None)
+        if value is not None:
+            return value
         return defn.default
 
 
@@ -157,6 +166,9 @@ class SettingsView(APIView):
             if defn.type == "integer" and not isinstance(value, int):
                 errors[key] = "Must be an integer."
                 continue
+            if defn.type == "integer" and value <= 0:
+                errors[key] = "Must be a positive integer."
+                continue
             updates[key] = value
 
         if errors:
@@ -186,4 +198,109 @@ class SettingsView(APIView):
         response = self.get(request)
         if warnings:
             response.data["warnings"] = warnings
+        return response
+
+
+class SettingsCategoryView(APIView):
+    """
+    GET  /api/v1/settings/<category>/  — all settings for a single category.
+    PATCH /api/v1/settings/<category>/ — update settings within this category only.
+
+    Returns 404 when the category name is not in SETTINGS_REGISTRY.
+    PATCH rejects keys that belong to a different category with 400.
+    """
+
+    permission_classes = [IsSystemAdminOrAuditor]
+
+    def _category_keys(self, category: str) -> dict:
+        return {k: v for k, v in SETTINGS_REGISTRY.items() if v.category == category}
+
+    def get(self, request: Request, category: str) -> Response:
+        keys = self._category_keys(category)
+        if not keys:
+            return Response({"detail": f"Unknown settings category: {category!r}."}, status=404)
+
+        db_settings = {s.setting_key: s for s in Setting.objects.filter(setting_key__in=keys)}
+        raw_values = {
+            key: _resolve_current_value(key, db_settings.get(key), defn)
+            for key, defn in SETTINGS_REGISTRY.items()
+        }
+
+        result = {}
+        for key, defn in keys.items():
+            row = db_settings.get(key)
+            result[key] = {
+                "value": raw_values[key],
+                "effective_value": _compute_effective_value(key, raw_values),
+                "default": defn.default,
+                "type": defn.type,
+                "label": defn.label,
+                "description": defn.description,
+                "requires": defn.requires,
+                "modified": row.modified.isoformat() if row else None,
+                "modified_by": row.last_modified_by.username if row and row.last_modified_by else None,
+            }
+
+        return Response(result)
+
+    def patch(self, request: Request, category: str) -> Response:
+        keys = self._category_keys(category)
+        if not keys:
+            return Response({"detail": f"Unknown settings category: {category!r}."}, status=404)
+
+        if not isinstance(request.data, dict):
+            return Response({"detail": "Expected a JSON object."}, status=400)
+
+        errors: dict = {}
+        updates: dict = {}
+
+        for key, value in request.data.items():
+            if key not in SETTINGS_REGISTRY:
+                errors[key] = f"Unknown setting. Valid keys for '{category}': {sorted(keys)}."
+                continue
+            if key not in keys:
+                wrong_cat = SETTINGS_REGISTRY[key].category
+                errors[key] = f"Setting '{key}' belongs to category '{wrong_cat}', not '{category}'."
+                continue
+            defn = SETTINGS_REGISTRY[key]
+            if defn.sensitive:
+                errors[key] = "This setting is sensitive and cannot be updated via the API."
+                continue
+            if defn.type == "boolean" and not isinstance(value, bool):
+                errors[key] = "Must be a boolean (true or false)."
+                continue
+            if defn.type == "integer" and not isinstance(value, int):
+                errors[key] = "Must be an integer."
+                continue
+            if defn.type == "integer" and value <= 0:
+                errors[key] = "Must be a positive integer."
+                continue
+            updates[key] = value
+
+        if errors:
+            return Response(errors, status=400)
+        if not updates:
+            return Response({"detail": "No valid settings provided."}, status=400)
+
+        for key, value in updates.items():
+            defn = SETTINGS_REGISTRY[key]
+            try:
+                old_row = Setting.objects.filter(setting_key=key).first()
+                old_value = _resolve_current_value(key, old_row, defn)
+            except Exception:
+                old_value = defn.default
+            log_setting_change(request.user, key, value, old_value)
+            logger.info("Setting %s updated to %r by %s", key, value, request.user)
+
+        db_settings = {s.setting_key: s for s in Setting.objects.filter(setting_key__in=keys)}
+        raw_values_all = {
+            k: _resolve_current_value(k, db_settings.get(k), d) for k, d in SETTINGS_REGISTRY.items()
+        }
+        warnings = _collect_dependency_warnings(raw_values_all)
+        # Filter warnings to keys in this category
+        category_warnings = {k: v for k, v in warnings.items() if k in keys}
+
+        response = self.get(request, category)
+        if category_warnings:
+            response.data["warnings"] = category_warnings
         return response

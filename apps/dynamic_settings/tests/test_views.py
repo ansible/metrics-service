@@ -18,6 +18,16 @@ Coverage:
     - Admin PATCH rejects sensitive settings
     - Admin PATCH with empty dict is rejected
     - After PATCH the Setting DB row carries the correct JSON value
+
+Category endpoint coverage:
+    - GET /settings/<category>/ returns only settings for that category
+    - GET /settings/retention/ returns all five retention settings
+    - GET /settings/<unknown>/ returns 404
+    - PATCH /settings/<category>/ with an integer key updates and returns 200
+    - PATCH with a non-integer value for an integer setting returns 400
+    - PATCH with 0 for an integer setting returns 400 (must be positive)
+    - PATCH a key from a different category returns 400
+    - PATCH /settings/retention/ with a valid retention setting returns 200
 """
 
 import json
@@ -365,3 +375,114 @@ def test_sensitive_setting_patch_returns_400(admin_user):
         )
     assert response.status_code == 400
     assert "SECRET_TOKEN" in response.json()
+
+
+# ---------------------------------------------------------------------------
+# Category endpoints
+# ---------------------------------------------------------------------------
+
+COLLECTION_URL = "/api/v1/settings/collection/"
+RETENTION_URL = "/api/v1/settings/retention/"
+UNKNOWN_CAT_URL = "/api/v1/settings/nonexistent/"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_category_get_returns_only_that_category(admin_user):
+    """GET /settings/<category>/ returns only settings for that category."""
+    response = _admin_client(admin_user).get(COLLECTION_URL)
+    assert response.status_code == 200
+    data = response.json()
+    # All returned keys must be collection-category
+    from apps.dynamic_settings.registry import SETTINGS_REGISTRY
+    for key in data:
+        if key == "warnings":
+            continue
+        assert SETTINGS_REGISTRY[key].category == "collection", f"{key} is not collection category"
+    # Must include JOBEVENT_ROW_LIMIT
+    assert "JOBEVENT_ROW_LIMIT" in data
+    assert "JOBEVENT_JOB_LIMIT" in data
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_retention_category_has_expected_keys(admin_user):
+    """GET /settings/retention/ returns all five retention settings."""
+    response = _admin_client(admin_user).get(RETENTION_URL)
+    assert response.status_code == 200
+    data = response.json()
+    for key in ("HOURLY_RETENTION_DAYS", "DAILY_RETENTION_DAYS", "PAYLOAD_RETENTION_DAYS",
+                "TASK_RECORD_RETENTION_DAYS", "DASHBOARD_TELEMETRY_RETENTION_DAYS"):
+        assert key in data, f"{key} missing from retention category"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_unknown_category_returns_404(admin_user):
+    """GET /settings/<unknown>/ returns 404."""
+    response = _admin_client(admin_user).get(UNKNOWN_CAT_URL)
+    assert response.status_code == 404
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_category_patch_integer_setting(admin_user):
+    """PATCH /settings/collection/ with an integer key returns 200 and updated value."""
+    response = _admin_client(admin_user).patch(
+        COLLECTION_URL,
+        data={"JOBEVENT_ROW_LIMIT": 100_000},
+        format="json",
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["JOBEVENT_ROW_LIMIT"]["value"] == 100_000
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_category_patch_wrong_type_returns_400(admin_user):
+    """PATCH integer setting with a string returns 400."""
+    response = _admin_client(admin_user).patch(
+        COLLECTION_URL,
+        data={"JOBEVENT_ROW_LIMIT": "not-an-int"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_category_patch_zero_integer_returns_400(admin_user):
+    """PATCH integer setting with 0 returns 400 (must be positive)."""
+    response = _admin_client(admin_user).patch(
+        COLLECTION_URL,
+        data={"JOBEVENT_ROW_LIMIT": 0},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_category_patch_wrong_category_returns_400(admin_user):
+    """PATCH a key from a different category returns 400."""
+    response = _admin_client(admin_user).patch(
+        RETENTION_URL,
+        data={"EVENTS_COLLECTION": False},  # EVENTS_COLLECTION is in 'collection', not 'retention'
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "EVENTS_COLLECTION" in response.json()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_category_patch_retention_days(admin_user):
+    """PATCH /settings/retention/ with HOURLY_RETENTION_DAYS returns updated value."""
+    response = _admin_client(admin_user).patch(
+        RETENTION_URL,
+        data={"HOURLY_RETENTION_DAYS": 14},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["HOURLY_RETENTION_DAYS"]["value"] == 14
