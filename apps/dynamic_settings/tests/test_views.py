@@ -467,11 +467,24 @@ def test_category_patch_wrong_type_returns_400(admin_user):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_category_patch_zero_integer_returns_400(admin_user):
-    """PATCH integer setting with 0 returns 400 (must be positive)."""
+def test_category_patch_zero_jobevent_allowed(admin_user):
+    """PATCH JOBEVENT_ROW_LIMIT=0 is valid — zero means unlimited."""
     response = _admin_client(admin_user).patch(
         COLLECTION_URL,
         data={"JOBEVENT_ROW_LIMIT": 0},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["JOBEVENT_ROW_LIMIT"]["value"] == 0
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_category_patch_zero_retention_returns_400(admin_user):
+    """PATCH retention setting with 0 returns 400 — retention days must be >= 1."""
+    response = _admin_client(admin_user).patch(
+        RETENTION_URL,
+        data={"HOURLY_RETENTION_DAYS": 0},
         format="json",
     )
     assert response.status_code == 400

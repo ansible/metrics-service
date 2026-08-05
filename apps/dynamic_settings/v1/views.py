@@ -160,8 +160,9 @@ class SettingsView(APIView):
             if defn.type == "integer" and not isinstance(value, int):
                 errors[key] = "Must be an integer."
                 continue
-            if defn.type == "integer" and value <= 0:
-                errors[key] = "Must be a positive integer."
+            if defn.type == "integer" and defn.min_value is not None and value < defn.min_value:
+                limit = "0 or greater" if defn.min_value == 0 else "a positive integer"
+                errors[key] = f"Must be {limit}."
                 continue
             updates[key] = value
 
@@ -263,8 +264,9 @@ class SettingsCategoryView(APIView):
             if defn.type == "integer" and not isinstance(value, int):
                 errors[key] = "Must be an integer."
                 continue
-            if defn.type == "integer" and value <= 0:
-                errors[key] = "Must be a positive integer."
+            if defn.type == "integer" and defn.min_value is not None and value < defn.min_value:
+                limit = "0 or greater" if defn.min_value == 0 else "a positive integer"
+                errors[key] = f"Must be {limit}."
                 continue
             updates[key] = value
 
