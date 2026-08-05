@@ -110,9 +110,7 @@ def _build_entry(key: str, defn, row: "Setting | None", raw_values: dict) -> dic
     }
 
 
-def _validate_setting(
-    key: str, value, defn, *, category: str | None = None, allowed_keys: dict | None = None
-) -> str | None:
+def _validate_setting(key: str, value, defn, *, category: str | None = None) -> str | None:
     """Validate a single key/value pair against the registry.
 
     Returns an error string if invalid, None if valid.

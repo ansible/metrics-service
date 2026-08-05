@@ -176,11 +176,9 @@ class UnifiedTaskScheduler:
 
         from .task_groups import get_feature_enabled_from_db
 
-        if feature_flag and not get_feature_enabled_from_db(feature_flag):
-            return False
-        if collector_flag and not get_feature_enabled_from_db(collector_flag, default=True):
-            return False
-        return True
+        group_ok = not feature_flag or get_feature_enabled_from_db(feature_flag)
+        collector_ok = not collector_flag or get_feature_enabled_from_db(collector_flag, default=True)
+        return group_ok and collector_ok
 
     def _sync_database_tasks(self):
         """Synchronize database tasks with the scheduler."""
