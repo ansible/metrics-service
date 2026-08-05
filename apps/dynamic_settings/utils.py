@@ -201,3 +201,38 @@ def initialize_default_settings(**_kwargs) -> None:
             logger.warning(f"Failed to clean up feature flag row for '{flag_key}': {e}")
     if cleaned_count > 0:
         logger.info(f"Cleaned up {cleaned_count} redundant feature flag row(s)")
+
+
+def get_typed_setting_from_db(setting_key: str, default):
+    """
+    Get a non-boolean setting value from the DB, preserving the JSON-parsed type.
+
+    Resolution order:
+      1. ``Setting`` DB row (JSON-parsed, type preserved)
+      2. Django settings attribute matching ``setting_key`` exactly
+      3. ``default``
+
+    Unlike ``get_feature_enabled_from_db`` (which always returns bool), this
+    function returns whatever JSON type was stored: int, str, float, list, dict.
+    Use it for integer/string settings exposed via the settings API.
+    """
+    import json as _json
+
+    from django.conf import settings as django_settings
+
+    try:
+        setting = Setting.objects.filter(setting_key=setting_key).first()
+        if setting and setting.current_value:
+            try:
+                return _json.loads(setting.current_value)
+            except (_json.JSONDecodeError, ValueError):
+                pass
+
+        value = getattr(django_settings, setting_key, None)
+        if value is not None:
+            return value
+
+        return default
+    except Exception as e:
+        logger.warning(f"Error reading setting {setting_key!r} from database: {e}")
+        return default

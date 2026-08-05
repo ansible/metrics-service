@@ -695,9 +695,12 @@ def cleanup_dashboard_telemetry(**kwargs) -> dict[str, Any]:
     60 days are no longer surfaced and can safely be purged.
     Returns a task result dict with the number of deleted rows and cutoff date.
     """
+    from apps.dynamic_settings.utils import get_typed_setting_from_db
+
     task_name = "cleanup_dashboard_telemetry"
-    retention_days = _get_renamed_kwarg(kwargs, "retention_days", "retention_period_days", task_name)
-    retention_days = 60 if retention_days is _MISSING else retention_days
+    _raw_retention = _get_renamed_kwarg(kwargs, "retention_days", "retention_period_days", task_name)
+    _kwarg_retention = 60 if _raw_retention is _MISSING else _raw_retention
+    retention_days = get_typed_setting_from_db("DASHBOARD_TELEMETRY_RETENTION_DAYS", _kwarg_retention)
     retention_days, error_result = _normalize_retention_days(task_name, retention_days)
     if error_result is not None:
         return error_result

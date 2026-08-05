@@ -39,9 +39,11 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
     """
     from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary, HourlyMetricsCollection
 
-    hourly_retention_days = kwargs.get("hourly_retention_days", 7)
-    daily_retention_days = kwargs.get("daily_retention_days", 30)
-    payload_retention_days = kwargs.get("payload_retention_days", 7)
+    from apps.dynamic_settings.utils import get_typed_setting_from_db
+
+    hourly_retention_days = get_typed_setting_from_db("HOURLY_RETENTION_DAYS", kwargs.get("hourly_retention_days", 7))
+    daily_retention_days = get_typed_setting_from_db("DAILY_RETENTION_DAYS", kwargs.get("daily_retention_days", 30))
+    payload_retention_days = get_typed_setting_from_db("PAYLOAD_RETENTION_DAYS", kwargs.get("payload_retention_days", 7))
     dry_run = kwargs.get("dry_run", False)
 
     log_task_execution("cleanup_metrics_data", "processing", f"Cleaning up metrics data (dry_run={dry_run})")

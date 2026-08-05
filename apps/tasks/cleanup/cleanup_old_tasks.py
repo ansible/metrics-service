@@ -40,7 +40,9 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     """
     from ..models import Task, TaskExecution
 
-    days_old = kwargs.get("days_old", 5)
+    from apps.dynamic_settings.utils import get_typed_setting_from_db
+
+    days_old = get_typed_setting_from_db("TASK_RECORD_RETENTION_DAYS", kwargs.get("days_old", 5))
     dry_run = kwargs.get("dry_run", False)
     include_executions = kwargs.get("include_executions", True)
     preserve_recurring = kwargs.get("preserve_recurring", True)
