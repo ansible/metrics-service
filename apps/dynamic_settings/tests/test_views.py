@@ -39,7 +39,6 @@ from rest_framework.test import APIClient
 from apps.dynamic_settings.models import Setting
 from apps.dynamic_settings.registry import SETTINGS_REGISTRY, SettingDef
 
-
 SETTINGS_URL = "/api/v1/settings/"
 
 
@@ -146,7 +145,17 @@ def test_admin_get_entry_shape(admin_user):
     data = response.json()
 
     entry = data["collection"]["METRICS_COLLECTION"]
-    for field in ("value", "effective_value", "default", "type", "label", "description", "requires", "modified", "modified_by"):
+    for field in (
+        "value",
+        "effective_value",
+        "default",
+        "type",
+        "label",
+        "description",
+        "requires",
+        "modified",
+        "modified_by",
+    ):
         assert field in entry, f"Field {field!r} missing from setting entry"
 
 
@@ -395,6 +404,7 @@ def test_category_get_returns_only_that_category(admin_user):
     data = response.json()
     # All returned keys must be collection-category
     from apps.dynamic_settings.registry import SETTINGS_REGISTRY
+
     for key in data:
         if key == "warnings":
             continue
@@ -411,8 +421,13 @@ def test_retention_category_has_expected_keys(admin_user):
     response = _admin_client(admin_user).get(RETENTION_URL)
     assert response.status_code == 200
     data = response.json()
-    for key in ("HOURLY_RETENTION_DAYS", "DAILY_RETENTION_DAYS", "PAYLOAD_RETENTION_DAYS",
-                "TASK_RECORD_RETENTION_DAYS", "DASHBOARD_TELEMETRY_RETENTION_DAYS"):
+    for key in (
+        "HOURLY_RETENTION_DAYS",
+        "DAILY_RETENTION_DAYS",
+        "PAYLOAD_RETENTION_DAYS",
+        "TASK_RECORD_RETENTION_DAYS",
+        "DASHBOARD_TELEMETRY_RETENTION_DAYS",
+    ):
         assert key in data, f"{key} missing from retention category"
 
 

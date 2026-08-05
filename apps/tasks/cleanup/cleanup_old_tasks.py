@@ -38,9 +38,9 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     Returns:
         dict: Task result dictionary with cleanup statistics
     """
-    from ..models import Task, TaskExecution
-
     from apps.dynamic_settings.utils import get_typed_setting_from_db
+
+    from ..models import Task, TaskExecution
 
     days_old = get_typed_setting_from_db("TASK_RECORD_RETENTION_DAYS", kwargs.get("days_old", 5))
     dry_run = kwargs.get("dry_run", False)

@@ -1,6 +1,7 @@
 """
 Settings API views — singleton GET/PATCH for runtime feature flag management.
 """
+
 import json
 import logging
 
@@ -48,10 +49,7 @@ def _resolve_current_value(key: str, row: "Setting | None", defn) -> "bool | int
         # For integer/string settings: check Django settings attr, then default
         from django.conf import settings as django_settings
 
-        value = getattr(django_settings, key, None)
-        if value is not None:
-            return value
-        return defn.default
+        return getattr(django_settings, key, defn.default)
 
 
 def _compute_effective_value(key: str, raw_values: dict) -> "bool | int | str | None":
@@ -93,10 +91,7 @@ def _collect_dependency_warnings(raw_values: dict) -> dict[str, str]:
             continue  # already off — no warning needed
         broken = [r for r in defn.requires if not raw_values.get(r, SETTINGS_REGISTRY[r].default)]
         if broken:
-            messages[key] = (
-                f"{key} is enabled but will have no effect: "
-                f"required flag(s) disabled: {', '.join(broken)}."
-            )
+            messages[key] = f"{key} is enabled but will have no effect: required flag(s) disabled: {', '.join(broken)}."
     return messages
 
 
@@ -123,8 +118,7 @@ class SettingsView(APIView):
         # Resolve raw configured values for every key first so effective_value can
         # walk the dependency graph without making repeated DB queries.
         raw_values: dict = {
-            key: _resolve_current_value(key, db_settings.get(key), defn)
-            for key, defn in SETTINGS_REGISTRY.items()
+            key: _resolve_current_value(key, db_settings.get(key), defn) for key, defn in SETTINGS_REGISTRY.items()
         }
 
         result: dict = {}
@@ -190,9 +184,7 @@ class SettingsView(APIView):
         # Recompute raw values (including the just-applied updates) to surface any
         # dependency warnings the caller should act on.
         db_settings = {s.setting_key: s for s in Setting.objects.all()}
-        raw_values = {
-            k: _resolve_current_value(k, db_settings.get(k), d) for k, d in SETTINGS_REGISTRY.items()
-        }
+        raw_values = {k: _resolve_current_value(k, db_settings.get(k), d) for k, d in SETTINGS_REGISTRY.items()}
         warnings = _collect_dependency_warnings(raw_values)
 
         response = self.get(request)
@@ -222,8 +214,7 @@ class SettingsCategoryView(APIView):
 
         db_settings = {s.setting_key: s for s in Setting.objects.filter(setting_key__in=keys)}
         raw_values = {
-            key: _resolve_current_value(key, db_settings.get(key), defn)
-            for key, defn in SETTINGS_REGISTRY.items()
+            key: _resolve_current_value(key, db_settings.get(key), defn) for key, defn in SETTINGS_REGISTRY.items()
         }
 
         result = {}
@@ -293,9 +284,7 @@ class SettingsCategoryView(APIView):
             logger.info("Setting %s updated to %r by %s", key, value, request.user)
 
         db_settings = {s.setting_key: s for s in Setting.objects.filter(setting_key__in=keys)}
-        raw_values_all = {
-            k: _resolve_current_value(k, db_settings.get(k), d) for k, d in SETTINGS_REGISTRY.items()
-        }
+        raw_values_all = {k: _resolve_current_value(k, db_settings.get(k), d) for k, d in SETTINGS_REGISTRY.items()}
         warnings = _collect_dependency_warnings(raw_values_all)
         # Filter warnings to keys in this category
         category_warnings = {k: v for k, v in warnings.items() if k in keys}
