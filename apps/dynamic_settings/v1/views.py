@@ -95,6 +95,88 @@ def _collect_dependency_warnings(raw_values: dict) -> dict[str, str]:
     return messages
 
 
+def _build_entry(key: str, defn, row: "Setting | None", raw_values: dict) -> dict:
+    """Build the response dict for a single setting entry."""
+    return {
+        "value": raw_values[key],
+        "effective_value": _compute_effective_value(key, raw_values),
+        "default": defn.default,
+        "type": defn.type,
+        "label": defn.label,
+        "description": defn.description,
+        "requires": defn.requires,
+        "modified": row.modified.isoformat() if row else None,
+        "modified_by": row.last_modified_by.username if row and row.last_modified_by else None,
+    }
+
+
+def _validate_setting(
+    key: str, value, defn, *, category: str | None = None, allowed_keys: dict | None = None
+) -> str | None:
+    """Validate a single key/value pair against the registry.
+
+    Returns an error string if invalid, None if valid.
+
+    Args:
+        key: The setting key from the request.
+        value: The proposed new value.
+        defn: The SettingDef for this key.
+        category: When set, rejects keys whose category differs from this value.
+        allowed_keys: When set, rejects keys not in this dict.
+    """
+    if defn.sensitive:
+        return "This setting is sensitive and cannot be updated via the API."
+    if category is not None and defn.category != category:
+        return f"Setting '{key}' belongs to category '{defn.category}', not '{category}'."
+    if defn.type == "boolean" and not isinstance(value, bool):
+        return "Must be a boolean (true or false)."
+    if defn.type == "integer":
+        if not isinstance(value, int):
+            return "Must be an integer."
+        if defn.min_value is not None and value < defn.min_value:
+            limit = "0 or greater" if defn.min_value == 0 else "a positive integer"
+            return f"Must be {limit}."
+    return None
+
+
+def _validate_patch_data(data: dict, *, category: str | None = None) -> tuple[dict, dict]:
+    """Validate a PATCH request body against the registry.
+
+    Returns ``(errors, updates)`` where errors maps invalid keys to error messages
+    and updates maps valid keys to their new values.  Unknown keys always produce
+    an error.  When ``category`` is given, keys from other categories are rejected.
+    """
+    errors: dict = {}
+    updates: dict = {}
+
+    for key, value in data.items():
+        if key not in SETTINGS_REGISTRY:
+            hint = sorted(SETTINGS_REGISTRY) if category is None else f"the '{category}' category"
+            errors[key] = f"Unknown setting. Valid keys: {hint}."
+            continue
+        defn = SETTINGS_REGISTRY[key]
+        error = _validate_setting(key, value, defn, category=category)
+        if error:
+            errors[key] = error
+        else:
+            updates[key] = value
+
+    return errors, updates
+
+
+def _persist_updates(user, updates: dict) -> None:
+    """Write validated updates to the Setting DB and emit log lines."""
+    for key, value in updates.items():
+        defn = SETTINGS_REGISTRY[key]
+        try:
+            old_row = Setting.objects.filter(setting_key=key).first()
+            old_value = _resolve_current_value(key, old_row, defn)
+        except Exception:
+            old_value = defn.default
+        log_setting_change(user, key, value, old_value)
+        logger.info("Setting %s updated to %r by %s", key, value, user)
+
+
 class SettingsView(APIView):
     """
     GET  /api/v1/settings/  — list all settings grouped by category with metadata.
@@ -114,28 +196,14 @@ class SettingsView(APIView):
 
     def get(self, request: Request) -> Response:
         db_settings = {s.setting_key: s for s in Setting.objects.all()}
-
-        # Resolve raw configured values for every key first so effective_value can
-        # walk the dependency graph without making repeated DB queries.
         raw_values: dict = {
             key: _resolve_current_value(key, db_settings.get(key), defn) for key, defn in SETTINGS_REGISTRY.items()
         }
 
         result: dict = {}
         for key, defn in SETTINGS_REGISTRY.items():
-            row = db_settings.get(key)
             category = result.setdefault(defn.category, {})
-            category[key] = {
-                "value": raw_values[key],
-                "effective_value": _compute_effective_value(key, raw_values),
-                "default": defn.default,
-                "type": defn.type,
-                "label": defn.label,
-                "description": defn.description,
-                "requires": defn.requires,
-                "modified": row.modified.isoformat() if row else None,
-                "modified_by": row.last_modified_by.username if row and row.last_modified_by else None,
-            }
+            category[key] = _build_entry(key, defn, db_settings.get(key), raw_values)
 
         return Response(result)
 
@@ -143,47 +211,15 @@ class SettingsView(APIView):
         if not isinstance(request.data, dict):
             return Response({"detail": "Expected a JSON object."}, status=400)
 
-        errors: dict = {}
-        updates: dict = {}
-
-        for key, value in request.data.items():
-            if key not in SETTINGS_REGISTRY:
-                errors[key] = f"Unknown setting. Valid keys: {sorted(SETTINGS_REGISTRY)}."
-                continue
-            defn = SETTINGS_REGISTRY[key]
-            if defn.sensitive:
-                errors[key] = "This setting is sensitive and cannot be updated via the API."
-                continue
-            if defn.type == "boolean" and not isinstance(value, bool):
-                errors[key] = "Must be a boolean (true or false)."
-                continue
-            if defn.type == "integer" and not isinstance(value, int):
-                errors[key] = "Must be an integer."
-                continue
-            if defn.type == "integer" and defn.min_value is not None and value < defn.min_value:
-                limit = "0 or greater" if defn.min_value == 0 else "a positive integer"
-                errors[key] = f"Must be {limit}."
-                continue
-            updates[key] = value
+        errors, updates = _validate_patch_data(request.data)
 
         if errors:
             return Response(errors, status=400)
-
         if not updates:
             return Response({"detail": "No valid settings provided."}, status=400)
 
-        for key, value in updates.items():
-            defn = SETTINGS_REGISTRY[key]
-            try:
-                old_row = Setting.objects.filter(setting_key=key).first()
-                old_value = _resolve_current_value(key, old_row, defn)
-            except Exception:
-                old_value = defn.default
-            log_setting_change(request.user, key, value, old_value)
-            logger.info("Setting %s updated to %r by %s", key, value, request.user)
+        _persist_updates(request.user, updates)
 
-        # Recompute raw values (including the just-applied updates) to surface any
-        # dependency warnings the caller should act on.
         db_settings = {s.setting_key: s for s in Setting.objects.all()}
         raw_values = {k: _resolve_current_value(k, db_settings.get(k), d) for k, d in SETTINGS_REGISTRY.items()}
         warnings = _collect_dependency_warnings(raw_values)
@@ -218,21 +254,7 @@ class SettingsCategoryView(APIView):
             key: _resolve_current_value(key, db_settings.get(key), defn) for key, defn in SETTINGS_REGISTRY.items()
         }
 
-        result = {}
-        for key, defn in keys.items():
-            row = db_settings.get(key)
-            result[key] = {
-                "value": raw_values[key],
-                "effective_value": _compute_effective_value(key, raw_values),
-                "default": defn.default,
-                "type": defn.type,
-                "label": defn.label,
-                "description": defn.description,
-                "requires": defn.requires,
-                "modified": row.modified.isoformat() if row else None,
-                "modified_by": row.last_modified_by.username if row and row.last_modified_by else None,
-            }
-
+        result = {key: _build_entry(key, defn, db_settings.get(key), raw_values) for key, defn in keys.items()}
         return Response(result)
 
     def patch(self, request: Request, category: str) -> Response:
@@ -243,55 +265,20 @@ class SettingsCategoryView(APIView):
         if not isinstance(request.data, dict):
             return Response({"detail": "Expected a JSON object."}, status=400)
 
-        errors: dict = {}
-        updates: dict = {}
-
-        for key, value in request.data.items():
-            if key not in SETTINGS_REGISTRY:
-                errors[key] = f"Unknown setting. Valid keys for '{category}': {sorted(keys)}."
-                continue
-            if key not in keys:
-                wrong_cat = SETTINGS_REGISTRY[key].category
-                errors[key] = f"Setting '{key}' belongs to category '{wrong_cat}', not '{category}'."
-                continue
-            defn = SETTINGS_REGISTRY[key]
-            if defn.sensitive:
-                errors[key] = "This setting is sensitive and cannot be updated via the API."
-                continue
-            if defn.type == "boolean" and not isinstance(value, bool):
-                errors[key] = "Must be a boolean (true or false)."
-                continue
-            if defn.type == "integer" and not isinstance(value, int):
-                errors[key] = "Must be an integer."
-                continue
-            if defn.type == "integer" and defn.min_value is not None and value < defn.min_value:
-                limit = "0 or greater" if defn.min_value == 0 else "a positive integer"
-                errors[key] = f"Must be {limit}."
-                continue
-            updates[key] = value
+        errors, updates = _validate_patch_data(request.data, category=category)
 
         if errors:
             return Response(errors, status=400)
         if not updates:
             return Response({"detail": "No valid settings provided."}, status=400)
 
-        for key, value in updates.items():
-            defn = SETTINGS_REGISTRY[key]
-            try:
-                old_row = Setting.objects.filter(setting_key=key).first()
-                old_value = _resolve_current_value(key, old_row, defn)
-            except Exception:
-                old_value = defn.default
-            log_setting_change(request.user, key, value, old_value)
-            logger.info("Setting %s updated to %r by %s", key, value, request.user)
+        _persist_updates(request.user, updates)
 
         db_settings = {s.setting_key: s for s in Setting.objects.filter(setting_key__in=keys)}
         raw_values_all = {k: _resolve_current_value(k, db_settings.get(k), d) for k, d in SETTINGS_REGISTRY.items()}
-        warnings = _collect_dependency_warnings(raw_values_all)
-        # Filter warnings to keys in this category
-        category_warnings = {k: v for k, v in warnings.items() if k in keys}
+        warnings = {k: v for k, v in _collect_dependency_warnings(raw_values_all).items() if k in keys}
 
         response = self.get(request, category)
-        if category_warnings:
-            response.data["warnings"] = category_warnings
+        if warnings:
+            response.data["warnings"] = warnings
         return response
