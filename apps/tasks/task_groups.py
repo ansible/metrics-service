@@ -375,6 +375,26 @@ INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+# External Service Ingest Group - customer/external service telemetry ingest
+# Feature flag: SERVICE_INGEST (default: False — opt-in)
+# Enable via METRICS_SERVICE_FEATURE__SERVICE_INGEST, installer top-level
+# FEATURE_SERVICE_INGEST_ENABLED, or dynamic_settings.Setting — see get_feature_enabled_from_db.
+EXTERNAL_INGEST_GROUP = TaskGroup(
+    name="external_ingest",
+    description="External service telemetry ingest and forwarding to Segment (SERVICE_INGEST feature flag)",
+    feature_flag="SERVICE_INGEST",
+    tasks=[
+        {
+            "task_id": "rollup_external_events_to_segment",
+            "function": "rollup_external_events_to_segment",
+            "cron": "0 2 * * *",  # 2:00 AM daily
+            "args": {},
+            "enabled": True,
+            "description": "Aggregates per-event ExternalEvents from the previous day and sends to Segment.",
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
@@ -382,6 +402,7 @@ TASK_GROUPS = [
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
     INDIRECT_NODE_COLLECTION_GROUP,
+    EXTERNAL_INGEST_GROUP,
 ]
 
 

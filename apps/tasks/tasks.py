@@ -35,6 +35,8 @@ from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
+from .collectors.rollup_external_events_to_segment import rollup_external_events_to_segment
+from .collectors.send_external_batch_to_segment import send_external_batch_to_segment
 
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
@@ -67,6 +69,9 @@ TASK_FUNCTIONS = {
     "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
     "sync_dashboard_job_records": sync_dashboard_job_records,
     "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
+    # External service ingest
+    "send_external_batch_to_segment": send_external_batch_to_segment,
+    "rollup_external_events_to_segment": rollup_external_events_to_segment,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -83,6 +88,7 @@ TASK_LOCKS = {
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
     "sync_dashboard_host_summaries",
+    "rollup_external_events_to_segment",
 }
 
 
@@ -512,6 +518,14 @@ TASK_METADATA = {
             {"name": "Default (60 days)", "data": {}},
             {"name": "30-day retention", "data": {"retention_days": 30}},
         ],
+    },
+    "send_external_batch_to_segment": {
+        "queue": "metrics",
+        "description": "Send a batch ExternalEvent payload to Segment immediately.",
+    },
+    "rollup_external_events_to_segment": {
+        "queue": "metrics",
+        "description": "Daily rollup and send of per-event ExternalEvents to Segment.",
     },
 }
 
