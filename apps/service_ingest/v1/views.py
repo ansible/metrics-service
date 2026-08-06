@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.service_ingest.authentication import IngestAuthentication
+from apps.service_ingest.permissions import IsServiceIngestEnabled
 from apps.service_ingest.models import ExternalEvent, ServiceDefinition
 from apps.service_ingest.rollup import infer_rollup_config
 from apps.service_ingest.v1.serializers import ExternalEventSerializer, ServiceDefinitionSerializer
@@ -122,7 +123,7 @@ class IngestView(APIView):
             with crum.impersonate(None):
                 task = Task.objects.create(
                     name=f"process_batch_event_{event.pk}",
-                    function_name="apps.service_ingest.tasks.process_batch_event",
+                    function_name="send_external_batch_to_segment",
                     task_data={"event_id": event.pk},
                     is_system_task=True,
                 )

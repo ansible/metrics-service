@@ -35,6 +35,7 @@ from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
 from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
+from .collectors.retry_failed_ingest_events import retry_failed_ingest_events
 from .collectors.rollup_external_events_to_segment import rollup_external_events_to_segment
 from .collectors.send_external_batch_to_segment import send_external_batch_to_segment
 
@@ -71,6 +72,7 @@ TASK_FUNCTIONS = {
     "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
     # External service ingest
     "send_external_batch_to_segment": send_external_batch_to_segment,
+    "retry_failed_ingest_events": retry_failed_ingest_events,
     "rollup_external_events_to_segment": rollup_external_events_to_segment,
 }
 
@@ -522,6 +524,10 @@ TASK_METADATA = {
     "send_external_batch_to_segment": {
         "queue": "metrics",
         "description": "Send a batch ExternalEvent payload to Segment immediately.",
+    },
+    "retry_failed_ingest_events": {
+        "queue": "metrics",
+        "description": "Daily retry sweep for failed ExternalEvent payloads.",
     },
     "rollup_external_events_to_segment": {
         "queue": "metrics",

@@ -86,6 +86,16 @@ def rollup_external_events_to_segment(execution_id=None, **kwargs) -> dict:
 
     for service_id, events in groups.items():
         definition = service_map[service_id]
+
+        # Enforce daily_quota if configured
+        daily_quota = (definition.rollup_config or {}).get("daily_quota")
+        if daily_quota and len(events) > daily_quota:
+            logger.info(
+                "Service %s has %d events but daily_quota=%d; processing first %d, remainder stays pending",
+                definition, len(events), daily_quota, daily_quota,
+            )
+            events = events[:daily_quota]
+
         event_ids = [e.id for e in events]
 
         try:

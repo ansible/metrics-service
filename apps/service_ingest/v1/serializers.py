@@ -35,6 +35,9 @@ class ServiceDefinitionSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "rollup_config": {"required": False, "default": dict},
         }
+        # Skip DRF's auto-generated UniqueTogetherValidator — the view
+        # handles upsert via update_or_create on (service_name, event_name).
+        validators = []
 
     def validate_payload_schema(self, value):
         """payload_schema must be a dict (can be empty for MVP)."""

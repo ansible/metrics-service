@@ -13,8 +13,6 @@ from django.db.models import Avg, Count, Max, Min
 
 logger = logging.getLogger(__name__)
 
-# Suffixes that classify a field as a time/size measurement → stats
-_STATS_SUFFIXES = ("_ms", "_seconds", "_bytes", "_count", "_total", "_rate", "_duration")
 # Integer suffixes that indicate categorical values → group_by
 _CATEGORICAL_INT_SUFFIXES = ("_status", "_code", "_type", "_flag", "_mode", "_level")
 # Suffixes that classify a field as an identifier → excluded from grouping/stats
@@ -146,7 +144,8 @@ class RollupEngine:
         count_alias: str = config.get("count_alias", "event_count")
 
         if not group_by:
-            return [{"event_count": events_qs.count()}]
+            count = events_qs.count()
+            return [{"event_count": count}] if count > 0 else []
 
         # Group in Python (JSON fields can't be annotated directly in SQLite/PG without jsonb ops)
         groups: dict[tuple, int] = {}
@@ -181,6 +180,8 @@ class RollupEngine:
 
             for field in stats_fields:
                 values = [p[field] for p in payloads if isinstance(p.get(field), (int, float))]
+                if not values:
+                    logger.warning("All values for stats field '%s' are non-numeric; skipping", field)
                 if values:
                     row[f"{field}_min"] = min(values)
                     row[f"{field}_max"] = max(values)
@@ -200,9 +201,11 @@ class RollupEngine:
             count += 1
             for k, v in event.payload.items():
                 if isinstance(v, (int, float)) and k in merged:
-                    merged[k] = merged[k] + v  # sum numeric fields
+                    merged[k] = merged[k] + v
                 else:
-                    merged[k] = v  # last-write wins for non-numeric
+                    merged[k] = v
+        if count == 0:
+            return []
         merged["event_count"] = count
         return [merged]
 

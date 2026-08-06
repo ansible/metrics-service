@@ -392,6 +392,14 @@ EXTERNAL_INGEST_GROUP = TaskGroup(
             "enabled": True,
             "description": "Aggregates per-event ExternalEvents from the previous day and sends to Segment.",
         },
+        {
+            "task_id": "retry_failed_ingest_events",
+            "function": "retry_failed_ingest_events",
+            "cron": "0 4 * * *",  # 4:00 AM daily — after rollup
+            "args": {},
+            "enabled": True,
+            "description": "Retry sweep for failed ExternalEvent payloads.",
+        },
     ],
 )
 
