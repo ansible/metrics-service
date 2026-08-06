@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.service_ingest.authentication import IngestJWTAuthentication
+from apps.service_ingest.authentication import IngestAuthentication
 from apps.service_ingest.models import ExternalEvent, ServiceDefinition
 from apps.service_ingest.rollup import infer_rollup_config
 from apps.service_ingest.v1.serializers import ExternalEventSerializer, ServiceDefinitionSerializer
@@ -26,7 +26,7 @@ class RegisterView(APIView):
     a first registration returns 201.
     """
 
-    authentication_classes = [IngestJWTAuthentication]
+    authentication_classes = [IngestAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -81,7 +81,7 @@ class IngestView(APIView):
     background task queue for rollup + Segment forwarding.
     """
 
-    authentication_classes = [IngestJWTAuthentication]
+    authentication_classes = [IngestAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -143,7 +143,7 @@ class StatusView(APIView):
     without it, aggregates across all services.
     """
 
-    authentication_classes = [IngestJWTAuthentication]
+    authentication_classes = [IngestAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
