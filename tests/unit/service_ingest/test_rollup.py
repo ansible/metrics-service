@@ -336,3 +336,148 @@ class TestRollupEngineNonNumericStatsField:
             assert "label_p95" not in row
             # Count should still be present
             assert "event_count" in row
+
+
+@pytest.mark.unit
+class TestInferRollupConfigExtended:
+    """Extended classification and nested schema tests."""
+
+    def test_x_analytics_role_ignore(self):
+        schema = {"type": "object", "properties": {"internal_debug": {"type": "string", "x-analytics-role": "ignore"}, "tool_name": {"type": "string"}}}
+        config = infer_rollup_config(schema)
+        assert "internal_debug" not in config["group_by"]
+        assert "tool_name" in config["group_by"]
+
+    def test_x_analytics_role_stats(self):
+        schema = {"type": "object", "properties": {"custom_metric": {"type": "string", "x-analytics-role": "stats"}}}
+        config = infer_rollup_config(schema)
+        assert "custom_metric" in config["stats_fields"]
+
+    def test_x_analytics_role_identifier(self):
+        schema = {"type": "object", "properties": {"session_token": {"type": "string", "x-analytics-role": "identifier"}}}
+        config = infer_rollup_config(schema)
+        assert "session_token" in config["identifier_fields"]
+
+    def test_unknown_x_analytics_role_falls_through(self):
+        schema = {"type": "object", "properties": {"name": {"type": "string", "x-analytics-role": "foobar"}}}
+        config = infer_rollup_config(schema)
+        assert "name" in config["group_by"]  # falls through to string -> group_by
+
+    def test_string_with_enum_goes_to_group_by(self):
+        schema = {"type": "object", "properties": {"status": {"type": "string", "enum": ["active", "inactive"]}}}
+        config = infer_rollup_config(schema)
+        assert "status" in config["group_by"]
+
+    def test_nested_object_properties_flattened(self):
+        schema = {"type": "object", "properties": {
+            "resource": {"type": "object", "properties": {
+                "service_name": {"type": "string"},
+                "version": {"type": "string"},
+            }},
+            "execution_time_ms": {"type": "integer"},
+        }}
+        config = infer_rollup_config(schema)
+        assert "resource.service_name" in config["group_by"]
+        assert "resource.version" in config["group_by"]
+        assert "execution_time_ms" in config["stats_fields"]
+
+    def test_number_type_classified_as_stats(self):
+        schema = {"type": "object", "properties": {"latency": {"type": "number"}}}
+        config = infer_rollup_config(schema)
+        assert "latency" in config["stats_fields"]
+
+    def test_field_with_no_type_dropped(self):
+        schema = {"type": "object", "properties": {"mystery": {"description": "no type"}}}
+        config = infer_rollup_config(schema)
+        assert "mystery" not in config["group_by"]
+        assert "mystery" not in config["stats_fields"]
+        assert "mystery" not in config["identifier_fields"]
+
+    def test_array_type_ignored_without_role(self):
+        schema = {"type": "object", "properties": {"tags": {"type": "array", "items": {"type": "string"}}}}
+        config = infer_rollup_config(schema)
+        assert "tags" not in config["group_by"]
+        assert "tags" not in config["stats_fields"]
+
+    def test_timestamp_suffix_excluded(self):
+        schema = {"type": "object", "properties": {
+            "created_at": {"type": "string"},
+            "tool_name": {"type": "string"},
+        }}
+        config = infer_rollup_config(schema)
+        assert "created_at" not in config["group_by"]
+        assert "tool_name" in config["group_by"]
+
+    def test_format_datetime_excluded(self):
+        schema = {"type": "object", "properties": {
+            "event_ts": {"type": "string", "format": "date-time"},
+            "name": {"type": "string"},
+        }}
+        config = infer_rollup_config(schema)
+        assert "event_ts" not in config["group_by"]
+        assert "name" in config["group_by"]
+
+    def test_x_analytics_role_timestamp(self):
+        schema = {"type": "object", "properties": {"custom_ts": {"type": "string", "x-analytics-role": "timestamp"}}}
+        config = infer_rollup_config(schema)
+        assert "custom_ts" not in config["group_by"]
+        assert "custom_ts" not in config["stats_fields"]
+        assert "custom_ts" not in config["identifier_fields"]
+
+    def test_strategy_selection_stats(self):
+        schema = {"type": "object", "properties": {"latency": {"type": "number"}}}
+        config = infer_rollup_config(schema)
+        assert config["strategy"] == "stats_by_field"
+
+    def test_strategy_selection_count_only(self):
+        schema = {"type": "object", "properties": {"region": {"type": "string"}}}
+        config = infer_rollup_config(schema)
+        assert config["strategy"] == "count_by_field"
+
+    def test_strategy_selection_raw(self):
+        config = infer_rollup_config({"type": "object", "properties": {}})
+        assert config["strategy"] == "raw_daily_summary"
+
+
+@pytest.mark.django_db
+class TestRollupEngineNestedFields:
+    """Tests for dot-path field access in rollup strategies."""
+
+    def test_stats_by_field_with_nested_stats(self, service_definition):
+        # Create events with nested payloads
+        service_definition.rollup_config = {
+            "strategy": "stats_by_field",
+            "group_by": ["tool_name"],
+            "stats_fields": ["resource.latency_ms"],
+            "count_alias": "event_count",
+        }
+        service_definition.save()
+        _create_events(service_definition, [
+            {"tool_name": "a", "resource": {"latency_ms": 100}},
+            {"tool_name": "a", "resource": {"latency_ms": 200}},
+        ])
+        engine = RollupEngine()
+        qs = ExternalEvent.objects.filter(service=service_definition)
+        results = engine.rollup(qs, service_definition)
+        row = [r for r in results if r["tool_name"] == "a"][0]
+        assert row["resource.latency_ms_min"] == 100
+        assert row["resource.latency_ms_max"] == 200
+
+    def test_count_by_field_with_nested_group_by(self, service_definition):
+        service_definition.rollup_config = {
+            "strategy": "count_by_field",
+            "group_by": ["resource.service_name"],
+            "count_alias": "event_count",
+        }
+        service_definition.save()
+        _create_events(service_definition, [
+            {"resource": {"service_name": "controller"}},
+            {"resource": {"service_name": "controller"}},
+            {"resource": {"service_name": "eda"}},
+        ])
+        engine = RollupEngine()
+        qs = ExternalEvent.objects.filter(service=service_definition)
+        results = engine.rollup(qs, service_definition)
+        by_svc = {r["resource.service_name"]: r for r in results}
+        assert by_svc["controller"]["event_count"] == 2
+        assert by_svc["eda"]["event_count"] == 1

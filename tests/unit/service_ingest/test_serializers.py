@@ -206,3 +206,73 @@ class TestExternalEventSerializer:
         assert not serializer.is_valid()
         error_str = str(serializer.errors)
         assert "event_timestamp" in error_str or "Per-event" in error_str
+
+
+
+@pytest.mark.django_db
+class TestPayloadValidation:
+    """Tests for payload validation against schema."""
+
+    def test_payload_validation_enabled_valid_payload(self):
+        defn = ServiceDefinition.objects.create(
+            service_name="test-svc", event_name="test-event",
+            display_name="Test", version="1.0",
+            segment_event_name="Test Event",
+            payload_schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+            validate_payload=True,
+        )
+        data = {"service_name": "test-svc", "event_name": "test-event", "payload_type": "event",
+                "event_timestamp": "2026-08-06T10:00:00Z", "payload": {"name": "hello"}}
+        serializer = ExternalEventSerializer(data=data)
+        assert serializer.is_valid(), serializer.errors
+
+    def test_payload_validation_enabled_invalid_payload_rejected(self):
+        defn = ServiceDefinition.objects.create(
+            service_name="test-svc", event_name="test-event",
+            display_name="Test", version="1.0",
+            segment_event_name="Test Event",
+            payload_schema={"type": "object", "properties": {"count": {"type": "integer"}}, "required": ["count"]},
+            validate_payload=True,
+        )
+        data = {"service_name": "test-svc", "event_name": "test-event", "payload_type": "event",
+                "event_timestamp": "2026-08-06T10:00:00Z", "payload": {"count": "not-an-integer"}}
+        serializer = ExternalEventSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "payload" in serializer.errors
+
+    def test_payload_validation_disabled_invalid_payload_accepted(self):
+        defn = ServiceDefinition.objects.create(
+            service_name="test-svc", event_name="test-event",
+            display_name="Test", version="1.0",
+            segment_event_name="Test Event",
+            payload_schema={"type": "object", "properties": {"count": {"type": "integer"}}, "required": ["count"]},
+            validate_payload=False,
+        )
+        data = {"service_name": "test-svc", "event_name": "test-event", "payload_type": "event",
+                "event_timestamp": "2026-08-06T10:00:00Z", "payload": {"count": "not-an-integer"}}
+        serializer = ExternalEventSerializer(data=data)
+        assert serializer.is_valid(), serializer.errors
+
+    def test_invalid_json_schema_rejected_at_registration(self):
+        data = {"service_name": "s", "event_name": "e", "display_name": "D", "version": "1",
+                "segment_event_name": "E",
+                "payload_schema": {"type": "object", "properties": {"x": {"type": "not_a_type"}}}}
+        serializer = ServiceDefinitionSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "payload_schema" in serializer.errors
+
+    def test_invalid_rollup_config_strategy_rejected(self):
+        data = {"service_name": "s", "event_name": "e", "display_name": "D", "version": "1",
+                "segment_event_name": "E", "payload_schema": {},
+                "rollup_config": {"strategy": "invalid_strategy"}}
+        serializer = ServiceDefinitionSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "rollup_config" in serializer.errors
+
+    def test_rollup_config_non_list_group_by_rejected(self):
+        data = {"service_name": "s", "event_name": "e", "display_name": "D", "version": "1",
+                "segment_event_name": "E", "payload_schema": {},
+                "rollup_config": {"strategy": "count_by_field", "group_by": "not_a_list"}}
+        serializer = ServiceDefinitionSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "rollup_config" in serializer.errors

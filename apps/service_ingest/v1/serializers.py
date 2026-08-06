@@ -27,6 +27,7 @@ class ServiceDefinitionSerializer(serializers.ModelSerializer):
             "segment_event_name",
             "payload_schema",
             "rollup_config",
+            "validate_payload",
             "active",
             "registered_at",
             "last_seen_at",
@@ -34,15 +35,38 @@ class ServiceDefinitionSerializer(serializers.ModelSerializer):
         read_only_fields = ["active", "registered_at", "last_seen_at"]
         extra_kwargs = {
             "rollup_config": {"required": False, "default": dict},
+            "validate_payload": {"required": False, "default": False},
         }
         # Skip DRF's auto-generated UniqueTogetherValidator — the view
         # handles upsert via update_or_create on (service_name, event_name).
         validators = []
 
     def validate_payload_schema(self, value):
-        """payload_schema must be a dict (can be empty for MVP)."""
+        """payload_schema must be a valid JSON Schema object."""
         if not isinstance(value, dict):
             raise serializers.ValidationError("payload_schema must be a JSON object (dict).")
+        if value and value.get("properties"):
+            try:
+                from jsonschema import Draft7Validator
+                Draft7Validator.check_schema(value)
+            except Exception as exc:
+                raise serializers.ValidationError(f"Invalid JSON Schema: {exc}")
+        return value
+
+    def validate_rollup_config(self, value):
+        """Validate structure of an explicit rollup_config."""
+        if not value:
+            return value
+        from apps.service_ingest.rollup import KNOWN_STRATEGIES
+        strategy = value.get("strategy")
+        if strategy and strategy not in KNOWN_STRATEGIES:
+            raise serializers.ValidationError(
+                f"Unknown strategy '{strategy}'. Must be one of: {', '.join(KNOWN_STRATEGIES)}"
+            )
+        for key in ("group_by", "stats_fields", "identifier_fields"):
+            val = value.get(key)
+            if val is not None and not isinstance(val, list):
+                raise serializers.ValidationError(f"'{key}' must be a list of strings.")
         return value
 
 
@@ -109,6 +133,15 @@ class ExternalEventSerializer(serializers.ModelSerializer):
             )
 
         attrs["service"] = definition
+
+        # Validate payload against schema if enabled
+        if definition.validate_payload and definition.payload_schema:
+            try:
+                from jsonschema import ValidationError as JsonSchemaError
+                from jsonschema import validate as json_validate
+                json_validate(instance=attrs.get("payload", {}), schema=definition.payload_schema)
+            except JsonSchemaError as exc:
+                raise serializers.ValidationError({"payload": f"Schema validation failed: {exc.message}"})
 
         payload_type = attrs.get("payload_type")
         if payload_type == "batch":

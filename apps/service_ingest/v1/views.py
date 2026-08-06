@@ -56,6 +56,7 @@ class RegisterView(APIView):
                 "segment_event_name": validated["segment_event_name"],
                 "payload_schema": payload_schema,
                 "rollup_config": rollup_config,
+                "validate_payload": validated.get("validate_payload", False),
                 "active": True,
                 "last_seen_at": now(),
             },

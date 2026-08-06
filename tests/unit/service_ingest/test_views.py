@@ -294,3 +294,44 @@ class TestUnauthenticated:
         for url in (REGISTER_URL, EVENTS_URL, STATUS_URL):
             response = client.get(url) if url == STATUS_URL else client.post(url, data={}, format="json")
             assert response.status_code in (401, 403), f"{url} returned {response.status_code}, expected 401 or 403"
+
+
+
+@pytest.mark.django_db
+@pytest.mark.unit
+class TestSchemaValidationViews:
+    """Tests for payload schema validation through the view layer."""
+
+    def test_register_with_validate_payload_stores_flag(self, authenticated_client):
+        data = _registration_payload()
+        data["validate_payload"] = True
+        response = authenticated_client.post(REGISTER_URL, data=data, format="json")
+        assert response.status_code == 201
+        defn = ServiceDefinition.objects.get(service_name="aap-mcp-server", event_name="mcp_tool_called")
+        assert defn.validate_payload is True
+
+    def test_ingest_with_validation_enabled_valid_payload_202(self, authenticated_client):
+        ServiceDefinition.objects.create(
+            service_name="aap-mcp-server", event_name="mcp_tool_called",
+            display_name="Test", version="1.0", segment_event_name="Test",
+            payload_schema={"type": "object", "properties": {"tool_name": {"type": "string"}}},
+            validate_payload=True,
+        )
+        data = {"service_name": "aap-mcp-server", "event_name": "mcp_tool_called",
+                "payload_type": "event", "event_timestamp": "2026-08-06T10:00:00Z",
+                "payload": {"tool_name": "test"}}
+        response = authenticated_client.post(EVENTS_URL, data=data, format="json")
+        assert response.status_code == 202
+
+    def test_ingest_with_validation_enabled_invalid_payload_400(self, authenticated_client):
+        ServiceDefinition.objects.create(
+            service_name="aap-mcp-server", event_name="mcp_tool_called",
+            display_name="Test", version="1.0", segment_event_name="Test",
+            payload_schema={"type": "object", "properties": {"count": {"type": "integer"}}, "required": ["count"]},
+            validate_payload=True,
+        )
+        data = {"service_name": "aap-mcp-server", "event_name": "mcp_tool_called",
+                "payload_type": "event", "event_timestamp": "2026-08-06T10:00:00Z",
+                "payload": {"count": "not-an-integer"}}
+        response = authenticated_client.post(EVENTS_URL, data=data, format="json")
+        assert response.status_code == 400

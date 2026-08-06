@@ -47,6 +47,11 @@ class ServiceDefinition(models.Model):
         help_text="Auto-inferred aggregation strategy (infer_rollup_config). Can be overridden in the registration payload.",
     )
     active = models.BooleanField(default=True)
+    validate_payload = models.BooleanField(
+        default=False,
+        help_text="When True, inbound payloads are validated against payload_schema. "
+                  "When False, schema is stored for documentation only.",
+    )
     registered_at = models.DateTimeField(auto_now_add=True)
     last_seen_at = models.DateTimeField(null=True, blank=True)
 
