@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - devel
+      - stable-2.6
+      - stable-2.7
     paths:
       - "apps/**/*.py"
       - "apps/**/serializers.py"
@@ -31,19 +33,17 @@ jobs:
 
       - name: Generate OpenAPI schema
         env:
-          # drf-spectacular needs a minimal Django setup; adjust vars as needed
-          DJANGO_SETTINGS_MODULE: apps.core.settings
-          SECRET_KEY: "ci-placeholder-not-secret"
-          DATABASE_URL: "sqlite://:memory:"
+          DJANGO_SETTINGS_MODULE: metrics_service.settings
+          METRICS_SERVICE_SECRET_KEY: "ci-placeholder-not-secret"
+          # Use SQLite in memory so Django starts up without a real postgres instance
+          METRICS_SERVICE_DATABASES__default__ENGINE: django.db.backends.sqlite3
+          METRICS_SERVICE_DATABASES__default__NAME: ":memory:"
+          METRICS_SERVICE_DATABASES__awx__ENGINE: django.db.backends.sqlite3
+          METRICS_SERVICE_DATABASES__awx__NAME: ":memory:"
         run: |
           uv run --frozen python manage.py spectacular \
             --color \
-            --file openapi-schema.yaml \
-            --validate
-          # Produce both YAML and JSON for downstream consumers
-          uv run --frozen python manage.py spectacular \
-            --color \
-            --file openapi-schema.json \
+            --file metrics.json \
             --validate \
             --format openapi-json
 
@@ -53,15 +53,12 @@ jobs:
           repository: ansible-automation-platform/aap-openapi-specs
           token: ${{ secrets.AAP_OPENAPI_SPECS_PAT }}
           path: aap-openapi-specs
-          persist-credentials: false
+          ref: ${{ github.ref_name }}
 
-      - name: Copy generated schema into downstream repo
-        run: |
-          mkdir -p aap-openapi-specs/metrics-service
-          cp openapi-schema.yaml aap-openapi-specs/metrics-service/openapi-schema.yaml
-          cp openapi-schema.json aap-openapi-specs/metrics-service/openapi-schema.json
+      - name: Copy generated schema into aap-openapi-specs
+        run: cp metrics.json aap-openapi-specs/metrics.json
 
-      - name: Check for changes in downstream repo
+      - name: Check for changes in aap-openapi-specs
         id: check_changes
         working-directory: aap-openapi-specs
         run: |
@@ -77,12 +74,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="chore/sync-metrics-service-openapi-$(date +%Y%m%d-%H%M%S)"
+          BRANCH="auto/update-metrics-${{ github.ref_name }}-$(date +%Y%m%d-%H%M%S)"
           git checkout -b "$BRANCH"
-          git add metrics-service/
-          git commit -m "chore(sync): update metrics-service OpenAPI spec
+          git add metrics.json
+          git commit -m "chore(sync): update metrics-service OpenAPI spec (${{ github.ref_name }})
 
-          Automated sync from ansible/metrics-service@${{ github.sha }}"
+          Automated sync from ${{ github.repository }}@${{ github.sha }}"
           git push origin "$BRANCH"
           echo "SYNC_BRANCH=$BRANCH" >> $GITHUB_ENV
 
@@ -94,14 +91,15 @@ jobs:
         run: |
           gh pr create \
             --repo "$GH_REPO" \
-            --title "chore(sync): update metrics-service OpenAPI spec" \
+            --title "chore(sync): update metrics-service OpenAPI spec (${{ github.ref_name }})" \
             --body "## Summary
 
-          This PR syncs the latest OpenAPI spec from [ansible/metrics-service](https://github.com/ansible/metrics-service) into this repository.
+          This PR syncs the latest OpenAPI spec from [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }}) into this repository.
 
-          **Source commit:** ansible/metrics-service@${{ github.sha }}
-          **Triggered by:** push to \`devel\`
+          **Source commit:** ${{ github.repository }}@${{ github.sha }}
+          **Branch:** \`${{ github.ref_name }}\`
+          **Triggered by:** push to \`${{ github.ref_name }}\`
 
-          > 🤖 Automated sync via GitHub Actions ([workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))" \
-            --base main \
+          > Automated sync via GitHub Actions ([workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))" \
+            --base ${{ github.ref_name }} \
             --head "$SYNC_BRANCH"
