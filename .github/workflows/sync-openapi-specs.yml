@@ -1,12 +1,14 @@
 ---
 name: Sync OpenAPI Spec
 
+env:
+  LC_ALL: "C.UTF-8"
+
 on:
   push:
     branches:
       - devel
-      - stable-2.6
-      - stable-2.7
+      - "stable-*"
     paths:
       - "apps/**/*.py"
       - "apps/**/serializers.py"
@@ -50,15 +52,15 @@ jobs:
             --validate \
             --format openapi-json
 
-      - name: Upload schema artifact
+      - name: Upload OpenAPI static specification
         uses: actions/upload-artifact@v4
         with:
-          name: metrics-openapi-spec
+          name: openapi-schema
           path: metrics.json
           retention-days: 1
 
   sync:
-    name: Sync OpenAPI spec to aap-openapi-specs
+    name: Sync OpenAPI spec to central repo
     needs: generate
     runs-on: ubuntu-latest
     if: github.repository == 'ansible-automation-platform/metrics-service'
@@ -66,64 +68,143 @@ jobs:
       contents: read
 
     steps:
-      - name: Download schema artifact
+      - name: Download spec artifact from component workflow
         uses: actions/download-artifact@v4
         with:
-          name: metrics-openapi-spec
+          name: openapi-schema
+          path: ./component-spec
 
-      - name: Checkout aap-openapi-specs
+      - name: Verify spec file exists
+        run: |
+          SPEC_FILE="./component-spec/metrics.json"
+          if [ ! -f "$SPEC_FILE" ]; then
+            echo "❌ Spec file not found at $SPEC_FILE"
+            echo "Contents of artifact:"
+            ls -la ./component-spec/
+            exit 1
+          fi
+          echo "✅ Found spec file at $SPEC_FILE"
+
+      - name: Checkout spec repo
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: ansible-automation-platform/aap-openapi-specs
-          token: ${{ secrets.AAP_OPENAPI_SPECS_PAT }}
-          path: aap-openapi-specs
           ref: ${{ github.ref_name }}
+          path: spec-repo
+          token: ${{ secrets.OPENAPI_SPEC_SYNC_TOKEN }}
 
-      - name: Copy generated schema into aap-openapi-specs
-        run: cp metrics.json aap-openapi-specs/metrics.json
-
-      - name: Check for changes in aap-openapi-specs
-        id: check_changes
-        working-directory: aap-openapi-specs
+      - name: Check if branch exists in spec repo
+        id: check_branch
+        working-directory: spec-repo
         run: |
-          if git diff --quiet; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          BRANCH="${{ github.ref_name }}"
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            echo "✅ Branch '$BRANCH' exists in spec repo"
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "❌ Branch '$BRANCH' does NOT exist in spec repo"
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create PR branch in aap-openapi-specs
-        if: steps.check_changes.outputs.has_changes == 'true'
-        working-directory: aap-openapi-specs
+      - name: Fail if branch doesn't exist
+        if: steps.check_branch.outputs.branch_exists != 'true'
+        run: |
+          echo "##[error]❌ Branch '${{ github.ref_name }}' does not exist in the central spec repository."
+          echo "##[error]Expected branch: ${{ github.ref_name }}"
+          echo "##[error]This branch must be created in the spec repo before specs can be synced."
+          exit 1
+
+      - name: Compare specs
+        id: compare
+        run: |
+          COMPONENT_SPEC="./component-spec/metrics.json"
+          SPEC_REPO_FILE="spec-repo/metrics.json"
+
+          if [ ! -f "$SPEC_REPO_FILE" ]; then
+            echo "Spec file doesn't exist in spec repo - will create new file"
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+            echo "is_new_file=true" >> $GITHUB_OUTPUT
+          else
+            if diff -q "$COMPONENT_SPEC" "$SPEC_REPO_FILE" > /dev/null; then
+              echo "✅ No differences found - specs are identical"
+              echo "has_diff=false" >> $GITHUB_OUTPUT
+            else
+              echo "📝 Differences found - spec has changed"
+              echo "has_diff=true" >> $GITHUB_OUTPUT
+              echo "is_new_file=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Update spec file
+        if: steps.compare.outputs.has_diff == 'true'
+        run: |
+          cp "./component-spec/metrics.json" "spec-repo/metrics.json"
+          echo "✅ Updated spec-repo/metrics.json"
+
+      - name: Create PR in spec repo
+        if: steps.compare.outputs.has_diff == 'true'
+        working-directory: spec-repo
+        env:
+          GH_TOKEN: ${{ secrets.OPENAPI_SPEC_SYNC_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="auto/update-metrics-${{ github.ref_name }}-$(date +%Y%m%d-%H%M%S)"
-          git checkout -b "$BRANCH"
-          git add metrics.json
-          git commit -m "chore(sync): update metrics-service OpenAPI spec (${{ github.ref_name }})
 
-          Automated sync from ${{ github.repository }}@${{ github.sha }}"
-          git push origin "$BRANCH"
-          echo "SYNC_BRANCH=$BRANCH" >> $GITHUB_ENV
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          BRANCH_NAME="update-metrics-${{ github.ref_name }}-${SHORT_SHA}"
+          git checkout -b "$BRANCH_NAME"
 
-      - name: Open PR in aap-openapi-specs
-        if: steps.check_changes.outputs.has_changes == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.AAP_OPENAPI_SPECS_PAT }}
-          GH_REPO: ansible-automation-platform/aap-openapi-specs
-        run: |
-          gh pr create \
-            --repo "$GH_REPO" \
-            --title "chore(sync): update metrics-service OpenAPI spec (${{ github.ref_name }})" \
-            --body "## Summary
+          git add "metrics.json"
 
-          This PR syncs the latest OpenAPI spec from [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }}) into this repository.
+          if [ "${{ steps.compare.outputs.is_new_file }}" == "true" ]; then
+            COMMIT_MSG="Add metrics-service OpenAPI spec for ${{ github.ref_name }}"
+          else
+            COMMIT_MSG="Update metrics-service OpenAPI spec for ${{ github.ref_name }}"
+          fi
 
-          **Source commit:** ${{ github.repository }}@${{ github.sha }}
+          git commit -m "$COMMIT_MSG
+
+          Synced from ${{ github.repository }}@${{ github.sha }}
+          Source branch: ${{ github.ref_name }}
+
+          Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+
+          git push origin "$BRANCH_NAME"
+
+          PR_TITLE="[${{ github.ref_name }}] Update metrics-service spec from merged commit"
+          PR_BODY="## Summary
+          Automated OpenAPI spec sync from component repository merge.
+
+          **Source:** ${{ github.repository }}@${{ github.sha }}
           **Branch:** \`${{ github.ref_name }}\`
-          **Triggered by:** push to \`${{ github.ref_name }}\`
+          **Component:** \`metrics-service\`
+          **Spec File:** \`metrics.json\`
 
-          > Automated sync via GitHub Actions ([workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))" \
-            --base ${{ github.ref_name }} \
-            --head "$SYNC_BRANCH"
+          ## Changes
+          $(if [ "${{ steps.compare.outputs.is_new_file }}" == "true" ]; then echo "- 🆕 New spec file created"; else echo "- 📝 Spec file updated with latest changes"; fi)
+
+          ## Source Commit
+          \`\`\`
+          ${{ github.event.head_commit.message }}
+          \`\`\`
+
+          ---
+          🤖 This PR was automatically generated by the OpenAPI spec sync workflow."
+
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base "${{ github.ref_name }}" \
+            --head "$BRANCH_NAME"
+
+          echo "✅ Created PR in spec repo"
+
+      - name: Report results
+        if: always()
+        run: |
+          if [ "${{ steps.compare.outputs.has_diff }}" == "true" ]; then
+            echo "📝 Spec sync completed - PR created in spec repo"
+          else
+            echo "✅ Spec sync completed - no changes needed"
+          fi
