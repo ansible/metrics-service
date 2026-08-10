@@ -15,8 +15,8 @@ on:
   workflow_dispatch:  # allow manual trigger
 
 jobs:
-  sync-openapi-spec:
-    name: Generate and sync OpenAPI spec
+  generate:
+    name: Generate and validate OpenAPI spec
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Generate OpenAPI schema
+      - name: Generate and validate OpenAPI schema
         env:
           DJANGO_SETTINGS_MODULE: metrics_service.settings
           METRICS_SERVICE_SECRET_KEY: "ci-placeholder-not-secret"
@@ -46,6 +46,25 @@ jobs:
             --file metrics.json \
             --validate \
             --format openapi-json
+
+      - name: Upload schema artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-openapi-spec
+          path: metrics.json
+          retention-days: 1
+
+  sync:
+    name: Sync OpenAPI spec to aap-openapi-specs
+    needs: generate
+    runs-on: ubuntu-latest
+    if: github.repository == 'ansible-automation-platform/metrics-service'
+
+    steps:
+      - name: Download schema artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: metrics-openapi-spec
 
       - name: Checkout aap-openapi-specs
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
