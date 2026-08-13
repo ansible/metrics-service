@@ -146,8 +146,9 @@ Full ER relationships: [data-models.md](data-models.md).
 | Hourly rollups | Not used directly | Anonymized aggregates only |
 | `DashboardTelemetry` | Operator telemetry endpoint | Included in anonymized payload metadata |
 
-Hourly collectors write **both** rollup JSON (metrics DB) and dashboard sync
-tasks when respective enablement settings are on. See
+Hourly collectors write rollup JSON (metrics DB) and may dispatch dashboard sync
+tasks when the respective enablement settings are on. **Ongoing** dashboard sync
+requires `METRICS_COLLECTION` (hooks live in hourly collectors). See
 [collectors.md](collectors.md) and [anonymization-and-transmission.md](anonymization-and-transmission.md).
 
 ## Related Documentation

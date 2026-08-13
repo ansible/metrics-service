@@ -208,6 +208,14 @@ Creating a task via API stores a `Task` row. The scheduler's periodic sync
 picks up new immediate, scheduled, and recurring tasks — there is no Django
 signals module for auto-submission.
 
+### AWX database gate
+
+During `_periodic_database_sync()`, stuck-task detection and retries run even
+when the Controller (AWX) database is unavailable. **New** task scheduling
+(`immediate_tasks`, `scheduled_tasks`, `recurring_tasks`) waits until
+`awx_db_ready()` returns true — not only collector tasks. API-created immediate
+tasks are also deferred until AWX is ready. See [apscheduler.md](apscheduler.md).
+
 ## CLI
 
 ```bash
@@ -223,8 +231,8 @@ python manage.py metrics_service tasks retry <task_id> --force
 
 ## Adding a New Background Task
 
-1. Implement the function in `apps/tasks/collectors/`, `cleanup/`, `simple/`, or
-   an app-specific `tasks.py`.
+1. Implement the function in `apps/tasks/collectors/`, `cleanup/`, or
+   `simple/` (dashboard sync tasks live in `apps/dashboard_reports/tasks.py`).
 2. Register in `TASK_FUNCTIONS` and `TASK_METADATA` in `apps/tasks/tasks.py`.
 3. Add a task config entry to the appropriate `TaskGroup` in `task_groups.py`.
 4. Run `python manage.py metrics_service init-system-tasks`.

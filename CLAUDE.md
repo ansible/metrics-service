@@ -104,7 +104,7 @@ Full architecture docs with Mermaid diagrams: [`docs/README.md`](docs/README.md)
 apps/
   core/           # Custom User/Organization/Team models, DAB integration, RBAC
   tasks/          # Background task system (models, scheduling, execution)
-  dynamic_settings/ # Runtime DB-backed feature flags (Setting model)
+  dynamic_settings/ # Runtime DB-backed feature enablement settings (Setting model)
   dashboard_reports/ # Job data for automation-reports API
   settings/       # Dynaconf settings layering (see below)
 metrics_service/
@@ -134,11 +134,12 @@ DATABASES__default__PORT = 5433
 
 See [`docs/task-system.md`](docs/task-system.md). Key files: `task_groups.py` (source of truth for system tasks), `cron_scheduler.py`, `dispatcherd_config.py`, `collectors/`, `v1/`.
 
-`task_groups.py` defines five groups gated by **feature enablement settings**
-(`METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION`, `DASHBOARD_COLLECTION`,
-`INDIRECT_NODE_COLLECTION` — distinct from platform feature flags / DAB
-`AAPFlag`). Settings are checked at task execution time via DB/API without
-restart; env var changes require restart.
+`task_groups.py` defines five task groups; **four** are gated by feature
+enablement settings (`METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION`,
+`DASHBOARD_COLLECTION`, `INDIRECT_NODE_COLLECTION` — distinct from platform
+feature flags / DAB `AAPFlag`). `SYSTEM_TASKS_GROUP` is always enabled.
+Settings are checked at task execution time via DB/API without restart; env var
+changes require restart.
 
 ### API Structure
 

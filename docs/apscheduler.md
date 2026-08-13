@@ -148,10 +148,11 @@ flowchart TD
     Locks --> End2["done"]
 ```
 
-**AWX DB gate** — Collector scheduling waits until the Controller database is
-ready (`awx_db_ready()`). Stuck-task detection and retries run regardless of AWX
-readiness. A 10-minute grace period escalates warnings to errors if AWX stays
-unavailable (likely failed Controller migrations).
+**AWX DB gate** — When AWX is not ready, `_periodic_database_sync()` returns
+before `immediate_tasks()`, `scheduled_tasks()`, and `recurring_tasks()` — all
+new scheduling is deferred, not only collectors. Stuck-task detection and
+retries run regardless of AWX readiness. A 10-minute grace period escalates
+warnings to errors if AWX stays unavailable (likely failed Controller migrations).
 
 **Stuck tasks** — `_fail_stuck_tasks()` marks `running` tasks older than
 `TASK_TIMEOUT` (from settings) as `failed`. Recovery details are in

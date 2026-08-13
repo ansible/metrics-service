@@ -179,13 +179,20 @@ METRICS_SERVICE_FEATURE__METRICS_COLLECTION=false
 METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false
 ```
 
-Feature enablement settings are resolved at runtime with this precedence:
+Feature enablement settings are resolved at runtime with this precedence (see
+[docs/dynamic-settings.md](docs/dynamic-settings.md) for full detail):
 
-1. **DB row** in `dynamic_settings_setting` (written via the API, `dbshell`, or a prior `init-default-settings` run) — always wins
-2. **Env var** (`METRICS_SERVICE_FEATURE__*`) — used on fresh installs or when no DB row exists
-3. **Static default** in `settings.FEATURE` — fallback if neither of the above is set
+1. **DB row** in `dynamic_settings_setting` — always wins when present
+2. **Env var** (`METRICS_SERVICE_FEATURE__*`) — merged into `settings.FEATURE` via Dynaconf
+3. **Installer attribute** — top-level `FEATURE_<name>_ENABLED` from `settings.yaml`
+4. **DAB `AAPFlag`** — platform `FEATURE_<name>_ENABLED` boolean flag
+5. **Static default** in `settings.FEATURE` / function `default` argument
 
-`init-default-settings` does not pre-seed feature flags into the database, so env vars take effect on fresh installs unless a DB row exists. DB rows always take precedence over env vars. A pod restart is required for env var changes to be picked up by the running service.
+`init-default-settings` does not pre-seed enablement values into the database on
+fresh install. A `false` DB row is an explicit opt-out that survives upgrades. A
+`true` DB row overrides a `false` env resolution when operators intentionally
+re-enable a feature. Env var changes require a pod restart; DB/API toggles take
+effect at task execution time without restart.
 
 If system tasks are missing `_feature_flag` for metrics collection templates, run `python manage.py metrics_service init-system-tasks` to sync them.
 

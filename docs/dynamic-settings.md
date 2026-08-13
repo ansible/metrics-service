@@ -82,8 +82,10 @@ Defined in `apps/settings/defaults.py` under `FEATURE` and referenced in
 5. **Function `default` argument**
 
 A `false` DB row is an **explicit opt-out** that survives upgrades. A `true` DB
-row is redundant (defaults and env already yield `true`) and is removed by
-`init-default-settings`.
+row is **not** always redundant: when env or installer settings resolve to
+`false`, a `true` DB row is an intentional override. `init-default-settings`
+only removes `true` rows that are redundant with defaults (no conflicting
+`false` from env/installer).
 
 ### Runtime gating
 
@@ -130,9 +132,9 @@ Cannot rollback redacted sensitive settings.
 ## init-default-settings behavior
 
 `initialize_default_settings()` does **not** seed feature enablement values into
-the database on fresh install. It only cleans up redundant `true` rows on upgrade
-so explicit `false` opt-outs remain while env var overrides work when no
-conflicting row exists.
+the database on fresh install. On upgrade it removes only redundant `true` rows
+(where env/installer also resolve to `true`). Explicit `false` opt-outs and
+intentional `true` overrides of `false` env values are preserved.
 
 ## Related Documentation
 

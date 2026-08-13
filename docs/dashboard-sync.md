@@ -56,9 +56,19 @@ Controlled by the `DASHBOARD_COLLECTION` feature enablement setting (default:
   dynamic settings API / DB row
 - Runtime check: scheduler and hooks use `get_feature_enabled_from_db()`
 
-`METRICS_COLLECTION` and `DASHBOARD_COLLECTION` are independent — you can
-collect metrics rollups without dashboard sync, or enable dashboard sync while
-metrics collection is paused.
+**Enablement interaction:**
+
+| Mode | `METRICS_COLLECTION` | `DASHBOARD_COLLECTION` | Effect |
+|------|----------------------|------------------------|--------|
+| Rollups only | on | off | Hourly collectors run; no dashboard hooks |
+| Backfill / manual sync | off | on | `initial_dashboard_collection` and API-triggered sync tasks can run |
+| Ongoing incremental sync | on | on | Hourly collectors fire dashboard hooks (required path) |
+
+Ongoing incremental sync is **not** independent of metrics collection: hooks are
+registered in `collect_hourly_metrics.py` and only run when hourly collectors
+execute. Pausing `METRICS_COLLECTION` stops ongoing dashboard updates even if
+`DASHBOARD_COLLECTION` remains enabled. First-start backfill and manual sync
+tasks can still run with only `DASHBOARD_COLLECTION` enabled.
 
 ## Phase 1: First-Start Backfill
 
@@ -158,8 +168,12 @@ The unified_jobs hook dispatches `sync_dashboard_job_records`, which creates
 which looks up jobs by `job_id`. If host summaries run first, matching
 `JobData` rows do not exist and records are silently skipped with no retry.
 
-The 5-minute gap is sufficient — `sync_dashboard_job_records` completes in
-seconds.
+The XX:05 → XX:10 schedule is an **operational ordering assumption**, not a
+completion guarantee. Large job batches spawn multiple async
+`sync_dashboard_job_records` tasks (500 jobs per chunk); host summaries may run
+before all chunks finish. Skipped host summaries are not automatically retried.
+Monitor pending dashboard sync tasks and `JobHostSummary` coverage when
+collections are large or workers are slow.
 
 ### Hook details
 

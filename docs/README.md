@@ -127,8 +127,8 @@ toggles. Dashboard: [dashboard-sync.md](dashboard-sync.md) (collection) and
 [dashboard-reports-api.md](dashboard-reports-api.md) (API status endpoints).
 
 **Developers adding a background task** — [task-system.md](task-system.md)
-(overview) → [collectors.md](collectors.md) or inline task modules → run
-`init-system-tasks`.
+(overview) → implement in `collectors/`, `cleanup/`, or `simple/` (or
+`dashboard_reports/tasks.py` for dashboard sync) → run `init-system-tasks`.
 
 **Developers adding RBAC-protected APIs** — [core-rbac.md](core-rbac.md).
 
