@@ -598,7 +598,7 @@ class TaskViewSet(BaseViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
-            # Create task directly in database - signals will handle immediate execution
+            # Create task in database — scheduler periodic sync picks up immediate tasks
             task = Task.objects.create(
                 name=serializer.validated_data.get("name", "Immediate Task"),
                 function_name=serializer.validated_data["function_name"],

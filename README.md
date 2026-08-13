@@ -14,6 +14,14 @@ A modern Django-based service built for the Ansible Automation Platform (AAP) ec
 - **📝 API Documentation** - Interactive Swagger/OpenAPI documentation
 - **🔧 Metrics Collection** - Integrated metrics-utility for data collection
 
+## Architecture
+
+Architecture documentation lives in [`docs/README.md`](docs/README.md), with
+per-domain guides for [core/RBAC](docs/core-rbac.md), the
+[task system](docs/task-system.md), [APScheduler](docs/apscheduler.md),
+[collectors](docs/collectors.md), and
+[dashboard sync](docs/dashboard-sync.md).
+
 ## Quick Start
 
 ### Option 1: Docker + dev server (Recommended)
@@ -155,7 +163,8 @@ We have these feature flags:
 |-|-|
 |`METRICS_COLLECTION`|true|
 |`ANONYMIZED_DATA_COLLECTION`|true|
-|`DASHBOARD_COLLECTION`|false (customer opt-in)|
+|`DASHBOARD_COLLECTION`|true|
+|`INDIRECT_NODE_COLLECTION`|false (customer opt-in)|
 
 You can change defaults using `METRICS_SERVICE_FEATURE__` prefixed environment variables.
 
@@ -412,7 +421,7 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py metrics_service run
 All logs use Django's configured format with timestamps, log levels, request IDs (when applicable), module names, and messages:
 
 ```
-2025-01-18 10:15:23,456 INFO     [abc123] apps.tasks.signals New task created: Cleanup (ID: 42)
+2025-01-18 10:15:23,456 INFO     [abc123] apps.tasks.cron_scheduler Found new immediate task: Cleanup (ID: 42)
 2025-01-18 10:15:24,789 WARNING  [] apps.core.utils Database connection slow: 2.3s
 ```
 

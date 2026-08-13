@@ -87,6 +87,17 @@ python manage.py shell -c "from apps.tasks.tasks import TASK_FUNCTIONS; print(li
 
 ## Architecture Overview
 
+Full architecture docs with Mermaid diagrams: [`docs/README.md`](docs/README.md).
+
+| Topic | Doc |
+|-------|-----|
+| Core, DAB, RBAC | [`docs/core-rbac.md`](docs/core-rbac.md) |
+| Task system | [`docs/task-system.md`](docs/task-system.md) |
+| Task states / recovery | [`docs/task-state-machine.md`](docs/task-state-machine.md) |
+| APScheduler | [`docs/apscheduler.md`](docs/apscheduler.md) |
+| Collectors | [`docs/collectors.md`](docs/collectors.md) |
+| Dashboard sync | [`docs/dashboard-sync.md`](docs/dashboard-sync.md) |
+
 ### App Structure
 
 ```
@@ -94,6 +105,7 @@ apps/
   core/           # Custom User/Organization/Team models, DAB integration, RBAC
   tasks/          # Background task system (models, scheduling, execution)
   dynamic_settings/ # Runtime DB-backed feature flags (Setting model)
+  dashboard_reports/ # Job data for automation-reports API
   settings/       # Dynaconf settings layering (see below)
 metrics_service/
   settings/       # Split Django settings (development, production, test)
@@ -120,35 +132,9 @@ DATABASES__default__PORT = 5433
 
 ### Task System (`apps/tasks/`)
 
-The task system has several layers:
+See [`docs/task-system.md`](docs/task-system.md). Key files: `task_groups.py` (source of truth for system tasks), `cron_scheduler.py`, `dispatcherd_config.py`, `collectors/`, `v1/`.
 
-- **`models.py`** — `Task`, `TaskExecution`, `TaskChain` DB models
-- **`tasks.py`** — `TASK_FUNCTIONS` registry mapping function names to callables
-- **`task_groups.py`** — `TASK_GROUPS` config: defines what tasks run, their cron schedules, args, and which feature flag controls them. This is the source of truth for scheduled tasks — edit here, then run `init-system-tasks` to sync to DB.
-- **`cron_scheduler.py`** — APScheduler integration for recurring tasks
-- **`dispatcherd_config.py`** — Dispatcherd worker configuration
-- **`collectors/`** — Metrics collection functions (`collect_hourly_metrics`, `collect_snapshot_metrics`, `daily_metrics_rollup`, `daily_anonymize_and_prepare`, `send_anonymized_to_segment`)
-- **`cleanup/`** — Cleanup functions (`cleanup_old_tasks`, `cleanup_activitystream`, `cleanup_metrics_data`)
-- **`simple/`** — Simple tasks (`hello_world`)
-- **`services/`** — Output formatting utilities
-- **`v1/`** — REST API for task CRUD (`/api/v1/tasks/`)
-
-### Task Groups and Feature Flags
-
-`task_groups.py` defines five groups:
-
-- **`SYSTEM_TASKS_GROUP`** — Always enabled. Runs `cleanup_old_tasks` (daily 5 AM) and `hello_world` (hourly).
-- **`METRICS_COLLECTION_GROUP`** — Controlled by `METRICS_COLLECTION` feature flag (default: enabled). Contains all hourly/daily collection tasks, `daily_metrics_rollup`, and `cleanup_metrics_data`.
-- **`ANONYMIZATION_GROUP`** — Controlled by `ANONYMIZED_DATA_COLLECTION` feature flag (default: enabled, customer opt-out). Contains `daily_anonymize_and_prepare` — the tasks that transmit data to Red Hat.
-- **`DASHBOARD_COLLECTION_GROUP`** — Controlled by `DASHBOARD_COLLECTION` feature flag (default: enabled). Dashboard report collection via automation-reports.
-- **`INDIRECT_NODE_COLLECTION_GROUP`** — Controlled by `INDIRECT_NODE_COLLECTION` feature flag. Daily indirect managed node audit data collection.
-
-Feature flags are stored in the `dynamic_settings_setting` DB table (managed by `apps/dynamic_settings/`). They fall back to `FEATURE` in Django settings if not in DB. DB flags are checked at task execution time — no restart needed when toggling via DB/API. Env var changes require a restart.
-
-```bash
-# Toggle via env var (requires restart)
-METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false
-```
+`task_groups.py` defines five groups gated by feature flags (`METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION`, `DASHBOARD_COLLECTION`, `INDIRECT_NODE_COLLECTION`). Flags are checked at task execution time via DB/API without restart; env var changes require restart.
 
 ### API Structure
 

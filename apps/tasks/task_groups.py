@@ -10,7 +10,7 @@ then settings.FEATURE when the key is present (including env overrides via METRI
 then the direct top-level settings attribute FEATURE_<name>_ENABLED (set by the installer
 via settings.yaml), then DAB AAPFlag FEATURE_<name>_ENABLED, then the function default.
 
-run `manage.py metrics_utility init-system-tasks` to update the DB from `TASK_GROUPS`
+run `manage.py metrics_service init-system-tasks` to update the DB from `TASK_GROUPS`
 """
 
 import json

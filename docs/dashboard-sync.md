@@ -1,0 +1,217 @@
+# Automation Dashboard Sync
+
+The dashboard sync pipeline populates `apps/dashboard_reports` with AWX job
+data for the automation-reports REST API (`/api/v1/dashboard_reports/`). It is
+**separate from the anonymization pipeline** — both may query similar AWX data,
+but dashboard data is stored in `JobData` / `JobHostSummary` for local API
+consumers, not sent to Segment.
+
+See [collectors.md](collectors.md) for the metrics rollup path that runs in
+parallel on the same hourly collectors.
+
+## Overview
+
+```mermaid
+flowchart TB
+    subgraph phase1 [Phase 1 - First Start Backfill]
+        Init["init-system-tasks"]
+        OneShot["initial_dashboard_collection\none-shot Task"]
+        Backfill["collect_dashboard_reports_initial_data"]
+        JobData["JobData / JobHostSummary / labels"]
+        Init --> OneShot --> Backfill --> JobData
+    end
+
+    subgraph phase2 [Phase 2 - Ongoing Hourly Hooks]
+        UJ["hourly_unified_jobs XX:05\nMETRICS_COLLECTION"]
+        Hook1["post_collect_hook\n_build_dashboard_sync_hook"]
+        SyncJobs["sync_dashboard_job_records tasks"]
+        JHS["hourly_job_host_summary XX:10"]
+        Hook2["post_collect_hook\n_build_dashboard_host_summary_sync_hook"]
+        SyncHS["sync_dashboard_host_summaries tasks"]
+        UJ --> Hook1 --> SyncJobs --> JobData
+        JHS --> Hook2 --> SyncHS --> JobHostSummary["JobHostSummary"]
+    end
+
+    API["/api/v1/dashboard_reports/"]
+    JobData --> API
+    JobHostSummary --> API
+```
+
+| Phase | Mechanism | When |
+|-------|-----------|------|
+| Backfill | One-shot system task | First enable / fresh install |
+| Ongoing | Post-collect hooks on hourly metrics collectors | Every hour after backfill |
+
+There is **no scheduled cron** for ongoing incremental dashboard collection.
+`collect_dashboard_reports_data` is **deprecated** (manual/API invocation only).
+
+## Feature Flag
+
+Controlled by `DASHBOARD_COLLECTION` (default: `true`).
+
+- Task group: `DASHBOARD_COLLECTION_GROUP` in `task_groups.py`
+- Disable: `METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION=false` or
+  dynamic settings API / DB row
+- Runtime check: scheduler and hooks use `get_feature_enabled_from_db()`
+
+`METRICS_COLLECTION` and `DASHBOARD_COLLECTION` are independent — you can
+collect metrics rollups without dashboard sync, or enable dashboard sync while
+metrics collection is paused.
+
+## Phase 1: First-Start Backfill
+
+```mermaid
+flowchart TD
+    Init["init-system-tasks\ncreate_system_tasks()"]
+    Task["Task: initial_dashboard_collection\ncron=NULL, pending"]
+    Sync["Scheduler periodic sync\nimmediate_tasks scan"]
+    Queue["dispatcherd queue: dashboard"]
+    Fn["collect_dashboard_reports_initial_data"]
+    AWX["AWX DB\ndashboard_jobs cursor batches"]
+    Store["JobData.create_or_update_from_awx()\n+ labels + host summaries"]
+    Done["Task status: completed"]
+
+    Init --> Task --> Sync --> Queue --> Fn
+    Fn --> AWX --> Store --> Done
+```
+
+### Registration
+
+`initial_dashboard_collection` in `DASHBOARD_COLLECTION_GROUP`:
+
+- `function`: `collect_dashboard_reports_initial_data`
+- `cron`: `None` (immediate one-shot)
+- Queue: `dashboard`
+
+### Does not re-run on upgrade
+
+`create_system_tasks()` snapshots completed one-shot system tasks before
+deleting and recreating system task rows. If `initial_dashboard_collection`
+already completed, its `completed` status is restored so the backfill does not
+repeat on upgrade.
+
+### Backfill logic
+
+Implemented in `apps/dashboard_reports/tasks.py`:
+
+1. **Date window** — `since` defaults to `JobData.last_finished_timestamp()` or
+   a retention window (default 90 days, or Controller `cleanup_jobs` schedule
+   when `DASHBOARD_COLLECTION.USE_CONTROLLER_RETENTION` is enabled).
+2. **Query** — `metrics_utility.library.collectors.dashboard.dashboard_jobs`
+   against the AWX database.
+3. **Pagination** — cursor batches (`BACKFILL_BATCH_SIZE`, default 5000).
+4. **Write** — `JobData.create_or_update_from_awx()` with labels and host summaries.
+5. **Telemetry** — `DashboardTelemetry` row per run.
+
+### Collection status API
+
+`apps/dashboard_reports/viewsets/collection_status.py` exposes:
+
+- `initial_collection_status`
+- `min_collection_timestamp`
+- `next_run`
+
+## Phase 2: Ongoing Sync via Hooks
+
+Incremental sync piggybacks on **metrics hourly collectors** via
+`post_collect_hook` in `generic_collect_metrics()`. No extra AWX queries for
+job records — raw DataFrames from the collector are serialized into follow-up
+tasks.
+
+```mermaid
+flowchart TD
+    subgraph xx05 ["XX:05 - unified_jobs"]
+        C1["collect_hourly_metrics\ncollector_type=unified_jobs"]
+        G1["unified_jobs_dashboard.gather()"]
+        F1["Filter: status failed/successful\nexclude sync/workflow launch"]
+        H1["_build_dashboard_sync_hook"]
+        T1["Create pending Tasks:\nsync_dashboard_job_records_{hour}_{chunk}"]
+        C1 --> G1 --> F1 --> H1 --> T1
+    end
+
+    subgraph xx10 ["XX:10 - job_host_summary"]
+        C2["collect_hourly_metrics\ncollector_type=job_host_summary_service"]
+        G2["job_host_summary_service.gather()"]
+        H2["_build_dashboard_host_summary_sync_hook"]
+        T2["Create pending Tasks:\nsync_dashboard_host_summaries_{hour}_{chunk}"]
+        C2 --> G2 --> H2 --> T2
+    end
+
+    T1 --> Sched["Scheduler submits to dashboard queue"]
+    Sched --> SJ["sync_dashboard_job_records\nwrites JobData, host_summaries=None"]
+    T2 --> Sched2["Scheduler submits"]
+    Sched2 --> SH["sync_dashboard_host_summaries\nupdates JobHostSummary"]
+
+    SJ --> JD["JobData rows exist"]
+    JD --> SH
+```
+
+### Ordering constraint
+
+`hourly_unified_jobs` (XX:05) **must run before**
+`hourly_job_host_summary` (XX:10).
+
+The unified_jobs hook dispatches `sync_dashboard_job_records`, which creates
+`JobData` rows. The host summary hook dispatches `sync_dashboard_host_summaries`,
+which looks up jobs by `job_id`. If host summaries run first, matching
+`JobData` rows do not exist and records are silently skipped with no retry.
+
+The 5-minute gap is sufficient — `sync_dashboard_job_records` completes in
+seconds.
+
+### Hook details
+
+| Hook | Source collector | Follow-up task | Writes |
+|------|------------------|----------------|--------|
+| `_build_dashboard_sync_hook` | `unified_jobs` | `sync_dashboard_job_records` | `JobData` (no host summaries) |
+| `_build_dashboard_host_summary_sync_hook` | `job_host_summary_service` | `sync_dashboard_host_summaries` | `JobHostSummary` |
+
+- Chunk size: 500 job records per task
+- Tasks carry `_feature_flag: DASHBOARD_COLLECTION`
+- Stale pending chunks from prior runs are deleted when chunk count shrinks
+
+### Deprecated incremental task
+
+`collect_dashboard_reports_data` performed scheduled incremental sync from
+the last known timestamp. Ongoing sync now uses hooks. The function remains in
+`TASK_FUNCTIONS` for manual/API invocation only — it is **not** in `task_groups.py`.
+
+`DASHBOARD_COLLECTION.COLLECTION_SCHEDULE_CRON` in `apps/settings/defaults.py`
+(`"0 */6 * * *"`) is unused legacy configuration from the pre-hook design.
+
+## Cleanup Tasks
+
+| Task | Cron | Function |
+|------|------|----------|
+| `cleanup_dashboard_reports_old_data` | `30 5 * * *` | Delete `JobData` beyond retention |
+| `cleanup_dashboard_telemetry` | `45 5 * * *` | Delete `DashboardTelemetry` older than 60 days |
+
+Retention for job data defaults to Controller `cleanup_jobs` schedule when
+`USE_CONTROLLER_RETENTION` is enabled.
+
+## Configuration
+
+`DASHBOARD_COLLECTION` dict in `apps/settings/defaults.py`:
+
+| Key | Purpose |
+|-----|---------|
+| `BACKFILL_BATCH_SIZE` | Cursor batch size for initial backfill (default 5000) |
+| `USE_CONTROLLER_RETENTION` | Use AWX cleanup_jobs schedule for retention window |
+
+## Separation from Anonymization
+
+| Aspect | Dashboard sync | Metrics / anonymization |
+|--------|----------------|-------------------------|
+| Destination | `JobData`, `JobHostSummary` | `HourlyMetricsCollection` → Segment |
+| API consumer | `/api/v1/dashboard_reports/` | Red Hat upstream |
+| Ongoing mechanism | Post-collect hooks | Scheduled collectors + rollup |
+| Feature flag | `DASHBOARD_COLLECTION` | `METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION` |
+
+Hourly collectors run both paths when flags are enabled: rollup to metrics DB
+and hook-created sync tasks to dashboard tables.
+
+## Related Documentation
+
+- [collectors.md](collectors.md) — hourly collector schedules and rollup pipeline
+- [task-system.md](task-system.md) — `dashboard` queue routing
+- [apscheduler.md](apscheduler.md) — how hook-created immediate tasks are submitted
