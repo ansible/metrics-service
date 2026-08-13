@@ -372,7 +372,8 @@ class UnifiedTaskScheduler:
             # Check if the scheduled time is in the past
             now = timezone.now()
             if task.scheduled_time <= now:
-                # Execute immediately if past due
+                # Execute immediately if past due. Not added to _db_task_jobs, so
+                # periodic sync re-submits until a worker claims the task (status != pending).
                 logger.info(
                     f"Task {task.name} (ID: {task.id}) is past due (scheduled: {task.scheduled_time}, now: {now}), executing immediately"
                 )

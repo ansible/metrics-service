@@ -42,8 +42,9 @@ not published to it.
 SharedResource(serializer=OrganizationType, is_provider=False)
 ```
 
-Creating organizations locally via POST is blocked (405) because gateway sync
-is the source of truth (AAP-74775).
+Creating organizations locally via POST is blocked — superusers receive 405
+(Method Not Allowed); other callers receive 403 because RBAC denies create
+before DRF dispatches the action (AAP-74775). Gateway sync is the source of truth.
 
 ## Authentication Flow
 

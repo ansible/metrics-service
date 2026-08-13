@@ -104,7 +104,7 @@ groups run at runtime. They are not the same as **platform feature flags**
 ```mermaid
 flowchart TB
     subgraph always [Always enabled]
-        SYS["SYSTEM_TASKS_GROUP\ncleanup_old_tasks, hello_world,\ninitial_resource_sync"]
+        SYS["SYSTEM_TASKS_GROUP\ncleanup_old_tasks, hello_world,\nsync_resources_from_gateway"]
     end
 
     subgraph enablement [Enablement-gated groups]

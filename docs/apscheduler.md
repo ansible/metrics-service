@@ -79,6 +79,14 @@ flowchart TB
 `_db_task_jobs` maps `Task.id` to APScheduler job IDs to prevent duplicate
 registration and to track immediate tasks after submission.
 
+**Past-due scheduled tasks** — When `scheduled_time` is already in the past,
+`_add_database_scheduled_task()` submits immediately via `_execute_database_task()`
+without registering a `DateTrigger` or `_db_task_jobs` entry. The task remains
+`pending` in `Task.scheduled_tasks()` until a worker claims it, so periodic sync
+may re-submit it on every interval until status changes. Future-due scheduled
+tasks are tracked in `_db_task_jobs` and are not re-submitted until the trigger
+fires.
+
 ## Task Shapes and Triggers
 
 ```mermaid
@@ -110,7 +118,7 @@ flowchart LR
 | Shape | APScheduler trigger | On fire |
 |-------|---------------------|---------|
 | Immediate | none (interval sync only) | `_execute_database_task` → submit |
-| Scheduled | `DateTrigger(run_date=scheduled_time)` | submit (immediate if past due) |
+| Scheduled | `DateTrigger(run_date=scheduled_time)` | submit (immediate if past due; see past-due note above) |
 | Recurring | `CronTrigger.from_crontab(cron_expression)` | create child `Task`, submit child |
 
 Recurring template rows stay `pending` forever. Each fire creates a new child
@@ -199,7 +207,9 @@ Two different intervals exist:
 | `--check-interval` CLI flag | **60 seconds** | How often the management command's idle loop wakes to verify the scheduler is still running |
 
 The CLI flag does **not** currently pass its value to `UnifiedTaskScheduler`.
-The periodic sync interval is hardcoded at 30 seconds in `start_scheduler()`.
+The periodic sync interval defaults to **30 seconds** via
+`UnifiedTaskScheduler(check_interval=30)` in `__init__`; `start_scheduler()`
+instantiates the scheduler with that default.
 
 The management command loop only checks `scheduler.running` and handles
 `KeyboardInterrupt` shutdown — it does not drive scheduling.

@@ -42,7 +42,7 @@ once a task is `pending` and due, all three flow through the same
 | Type | `scheduled_time` | `cron_expression` | Query | How it enters |
 |------|------------------|-------------------|-------|---------------|
 | Immediate | `NULL` | `NULL` | `Task.immediate_tasks()` | Periodic sync submits it to the dispatcher right away |
-| Scheduled | set | `NULL` | `Task.scheduled_tasks()` | APScheduler `DateTrigger` at `scheduled_time` (submitted immediately if past due) |
+| Scheduled | set | `NULL` | `Task.scheduled_tasks()` | APScheduler `DateTrigger` at `scheduled_time` (submitted immediately if past due; may re-submit each sync until claimed) |
 | Recurring | `NULL` | set | `Task.recurring_tasks()` | APScheduler `CronTrigger` — the row is a template, see below |
 
 ### Recurring tasks are templates
@@ -150,7 +150,9 @@ The periodic sync has three distinct, non-overlapping recovery handlers:
 
 - **Orphaned `pending`** (submit never reached the broker) → recovered by the
   `immediate_tasks()` re-submission scan, **not** the retry path. A `pending`
-  task that isn't tracked in `_db_task_jobs` is simply re-submitted.
+  task that isn't tracked in `_db_task_jobs` is simply re-submitted. The same
+  applies to **past-due scheduled** tasks until a worker claims them (see
+  [apscheduler.md](apscheduler.md)).
 - **Stuck `running`** (worker died) → `_fail_stuck_tasks()` moves it to `failed`,
   then `_retry_failed_tasks()` retries it on the next pass.
 - **`failed` with attempts remaining** → `_retry_failed_tasks()` → `retry()`.

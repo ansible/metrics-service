@@ -19,7 +19,7 @@ flowchart TB
 
     Web -->|"REST API"| APIClients["API clients / Gateway"]
     Scheduler -->|"submit_task_to_dispatcher"| Broker["PostgreSQL pg_notify\nbroker channels"]
-    Workers -->|"execute_db_task"| Broker
+    Broker -->|"execute_db_task"| Workers
     Workers --> TASK_FUNCS["TASK_FUNCTIONS\nPython callables"]
     Scheduler --> DB["PostgreSQL\nTask rows"]
     Workers --> DB
