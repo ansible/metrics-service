@@ -135,6 +135,27 @@ def test_send_anonymized_to_segment_specific_payload(pending_payload):
 
 @pytest.mark.unit
 @pytest.mark.django_db
+def test_send_anonymized_to_segment_skips_when_feature_disabled(pending_payload):
+    """When ANONYMIZED_DATA_COLLECTION is disabled, do not send payloads."""
+    from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
+
+    with (
+        patch(
+            "apps.tasks.task_groups.get_feature_enabled_from_db",
+            return_value=False,
+        ),
+        patch("apps.tasks.collectors.send_anonymized_to_segment._process_single_payload") as mock_process,
+    ):
+        result = send_anonymized_to_segment()
+
+    assert result["status"] == "success"
+    assert result["results"]["sent"] == 0
+    assert result["total_processed"] == 0
+    mock_process.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
 def test_send_anonymized_to_segment_key_not_configured():
     """When SEGMENT_WRITE_KEY is missing, returns error."""
     from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
