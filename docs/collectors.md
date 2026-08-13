@@ -132,7 +132,7 @@ Snapshots are stored with a timestamp of yesterday 23:00 so
 
 Registry: `_get_daily_collectors()` in `collect_daily_metrics.py`.
 
-| `collector_type` | Source DB | Rollup | Cron | Flag |
+| `collector_type` | Source DB | Rollup | Cron | Enablement setting |
 |------------------|-----------|--------|------|------|
 | `task_executions_service` | `default` (metrics-service) | `TaskExecutionsAnonymizedRollup` | `50 1 * * *` | `METRICS_COLLECTION` |
 | `indirect_managed_nodes` | `awx` | `IndirectManagedNodesAnonymizedRollup` | `55 1 * * *` | `INDIRECT_NODE_COLLECTION` |
@@ -173,16 +173,21 @@ In `apps/tasks/models.py`:
 | `DailyMetricsSummary` | Merged daily rollup across all collectors |
 | `AnonymizedMetricsPayload` | Prepared payload for Segment transmission |
 
-## Feature Flags
+## Feature Enablement Settings
 
-| Flag | Effect when disabled |
-|------|---------------------|
+These **feature enablement settings** control whether collector task groups run.
+They are separate from **platform feature flags** (DAB `AAPFlag` / the
+`feature_flags_service` snapshot collector, which records Controller platform
+flag state for metrics rollups).
+
+| Enablement setting | Effect when disabled |
+|--------------------|---------------------|
 | `METRICS_COLLECTION` | All hourly/daily collectors, rollup, metrics cleanup skipped |
 | `ANONYMIZED_DATA_COLLECTION` | Anonymization and Segment send skipped; local collection can continue |
 | `INDIRECT_NODE_COLLECTION` | `indirect_managed_nodes` collector skipped |
 | `DASHBOARD_COLLECTION` | Dashboard post-collect hooks skipped (metrics rollups still run) |
 
-Flags are checked at task execution time via `task_data["_feature_flag"]`.
+Enablement settings are checked at task execution time via `task_data["_feature_flag"]`.
 
 ## Related Documentation
 

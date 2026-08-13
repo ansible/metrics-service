@@ -93,9 +93,13 @@ Recurring rows are **templates** — they never run directly. Each cron fire
 creates a one-shot child `Task` that flows through the normal state machine.
 See [task-state-machine.md §2](task-state-machine.md#2-task-types-and-entry-paths).
 
-## Task Groups and Feature Flags
+## Task Groups and Feature Enablement Settings
 
 `apps/tasks/task_groups.py` is the **source of truth** for system tasks.
+
+**Feature enablement settings** (e.g. `METRICS_COLLECTION`) gate whether task
+groups run at runtime. They are not the same as **platform feature flags**
+(DAB `AAPFlag` entries or Controller `feature_flags_service` collector data).
 
 ```mermaid
 flowchart TB
@@ -103,7 +107,7 @@ flowchart TB
         SYS["SYSTEM_TASKS_GROUP\ncleanup_old_tasks, hello_world,\ninitial_resource_sync"]
     end
 
-    subgraph flags [Feature-flagged groups]
+    subgraph enablement [Enablement-gated groups]
         MC["METRICS_COLLECTION_GROUP"]
         ANON["ANONYMIZATION_GROUP\nANONYMIZED_DATA_COLLECTION"]
         DASH["DASHBOARD_COLLECTION_GROUP\nDASHBOARD_COLLECTION"]
@@ -116,8 +120,8 @@ flowchart TB
     IND --> INDtasks["indirect_managed_nodes collector"]
 ```
 
-| Group | Feature flag | Default | Key tasks |
-|-------|--------------|---------|-----------|
+| Group | Enablement setting | Default | Key tasks |
+|-------|-------------------|---------|-----------|
 | `SYSTEM_TASKS_GROUP` | none | always on | `cleanup_old_tasks`, `hello_world`, `sync_resources_from_gateway` |
 | `METRICS_COLLECTION_GROUP` | `METRICS_COLLECTION` | `true` | All collectors, `daily_metrics_rollup`, `cleanup_metrics_data` |
 | `ANONYMIZATION_GROUP` | `ANONYMIZED_DATA_COLLECTION` | `true` | `daily_anonymize_and_prepare` |
@@ -125,8 +129,9 @@ flowchart TB
 | `INDIRECT_NODE_COLLECTION_GROUP` | `INDIRECT_NODE_COLLECTION` | `false` | `collect_daily_metrics` (indirect nodes) |
 
 `init-system-tasks` registers **all** individually-enabled tasks regardless of
-group flags. The `_feature_flag` key in `task_data` enables runtime gating so
-toggling a flag via DB/API takes effect without redeploying task definitions.
+group enablement settings. The `_feature_flag` key in `task_data` stores the
+enablement setting name for runtime gating — toggling via DB/API takes effect
+without redeploying task definitions.
 
 `create_system_tasks()` preserves `completed` status for one-shot tasks
 (`cron_expression=NULL`) across upgrades so tasks like

@@ -134,7 +134,11 @@ DATABASES__default__PORT = 5433
 
 See [`docs/task-system.md`](docs/task-system.md). Key files: `task_groups.py` (source of truth for system tasks), `cron_scheduler.py`, `dispatcherd_config.py`, `collectors/`, `v1/`.
 
-`task_groups.py` defines five groups gated by feature flags (`METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION`, `DASHBOARD_COLLECTION`, `INDIRECT_NODE_COLLECTION`). Flags are checked at task execution time via DB/API without restart; env var changes require restart.
+`task_groups.py` defines five groups gated by **feature enablement settings**
+(`METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION`, `DASHBOARD_COLLECTION`,
+`INDIRECT_NODE_COLLECTION` — distinct from platform feature flags / DAB
+`AAPFlag`). Settings are checked at task execution time via DB/API without
+restart; env var changes require restart.
 
 ### API Structure
 
@@ -147,7 +151,9 @@ All viewsets use `BaseViewSet` / `UserManagementMixin` base classes. OpenAPI doc
 
 ### Dynamic Settings (`apps/dynamic_settings/`)
 
-Provides a DB-backed `Setting` model for runtime configuration. Feature flags checked here at task execution time — no restart needed when toggling. Managed via:
+Provides a DB-backed `Setting` model for runtime configuration. Feature
+enablement settings for task groups are checked at task execution time — no
+restart needed when toggling via DB/API. Managed via:
 - `python manage.py metrics_service init-default-settings` — seed defaults
 - `python manage.py metrics_service remove-default-settings` — remove unmodified defaults
 - `python manage.py dynamic_settings reload_config` — reload config from DB

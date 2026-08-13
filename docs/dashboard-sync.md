@@ -45,9 +45,11 @@ flowchart TB
 There is **no scheduled cron** for ongoing incremental dashboard collection.
 `collect_dashboard_reports_data` is **deprecated** (manual/API invocation only).
 
-## Feature Flag
+## Feature Enablement Setting
 
-Controlled by `DASHBOARD_COLLECTION` (default: `true`).
+Controlled by the `DASHBOARD_COLLECTION` feature enablement setting (default:
+`true`). This is not a platform feature flag (DAB `AAPFlag` / Controller
+`feature_flags_service` data).
 
 - Task group: `DASHBOARD_COLLECTION_GROUP` in `task_groups.py`
 - Disable: `METRICS_SERVICE_FEATURE__DASHBOARD_COLLECTION=false` or
@@ -205,7 +207,7 @@ Retention for job data defaults to Controller `cleanup_jobs` schedule when
 | Destination | `JobData`, `JobHostSummary` | `HourlyMetricsCollection` → Segment |
 | API consumer | `/api/v1/dashboard_reports/` | Red Hat upstream |
 | Ongoing mechanism | Post-collect hooks | Scheduled collectors + rollup |
-| Feature flag | `DASHBOARD_COLLECTION` | `METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION` |
+| Feature enablement setting | `DASHBOARD_COLLECTION` | `METRICS_COLLECTION`, `ANONYMIZED_DATA_COLLECTION` |
 
 Hourly collectors run both paths when flags are enabled: rollup to metrics DB
 and hook-created sync tasks to dashboard tables.

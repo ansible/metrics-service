@@ -155,11 +155,12 @@ Tasks are automatically routed based on their properties:
 
 No manual intervention required - create a task and it's automatically processed!
 
-### Task Groups & Feature Flags
+### Task Groups & Feature Enablement Settings
 
-We have these feature flags:
+These **feature enablement settings** gate scheduled task groups (not platform
+feature flags from DAB `AAPFlag` or Controller `feature_flags_service` data):
 
-|flag|default|
+|enablement setting|default|
 |-|-|
 |`METRICS_COLLECTION`|true|
 |`ANONYMIZED_DATA_COLLECTION`|true|
@@ -176,7 +177,7 @@ METRICS_SERVICE_FEATURE__METRICS_COLLECTION=false
 METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION=false
 ```
 
-Feature flags are resolved at runtime with this precedence:
+Feature enablement settings are resolved at runtime with this precedence:
 
 1. **DB row** in `dynamic_settings_setting` (written via the API, `dbshell`, or a prior `init-default-settings` run) — always wins
 2. **Env var** (`METRICS_SERVICE_FEATURE__*`) — used on fresh installs or when no DB row exists

@@ -161,16 +161,19 @@ unavailable (likely failed Controller migrations).
 non-recurring tasks with `attempts < max_attempts`. This is separate from
 dispatcherd's broker-level retries.
 
-## Feature Flag Checks
+## Feature Enablement Checks
 
-`_task_feature_flag_enabled()` reads `task_data["_feature_flag"]` and calls
-`get_feature_enabled_from_db()`. Disabled tasks are skipped during:
+`_task_feature_flag_enabled()` reads the feature enablement setting name from
+`task_data["_feature_flag"]` and calls `get_feature_enabled_from_db()`.
+Disabled tasks are skipped during:
 
 - Initial sync of scheduled/recurring jobs
 - Periodic discovery of immediate/scheduled/recurring tasks
 - `_execute_database_task()` at fire time
 
-Runtime checks allow toggling flags via DB/API without restarting the scheduler.
+Runtime checks allow toggling enablement settings via DB/API without restarting
+the scheduler. (The `_feature_flag` field name is legacy; values are feature
+enablement settings, not platform feature flags.)
 
 ## Advisory Locks
 
@@ -208,7 +211,7 @@ The management command loop only checks `scheduler.running` and handles
 | Worker process down | Submitted tasks sit in broker; running tasks may stick | Workers restart; stuck tasks → failed → retry |
 | AWX DB unavailable | Collectors not scheduled; retries/stuck detection continue | Scheduler retries every 30s until AWX ready |
 | Broker publish error | Child/recurring execution stays `pending` | Next immediate-task scan re-submits |
-| Feature flag disabled | Task skipped at sync and fire time | Re-enable flag; no restart needed (DB toggle) |
+| Enablement setting disabled | Task skipped at sync and fire time | Re-enable setting; no restart needed (DB toggle) |
 
 Dispatcherd may retry broker delivery independently. Application-level retries
 use `task.retry()` and `_retry_failed_tasks()` — see

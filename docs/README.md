@@ -48,7 +48,7 @@ workers must be running for submitted tasks to execute.
 |-----|------|----------------|
 | `core` | `apps/core/` | User/Organization/Team models, DAB integration, JWT auth, RBAC |
 | `tasks` | `apps/tasks/` | Background task system, collectors, scheduling, execution |
-| `dynamic_settings` | `apps/dynamic_settings/` | DB-backed runtime settings and feature flags |
+| `dynamic_settings` | `apps/dynamic_settings/` | DB-backed runtime settings (including feature enablement values) |
 | `dashboard_reports` | `apps/dashboard_reports/` | Job data store for automation-reports API |
 | `settings` | `apps/settings/` | Dynaconf defaults and mode-specific overrides |
 
@@ -59,7 +59,7 @@ URL loading order (see `metrics_service/urls.py`):
 3. Cross-app URLs (`apps/urls.py`)
 4. Per-app URLs (`apps/core/urls.py`, `apps/tasks/urls.py`, etc.)
 
-## Settings and Feature Flags
+## Settings and Feature Enablement
 
 Settings merge via Dynaconf (later layers override earlier):
 
@@ -72,13 +72,16 @@ Settings merge via Dynaconf (later layers override earlier):
 7. `/etc/ansible-automation-platform/metrics_service/settings.yaml` — production
 8. `METRICS_SERVICE_*` environment variables
 
-Feature flags gate **task groups** at runtime. Each group's flag is stored in
+**Feature enablement settings** gate **task groups** at runtime. These are
+distinct from **platform feature flags** (DAB `AAPFlag` / `/api/v1/feature_flags_state/`
+and Controller `feature_flags_service` collector data). Enablement settings
+control whether scheduled task groups run; they are stored under
 `task_data["_feature_flag"]` on system tasks and checked by the scheduler and
 workers without requiring a restart (when toggled via DB/API). Env var changes
 require a pod restart.
 
-| Flag | Default | Task group |
-|------|---------|------------|
+| Enablement setting | Default | Task group |
+|--------------------|---------|------------|
 | `METRICS_COLLECTION` | `true` | Hourly/daily collectors, rollup, metrics cleanup |
 | `ANONYMIZED_DATA_COLLECTION` | `true` | Anonymization and Segment transmission |
 | `DASHBOARD_COLLECTION` | `true` | Dashboard backfill and cleanup |
@@ -105,7 +108,7 @@ python manage.py metrics_service init-system-tasks
 ## Where to Start
 
 **Operators** — Start with this page, then [task-system.md](task-system.md) for
-CLI commands and feature flags. Use [dashboard-sync.md](dashboard-sync.md) for
+CLI commands and feature enablement settings. Use [dashboard-sync.md](dashboard-sync.md) for
 automation-reports collection status.
 
 **Developers adding a background task** — [task-system.md](task-system.md)
