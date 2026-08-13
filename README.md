@@ -19,8 +19,10 @@ A modern Django-based service built for the Ansible Automation Platform (AAP) ec
 Architecture documentation lives in [`docs/README.md`](docs/README.md), with
 per-domain guides for [core/RBAC](docs/core-rbac.md), the
 [task system](docs/task-system.md), [APScheduler](docs/apscheduler.md),
-[collectors](docs/collectors.md), and
-[dashboard sync](docs/dashboard-sync.md).
+[collectors](docs/collectors.md), [dynamic settings](docs/dynamic-settings.md),
+[anonymization](docs/anonymization-and-transmission.md), [dashboard sync](docs/dashboard-sync.md),
+[dashboard API](docs/dashboard-reports-api.md), and [data models](docs/data-models.md).
+Worker execution uses [dispatcherd](https://github.com/ansible/dispatcherd).
 
 ## Quick Start
 

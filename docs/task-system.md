@@ -153,6 +153,12 @@ scheduled execution (see [apscheduler.md](apscheduler.md)).
 
 ## Dispatcherd and Queues
 
+Workers use [dispatcherd](https://github.com/ansible/dispatcherd) — a local
+background task runner built around PostgreSQL `pg_notify`. metrics-service
+configures channels and queue routing; see the
+[dispatcherd configuration docs](https://github.com/ansible/dispatcherd/blob/main/docs/config.md)
+for broker and worker pool options.
+
 Workers load configuration from `apps/settings/dispatcherd.yaml`. At runtime
 `dispatcherd_config.py` injects the Django database connection and sets
 `default_timeout` from `TASK_TIMEOUT`.

@@ -215,5 +215,5 @@ and hook-created sync tasks to dashboard tables.
 ## Related Documentation
 
 - [collectors.md](collectors.md) — hourly collector schedules and rollup pipeline
-- [task-system.md](task-system.md) — `dashboard` queue routing
+- [dashboard-reports-api.md](dashboard-reports-api.md) — REST API consuming synced data
 - [apscheduler.md](apscheduler.md) — how hook-created immediate tasks are submitted

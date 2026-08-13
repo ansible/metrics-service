@@ -87,12 +87,22 @@ require a pod restart.
 | `DASHBOARD_COLLECTION` | `true` | Dashboard backfill and cleanup |
 | `INDIRECT_NODE_COLLECTION` | `false` | Indirect managed node daily collector (opt-in) |
 
+Details: [dynamic-settings.md](dynamic-settings.md).
+
 System tasks are defined in `apps/tasks/task_groups.py` and synced to the
 database with:
 
 ```bash
 python manage.py metrics_service init-system-tasks
 ```
+
+## External Components
+
+| Component | Role | Documentation |
+|-----------|------|---------------|
+| [dispatcherd](https://github.com/ansible/dispatcherd) | Task worker broker (`pg_notify`); runs `execute_db_task` in subprocesses | [task-system.md](task-system.md), [dispatcherd config](https://github.com/ansible/dispatcherd/blob/main/docs/config.md) |
+| [metrics-utility](https://github.com/ansible/metrics-utility) | Collector SQL, rollups, anonymization, Segment client | [collectors.md](collectors.md) |
+| [django-ansible-base](https://github.com/ansible/django-ansible-base) | RBAC, JWT, resource registry | [core-rbac.md](core-rbac.md) |
 
 ## Documentation Index
 
@@ -102,14 +112,19 @@ python manage.py metrics_service init-system-tasks
 | [task-system.md](task-system.md) | End-to-end task architecture: models, task groups, dispatcherd, queues, API |
 | [task-state-machine.md](task-state-machine.md) | Task states, retries, crash recovery, periodic sync (deep dive) |
 | [apscheduler.md](apscheduler.md) | `UnifiedTaskScheduler`, triggers, `_db_task_jobs`, AWX DB gate |
-| [collectors.md](collectors.md) | Metrics collectors, schedules, rollup → anonymization pipeline |
-| [dashboard-sync.md](dashboard-sync.md) | Automation dashboard: first-start backfill and hourly sync hooks |
+| [dynamic-settings.md](dynamic-settings.md) | Feature enablement settings, `Setting` model, resolution order |
+| [collectors.md](collectors.md) | Metrics collectors, schedules, rollup pipeline |
+| [anonymization-and-transmission.md](anonymization-and-transmission.md) | Anonymization, Segment transmission, opt-out |
+| [dashboard-sync.md](dashboard-sync.md) | Dashboard data collection: backfill and hourly hooks |
+| [dashboard-reports-api.md](dashboard-reports-api.md) | Automation-reports REST API for dashboard UI |
+| [data-models.md](data-models.md) | Entity relationships across tasks, metrics, and dashboard models |
 
 ## Where to Start
 
 **Operators** — Start with this page, then [task-system.md](task-system.md) for
-CLI commands and feature enablement settings. Use [dashboard-sync.md](dashboard-sync.md) for
-automation-reports collection status.
+CLI commands and [dynamic-settings.md](dynamic-settings.md) for enablement
+toggles. Dashboard: [dashboard-sync.md](dashboard-sync.md) (collection) and
+[dashboard-reports-api.md](dashboard-reports-api.md) (API status endpoints).
 
 **Developers adding a background task** — [task-system.md](task-system.md)
 (overview) → [collectors.md](collectors.md) or inline task modules → run
@@ -119,5 +134,9 @@ automation-reports collection status.
 
 **Debugging stuck or failed tasks** — [task-state-machine.md](task-state-machine.md).
 
-**API consumers** — OpenAPI at `/api/docs/` plus [core-rbac.md](core-rbac.md)
-for auth requirements.
+**Upstream transmission / opt-out** — [anonymization-and-transmission.md](anonymization-and-transmission.md).
+
+**API consumers** — [dashboard-reports-api.md](dashboard-reports-api.md) and
+OpenAPI at `/api/docs/`; auth in [core-rbac.md](core-rbac.md).
+
+**Data model reference** — [data-models.md](data-models.md).

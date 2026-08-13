@@ -206,5 +206,6 @@ Enablement settings are checked at task execution time via `task_data["_feature_
 ## Related Documentation
 
 - [task-system.md](task-system.md) — how collector tasks are scheduled and executed
-- [dashboard-sync.md](dashboard-sync.md) — dashboard hooks on hourly collectors
+- [dashboard-sync.md](dashboard-sync.md) — dashboard sync hooks on hourly collectors
+- [anonymization-and-transmission.md](anonymization-and-transmission.md) — Segment transmission after rollup
 - [apscheduler.md](apscheduler.md) — timestamp injection for recurring collector fires
