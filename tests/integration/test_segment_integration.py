@@ -24,7 +24,11 @@ def _mock_segment_post(path):
 
 
 @pytest.mark.integration
-@override_settings(SEGMENT_URL=MOCK_SEGMENT_URL, SEGMENT_WRITE_KEY="test-integration-key")
+@override_settings(
+    SEGMENT_URL=MOCK_SEGMENT_URL,
+    SEGMENT_WRITE_KEY="test-integration-key",
+    FEATURE={"ANONYMIZED_DATA_COLLECTION": True},
+)
 class TestSegmentIntegration(TestCase):
     def setUp(self):
         _mock_segment_post("/reset")

@@ -17,6 +17,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.test import override_settings
 from django.utils import timezone
 
 # ---------------------------------------------------------------------------
@@ -414,6 +415,7 @@ def test_send_to_segment_none_chunks_defaults_to_one():
 
 @pytest.mark.unit
 @pytest.mark.django_db
+@override_settings(FEATURE={"ANONYMIZED_DATA_COLLECTION": True})
 def test_send_anonymized_to_segment_top_level_exception_returns_error(payload):
     """A catastrophic exception in the main function must return an error result."""
     from apps.tasks.collectors.send_anonymized_to_segment import send_anonymized_to_segment
