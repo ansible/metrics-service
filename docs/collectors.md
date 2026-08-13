@@ -68,28 +68,42 @@ persistence, and downstream rollup/anonymization.
 ## Schedule Timeline
 
 ```mermaid
-gantt
-    title Daily collector schedule (UTC-oriented cron)
-    dateFormat HH:mm
-    axisFormat %H:%M
+flowchart TB
+    subgraph hourly ["Hourly collectors — every hour at minute offset"]
+        direction LR
+        H05["XX:05 unified_jobs"]
+        H10["XX:10 job_host_summary"]
+        H15["XX:15 credentials"]
+        H20["XX:20 job_events"]
+        H05 --> H10 --> H15 --> H20
+    end
 
-    section Hourly
-    unified_jobs           :05, 1h
-    job_host_summary       :10, 1h
-    credentials            :15, 1h
-    job_events             :20, 1h
+    subgraph dailySnap ["Daily snapshots — 01:00-01:45 UTC"]
+        direction TB
+        S1["01:00 execution_environments"]
+        S2["01:30 config"]
+        S3["01:35 controller_version"]
+        S4["01:40 table_metadata"]
+        S5["01:45 feature_flags_service"]
+        S1 --> S2 --> S3 --> S4 --> S5
+    end
 
-    section Daily
-    execution_environments :01:00, 30m
-    config                 :01:30, 5m
-    controller_version     :01:35, 5m
-    table_metadata         :01:40, 5m
-    feature_flags          :01:45, 5m
-    task_executions        :01:50, 5m
-    indirect_nodes         :01:55, 5m
-    daily_metrics_rollup   :02:00, 30m
-    daily_anonymize        :03:00, 30m
-    cleanup_metrics_data   :04:00, 30m
+    subgraph dailyRange ["Daily time-range — 01:50-01:55 UTC"]
+        direction TB
+        R1["01:50 task_executions"]
+        R2["01:55 indirect_nodes"]
+        R1 --> R2
+    end
+
+    subgraph pipeline ["Daily pipeline"]
+        direction TB
+        P1["02:00 daily_metrics_rollup"]
+        P2["03:00 daily_anonymize"]
+        P3["04:00 cleanup_metrics_data"]
+        P1 --> P2 --> P3
+    end
+
+    hourly --> dailySnap --> dailyRange --> pipeline
 ```
 
 Cron expressions are defined in `METRICS_COLLECTION_GROUP` and
