@@ -4,7 +4,9 @@
   "tekton": {
     "enabled": true,
     "automerge": true,
-    // must use * for minutes, Renovate doesn't support minutes (#286)
-    "schedule": ["* */12 * * 1-5"]
+    "schedule": ["* */12 * * 1-5"],
+    "postUpgradeTasks": {
+      "commands": []
+    }
   }
 }
