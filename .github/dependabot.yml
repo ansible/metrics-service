@@ -17,3 +17,10 @@ updates:
       monthly-batch:
         patterns:
           - '*'
+    # Never propose major version bumps for Python deps. Runtime pins are
+    # compatible-release (~=) ranges and major upgrades are deliberate,
+    # human-driven changes (e.g. Django LTS bumps).
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - 'version-update:semver-major'
