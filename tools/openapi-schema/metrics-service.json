@@ -11128,7 +11128,7 @@
         "/api/v1/users/me/": {
             "get": {
                 "operationId": "users_me_retrieve",
-                "description": "Get currently logged in user's details",
+                "description": "Get currently logged in user's details, including a `member_of_organizations` list read live from the gateway database (AAP-88670).",
                 "summary": "Get current user details",
                 "tags": [
                     "users"

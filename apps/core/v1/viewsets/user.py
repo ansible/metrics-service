@@ -74,11 +74,22 @@ class UserViewSet(BaseViewSet):
 
     @extend_schema(
         summary="Get current user details",
-        description="Get currently logged in user's details",
+        description=(
+            "Get currently logged in user's details, including a `member_of_organizations` "
+            "list read live from the gateway database (AAP-88670)."
+        ),
         responses={200: UserSerializer},
     )
     @action(detail=False, methods=["get"])
     def me(self, request):
-        """Return the profile of the currently authenticated user."""
+        """Return the profile of the currently authenticated user, plus their organization membership.
+
+        `member_of_organizations` comes from ``User.get_member_organizations``, which
+        reads directly from the gateway database (AAP-88670) to avoid gateway-resource-sync
+        lag, so it is only computed for the requesting user here since `me` only ever
+        returns the caller's own profile.
+        """
         serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        data = serializer.data
+        data["member_of_organizations"] = request.user.get_member_organizations()
+        return Response(data)
