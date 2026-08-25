@@ -34,6 +34,7 @@ project_applications = [
     "apps.dynamic_settings",
     "apps.tasks",
     "apps.dashboard_reports",  # Dashboard data for automation-reports integration
+    "apps.service_ingest",  # Service ingest telemetry API
 ]
 
 # Final state of the INSTALLED_APPS that will merge with the rest of the settings
@@ -130,6 +131,8 @@ FEATURE = {
     "ANONYMIZED_DATA_COLLECTION": True,
     # Dashboard data collection for automation-reports — see DASHBOARD_COLLECTION_GROUP.
     "DASHBOARD_COLLECTION": True,
+    # Service ingest API — receive telemetry from other AAP services — see SERVICE_INGEST_TASKS.
+    "SERVICE_INGEST_ENABLED": False,
 }
 
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"

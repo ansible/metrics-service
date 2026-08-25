@@ -375,6 +375,28 @@ INDIRECT_NODE_COLLECTION_GROUP = TaskGroup(
     ],
 )
 
+SERVICE_INGEST_TASKS = TaskGroup(
+    name="service_ingest",
+    description="Service ingest API (SERVICE_INGEST feature flag)",
+    feature_flag="SERVICE_INGEST_ENABLED",
+    tasks=[
+        {
+            "task_id": "rollup_external_events_to_segment",
+            "function": "rollup_external_events_to_segment",
+            "cron": "0 5 * * *",  # Daily at 5:00 AM
+            "description": "Aggregate and send per-event ExternalEvents to Segment",
+            "enabled": True,
+        },
+        {
+            "task_id": "retry_failed_ingest_events",
+            "function": "retry_failed_ingest_events",
+            "cron": "0 */6 * * *",  # Every 6 hours
+            "description": "Retry failed ExternalEvent sends to Segment",
+            "enabled": True,
+        },
+    ],
+)
+
 # Registry of all task groups
 TASK_GROUPS = [
     SYSTEM_TASKS_GROUP,
@@ -382,6 +404,7 @@ TASK_GROUPS = [
     ANONYMIZATION_GROUP,
     DASHBOARD_COLLECTION_GROUP,
     INDIRECT_NODE_COLLECTION_GROUP,
+    SERVICE_INGEST_TASKS,
 ]
 
 

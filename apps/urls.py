@@ -22,7 +22,7 @@ This file loads at step 3 in the URL loading order, before individual apps
 
 """
 
-from django.urls import path
+from django.urls import include, path
 from django.views.generic import RedirectView
 
 from apps.core.views.metrics import PrometheusMetricsView
@@ -41,4 +41,6 @@ urlpatterns = [
     # will rewrite /api/metrics/v1/feature_flags/states/ → /api/v1/feature_flags/states/
     # for direct (non-gateway) requests, so the redirect works in both cases.
     path("api/v1/feature_flags/", RedirectView.as_view(url="/api/metrics/v1/feature_flags/states/", permanent=True)),
+    # Service ingest API — receive telemetry from AAP components
+    path("", include("apps.service_ingest.urls")),
 ]

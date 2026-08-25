@@ -1,0 +1,56 @@
+service_name: aap-mcp-server
+event_name: mcp_server_status
+display_name: MCP Server Status
+version: "1.0.0"
+segment_event_name: AAP MCP Server Heartbeat
+validate_payload: false
+
+payload_schema:
+  type: object
+  properties:
+    server_version:
+      type: string
+      description: Version of the MCP server software
+    uptime_seconds:
+      type: integer
+      description: Total uptime in seconds
+      x-analytics-role: stats
+    active_sessions:
+      type: integer
+      description: Number of active client sessions
+      x-analytics-role: stats
+    active_connections:
+      type: integer
+      description: Number of active TCP connections
+      x-analytics-role: stats
+    health_status:
+      type: string
+      enum: [healthy, degraded, unhealthy]
+      description: Overall health status
+      x-analytics-role: group_by
+    process_id:
+      type: integer
+      description: Process ID of the server
+    memory_usage_mb:
+      type: number
+      description: Memory usage in megabytes
+      x-analytics-role: stats
+    cpu_usage_percent:
+      type: number
+      description: CPU usage percentage
+      x-analytics-role: stats
+    error_count:
+      type: integer
+      description: Number of errors in the reporting period
+      x-analytics-role: stats
+    read_only_mode:
+      type: boolean
+      description: Whether the server is in read-only mode
+      x-analytics-role: group_by
+
+# Explicit rollup config for heartbeat events
+rollup_config:
+  strategy: raw_daily_summary
+  group_by: [health_status, read_only_mode]
+  stats_fields: [uptime_seconds, active_sessions, active_connections, memory_usage_mb, cpu_usage_percent, error_count]
+  daily_quota: 100

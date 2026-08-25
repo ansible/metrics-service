@@ -36,6 +36,11 @@ from .collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
 from .collectors.daily_metrics_rollup import daily_metrics_rollup
 from .collectors.send_anonymized_to_segment import send_anonymized_to_segment
 
+# Import service ingest tasks
+from .collectors.rollup_external_events_to_segment import rollup_external_events_to_segment
+from .collectors.retry_failed_ingest_events import retry_failed_ingest_events
+from .collectors.send_external_batch_to_segment import send_external_batch_to_segment
+
 # Note: Hourly and snapshot collectors handle all collector types via collector_type parameter
 # Import system tasks
 from .simple.hello_world import hello_world
@@ -67,6 +72,10 @@ TASK_FUNCTIONS = {
     "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
     "sync_dashboard_job_records": sync_dashboard_job_records,
     "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
+    # Service ingest tasks
+    "rollup_external_events_to_segment": rollup_external_events_to_segment,
+    "retry_failed_ingest_events": retry_failed_ingest_events,
+    "send_external_batch_to_segment": send_external_batch_to_segment,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.

@@ -1,0 +1,56 @@
+service_name: aap-mcp-server
+event_name: mcp_tool_called
+display_name: MCP Tool Called
+version: "1.0.0"
+segment_event_name: AAP MCP Tool Called
+validate_payload: false
+
+payload_schema:
+  type: object
+  properties:
+    tool_name:
+      type: string
+      description: Name of the MCP tool invoked
+    mcp_tool_set:
+      type: string
+      description: Tool set category (e.g., automation, analysis)
+    execution_time_ms:
+      type: integer
+      description: Time taken to execute the tool in milliseconds
+      x-analytics-role: stats
+    http_status:
+      type: integer
+      description: HTTP response status code
+      x-analytics-role: group_by
+    success:
+      type: boolean
+      description: Whether the tool call succeeded
+      x-analytics-role: group_by
+    error_code:
+      type: integer
+      description: Error code if the call failed
+      x-analytics-role: group_by
+    user_pseudo_id:
+      type: string
+      description: HMAC-SHA256 hashed user identifier
+      x-analytics-role: identifier
+    installer_pseudo_id:
+      type: string
+      description: HMAC-SHA256 hashed installer identifier
+      x-analytics-role: identifier
+    user_type:
+      type: string
+      enum: [human, service, system]
+      description: Type of user that invoked the tool
+      x-analytics-role: group_by
+    parameter_length:
+      type: integer
+      description: Total length of tool parameters in bytes
+      x-analytics-role: stats
+
+# Auto-inferred rollup config based on payload_schema:
+# rollup_config:
+#   strategy: stats_by_field
+#   group_by: [tool_name, mcp_tool_set, http_status, success, error_code, user_type]
+#   stats_fields: [execution_time_ms, parameter_length]
+#   count_alias: invocation_count
