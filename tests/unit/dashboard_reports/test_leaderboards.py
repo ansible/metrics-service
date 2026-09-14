@@ -12,6 +12,7 @@ import pytest
 from django.urls import reverse
 
 from apps.dashboard_reports.models import JobData, JobStatusChoices
+from apps.dashboard_reports.viewsets.dashboard_leaderboards import _roll_up_day_org_rows
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 
@@ -186,6 +187,33 @@ class TestEnterpriseStreak:
 
 
 class TestOrganizationLeaderboard:
+    def test_day_org_rollup_aggregates_all_dimensions_in_one_pass(self):
+        rows = [
+            {"day": WINDOW_START, "organization_id": 1, "organization_name": "Org A", "runs": 2},
+            {
+                "day": WINDOW_START + datetime.timedelta(days=1),
+                "organization_id": 1,
+                "organization_name": "Org A",
+                "runs": 3,
+            },
+            {"day": WINDOW_START, "organization_id": 2, "organization_name": "Org B", "runs": 4},
+            {"day": WINDOW_START, "organization_id": None, "organization_name": None, "runs": 5},
+        ]
+
+        job_runs, active_orgs, enterprise_by_day, org_totals, org_by_day = _roll_up_day_org_rows(rows)
+
+        assert job_runs == 14
+        assert active_orgs == {1, 2}
+        assert enterprise_by_day == {
+            WINDOW_START: 11,
+            WINDOW_START + datetime.timedelta(days=1): 3,
+        }
+        assert {org_id: row["runs"] for org_id, row in org_totals.items()} == {1: 5, 2: 4}
+        assert dict(org_by_day[1]) == {
+            WINDOW_START: 2,
+            WINDOW_START + datetime.timedelta(days=1): 3,
+        }
+
     def test_org_streak_scoped_to_busiest_org(self, authenticated_client):
         for _ in range(5):
             make_job(day(29), org_id=2, org_name="Busy")
