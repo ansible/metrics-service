@@ -224,6 +224,49 @@ def _streak_series(counts_by_day: dict[date, int], window_dates: list[date]) -> 
     return {"streak": streak, "daily": daily}
 
 
+def _roll_up_day_org_rows(
+    day_org_rows: list[dict[str, Any]],
+) -> tuple[
+    int,
+    set[int],
+    dict[date, int],
+    dict[int, dict[str, Any]],
+    dict[int, dict[date, int]],
+]:
+    """Build all organization-independent rollups from the grouped query rows.
+
+    The leaderboard query is already grouped by ``(day, organization)``. Keep
+    the remaining aggregation as one linear pass so a large result set is not
+    repeatedly scanned for total runs, active organizations, enterprise daily
+    counts, organization totals, and organization daily counts.
+    """
+    job_runs = 0
+    active_organizations: set[int] = set()
+    enterprise_by_day: dict[date, int] = defaultdict(int)
+    org_totals: dict[int, dict[str, Any]] = {}
+    org_by_day: dict[int, dict[date, int]] = defaultdict(lambda: defaultdict(int))
+
+    for row in day_org_rows:
+        day = row["day"]
+        organization_id = row["organization_id"]
+        runs = row["runs"]
+        job_runs += runs
+        enterprise_by_day[day] += runs
+
+        if organization_id is None:
+            continue
+
+        active_organizations.add(organization_id)
+        aggregate = org_totals.setdefault(
+            organization_id,
+            {"organization_id": organization_id, "organization_name": row["organization_name"], "runs": 0},
+        )
+        aggregate["runs"] += runs
+        org_by_day[organization_id][day] += runs
+
+    return job_runs, active_organizations, enterprise_by_day, org_totals, org_by_day
+
+
 class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
     """Aggregated engagement metrics (counts, streaks, leaderboards, achievements).
 
@@ -283,12 +326,16 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
             .annotate(runs=Count("id"))
         )
 
+        (
+            job_runs,
+            active_organizations,
+            enterprise_by_day,
+            org_totals,
+            org_by_day,
+        ) = _roll_up_day_org_rows(day_org_rows)
         stats: dict[str, Any] = {
-            "job_runs": sum(row["runs"] for row in day_org_rows),
-            # Organizations with at least one successful job run in the window.
-            "active_organizations": len(
-                {row["organization_id"] for row in day_org_rows if row["organization_id"] is not None}
-            ),
+            "job_runs": job_runs,
+            "active_organizations": len(active_organizations),
         }
 
         # Featured template: most-used job template by successful run count in the
@@ -325,24 +372,12 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
 
         # Enterprise automation streak: per-day totals across every org (runs with
         # no org included), platform-wide.
-        enterprise_by_day: dict[date, int] = defaultdict(int)
-        for row in day_org_rows:
-            enterprise_by_day[row["day"]] += row["runs"]
         stats["enterprise_streak"] = _streak_series(enterprise_by_day, window_dates)
 
         # Per-organization successful-run totals for the leaderboard and the
-        # busiest org's streak — an in-memory rollup of day_org_rows by org id.
+        # busiest org's streak — both are computed by the shared rollup above.
         # TODO: derive the user's own organization once membership data is
         # ingested; for now everything org-scoped uses the busiest org.
-        org_totals: dict[int, dict[str, Any]] = {}
-        for row in day_org_rows:
-            org_id = row["organization_id"]
-            if org_id is None:
-                continue
-            agg = org_totals.setdefault(
-                org_id, {"organization_id": org_id, "organization_name": row["organization_name"], "runs": 0}
-            )
-            agg["runs"] += row["runs"]
         # -runs, then name (NULL last), then id — a deterministic total order.
         org_rows = sorted(
             org_totals.values(),
@@ -351,17 +386,13 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
         top_org = org_rows[0] if org_rows else None
 
         if top_org:
-            top_org_by_day: dict[date, int] = defaultdict(int)
-            for row in day_org_rows:
-                if row["organization_id"] == top_org["organization_id"]:
-                    top_org_by_day[row["day"]] += row["runs"]
             org_streak: dict[str, Any] | None = {
                 "organization": {
                     "id": top_org["organization_id"],
                     "name": top_org["organization_name"],
                     "run_count": top_org["runs"],
                 },
-                **_streak_series(top_org_by_day, window_dates),
+                **_streak_series(org_by_day[top_org["organization_id"]], window_dates),
             }
         else:
             org_streak = None
