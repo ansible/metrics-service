@@ -134,6 +134,23 @@ class TestDynaconfValidators:
         with pytest.raises(ValidationError, match="DATABASES__default__PASSWORD must be set"):
             password_validator.validate(settings)
 
+    def test_cert_pair_validator_skipped_for_password_only_config(self):
+        """Cert-pair validator must not fire when no cert keys are present (password-auth deployments)."""
+        from apps.settings.production import validators
+
+        settings = self._database_settings()
+        client_certificate_validator = next(
+            validator
+            for validator in validators
+            if validator.names
+            == (
+                "DATABASES__default__OPTIONS__sslcert",
+                "DATABASES__default__OPTIONS__sslkey",
+            )
+        )
+        # Should not raise — cert-pair validator must be skipped when neither sslcert nor sslkey is set
+        client_certificate_validator.validate(settings)
+
     @pytest.mark.parametrize(
         "options",
         ({"sslcert": "/etc/metrics/client.crt"}, {"sslkey": "/etc/metrics/client.key"}),

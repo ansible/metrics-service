@@ -177,9 +177,11 @@ _missing_database_client_certificate = Validator(
 )
 _database_client_certificate_configured = Validator(
     "DATABASES__default__OPTIONS__sslcert",
+    must_exist=True,
     condition=bool,
 ) | Validator(
     "DATABASES__default__OPTIONS__sslkey",
+    must_exist=True,
     condition=bool,
 )
 
