@@ -13,6 +13,8 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+from dynaconf import Dynaconf
+from dynaconf.validator import ValidationError
 
 # Set a valid SECRET_KEY for test module import (test-only; not used in production)
 # Prefer TEST_SECRET_KEY env var when running SAST or in CI to avoid hardcoded-secret findings
@@ -86,6 +88,75 @@ class TestDynaconfValidators:
         # Should have validators for database settings
         db_validators = [v for v in validators if any("DATABASES" in str(name) for name in v.names)]
         assert len(db_validators) > 0
+
+    @staticmethod
+    def _database_settings(**options):
+        settings = Dynaconf(environments=True, env="production")
+        settings.set("DATABASES__default__PASSWORD", "")
+        for name, value in options.items():
+            settings.set(f"DATABASES__default__OPTIONS__{name}", value)
+        return settings
+
+    def test_database_password_is_optional_with_client_certificate(self):
+        """A complete PostgreSQL client certificate configuration needs no password."""
+        from apps.settings.production import validators
+
+        settings = self._database_settings(sslcert="/etc/metrics/client.crt", sslkey="/etc/metrics/client.key")
+        client_certificate_validator = next(
+            validator
+            for validator in validators
+            if validator.names
+            == (
+                "DATABASES__default__OPTIONS__sslcert",
+                "DATABASES__default__OPTIONS__sslkey",
+            )
+        )
+        password_validator = next(
+            validator for validator in validators if validator.names == ("DATABASES__default__PASSWORD",)
+        )
+
+        client_certificate_validator.validate(settings)
+        password_validator.validate(settings)
+
+    @pytest.mark.parametrize(
+        "options",
+        ({}, {"sslcert": "/etc/metrics/client.crt"}, {"sslkey": "/etc/metrics/client.key"}),
+    )
+    def test_database_password_is_required_without_complete_client_certificate(self, options):
+        """Passwordless startup is rejected unless both client certificate settings exist."""
+        from apps.settings.production import validators
+
+        settings = self._database_settings(**options)
+        password_validator = next(
+            validator for validator in validators if validator.names == ("DATABASES__default__PASSWORD",)
+        )
+
+        with pytest.raises(ValidationError, match="DATABASES__default__PASSWORD must be set"):
+            password_validator.validate(settings)
+
+    @pytest.mark.parametrize(
+        "options",
+        ({"sslcert": "/etc/metrics/client.crt"}, {"sslkey": "/etc/metrics/client.key"}),
+    )
+    def test_partial_client_certificate_configuration_is_rejected(self, options):
+        """Client certificate authentication requires both certificate and key settings."""
+        from apps.settings.production import validators
+
+        settings = self._database_settings(**options)
+        client_certificate_validator = next(
+            validator
+            for validator in validators
+            if validator.names
+            == (
+                "DATABASES__default__OPTIONS__sslcert",
+                "DATABASES__default__OPTIONS__sslkey",
+            )
+        )
+
+        with pytest.raises(
+            ValidationError, match="sslcert and DATABASES__default__OPTIONS__sslkey must be set together"
+        ):
+            client_certificate_validator.validate(settings)
 
     def test_required_production_settings_have_validators(self):
         """Test that required production settings have validators.

@@ -164,11 +164,46 @@ validators.append(
 )
 
 DATABASES__default__PASSWORD = ""
+
+# PostgreSQL client certificate authentication uses both sslcert and sslkey and
+# deliberately has no password.  Keep password authentication as the default:
+# only a complete client certificate configuration may omit the password.
+_missing_database_client_certificate = Validator(
+    "DATABASES__default__OPTIONS__sslcert",
+    condition=lambda value: not value,
+) | Validator(
+    "DATABASES__default__OPTIONS__sslkey",
+    condition=lambda value: not value,
+)
+_database_client_certificate_configured = Validator(
+    "DATABASES__default__OPTIONS__sslcert",
+    condition=bool,
+) | Validator(
+    "DATABASES__default__OPTIONS__sslkey",
+    condition=bool,
+)
+
+validators.append(
+    Validator(
+        "DATABASES__default__OPTIONS__sslcert",
+        "DATABASES__default__OPTIONS__sslkey",
+        must_exist=True,
+        ne="",
+        when=_database_client_certificate_configured,
+        messages={
+            "must_exist_true": (
+                "DATABASES__default__OPTIONS__sslcert and DATABASES__default__OPTIONS__sslkey must be set together."
+            ),
+            "operations": "DATABASES__default__OPTIONS__sslcert and DATABASES__default__OPTIONS__sslkey must be set together.",
+        },
+    ),
+)
 validators.append(
     Validator(
         "DATABASES__default__PASSWORD",
         must_exist=True,
         ne="",
+        when=_missing_database_client_certificate,
         messages={"operations": "DATABASES__default__PASSWORD must be set."},
     ),
 )
