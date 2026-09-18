@@ -161,6 +161,7 @@ def _process_single_payload(payload, results: dict) -> None:
             segment_meta={
                 "timestamp": payload.created,
                 "message_id": message_id,
+                "version": "v1",
             },
         )
 
@@ -185,6 +186,8 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
         user_id: User ID for Segment tracking
         event_name: Event name for tracking
         segment_data: Dictionary of data to send
+        segment_meta: Optional Segment metadata, including the payload schema
+            version and retry-stable message ID.
 
     Returns:
         dict: Task result with status, error_category, and error_detail
