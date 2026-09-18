@@ -34,6 +34,7 @@ def _get_snapshot_collectors():
         controller_version_service,
         execution_environments,
         feature_flags_service,
+        main_host,
         table_metadata,
     )
 
@@ -64,6 +65,11 @@ def _get_snapshot_collectors():
             "collector_func": table_metadata,
             "rollup_processor": TableMetadataAnonymizedRollup,
             "description": "Table metadata snapshot",
+        },
+        "main_host": {
+            "collector_func": main_host,
+            "rollup_processor": None,
+            "description": "Current host inventory snapshot",
         },
     }
 
