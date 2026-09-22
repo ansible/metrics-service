@@ -2,7 +2,7 @@
 Task models for metrics_service.
 
 This module contains task-related models: task definitions and executions,
-and FIXME: split out - also models for collects, rollups and anonymized
+and models for collects, rollups, and anonymized metrics.
 """
 
 import logging
