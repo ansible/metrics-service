@@ -61,7 +61,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     # Exclude recurring tasks if preserve_recurring is True (default)
     if preserve_recurring:
-        old_tasks_filter &= Q(cron_expression__isnull=True) | Q(cron_expression="")
+        old_tasks_filter &= Task.non_recurring_filter()
 
     old_tasks = Task.objects.filter(old_tasks_filter)
 
@@ -74,7 +74,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     # Exclude recurring tasks if preserve_recurring is True (default)
     if preserve_recurring:
-        old_tasks_fallback_filter &= Q(cron_expression__isnull=True) | Q(cron_expression="")
+        old_tasks_fallback_filter &= Task.non_recurring_filter()
 
     old_tasks_fallback = Task.objects.filter(old_tasks_fallback_filter)
 

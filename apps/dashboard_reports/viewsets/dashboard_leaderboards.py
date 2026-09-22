@@ -226,6 +226,9 @@ def _streak_series(counts_by_day: dict[date, int], window_dates: list[date]) -> 
 
 def _featured_template_stats(successful_runs: models.QuerySet[JobData]) -> dict[str, Any] | None:
     """Return the most-used successful template and its latest display name."""
+    # Exclude ad-hoc runs and group only by template_id so renames stay one row.
+    # Break ties by id for a deterministic pick. Keep this query separate from
+    # the day/organization rollup: grouping that by template would multiply rows.
     featured_template = (
         successful_runs.filter(template_id__isnull=False)
         .values("template_id")
@@ -236,6 +239,7 @@ def _featured_template_stats(successful_runs: models.QuerySet[JobData]) -> dict[
     if not featured_template:
         return None
 
+    # Names can change mid-window; use the latest name for display, the id for identity.
     featured_template_name = (
         successful_runs.filter(template_id=featured_template["template_id"])
         .order_by("-finished")
@@ -255,6 +259,8 @@ def _build_organization_stats(
     """Build the organization streak, leaderboard, and current-organization rank."""
     # Per-organization successful-run totals for the leaderboard and the
     # busiest org's streak — an in-memory rollup of day_org_rows by org id.
+    # TODO: derive the user's own organization once membership data is
+    # ingested; for now everything org-scoped uses the busiest org.
     org_totals: dict[int, dict[str, Any]] = {}
     for row in day_org_rows:
         org_id = row["organization_id"]

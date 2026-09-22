@@ -328,10 +328,8 @@ class UnifiedTaskScheduler:
         from .models import Task
         from .tasks_system import _schedule_retry
 
-        retryable = (
-            Task.objects.filter(status="failed")
-            .exclude(attempts__gte=F("max_attempts"))
-            .exclude(cron_expression__isnull=False)
+        retryable = Task.objects.filter(Task.non_recurring_filter(), status="failed").exclude(
+            attempts__gte=F("max_attempts")
         )
 
         for task in retryable:

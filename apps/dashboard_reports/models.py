@@ -284,6 +284,8 @@ class FilterSet(CommonModel):
 
     filters = models.JSONField(
         help_text="Filter configuration: {organizations: [], projects: [], labels: [], date_range: {}}"
+        # TODO: Add serializer-level schema validation to enforce allowed keys and value types,
+        # preventing bad filter configs from causing silent failures when the filter is applied.
     )
 
     is_default = models.BooleanField(

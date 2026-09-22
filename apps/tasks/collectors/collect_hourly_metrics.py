@@ -176,6 +176,8 @@ def _serialize_dashboard_datetime_fields(row: dict) -> None:
 
 
 def _serialize_dashboard_integer_fields(row: dict) -> None:
+    # Pandas upcasts nullable integer columns to float64 when NaN is present.
+    # .where(notna(), other=None) can leave float NaN, so guard before int(nan).
     for field in _INT_FIELDS:
         val = row.get(field)
         if val is None or _is_nan(val):
@@ -185,6 +187,7 @@ def _serialize_dashboard_integer_fields(row: dict) -> None:
 
 
 def _serialize_dashboard_string_fields(row: dict) -> None:
+    # Entirely missing string columns can also arrive as float NaN from pandas.
     for field in _STRING_FIELDS:
         val = row.get(field)
         if _is_nan(val):
