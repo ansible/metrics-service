@@ -358,6 +358,55 @@ export METRICS_SERVICE_DATABASES__default__PASSWORD=secure-password
 python manage.py runserver
 ```
 
+### PostgreSQL client certificate authentication
+
+Production requires a password for each database (`default` and `awx`) unless
+that database has both a non-empty `sslcert` and `sslkey` and an `sslmode` of
+`require`, `verify-ca`, or `verify-full`. Configure each database independently;
+one can use a password while the other uses certificates. Partial certificate
+configuration is rejected even if a password is provided.
+
+Prefer `verify-full` with a trusted server CA: it verifies both the server
+certificate and hostname. `require` ensures encryption but does not generally
+verify the server's identity. `disable`, `allow`, and the default `prefer` are
+rejected when a client certificate or key is configured because they do not
+guarantee TLS. See [PostgreSQL SSL support](https://www.postgresql.org/docs/current/libpq-ssl.html).
+
+For example, after configuring the database hosts, users, names, and other
+required production settings:
+
+```bash
+export METRICS_SERVICE_DATABASES__default__PASSWORD=''
+export METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode=verify-full
+export METRICS_SERVICE_DATABASES__default__OPTIONS__sslrootcert=/etc/metrics/db-certs/ca.crt
+export METRICS_SERVICE_DATABASES__default__OPTIONS__sslcert=/etc/metrics/db-certs/metrics.crt
+export METRICS_SERVICE_DATABASES__default__OPTIONS__sslkey=/etc/metrics/db-certs/metrics.key
+
+export METRICS_SERVICE_DATABASES__awx__PASSWORD=''
+export METRICS_SERVICE_DATABASES__awx__OPTIONS__sslmode=verify-full
+export METRICS_SERVICE_DATABASES__awx__OPTIONS__sslrootcert=/etc/metrics/db-certs/ca.crt
+export METRICS_SERVICE_DATABASES__awx__OPTIONS__sslcert=/etc/metrics/db-certs/awx.crt
+export METRICS_SERVICE_DATABASES__awx__OPTIONS__sslkey=/etc/metrics/db-certs/awx.key
+```
+
+Use the exact lowercase option suffixes shown above; uppercase names such as
+`OPTIONS__SSLCERT` are rejected because psycopg/libpq parameter names are
+case-sensitive. In `settings.local.py`, omit the `METRICS_SERVICE_` prefix.
+
+Mount certificates and keys at those paths in every init, web, dispatcher, and
+scheduler container. The runtime user must be able to read them; private keys
+must meet [libpq's file permission requirements](https://www.postgresql.org/docs/current/libpq-ssl.html).
+The server must also be configured to accept the corresponding client
+certificates and database users. Startup validation checks configuration values;
+the database connection verifies files, certificate validity, and server policy.
+The dispatcher uses the `default` database's TLS options for its pg_notify broker.
+
+`docker-compose.production.yml` includes a password-authenticated PostgreSQL
+service, not a TLS-configured server. For external certificate-authenticated
+databases, adapt that example's database service/dependencies, password
+interpolations, shared environment, and certificate mounts as described in its
+comments; exporting certificate variables alone does not configure that server.
+
 ### Configuration Methods
 
 Settings are loaded in order of precedence (lowest to highest):
@@ -384,8 +433,13 @@ Editable:
 | `METRICS_SERVICE_SECRET_KEY`                   | Django secret key                         | **Yes**                      |
 | `METRICS_SERVICE_DEBUG`                        | Enable debug mode                         | No                           |
 | `METRICS_SERVICE_LOG_LEVEL`                    | Logging level (DEBUG/INFO/WARNING/ERROR)  | No (defaults to INFO)        |
-| `METRICS_SERVICE_DATABASES__default__HOST`     | Database host                             | No (has default)             |
-| `METRICS_SERVICE_DATABASES__default__PASSWORD` | Database password                         | No (has default)             |
+| `METRICS_SERVICE_DATABASES__default__HOST`     | Database host                             | **Yes**                      |
+| `METRICS_SERVICE_DATABASES__default__PASSWORD` | Database password                         | Unless client certificates are configured |
+| `METRICS_SERVICE_DATABASES__awx__PASSWORD` | AWX database password | Unless client certificates are configured |
+| `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslcert` | Client certificate path (`default` or `awx`) | With client certificate authentication |
+| `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslkey` | Client private key path | With client certificate authentication |
+| `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslmode` | TLS mode; prefer `verify-full` | `require`, `verify-ca`, or `verify-full` with client certificates |
+| `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslrootcert` | Trusted server CA path | Configure for server certificate verification |
 | `METRICS_SERVICE_ALLOWED_HOSTS`                | Allowed hosts (comma-separated)           | **Yes** (production)         |
 
 **Note:** Use double underscores (`__`) for nested settings:

@@ -6,6 +6,7 @@ full code coverage.
 """
 
 import os
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -18,6 +19,64 @@ from apps.tasks.dispatcherd_config import (
     get_config_file_path,
     setup_dispatcherd_config,
 )
+
+
+@pytest.mark.parametrize("use_yaml", [False, True])
+@pytest.mark.parametrize("password", ["", "test-only"])
+def test_broker_preserves_postgres_options(use_yaml, password, tmp_path):
+    """Both broker builders pass TLS parameters through without mutating Django settings."""
+    from psycopg.conninfo import conninfo_to_dict, make_conninfo
+
+    options = {
+        "sslcert": "/certs/client.crt",
+        "sslkey": "/certs/client.key",
+        "sslrootcert": "/certs/ca.crt",
+        "sslmode": "verify-full",
+        "connect_timeout": 10,
+    }
+    database = {
+        "NAME": "metrics",
+        "USER": "metrics",
+        "PASSWORD": password,
+        "HOST": "db.example.com",
+        "PORT": "5432",
+        "OPTIONS": {
+            **options,
+            "pool": True,
+            "isolation_level": 1,
+            "assume_role": "metrics",
+            "server_side_binding": True,
+        },
+    }
+    original = deepcopy(database)
+    with patch("django.conf.settings") as settings:
+        settings.DATABASES = {"default": database}
+        settings.TASK_TIMEOUT = 3600
+        if use_yaml:
+            config_file = tmp_path / "dispatcherd.yaml"
+            config_file.write_text(
+                "brokers:\n  pg_notify:\n    config:\n      sslmode: disable\n    channels: [existing]\n"
+            )
+            config = _load_config_with_django_db(config_file)
+            assert config["brokers"]["pg_notify"]["channels"] == ["existing"]
+        else:
+            config = build_config_from_django_settings()
+
+    pg_config = config["brokers"]["pg_notify"]["config"]
+    assert pg_config == {
+        **options,
+        "dbname": "metrics",
+        "user": "metrics",
+        "password": password,
+        "host": "db.example.com",
+        "port": "5432",
+    }
+    assert database == original
+    # Let libpq parse the real connection parameters, not just a mocked connect call.
+    parsed = conninfo_to_dict(make_conninfo(**pg_config))
+    assert parsed["sslmode"] == "verify-full"
+    assert parsed["sslcert"] == options["sslcert"]
+    assert parsed["sslkey"] == options["sslkey"]
 
 
 class TestGetConfigFilePath:

@@ -23,6 +23,23 @@ DATABASES__default__PASSWORD = "metrics_service"
 DATABASES__awx__HOST = "127.0.0.1"
 DATABASES__awx__PASSWORD = "mypassword"
 
+# Alternative: TLS client certificate authentication, independently for default/awx.
+# Replace the PASSWORD assignments above with empty strings for certificate auth.
+# Option names MUST be lowercase. Both sslcert and sslkey are required, with
+# sslmode=require, verify-ca, or verify-full (recommended with a trusted CA).
+# These paths must exist and be readable in every service container; private keys
+# must meet libpq permissions (normally 0600 and owned by the runtime user).
+# DATABASES__default__PASSWORD = ""
+# DATABASES__default__OPTIONS__sslmode = "verify-full"
+# DATABASES__default__OPTIONS__sslrootcert = "/etc/metrics/db-certs/ca.crt"
+# DATABASES__default__OPTIONS__sslcert = "/etc/metrics/db-certs/metrics.crt"
+# DATABASES__default__OPTIONS__sslkey = "/etc/metrics/db-certs/metrics.key"
+# DATABASES__awx__PASSWORD = ""
+# DATABASES__awx__OPTIONS__sslmode = "verify-full"
+# DATABASES__awx__OPTIONS__sslrootcert = "/etc/metrics/db-certs/ca.crt"
+# DATABASES__awx__OPTIONS__sslcert = "/etc/metrics/db-certs/awx.crt"
+# DATABASES__awx__OPTIONS__sslkey = "/etc/metrics/db-certs/awx.key"
+
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
 
 # Service Configuration
