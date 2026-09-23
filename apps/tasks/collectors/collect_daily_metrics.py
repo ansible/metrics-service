@@ -9,6 +9,8 @@ a full-day time window.
 Current daily collectors:
   - task_executions_service: pipeline observability from the metrics-service DB
   - indirect_managed_nodes: indirect managed node audit from the AWX DB
+  - main_host_daily: changed host inventory from the AWX DB
+  - main_hostmetric: Renewal Guidance host metrics from the AWX DB
 """
 
 import logging
@@ -35,7 +37,11 @@ def _get_daily_collectors():
     to use. Defaults to "awx" if not specified.
     """
     from metrics_utility.anonymized_rollups import IndirectManagedNodesAnonymizedRollup, TaskExecutionsAnonymizedRollup
-    from metrics_utility.library.collectors.controller import main_indirectmanagednodeaudit
+    from metrics_utility.library.collectors.controller import (
+        main_host_daily,
+        main_hostmetric,
+        main_indirectmanagednodeaudit,
+    )
     from metrics_utility.library.collectors.service import task_executions_service
 
     return {
@@ -49,6 +55,18 @@ def _get_daily_collectors():
             "collector_func": main_indirectmanagednodeaudit,
             "rollup_processor": IndirectManagedNodesAnonymizedRollup,
             "description": "Indirect managed node audit daily collection",
+            "database": "awx",
+        },
+        "main_host_daily": {
+            "collector_func": main_host_daily,
+            "rollup_processor": None,
+            "description": "Changed host inventory daily collection",
+            "database": "awx",
+        },
+        "main_hostmetric": {
+            "collector_func": main_hostmetric,
+            "rollup_processor": None,
+            "description": "Renewal Guidance host metrics daily collection",
             "database": "awx",
         },
     }
