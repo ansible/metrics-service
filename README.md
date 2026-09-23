@@ -304,6 +304,18 @@ make validate-openapi-schema
 > [!NOTE]
 > Schema validation runs automatically in CI on every PR and will block merging if the schema is invalid or out of sync with the code.
 
+### Segment Payload Schema
+
+The final anonymized payload sent to Segment is defined by the
+`metrics-utility` contract plus metrics-service metadata and dashboard telemetry.
+The generated schema is committed to
+`tools/segment-schema/metrics-service.yaml` and checked for freshness in CI.
+
+```bash
+uv run python tools/generate_segment_schema.py --output /tmp/metrics-service-segment-schema.yaml
+uv run python tools/validate_segment_contract.py path/to/payload.json
+```
+
 ## Configuration
 
 Metrics Service uses [Dynaconf](https://www.dynaconf.com/) for settings management, following the [Platform Service Framework](https://github.com/ansible/platform-service-framework).
