@@ -6,6 +6,7 @@ import pytest
 from django.utils import timezone
 
 from apps.analytics.models import AnalyticsPayload
+from apps.tasks.models import Task
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 
@@ -126,5 +127,97 @@ def test_rows_reversed_window_400(authenticated_client):
     assert response.status_code == 400
 
 
-def test_collect_route_is_not_exposed(authenticated_client):
-    assert authenticated_client.post(f"{ROOT}{UNIFIED}/collect/", {}, format="json").status_code == 404
+def test_collect_snapshot_creates_pending_task_without_collecting(authenticated_client):
+    response = authenticated_client.post(f"{ROOT}{CONFIG}/collect/", {}, format="json")
+
+    assert response.status_code == 202
+    body = response.json()
+    task = Task.objects.get(pk=body["task_id"])
+    assert body["task_url"].endswith(f"/api/v1/tasks/{task.pk}/")
+    assert body["task_data"] == {"collector": CONFIG}
+    assert task.status == "pending"
+    assert not AnalyticsPayload.objects.exists()
+
+
+def test_collect_windowed_missing_until_uses_default(authenticated_client):
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": "2026-08-17T10:00:00Z"},
+        format="json",
+    )
+
+    assert response.status_code == 202
+    task_data = response.json()["task_data"]
+    assert task_data["collector"] == UNIFIED
+    assert task_data["since"] == "2026-08-17T10:00:00+00:00"
+    assert task_data["until"] is not None
+
+
+def test_collect_windowed_fills_default_window(authenticated_client):
+    response = authenticated_client.post(f"{ROOT}{UNIFIED}/collect/", {}, format="json")
+
+    assert response.status_code == 202
+    task_data = response.json()["task_data"]
+    assert task_data["collector"] == UNIFIED
+    assert task_data["since"] is not None
+    assert task_data["until"] is not None
+    assert task_data["since"] < task_data["until"]
+
+
+def test_collect_windowed_explicit_null_bounds_remain_unbounded(authenticated_client):
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": None, "until": None},
+        format="json",
+    )
+
+    assert response.status_code == 202
+    assert response.json()["task_data"] == {"collector": UNIFIED}
+
+
+def test_collect_windowed_explicit_null_leaves_since_open(authenticated_client):
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": None},
+        format="json",
+    )
+
+    assert response.status_code == 202
+    task_data = response.json()["task_data"]
+    assert task_data["collector"] == UNIFIED
+    assert "since" not in task_data
+    assert task_data["until"] is not None
+
+
+def test_collect_windowed_explicit_null_leaves_until_open(authenticated_client):
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"until": None},
+        format="json",
+    )
+
+    assert response.status_code == 202
+    task_data = response.json()["task_data"]
+    assert task_data["collector"] == UNIFIED
+    assert task_data["since"] is not None
+    assert "until" not in task_data
+
+
+def test_collect_rejects_invalid_since(authenticated_client):
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": "not-a-date"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+
+
+def test_collect_rejects_configured_source(authenticated_client):
+    response = authenticated_client.post(
+        f"{ROOT}{CONFIG}/collect/",
+        {"source": "controller"},
+        format="json",
+    )
+
+    assert response.status_code == 400

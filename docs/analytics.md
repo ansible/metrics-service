@@ -4,8 +4,8 @@ Analytics collection stores the raw output of enabled metrics-utility collectors
 in `AnalyticsPayload`. The stored row is a collection envelope: collector name,
 source, collection bounds, collection timestamps, and the raw JSON payload.
 
-The read API is available under `/api/v1/analytics/` and is restricted to users
-with the System Administrator or Platform Auditor role.
+The read and trigger APIs are available under `/api/v1/analytics/` and are
+restricted to users with the System Administrator or Platform Auditor role.
 
 ## Collector Registry
 
@@ -158,6 +158,36 @@ Examples:
 Every successful collection is retained. Repeated windows and repeated snapshots
 are not upserts.
 
+### Triggering Collection
+
+The collector trigger creates a normal pending `Task`. It does not execute the
+collector in the web request, create a payload row, claim a window, or coordinate
+with another request. The scheduler discovers and dispatches the task through the
+normal task machinery.
+
+```http
+POST /api/v1/analytics/controller.config/collect/
+```
+
+For a snapshot, an empty JSON body uses the collector defaults:
+
+```json
+{}
+```
+
+The response is `202 Accepted` and includes `task_id`, `task_url`, `collector`,
+and the resolved `task_data`. Each request creates a separate task, even when
+the collector and bounds are identical.
+
+Window-capable collectors accept no bound, one bound, or both bounds. A missing
+key receives the normal hourly or daily default; an explicit JSON `null` leaves
+that bound open. Thus `{}` fills both defaults, `{"since": null}` fills only
+the default `until`, and `{"since": null, "until": null}` is unbounded.
+Invalid timestamps and reversed complete ranges return `400`.
+Collection tasks always use the
+storage default source, `local`; source selection is not part of the task or POST
+contract.
+
 ## Creating Collection Tasks
 
 Tasks are created through `POST /api/v1/tasks/`. The task API accepts
@@ -230,9 +260,7 @@ For a specific collection window, pass ISO timestamps in `task_data`:
 }
 ```
 
-The intended on-demand POST mapping is the same task data: a future
-`POST /api/v1/analytics/<collector>/collect/` with no body would correspond to
-the name-only snapshot task, while a request body containing `since` and `until`
-would correspond to the custom-window task. The read-only analytics API does not
-currently expose that POST route; claim and re-collection semantics are still
-under review.
+The trigger POST maps directly to the same task data: a snapshot POST with no
+body creates the name-only task, while a request body containing `since` and
+`until` creates the custom-window task. Claims, overlap coordination, and
+re-collection decisions are intentionally not part of this contract.

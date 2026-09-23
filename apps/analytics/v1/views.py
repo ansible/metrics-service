@@ -1,8 +1,9 @@
-"""Read-only analytics API views (ANSTRAT-1587 / AAP-87799)."""
+"""Analytics API views (ANSTRAT-1587 / AAP-87799)."""
 
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, timedelta
+from uuid import uuid4
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
@@ -10,6 +11,7 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
+from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
 from apps.analytics.models import AnalyticsPayload
@@ -36,6 +38,17 @@ def _parse_dt(value):
     if timezone.is_naive(parsed):
         parsed = timezone.make_aware(parsed, UTC)
     return parsed
+
+
+def _default_window(mode, now):
+    """Return the default collection window for an hourly or daily collector."""
+    if mode == "hourly":
+        floor = now.replace(minute=0, second=0, microsecond=0)
+        return floor - timedelta(hours=1), floor
+    if mode == "daily":
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return midnight - timedelta(days=1), midnight
+    return None, None
 
 
 class AnalyticsRootView(APIView):
@@ -104,3 +117,95 @@ class CollectorRowsView(generics.ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().list(request, *args, **kwargs)
+
+
+class CollectorCollectView(APIView):
+    """Create one claimless on-demand collection task for an enabled collector."""
+
+    permission_classes = [IsSystemAdminOrAuditor]
+
+    def _resolve_window(self, entry, request):
+        """Parse request bounds, apply mode defaults, and return a task window or an error."""
+        raw_since = request.data.get("since")
+        raw_until = request.data.get("until")
+        since = _parse_dt(raw_since)
+        until = _parse_dt(raw_until)
+
+        for param, value in (("since", since), ("until", until)):
+            if value is False:
+                return None, Response(
+                    {"detail": f"Invalid {param}: {request.data.get(param)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if not entry.accepts_since_until:
+            if since is not None or until is not None:
+                return None, Response(
+                    {"detail": f"Collector {entry.name} is snapshot-only and does not accept since/until"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return (None, None), None
+
+        default_since, default_until = _default_window(entry.mode, timezone.now())
+        if "since" not in request.data:
+            since = default_since
+        if "until" not in request.data:
+            until = default_until
+        if since is not None and until is not None and until <= since:
+            return None, Response(
+                {"detail": "until must be after since"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return (since, until), None
+
+    def post(self, request, *args, **kwargs):
+        """Create a pending task and return its details without claiming a payload row."""
+        collector = self.kwargs["collector"]
+        entry = get_entry(collector)
+        if entry is None or not entry.enabled:
+            return Response(
+                {"detail": f"Unknown or disabled collector: {collector}"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if "source" in request.data:
+            return Response(
+                {"detail": "source is not configurable for collection tasks"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        window, error = self._resolve_window(entry, request)
+        if error is not None:
+            return error
+        since, until = window
+
+        task_data = {"collector": collector}
+        if since is not None:
+            task_data["since"] = since.isoformat()
+        if until is not None:
+            task_data["until"] = until.isoformat()
+
+        from apps.tasks.models import Task
+
+        task = Task.objects.create(
+            name=f"ondemand_analytics_{collector}_{uuid4().hex}",
+            description=f"On-demand analytics collection for {collector}",
+            function_name="collect_analytics_on_demand",
+            task_data=task_data,
+            is_system_task=False,
+            status="pending",
+            scheduled_time=None,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        task_url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk}, request=request)
+        response = Response(
+            {
+                "task_id": task.pk,
+                "task_url": task_url,
+                "collector": collector,
+                "task_data": task_data,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+        response["Location"] = task_url
+        return response

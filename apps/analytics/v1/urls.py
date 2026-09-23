@@ -8,5 +8,6 @@ app_name = "analytics_v1"
 
 urlpatterns = [
     path("", views.AnalyticsRootView.as_view(), name="root"),
+    path("<str:collector>/collect/", views.CollectorCollectView.as_view(), name="collect"),
     path("<str:collector>/", views.CollectorRowsView.as_view(), name="rows"),
 ]
