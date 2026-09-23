@@ -337,8 +337,8 @@ wheels = [
 
 [[package]]
 name = "django-ansible-base"
-version = "2025.12.16.0.dev4+g7596a0cc1"
-source = { git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8#7596a0cc12785eff647af4f7aef80c77da33eed8" }
+version = "2026.2.13.0.dev11+g1c3150996"
+source = { git = "https://github.com/ansible/django-ansible-base?rev=1c3150996b40eb804737bad8fdf57557d8c7e577#1c3150996b40eb804737bad8fdf57557d8c7e577" }
 dependencies = [
     { name = "cryptography" },
     { name = "django" },
@@ -886,7 +886,7 @@ requires-dist = [
     { name = "croniter", specifier = ">=6.2.2" },
     { name = "dispatcherd", specifier = ">=2026.1.27" },
     { name = "django", specifier = "~=5.2.17" },
-    { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=7596a0cc12785eff647af4f7aef80c77da33eed8" },
+    { name = "django-ansible-base", extras = ["rest-filters", "jwt-consumer", "resource-registry", "rbac", "feature-flags", "api-documentation"], git = "https://github.com/ansible/django-ansible-base?rev=1c3150996b40eb804737bad8fdf57557d8c7e577" },
     { name = "django-auth-ldap", marker = "extra == 'ldap'", specifier = ">=5.2.0" },
     { name = "django-extensions", specifier = ">=3.2" },
     { name = "django-generate-series", specifier = ">=2026.2.1" },
@@ -936,7 +936,7 @@ dev = [
 
 [[package]]
 name = "metrics-utility"
-version = "0.8.20260818"
+version = "0.8.20260920"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -952,9 +952,9 @@ dependencies = [
     { name = "segment-analytics-python" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a8/2f/35cf5824bdf3dc8671e3080e3b9ec5be798d9121dbf6a0dad9a18aed6f7c/metrics_utility-0.8.20260818.tar.gz", hash = "sha256:b1a11f6a9ebe3338e36fb5f2b8d8f66e460422222ebbc3bba6975b4a3124f83f", size = 1215015, upload-time = "2026-08-18T20:56:30.275Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/c7/54a3b6c5eb87642d1e2384ee9cf5f86e250b8f8589e3fbf8376bd8a5294d/metrics_utility-0.8.20260920.tar.gz", hash = "sha256:c0fef19cd5aeacf3fffc06f68573e52219e5667ec9f37025b62a3acff6022182", size = 1217799, upload-time = "2026-09-20T02:08:46.767Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/9b/983a9bfc5379d235c9d6c2f2feaa7d0b8cebc84dccdcf5c1ccd58bdeaca2/metrics_utility-0.8.20260818-py3-none-any.whl", hash = "sha256:8cf7ec1f6c4dd7de109c9ab328b1912e3548f4739fe1ee9082e16eee12c9310c", size = 611871, upload-time = "2026-08-18T20:56:28.7Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/d3/d27f136ce526b4474524784da41aa513c46842e7e3fb0571c3b15a3da02a/metrics_utility-0.8.20260920-py3-none-any.whl", hash = "sha256:777338411f5e2594071bb0974b6ab079329686a0d94c66694a868a753df0f824", size = 610659, upload-time = "2026-09-20T02:08:45.551Z" },
 ]
 
 [[package]]

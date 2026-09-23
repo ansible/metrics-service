@@ -319,4 +319,7 @@ with open('.copier-answers.yml') as f:
 
 [tool.uv.sources]
 # Use resolved commit (not branch "devel") so uv pip compile sees a single ref and does not conflict with requirements-pinned.txt. After uv lock, update this to match the commit in uv.lock for django-ansible-base.
-django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "7596a0cc12785eff647af4f7aef80c77da33eed8" }
+django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "1c3150996b40eb804737bad8fdf57557d8c7e577" }
+
+# Uncomment for local metrics-utility
+#metrics-utility = { path = "../metrics-utility", editable = true }
