@@ -198,6 +198,13 @@ TASK_METADATA = {
                 "min": 1,
                 "max": 90,
             },
+            "analytics_retention_days": {
+                "type": "integer",
+                "default": 90,
+                "description": "Number of days to retain analytics payloads",
+                "min": 1,
+                "max": 3650,
+            },
             "dry_run": {
                 "type": "boolean",
                 "default": False,
