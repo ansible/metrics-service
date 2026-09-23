@@ -106,80 +106,61 @@ def list_available_tasks():
     print("\nUsage: uv run ./run_task.py <task_name_or_id> [task_params_json]")
 
 
-def show_task_help(task_name):  # noqa: PLR0915
-    """Show detailed help for a specific task (function or group task ID)."""
-    # First check if it's a task group task
-    all_enabled_tasks = get_all_enabled_tasks()
-    if task_name in all_enabled_tasks:
-        task_config = all_enabled_tasks[task_name]
-        function_name = task_config["function"]
+def _show_task_parameters(parameters):
+    """Display parameters for a task function."""
+    if not parameters:
+        return
+    print("Parameters:")
+    for param_name, param_info in parameters.items():
+        required = param_info.get("required", False)
+        param_type = param_info.get("type", "any")
+        default = param_info.get("default", "N/A")
+        description = param_info.get("description", "")
+        requirement = " (required)" if required else f" (default: {default})"
+        print(f"  {param_name} ({param_type}){requirement}")
+        if description:
+            print(f"    {description}")
 
-        print(f"\nTask Group Task: {task_name}")
-        print("=" * 80)
-        print(f"Function: {function_name}")
-        print(f"Group: {task_config['group']}")
-        print(f"Description: {task_config.get('description', 'No description')}")
-        print(f"Category: {task_config.get('category', 'Unknown')}")
-        print(f"Schedule: {task_config.get('cron', 'N/A')}")
 
-        if task_config.get("feature_flag"):
-            print(f"Feature Flag: {task_config['feature_flag']}")
+def _show_task_group_help(task_name, task_config):
+    """Display help for one enabled task group entry."""
+    function_name = task_config["function"]
+    default_args = task_config.get("args", {})
 
-        default_args = task_config.get("args", {})
-        if default_args:
-            print("\nDefault Arguments:")
-            print(f"  {json.dumps(default_args, indent=2)}")
+    print(f"\nTask Group Task: {task_name}")
+    print("=" * 80)
+    print(f"Function: {function_name}")
+    print(f"Group: {task_config['group']}")
+    print(f"Description: {task_config.get('description', 'No description')}")
+    print(f"Category: {task_config.get('category', 'Unknown')}")
+    print(f"Schedule: {task_config.get('cron', 'N/A')}")
+    if task_config.get("feature_flag"):
+        print(f"Feature Flag: {task_config['feature_flag']}")
+    if default_args:
+        print("\nDefault Arguments:")
+        print(f"  {json.dumps(default_args, indent=2)}")
 
-        print("\nExamples:")
-        print("  # Run with default args:")
-        print(f"    uv run ./run_task.py {task_name}")
-        if default_args:
-            print("  # Override default args:")
-            print(f"    uv run ./run_task.py {task_name} '{json.dumps(default_args)}'")
+    print("\nExamples:")
+    print("  # Run with default args:")
+    print(f"    uv run ./run_task.py {task_name}")
+    if default_args:
+        print("  # Override default args:")
+        print(f"    uv run ./run_task.py {task_name} '{json.dumps(default_args)}'")
 
-        # Also show the underlying function metadata if available
-        if function_name in TASK_METADATA:
-            print(f"\nUnderlying Function: {function_name}")
-            metadata = TASK_METADATA[function_name]
-            params = metadata.get("parameters", {})
-            if params:
-                print("Parameters:")
-                for param_name, param_info in params.items():
-                    required = param_info.get("required", False)
-                    param_type = param_info.get("type", "any")
-                    default = param_info.get("default", "N/A")
-                    desc = param_info.get("description", "")
-                    req_str = " (required)" if required else f" (default: {default})"
-                    print(f"  {param_name} ({param_type}){req_str}")
-                    if desc:
-                        print(f"    {desc}")
+    if function_name in TASK_METADATA:
+        metadata = TASK_METADATA[function_name]
+        print(f"\nUnderlying Function: {function_name}")
+        _show_task_parameters(metadata.get("parameters", {}))
+    print("=" * 80)
 
-        print("=" * 80)
-        return True
 
-    # Otherwise check if it's a task function
-    if task_name not in TASK_METADATA:
-        print(f"Error: Task '{task_name}' not found in task functions or task groups")
-        return False
-
-    metadata = TASK_METADATA[task_name]
+def _show_task_function_help(task_name, metadata):
+    """Display help for a task function."""
     print(f"\nTask Function: {task_name}")
     print("=" * 80)
     print(f"Category: {metadata.get('category', 'Unknown')}")
     print(f"Description: {metadata.get('description', 'No description')}")
-
-    params = metadata.get("parameters", {})
-    if params:
-        print("\nParameters:")
-        for param_name, param_info in params.items():
-            required = param_info.get("required", False)
-            param_type = param_info.get("type", "any")
-            default = param_info.get("default", "N/A")
-            desc = param_info.get("description", "")
-            req_str = " (required)" if required else f" (default: {default})"
-            print(f"  {param_name} ({param_type}){req_str}")
-            if desc:
-                print(f"    {desc}")
+    _show_task_parameters(metadata.get("parameters", {}))
 
     examples = metadata.get("examples", [])
     if examples:
@@ -190,8 +171,21 @@ def show_task_help(task_name):  # noqa: PLR0915
             data_str = json.dumps(data) if data else ""
             print(f"  {name}:")
             print(f"    uv run ./run_task.py {task_name} '{data_str}'")
-
     print("=" * 80)
+
+
+def show_task_help(task_name):
+    """Show detailed help for a specific task (function or group task ID)."""
+    all_enabled_tasks = get_all_enabled_tasks()
+    if task_name in all_enabled_tasks:
+        _show_task_group_help(task_name, all_enabled_tasks[task_name])
+        return True
+
+    metadata = TASK_METADATA.get(task_name)
+    if metadata is None:
+        print(f"Error: Task '{task_name}' not found in task functions or task groups")
+        return False
+    _show_task_function_help(task_name, metadata)
     return True
 
 

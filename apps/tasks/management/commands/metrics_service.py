@@ -643,41 +643,44 @@ class Command(BaseCommand):
 
         try:
             while True:
-                # Check if any process has exited
-                for i, process in enumerate(processes):
-                    if process.poll() is not None:
-                        exit_code = process.returncode
-                        self.output.write("")  # Empty line for separation
-                        self.output.error(f"❌ {process_names[i]} process exited with code {exit_code}")
-
-                        # Read any remaining output
-                        self._read_remaining_output(process, process_names[i])
-
-                        self._cleanup_all_processes(processes)
-                        sys.exit(exit_code)
-
-                # Wait for data to be available (with timeout)
-                events = selector.select(timeout=0.5)
-
-                # Read available data from all ready file descriptors
-                for key, _mask in events:
+                self._exit_if_process_failed(processes, process_names)
+                for key, _mask in selector.select(timeout=0.5):
                     process, name = key.data
-                    if process.poll() is None:  # Process still running
-                        try:
-                            line = process.stdout.readline()
-                            if line:
-                                line = line.rstrip()
-                                if line:
-                                    self.output.write(f"[{name}] {line}")
-                        except (OSError, ValueError) as e:
-                            # Pipe may have closed
-                            if process.poll() is None:
-                                self.output.warning(f"[{name}] Error reading output: {e}")
+                    self._read_selected_process_output(process, name)
         finally:
-            # Clean up selector
-            for key in list(selector.get_map().values()):
-                selector.unregister(key.fileobj)
-            selector.close()
+            self._close_selector(selector)
+
+    def _exit_if_process_failed(self, processes: list[subprocess.Popen], process_names: list[str]) -> None:
+        """Stop all services if one of the monitored processes exits."""
+        for index, process in enumerate(processes):
+            if process.poll() is not None:
+                exit_code = process.returncode
+                self.output.write("")  # Empty line for separation
+                self.output.error(f"❌ {process_names[index]} process exited with code {exit_code}")
+                self._read_remaining_output(process, process_names[index])
+                self._cleanup_all_processes(processes)
+                sys.exit(exit_code)
+
+    def _read_selected_process_output(self, process: subprocess.Popen, name: str) -> None:
+        """Read and display one line from a ready process output stream."""
+        if process.poll() is not None:
+            return
+        try:
+            line = process.stdout.readline()
+        except (OSError, ValueError) as error:
+            if process.poll() is None:
+                self.output.warning(f"[{name}] Error reading output: {error}")
+            return
+        line = line.rstrip()
+        if line:
+            self.output.write(f"[{name}] {line}")
+
+    @staticmethod
+    def _close_selector(selector: selectors.BaseSelector) -> None:
+        """Unregister open file objects and close the selector."""
+        for key in list(selector.get_map().values()):
+            selector.unregister(key.fileobj)
+        selector.close()
 
     def _handle_keyboard_interrupt(self, processes: list[subprocess.Popen]) -> None:
         """Handle keyboard interrupt gracefully."""
