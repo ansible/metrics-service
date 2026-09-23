@@ -33,9 +33,12 @@ def _get_hourly_collectors():
     )
     from metrics_utility.library.collectors.controller import (
         credentials_service,
+        events_table,
         job_host_summary_service,
         main_jobevent_service,
+        query_info,
         unified_jobs_dashboard,
+        workflow_job_node_table,
     )
 
     # Registry mapping collector_type to (collector_func, rollup_processor_class)
@@ -64,6 +67,21 @@ def _get_hourly_collectors():
             "collector_func": main_jobevent_service,
             "rollup_processor": EventModulesAnonymizedRollup,
             "description": "Job events (event modules) metrics",
+        },
+        "events_table": {
+            "collector_func": events_table,
+            "rollup_processor": None,
+            "description": "Raw automation event rows",
+        },
+        "workflow_job_node_table": {
+            "collector_func": workflow_job_node_table,
+            "rollup_processor": None,
+            "description": "Workflow job node rows",
+        },
+        "query_info": {
+            "collector_func": query_info,
+            "rollup_processor": None,
+            "description": "Analytics collection query metadata",
         },
     }
 
