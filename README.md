@@ -312,7 +312,7 @@ The generated schema is committed to
 `tools/segment-schema/metrics-service.yaml` and checked for freshness in CI.
 
 ```bash
-uv run python tools/generate_segment_schema.py --output /tmp/metrics-service-segment-schema.yaml
+uv run python tools/generate_segment_schema.py --output tools/segment-schema/metrics-service.yaml
 uv run python tools/validate_segment_contract.py path/to/payload.json
 ```
 

@@ -3,7 +3,7 @@
 
 Usage:
     uv run python tools/generate_segment_schema.py
-    uv run python tools/generate_segment_schema.py --output segment-schema.yaml
+    uv run python tools/generate_segment_schema.py --output tools/segment-schema/metrics-service.yaml
 """
 
 import argparse

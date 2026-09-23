@@ -132,7 +132,7 @@ provided by `metrics-utility` with metrics-service `summary_metadata` and
 `dashboard_telemetry` fields. Generate its OpenAPI schema with:
 
 ```bash
-uv run python tools/generate_segment_schema.py --output segment-schema.yaml
+uv run python tools/generate_segment_schema.py --output tools/segment-schema/metrics-service.yaml
 ```
 
 The canonical generated schema is stored at
