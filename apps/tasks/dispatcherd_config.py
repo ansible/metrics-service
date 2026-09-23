@@ -73,6 +73,22 @@ def setup_dispatcherd_config() -> None:
         raise
 
 
+def _postgres_connection_config(db_config: dict[str, Any]) -> dict[str, Any]:
+    """Carry Django's PostgreSQL connection options into the pg_notify broker."""
+    options = db_config.get("OPTIONS", {}).copy()
+    # These options are consumed by Django, not psycopg.connect().
+    for name in ("assume_role", "isolation_level", "pool", "server_side_binding"):
+        options.pop(name, None)
+    return {
+        **options,
+        "dbname": db_config["NAME"],
+        "user": db_config["USER"],
+        "password": db_config["PASSWORD"],
+        "host": db_config["HOST"],
+        "port": db_config["PORT"],
+    }
+
+
 def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
     """
     Load dispatcherd config from YAML file but override database settings
@@ -99,13 +115,7 @@ def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
     db_config = django_settings.DATABASES["default"]
 
     # Build PostgreSQL connection config from Django settings
-    pg_config = {
-        "dbname": db_config["NAME"],
-        "user": db_config["USER"],
-        "password": db_config["PASSWORD"],
-        "host": db_config["HOST"],
-        "port": db_config["PORT"],
-    }
+    pg_config = _postgres_connection_config(db_config)
 
     # Ensure brokers section exists
     if "brokers" not in config:
@@ -141,13 +151,7 @@ def build_config_from_django_settings() -> dict[str, Any]:
         db_config = django_settings.DATABASES["default"]
 
         # Create PostgreSQL connection config
-        pg_config = {
-            "dbname": db_config["NAME"],
-            "user": db_config["USER"],
-            "password": db_config["PASSWORD"],
-            "host": db_config["HOST"],
-            "port": db_config["PORT"],
-        }
+        pg_config = _postgres_connection_config(db_config)
 
         # Build dispatcherd configuration
         config = {

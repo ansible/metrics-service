@@ -17,6 +17,25 @@
 #
 # Or override with a .env file:
 #   docker compose -f docker-compose.production.yml --env-file .env.production up -d
+#
+# This example's bundled postgres service uses password authentication, not TLS.
+# To adapt it for external client-certificate databases:
+# - Remove the bundled postgres service and its depends_on entries.
+# - Set each database HOST/USER/NAME to the external database's values.
+# - Replace each certificate-authenticated database's required PASSWORD
+#   interpolation below with an empty string (or ${VARIABLE:-}).
+# - Add these entries to &common-env for each certificate-authenticated alias
+#   (default or awx), using exact lowercase option suffixes:
+#     METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode: verify-full
+#     METRICS_SERVICE_DATABASES__default__OPTIONS__sslrootcert: /etc/metrics/db-certs/ca.crt
+#     METRICS_SERVICE_DATABASES__default__OPTIONS__sslcert: /etc/metrics/db-certs/metrics.crt
+#     METRICS_SERVICE_DATABASES__default__OPTIONS__sslkey: /etc/metrics/db-certs/metrics.key
+# - Mount the files read-only into init, web, dispatcherd AND scheduler, e.g.
+#   volumes: ["./db-certs:/etc/metrics/db-certs:ro"]
+#   Keys must be readable by the runtime user and meet libpq file permissions.
+# The database server must already accept these certificates. require/verify-ca
+# are also accepted TLS modes; prefer verify-full to verify the server hostname.
+# See README.md, "PostgreSQL client certificate authentication", for both aliases.
 
 services:
   postgres:
