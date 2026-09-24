@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 import pandas as pd
 import pytest
@@ -144,6 +145,18 @@ class TestBuildDashboardSyncHook:
         task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
         raw_jobs = task_data["raw_jobs"]
         assert raw_jobs[0]["started"] == started.isoformat()
+
+    def test_hook_preserves_organization_ansible_id(self):
+        organization_ansible_id = UUID("11111111-1111-1111-1111-111111111111")
+        df = _make_df(
+            [{"status": "successful", "launch_type": "manual", "organization_ansible_id": organization_ansible_id}]
+        )
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+        task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
+        assert task_data["raw_jobs"][0]["organization_ansible_id"] == str(organization_ansible_id)
 
     def test_hook_converts_num_hosts_to_int(self):
         """num_hosts is cast to int if not None."""
