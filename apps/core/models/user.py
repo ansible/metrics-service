@@ -27,6 +27,23 @@ class User(AbstractDABUser):
             content_type=None,
         ).exists()
 
+    def get_member_organizations(self) -> list[dict[str, int | str]]:
+        """Return this user's explicitly assigned organization memberships from local RBAC data.
+
+        DAB's resource sync keeps organization role assignments in metrics-service's
+        RBAC tables. Query the local permission evaluation model directly so global
+        superuser permissions do not make an unassigned user appear to belong to
+        every organization.
+        """
+        from ansible_base.rbac.models import get_evaluation_model
+
+        from apps.core.models import Organization
+
+        evaluation_model = get_evaluation_model(Organization)
+        organization_ids = evaluation_model.accessible_ids(Organization, self, "member_organization")
+        organizations = Organization.objects.filter(pk__in=organization_ids).order_by("pk").values("id", "name")
+        return list(organizations)
+
     def related_fields(self, request):
         return {}
 

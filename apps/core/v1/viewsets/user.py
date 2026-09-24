@@ -1,3 +1,5 @@
+import logging
+
 from ansible_base.rbac.api.permissions import AnsibleBaseUserPermissions, IsSystemAdminOrAuditor
 from ansible_base.rbac.policies import visible_users
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -6,9 +8,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.models import User
-from apps.core.v1.serializers import UserSerializer
+from apps.core.v1.serializers import UserMeSerializer, UserSerializer
 
 from .base import BaseViewSet
+
+logger = logging.getLogger(__name__)
 
 
 @extend_schema_view(
@@ -74,11 +78,20 @@ class UserViewSet(BaseViewSet):
 
     @extend_schema(
         summary="Get current user details",
-        description="Get currently logged in user's details",
-        responses={200: UserSerializer},
+        description=(
+            "Get currently logged in user's details, including `member_of_organizations` "
+            "from locally synced RBAC assignments."
+        ),
+        responses={200: UserMeSerializer},
     )
     @action(detail=False, methods=["get"])
     def me(self, request):
-        """Return the profile of the currently authenticated user."""
+        """Return the current user's profile and locally synced organization memberships."""
         serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        data = serializer.data
+        try:
+            data["member_of_organizations"] = request.user.get_member_organizations()
+        except Exception:
+            logger.exception("Failed to read local organization memberships for user %s", request.user.username)
+            data["member_of_organizations"] = []
+        return Response(data)

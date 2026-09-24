@@ -35,3 +35,16 @@ class UserSerializer(CommonUserSerializer):
             user.set_password(password)
             user.save()
         return user
+
+
+class OrganizationMembershipSerializer(serializers.Serializer):
+    """Serializer describing an organization in the current user's membership list."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class UserMeSerializer(UserSerializer):
+    """Serializer for `/users/me/`, including explicit organization memberships."""
+
+    member_of_organizations = OrganizationMembershipSerializer(many=True, read_only=True)
