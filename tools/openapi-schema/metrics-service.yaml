@@ -728,8 +728,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Job Data.
+          type: string
         required: true
       tags:
       - dashboard_reports
@@ -1077,8 +1076,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Subscription Cost.
+          type: string
         required: true
       tags:
       - dashboard_reports
@@ -1112,8 +1110,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Subscription Cost.
+          type: string
         required: true
       tags:
       - dashboard_reports
@@ -7869,7 +7866,8 @@ components:
       - runs
     OrganizationMembership:
       type: object
-      description: Serializer describing an organization in the current user's membership list.
+      description: Serializer describing an organization in the current user's membership
+        list.
       properties:
         id:
           type: integer
@@ -10141,10 +10139,12 @@ components:
         is_superuser:
           type: boolean
           title: Superuser status
-          description: Designates that this user has all permissions without explicitly assigning them.
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
         username:
           type: string
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
           pattern: ^[\w.@+-]+$
           maxLength: 150
         first_name:
@@ -10165,7 +10165,8 @@ components:
         is_active:
           type: boolean
           title: Active
-          description: Designates whether this user should be treated as active. Unselect this instead of deleting accounts.
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
         date_joined:
           type: string
           format: date-time
