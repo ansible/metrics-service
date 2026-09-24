@@ -40,6 +40,7 @@ class OrganizationsViewSet(FilterOptionsViewSet):
     """
 
     awx_query_function = staticmethod(fetch_organizations)
+    option_field = "organization_id"
     list_error_msg = "Failed to fetch organizations"
     retrieve_error_msg = "Failed to fetch organization"
 

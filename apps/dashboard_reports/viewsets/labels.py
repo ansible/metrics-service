@@ -40,6 +40,7 @@ class LabelsViewSet(FilterOptionsViewSet):
     """
 
     awx_query_function = staticmethod(fetch_labels)
+    option_field = "label_id"
     list_error_msg = "Failed to fetch labels"
     retrieve_error_msg = "Failed to fetch label"
 

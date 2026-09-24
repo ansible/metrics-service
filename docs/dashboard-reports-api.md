@@ -42,16 +42,27 @@ flowchart LR
 
 ## Authentication and Permissions
 
-Most dashboard endpoints require **Platform Auditor** or system admin
-(`IsSystemAdminOrAuditor` via `BaseAdminViewSet` or equivalent on report views).
+System administrators and Platform Auditors retain platform-wide read access.
+Organization members and administrators can read dashboard data only for
+organizations where they hold the existing **Organization Member** or
+**Organization Admin** role. Organization Members are read-only; Organization
+Admins may update their own cost and template-estimate overrides for an
+authorized organization.
 
 | Audience | Typical role |
 |----------|----------------|
-| Dashboard UI (automation-reports) | Platform Auditor+ |
-| Filter dropdowns / report analytics | Platform Auditor+ |
+| Dashboard UI (automation-reports) | Platform Auditor+ or organization Member/Admin |
+| Filter dropdowns / report analytics | Same scope as the caller's organization membership or admin role |
 | Saved filter sets | Authenticated users (see `FilterSetsViewSet`) |
 
 See [core-rbac.md](core-rbac.md) for JWT auth and role details.
+
+Organization authorization resolves to the Controller's stable DAB
+`Resource.ansible_id` UUID stored on each `JobData` row. Controller database
+organization integers remain filter IDs only and are not authorization keys.
+An explicit `organization` filter can narrow the caller's authorized set but
+cannot widen it. Rows with a missing or unresolved resource UUID are excluded
+from organization-scoped results.
 
 ## Endpoint Map
 
@@ -59,7 +70,9 @@ Registered in `apps/dashboard_reports/urls.py`:
 
 | Path | ViewSet | Purpose |
 |------|---------|---------|
+| `/access/` | `DashboardAccessView` | Caller scope, accessible organizations, edit capabilities, and dashboard enablement |
 | `/report/` | `DashboardReportViewSet` | Main job run metrics, charts, cost analytics |
+| `/leaderboard/` | `DashboardLeaderboardsViewSet` | Recent dashboard streaks, activity levels, and achievements |
 | `/organizations/` | `OrganizationsViewSet` | AWX organizations for filter dropdowns |
 | `/templates/` | `JobTemplatesViewSet` | AWX job templates for filters |
 | `/projects/` | `ProjectsViewSet` | AWX projects for filters |
@@ -69,6 +82,15 @@ Registered in `apps/dashboard_reports/urls.py`:
 | `/template_metadata/` | `TemplateMetadataViewSet` | Per-template time estimates for cost math |
 | `/collection_status/` | `DashboardCollectionStatusViewSet` | Enablement state and backfill status |
 | `/collection_telemetry/` | `DashboardTelemetryViewSet` | Last 30 days of collection performance stats |
+
+The access endpoint returns only `dashboard_enabled`, `scope`, and the
+current caller's accessible organization IDs, names, and `can_edit` flags.
+Collection scheduling and telemetry details remain limited to administrators
+and auditors.
+
+Leaderboard counts, streaks, and activity levels use the caller's authorized
+organizations. Organization-scoped responses omit platform totals and
+cross-organization comparisons.
 
 ### Main report (`/report/`)
 
@@ -104,6 +126,14 @@ template creation time toggle). List + update for admin/auditor.
 
 Per job-template estimated run time used in cost calculations. Retrieve + update.
 
+### Organization settings
+
+Organization Admins write private settings keyed by user and organization.
+Organization-scoped requests require `organization=<Controller organization
+ID>`. Reads return that user's override when present and otherwise use the
+existing global value as a fallback. Global administrators and auditors keep
+the unscoped settings path; only administrators may update global settings.
+
 ## Operator Endpoints
 
 ### Collection status (`/collection_status/`)
@@ -116,6 +146,7 @@ Returns feature enablement and pipeline state for operators:
 | `next_run` | Next `hourly_unified_jobs` cron fire (ongoing sync driver) |
 | `initial_collection_status` | Status of one-shot `initial_dashboard_collection` task |
 | `min_collection_timestamp` | Earliest `JobData` timestamp when data exists |
+| `show_dashboard` | Whether to show the dashboard UI; requires the global `SHOW_DASHBOARD` setting and dashboard access (system-wide or organization-scoped) |
 
 When `enabled` is `false`, timing fields are `null`.
 

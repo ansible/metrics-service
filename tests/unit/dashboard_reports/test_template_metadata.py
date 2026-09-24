@@ -12,6 +12,7 @@ from rest_framework import status
 from rest_framework.test import APIRequestFactory
 
 from apps.dashboard_reports.models import TemplateMetadata
+from apps.dashboard_reports.permissions import DashboardScope
 from apps.dashboard_reports.serializers import TemplateMetadataSerializer
 from apps.dashboard_reports.viewsets.template_metadata import TemplateMetadataViewSet
 
@@ -133,10 +134,10 @@ class TestTemplateMetadataViewSetConfig(TestCase):
     def test_pagination_class_is_none(self):
         assert TemplateMetadataViewSet.pagination_class is None
 
-    def test_has_is_system_admin_or_auditor_permission(self):
-        from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
+    def test_has_dashboard_read_permission(self):
+        from apps.dashboard_reports.permissions import DashboardReadPermission
 
-        assert IsSystemAdminOrAuditor in TemplateMetadataViewSet.permission_classes
+        assert DashboardReadPermission in TemplateMetadataViewSet.permission_classes
 
     def test_has_retrieve_mixin(self):
         from rest_framework.mixins import RetrieveModelMixin
@@ -164,9 +165,14 @@ class TestTemplateMetadataViewSetConfig(TestCase):
         mock_model.objects.all.return_value = mock_qs
         viewset = TemplateMetadataViewSet()
         viewset.request = MagicMock()
+        viewset.request.query_params.get.return_value = None
         viewset.kwargs = {}
         viewset.format_kwarg = None
-        assert viewset.get_queryset() is mock_qs
+        with patch(
+            "apps.dashboard_reports.viewsets.template_metadata.get_dashboard_scope",
+            return_value=DashboardScope(global_access=True, organizations=()),
+        ):
+            assert viewset.get_queryset() is mock_qs
         mock_model.objects.all.assert_called_once()
 
 
@@ -186,12 +192,22 @@ class TestTemplateMetadataViewSetActions(TestCase):
         return TemplateMetadataViewSet.as_view(method_map)
 
     def _call(self, view, request, pk: int = 1):
-        with patch.object(TemplateMetadataViewSet, "get_queryset", return_value=self.none_qs):
+        with (
+            patch.object(TemplateMetadataViewSet, "get_queryset", return_value=self.none_qs),
+            patch(
+                "apps.dashboard_reports.viewsets.template_metadata.DashboardReadPermission.has_permission",
+                side_effect=lambda request, view: bool(request.user and request.user.is_authenticated),
+            ),
+            patch(
+                "apps.dashboard_reports.viewsets.template_metadata.get_dashboard_scope",
+                return_value=DashboardScope(global_access=True, organizations=()),
+            ),
+        ):
             return view(request, pk=pk)
 
     # ---- GET (retrieve) ----
 
-    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
+    @patch("apps.dashboard_reports.viewsets.template_metadata.is_dashboard_admin", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     def test_retrieve_returns_200(self, mock_get_object, mock_super_perm):
         mock_get_object.return_value = self.instance
@@ -200,7 +216,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
         response = self._call(self._view({"get": "retrieve"}), request)
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
+    @patch("apps.dashboard_reports.viewsets.template_metadata.is_dashboard_admin", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     def test_retrieve_calls_get_object_once(self, mock_get_object, mock_super_perm):
         mock_get_object.return_value = self.instance
@@ -211,7 +227,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
 
     # ---- PUT (update) ----
 
-    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
+    @patch("apps.dashboard_reports.viewsets.template_metadata.is_dashboard_admin", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     @patch.object(TemplateMetadataViewSet, "perform_update")
     def test_update_returns_200(self, mock_perform_update, mock_get_object, mock_super_perm):
@@ -229,7 +245,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
         response = self._call(self._view({"put": "update"}), request)
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
+    @patch("apps.dashboard_reports.viewsets.template_metadata.is_dashboard_admin", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     @patch.object(TemplateMetadataViewSet, "perform_update")
     def test_update_calls_perform_update_once(self, mock_perform_update, mock_get_object, mock_super_perm):
@@ -247,7 +263,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
         self._call(self._view({"put": "update"}), request)
         mock_perform_update.assert_called_once()
 
-    @patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=True)
+    @patch("apps.dashboard_reports.viewsets.template_metadata.is_dashboard_admin", return_value=True)
     @patch.object(TemplateMetadataViewSet, "get_object")
     @patch.object(TemplateMetadataViewSet, "perform_update")
     def test_update_with_null_time_fields(self, mock_perform_update, mock_get_object, mock_super_perm):
@@ -272,7 +288,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
     # ---- permission gate ----
 
     def test_all_methods_return_403_for_unauthenticated_user(self):
-        """Unauthenticated requests must be denied with 403 (IsSystemAdminOrAuditor)."""
+        """Unauthenticated requests must be denied by dashboard read permission."""
         unauthenticated_user = _make_request_user(is_authenticated=False)
         for method, factory_fn, map_ in [
             ("GET", self.factory.get, {"get": "retrieve"}),
@@ -295,7 +311,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
             format="json",
         )
         request.user = _make_request_user(is_authenticated=True)
-        with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=False):
+        with patch("apps.dashboard_reports.viewsets.template_metadata.is_dashboard_admin", return_value=False):
             response = self._call(self._view({"put": "update"}), request)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -307,7 +323,7 @@ class TestTemplateMetadataViewSetActions(TestCase):
             format="json",
         )
         request.user = _make_request_user(is_authenticated=True)
-        with patch("ansible_base.rbac.api.permissions.has_super_permission", return_value=False):
+        with patch("apps.dashboard_reports.viewsets.template_metadata.is_dashboard_admin", return_value=False):
             response = self._call(self._view({"patch": "partial_update"}), request)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 

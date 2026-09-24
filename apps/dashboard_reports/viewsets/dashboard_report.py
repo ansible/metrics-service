@@ -8,11 +8,25 @@ from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
 
-from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
 from dateutil.relativedelta import relativedelta
 from django.db import models
-from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
+from django.db.models import (
+    Avg,
+    BigIntegerField,
+    BooleanField,
+    Case,
+    Count,
+    DecimalField,
+    F,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Cast, Coalesce, Trunc
 from django.http import HttpResponse, JsonResponse
 from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
@@ -27,7 +41,16 @@ from rest_framework.settings import api_settings
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from apps.dashboard_reports.filters import CustomReportFilter, DateFilter, validate_custom_period_dates
-from apps.dashboard_reports.models import JobData, JobHostSummary, JobLabel, JobStatusChoices, SubscriptionCost
+from apps.dashboard_reports.models import (
+    JobData,
+    JobHostSummary,
+    JobLabel,
+    JobStatusChoices,
+    OrganizationDashboardSettings,
+    OrganizationTemplateMetadataOverride,
+    SubscriptionCost,
+)
+from apps.dashboard_reports.permissions import DashboardReadPermission, get_dashboard_scope, scope_jobdata_queryset
 from apps.dashboard_reports.serializers import (
     ReportDetailSerializer,
     ReportSerializer,
@@ -356,7 +379,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
     DefaultPaginator), not absolute URLs.
     """
 
-    permission_classes = [IsSystemAdminOrAuditor]
+    permission_classes = [DashboardReadPermission]
     pagination_class = DashboardReportPagination
 
     detail_query_parameters = DETAIL_QUERY_PARAMETERS
@@ -420,20 +443,16 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         return super().get_serializer_class()
 
     def _build_aggregated_queryset(self, base_qs: QuerySet[JobData]) -> QuerySet:
-        """
-        Applies grouping, cost, and time annotations to a pre-filtered JobData queryset.
-        Must be called after all CustomReportFilter filtering has been applied to base_qs,
-        because the custom filter methods (after_date, organizations, etc.) are only available
-        on JobDataQuerySet, not on the ValuesQuerySet this method returns.
-        """
+        """Group the already-scoped jobs and calculate their dashboard costs."""
         subscription_cost = SubscriptionCost.get()
-        average_cost_employee_minute = subscription_cost.cost_employee_per_minute
-        start_date = self.kwargs.get("start_date")
-        end_date = self.kwargs.get("end_date")
+        scope = get_dashboard_scope(self.request.user)
+        if not scope.global_access:
+            return self._build_organization_aggregated_queryset(base_qs, subscription_cost, scope)
 
+        average_cost_employee_minute = subscription_cost.cost_employee_per_minute
+        start_date, end_date = self.kwargs.get("start_date"), self.kwargs.get("end_date")
         aap_subscription_per_second = subscription_cost.per_second_subscription_cost(start_date, end_date)
         enable_template_creation_time = subscription_cost.include_template_creation_time_in_costs
-
         coalesced_manual_minutes = Coalesce(F("time_taken_manually_execute_minutes"), Value(0))
         coalesced_create_minutes = Coalesce(F("time_taken_create_automation_minutes"), Value(0))
 
@@ -446,14 +465,9 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             automated_costs = F("elapsed") * aap_subscription_per_second
             time_savings = F("manual_time") - F("elapsed")
 
-        # Manual minutes are a per-job-run estimate (see TemplateMetadata defaults); scale by runs,
-        # not Sum(num_hosts), which would mis-apply one run's minute estimate across all hosts.
         manual_costs = F("runs") * coalesced_manual_minutes * average_cost_employee_minute
         manual_time = F("runs") * (coalesced_manual_minutes * 60)
-
         return (
-            # Exclude rows without template_metadata: ReportSerializer.id sources from
-            # template_metadata_id, so null rows would cause serialization to fail.
             base_qs.filter(template_metadata_id__isnull=False)
             .values(
                 "template_metadata_id",
@@ -473,10 +487,155 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 manual_costs=manual_costs,
                 manual_time=manual_time,
             )
-            .annotate(
-                time_savings=time_savings,
-                savings=(F("manual_costs") - F("automated_costs")),
+            .annotate(time_savings=time_savings, savings=F("manual_costs") - F("automated_costs"))
+        )
+
+    def _build_organization_aggregated_queryset(self, base_qs, global_cost, scope):
+        """Aggregate job-level costs with user overrides applied independently per organization."""
+        organization_ids = list(
+            base_qs.exclude(organization_ansible_id__isnull=True)
+            .order_by()
+            .values_list("organization_ansible_id", flat=True)
+            .distinct()
+        )
+        scope_by_uuid = {org.ansible_id: org for org in scope.organizations}
+        local_org_ids = [scope_by_uuid[uid].id for uid in organization_ids if uid in scope_by_uuid]
+        overrides = {
+            row.organization_id: row
+            for row in OrganizationDashboardSettings.objects.filter(
+                user=self.request.user, organization_id__in=local_org_ids
             )
+        }
+        start_date, end_date = self.kwargs.get("start_date"), self.kwargs.get("end_date")
+        per_org_values = {}
+        for org_uuid in organization_ids:
+            org = scope_by_uuid.get(org_uuid)
+            settings_override = overrides.get(org.id) if org else None
+            monthly_cost = (
+                settings_override.monthly_subscription_cost
+                if settings_override and settings_override.monthly_subscription_cost is not None
+                else global_cost.monthly_subscription_cost
+            )
+            hourly_rate = (
+                settings_override.engineer_avg_hourly_rate
+                if settings_override and settings_override.engineer_avg_hourly_rate is not None
+                else global_cost.engineer_avg_hourly_rate
+            )
+            include_creation = (
+                settings_override.include_template_creation_time_in_costs
+                if settings_override and settings_override.include_template_creation_time_in_costs is not None
+                else global_cost.include_template_creation_time_in_costs
+            )
+            per_org_values[org_uuid] = {
+                "manual_rate": decimal.Decimal(str(hourly_rate)) / decimal.Decimal(60),
+                "per_second": global_cost.per_second_subscription_cost(
+                    start_date,
+                    end_date,
+                    organization_ansible_id=org_uuid,
+                    monthly_subscription_cost=monthly_cost,
+                ),
+                "include_creation": include_creation,
+            }
+
+        organization_uuids_by_id = {
+            org.id: org.ansible_id for org in scope.organizations if org.ansible_id in per_org_values
+        }
+        template_overrides = {
+            (organization_uuids_by_id[row.organization_id], row.template_id): row
+            for row in OrganizationTemplateMetadataOverride.objects.filter(
+                user=self.request.user, organization_id__in=organization_uuids_by_id
+            )
+        }
+        manual_whens, create_whens, rate_whens, per_second_whens, include_whens = [], [], [], [], []
+        for org_uuid, values in per_org_values.items():
+            rate_whens.append(When(organization_ansible_id=org_uuid, then=Value(values["manual_rate"])))
+            per_second_whens.append(When(organization_ansible_id=org_uuid, then=Value(values["per_second"])))
+            include_whens.append(When(organization_ansible_id=org_uuid, then=Value(values["include_creation"])))
+        for (org_uuid, template_id), override in template_overrides.items():
+            if override.time_taken_manually_execute_minutes is not None:
+                manual_whens.append(
+                    When(
+                        organization_ansible_id=org_uuid,
+                        template_metadata__template_id=template_id,
+                        then=Value(override.time_taken_manually_execute_minutes),
+                    )
+                )
+            if override.time_taken_create_automation_minutes is not None:
+                create_whens.append(
+                    When(
+                        organization_ansible_id=org_uuid,
+                        template_metadata__template_id=template_id,
+                        then=Value(override.time_taken_create_automation_minutes),
+                    )
+                )
+
+        decimal_field = DecimalField(max_digits=30, decimal_places=10)
+        manual_rate = Case(*rate_whens, default=Value(global_cost.cost_employee_per_minute), output_field=decimal_field)
+        per_second = Case(
+            *per_second_whens,
+            default=Value(global_cost.per_second_subscription_cost(start_date, end_date)),
+            output_field=decimal_field,
+        )
+        include_creation = Case(
+            *include_whens,
+            default=Value(global_cost.include_template_creation_time_in_costs),
+            output_field=BooleanField(),
+        )
+        manual_minutes = Coalesce(
+            Case(
+                *manual_whens,
+                default=F("template_metadata__time_taken_manually_execute_minutes"),
+                output_field=BigIntegerField(),
+            ),
+            Value(0),
+        )
+        create_minutes = Coalesce(
+            Case(
+                *create_whens,
+                default=F("template_metadata__time_taken_create_automation_minutes"),
+                output_field=BigIntegerField(),
+            ),
+            Value(0),
+        )
+        creation_minutes = Case(
+            When(_include_creation=True, then=F("_create_minutes")), default=Value(0), output_field=BigIntegerField()
+        )
+        creation_cost = Case(
+            When(_include_creation=True, then=F("_create_minutes") * F("_manual_rate")),
+            default=Value(decimal.Decimal("0")),
+            output_field=decimal_field,
+        )
+        return (
+            base_qs.filter(template_metadata_id__isnull=False)
+            .annotate(
+                _manual_minutes=manual_minutes,
+                _create_minutes=create_minutes,
+                _manual_rate=manual_rate,
+                _subscription_per_second=per_second,
+                _include_creation=include_creation,
+            )
+            .annotate(
+                _creation_minutes=creation_minutes,
+                _manual_cost=F("_manual_minutes") * F("_manual_rate"),
+                _automated_cost=(F("elapsed") * F("_subscription_per_second")) + creation_cost,
+                _manual_time=F("_manual_minutes") * Value(60),
+                _time_savings=(F("_manual_minutes") * Value(60)) - F("elapsed") - (F("_creation_minutes") * Value(60)),
+            )
+            .values("template_metadata_id", "template_metadata__template_name")
+            .annotate(
+                time_taken_manually_execute_minutes=Cast(Avg("_manual_minutes"), output_field=BigIntegerField()),
+                time_taken_create_automation_minutes=Cast(Avg("_create_minutes"), output_field=BigIntegerField()),
+                runs=Count("id"),
+                successful_runs=Count("id", filter=Q(status=JobStatusChoices.SUCCESSFUL)),
+                failed_runs=Count("id", filter=Q(status=JobStatusChoices.FAILED)),
+                elapsed=Sum("elapsed"),
+                num_hosts=Sum("num_hosts"),
+                automated_costs=Sum("_automated_cost"),
+                manual_costs=Sum("_manual_cost"),
+                manual_time=Sum("_manual_time"),
+                time_savings=Sum("_time_savings"),
+            )
+            .annotate(savings=F("manual_costs") - F("automated_costs"))
         )
 
     def get_queryset(self) -> QuerySet:
@@ -604,6 +763,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
     def _filter_raw_jobdata_queryset(self, queryset: QuerySet[JobData]) -> QuerySet[JobData]:
         """Apply all filter backends except OrderingFilter to the raw JobDataQuerySet."""
+        queryset = scope_jobdata_queryset(self.request.user, queryset)
         for backend in self.filter_backends:
             if backend is AliasedOrderingFilter:
                 continue

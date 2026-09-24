@@ -473,6 +473,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
                 "name": row["name"],
                 "unified_job_template_id": row.get("unified_job_template_id"),
                 "organization_id": row.get("organization_id"),
+                "organization_ansible_id": row.get("organization_ansible_id"),
                 "organization_name": row.get("organization_name"),
                 "started": _parse_dt(row.get("started")),
                 "finished": _parse_dt(row.get("finished")),
