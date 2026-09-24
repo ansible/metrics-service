@@ -427,6 +427,7 @@ TASK_METADATA = {
                             "name": "Demo Job Template",
                             "unified_job_template_id": 10,
                             "organization_id": 1,
+                            "organization_ansible_id": "11111111-1111-1111-1111-111111111111",
                             "organization_name": "Default",
                             "started": "2024-01-01T00:01:00+00:00",
                             "finished": "2024-01-01T00:02:30+00:00",
