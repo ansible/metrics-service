@@ -119,6 +119,18 @@ Created automatically on `migrate` via `ANSIBLE_BASE_MANAGED_ROLE_REGISTRY`:
 `ALLOW_LOCAL_ASSIGNING_JWT_ROLES=True`. Set to `False` when using a resource
 server for assignment sync.
 
+### Automation Dashboard organization access (Option B)
+
+Metrics-service reuses existing Gateway organization roles. **Organization
+Member** grants read-only dashboard access to the assigned organization;
+**Organization Admin** can also edit dashboard settings. The service evaluates
+the existing `member_organization` and `change_organization` permissions on
+synced shared organizations, then restricts report data to those organizations.
+
+This mapping avoids introducing dashboard-specific permissions and role
+definitions. It also means all organization members receive dashboard access,
+and editors retain the broader organization-admin permissions.
+
 ### Model registry
 
 ```python

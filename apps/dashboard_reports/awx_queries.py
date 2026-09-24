@@ -8,6 +8,7 @@ organizations, job templates, projects, and labels directly from the AWX databas
 import enum
 import logging
 from typing import Any
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class AWXQuery(enum.Enum):
     """Enumeration of allowed AWX read-only SELECT queries."""
 
-    ORGANIZATIONS = "SELECT id, name FROM main_organization"
+    ORGANIZATIONS = "SELECT mo.id, mo.name FROM main_organization mo"
     TEMPLATES = (
         "SELECT ujt.id, ujt.name "
         "FROM main_unifiedjobtemplate ujt "
@@ -53,7 +54,9 @@ class AWXQuery(enum.Enum):
     )
 
 
-def _build_where_clause(join_alias: str, search_str: str | None, pk: Any) -> tuple[str, list[Any]]:
+def _build_where_clause(
+    join_alias: str, search_str: str | None, pk: Any, allowed_ids: list[int] | None = None
+) -> tuple[str, list[Any]]:
     """Build WHERE clause and parameters for SQL query."""
     where_clauses = []
     params = []
@@ -65,6 +68,9 @@ def _build_where_clause(join_alias: str, search_str: str | None, pk: Any) -> tup
     if pk is not None:
         where_clauses.append(f"{join_alias}id = %s")
         params.append(pk)
+    if allowed_ids is not None:
+        where_clauses.append(f"{join_alias}id = ANY(%s)")
+        params.append(allowed_ids)
     clause = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     return clause, params
 
@@ -101,9 +107,10 @@ def fetch_data_from_db(awx_query: AWXQuery, join_alias: str = "", **kwargs: Any)
     pk = kwargs.get("pk")
     limit = kwargs.get("limit")
     offset = kwargs.get("offset", 0)
+    allowed_ids = kwargs.get("allowed_ids")
 
     base_query = awx_query.value
-    where_clause, params = _build_where_clause(join_alias, search_str, pk)
+    where_clause, params = _build_where_clause(join_alias, search_str, pk, allowed_ids)
     order_clause = f" ORDER BY {join_alias}name"
 
     if limit is not None:
@@ -142,14 +149,16 @@ def format_label_rows(rows: list[Any], duplicate_names: set[str]) -> list[dict[s
     return items
 
 
-def _fetch_duplicate_label_names(db_connection, join_alias: str, search_str: str | None, pk: Any) -> set[str]:
+def _fetch_duplicate_label_names(
+    db_connection, join_alias: str, search_str: str | None, pk: Any, allowed_ids: list[int] | None = None
+) -> set[str]:
     """
     Return the set of label names that occur more than once across the *complete* matching dataset.
 
     Uses the same WHERE filters (search/pk) as the main label query but ignores LIMIT/OFFSET, so
     that duplicate detection is correct even when results are paginated.
     """
-    where_clause, params = _build_where_clause(join_alias, search_str, pk)
+    where_clause, params = _build_where_clause(join_alias, search_str, pk, allowed_ids)
     query = (
         f"SELECT name FROM ({AWXQuery.LABELS.value}{where_clause}) AS _dup_subq "  # noqa: S608 AWXQuery enum value is hardcoded; where_clause uses %s placeholders
         "GROUP BY name HAVING COUNT(*) > 1"
@@ -178,7 +187,41 @@ def fetch_id_name(
 
 def fetch_organizations(**kwargs) -> tuple[list[dict[str, Any]], int]:
     """Fetch organizations from DB, returning ``(items, total_count)``."""
-    return fetch_id_name(AWXQuery.ORGANIZATIONS, error_msg="Error fetching organizations from AWX database", **kwargs)
+    return fetch_id_name(
+        AWXQuery.ORGANIZATIONS,
+        join_alias="mo.",
+        error_msg="Error fetching organizations from AWX database",
+        **kwargs,
+    )
+
+
+def fetch_controller_organizations(db_connection, *, ansible_ids=None, organization_id=None) -> list[dict[str, Any]]:
+    """Read Controller organization IDs and stable DAB Resource UUIDs."""
+    query = (
+        "SELECT mo.id, mo.name, resource.ansible_id "
+        "FROM main_organization mo "
+        "LEFT JOIN django_content_type organization_ct "
+        "ON organization_ct.app_label = 'main' AND organization_ct.model = 'organization' "
+        "LEFT JOIN dab_resource_registry_resource resource "
+        "ON resource.content_type_id = organization_ct.id AND resource.object_id = mo.id::text"
+    )
+    clauses = []
+    params = []
+    if ansible_ids is not None:
+        clauses.append("resource.ansible_id::text = ANY(%s)")
+        params.append([str(value) for value in ansible_ids])
+    if organization_id is not None:
+        clauses.append("mo.id = %s")
+        params.append(organization_id)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY mo.name"
+    with db_connection.cursor() as cursor:
+        cursor.execute(query, params)
+        return [
+            {"id": row[0], "name": row[1], "ansible_id": UUID(str(row[2])) if row[2] is not None else None}
+            for row in cursor.fetchall()
+        ]
 
 
 def fetch_templates(**kwargs) -> tuple[list[dict[str, Any]], int]:
@@ -209,7 +252,11 @@ def fetch_labels(**kwargs) -> tuple[list[dict[str, Any]], int]:
     try:
         rows, total = fetch_data_from_db(AWXQuery.LABELS, join_alias=join_alias, **kwargs)
         duplicate_names = _fetch_duplicate_label_names(
-            kwargs.get("db_connection"), join_alias, kwargs.get("search_str"), kwargs.get("pk")
+            kwargs.get("db_connection"),
+            join_alias,
+            kwargs.get("search_str"),
+            kwargs.get("pk"),
+            kwargs.get("allowed_ids"),
         )
     except Exception:
         logger.exception("Error fetching labels from AWX database")

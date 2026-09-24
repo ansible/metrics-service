@@ -11,12 +11,12 @@ from django.db.models.functions import TruncDate
 from drf_spectacular.helpers import forced_singular_serializer
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from apps.dashboard_reports.models import JobData, JobStatusChoices
+from apps.dashboard_reports.permissions import DashboardReadPermission, get_dashboard_scope, scope_jobdata_queryset
 from apps.dashboard_reports.serializers import DashboardLeaderboardsSerializer
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ def _user_achievements(
     today: date,
     window_start: date,
     now_utc: datetime,
+    user=None,
 ) -> list[str]:
     """Return the achievement ids the current user has earned in the window.
 
@@ -78,7 +79,7 @@ def _user_achievements(
         "centurion": total_runs >= 100,
         # 20+ successful runs back-to-back with no failed/errored/canceled run
         # between them, anywhere in the window.
-        "reliable": _longest_successful_run_streak(current_user_id, window_start_dt, now_utc) >= _RELIABLE_STREAK,
+        "reliable": _longest_successful_run_streak(current_user_id, window_start_dt, now_utc, user) >= _RELIABLE_STREAK,
         "accelerator": (total_runs - first_half) > first_half,
     }
     return [achievement for achievement in _ACHIEVEMENTS if earned[achievement]]
@@ -127,7 +128,7 @@ _OUTCOME_STATUSES: tuple[str, ...] = (
 _RELIABLE_STREAK = 20
 
 
-def _longest_successful_run_streak(current_user_id: int, since: datetime, until: datetime) -> int:
+def _longest_successful_run_streak(current_user_id: int, since: datetime, until: datetime, user=None) -> int:
     """Length of the longest unbroken run of successful jobs for the user.
 
     Consecutiveness is judged over the user's finished runs in the window ordered
@@ -137,16 +138,15 @@ def _longest_successful_run_streak(current_user_id: int, since: datetime, until:
     fetched - one short row per finished run for this single user - and the tally
     is one linear pass.
     """
-    statuses = (
-        JobData.objects.filter(
-            launched_by_id=current_user_id,
-            finished__gte=since,
-            finished__lte=until,
-            status__in=_OUTCOME_STATUSES,
-        )
-        .order_by("finished", "job_id")
-        .values_list("status", flat=True)
+    queryset = JobData.objects.filter(
+        launched_by_id=current_user_id,
+        finished__gte=since,
+        finished__lte=until,
+        status__in=_OUTCOME_STATUSES,
     )
+    if user is not None:
+        queryset = scope_jobdata_queryset(user, queryset)
+    statuses = queryset.order_by("finished", "job_id").values_list("status", flat=True)
     longest = current = 0
     for run_status in statuses:
         current = current + 1 if run_status == JobStatusChoices.SUCCESSFUL else 0
@@ -360,7 +360,7 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
     initials. Everything is derived from successful ``JobData`` runs.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [DashboardReadPermission]
     pagination_class = None
     serializer_class = DashboardLeaderboardsSerializer
     # Never used (list/retrieve are overridden) — satisfies schema tooling only.
@@ -393,11 +393,15 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
         since = datetime.combine(window_start, datetime.min.time(), tzinfo=UTC)
         window_dates = [window_start + timedelta(days=offset) for offset in range((today - window_start).days + 1)]
 
-        successful_runs = JobData.objects.filter(
-            status=JobStatusChoices.SUCCESSFUL,
-            finished__gte=since,
-            finished__lte=now_utc,
+        successful_runs = scope_jobdata_queryset(
+            request.user,
+            JobData.objects.filter(
+                status=JobStatusChoices.SUCCESSFUL,
+                finished__gte=since,
+                finished__lte=now_utc,
+            ),
         )
+        scope = get_dashboard_scope(request.user)
 
         # One GROUP BY (day, org) over the window. job_runs, active_organizations,
         # both streak series and the whole org leaderboard are in-memory rollups
@@ -428,12 +432,23 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
             enterprise_by_day[row["day"]] += row["runs"]
         stats["enterprise_streak"] = _streak_series(enterprise_by_day, window_dates)
 
-        org_streak, organization_leaderboard, user_organization_rank = _build_organization_stats(
-            day_org_rows, window_dates
-        )
+        if scope.global_access or len(scope.organizations) == 1:
+            org_streak, organization_leaderboard, user_organization_rank = _build_organization_stats(
+                day_org_rows, window_dates
+            )
+        else:
+            org_streak, organization_leaderboard, user_organization_rank = (
+                None,
+                {
+                    "user_organization_rank": None,
+                    "total_organizations": 0,
+                    "leaderboard": [],
+                },
+                None,
+            )
         stats["org_streak"] = org_streak
         stats["organization_leaderboard"] = organization_leaderboard
-        stats["org_achievements"] = _org_achievements(org_streak, user_organization_rank)
+        stats["org_achievements"] = _org_achievements(org_streak, user_organization_rank) if scope.global_access else []
 
         # The local User pk is not the AWX user id (this deployment uses DAB's
         # resource registry, i.e. a separate User table per service), so it
@@ -451,7 +466,9 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
 
         stats["activity_levels"] = _build_activity_levels(successful_runs, current_user_id)
 
-        stats["user_achievements"] = _user_achievements(successful_runs, current_user_id, today, window_start, now_utc)
+        stats["user_achievements"] = _user_achievements(
+            successful_runs, current_user_id, today, window_start, now_utc, request.user
+        )
         return Response(self.get_serializer(stats).data)
 
     @extend_schema(exclude=True)

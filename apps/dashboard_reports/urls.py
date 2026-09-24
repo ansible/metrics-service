@@ -15,6 +15,7 @@ from apps.dashboard_reports.viewsets import (
     SubscriptionCostViewSet,
     TemplateMetadataViewSet,
 )
+from apps.dashboard_reports.viewsets.access import DashboardAccessView
 from apps.dashboard_reports.viewsets.dashboard_leaderboards import DashboardLeaderboardsViewSet
 
 router = AssociationResourceRouter()
@@ -31,6 +32,7 @@ router.register(r"collection_telemetry", DashboardTelemetryViewSet, basename="co
 router.register(r"leaderboard", DashboardLeaderboardsViewSet, basename="leaderboard")
 
 urlpatterns = [
+    path("api/v1/dashboard_reports/access/", DashboardAccessView.as_view(), name="dashboard-access"),
     path(
         "api/v1/dashboard_reports/",
         include((router.urls, "dashboard_reports"), namespace="v1"),
