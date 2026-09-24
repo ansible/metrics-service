@@ -276,6 +276,19 @@ class SubscriptionCostSerializer(serializers.ModelSerializer):
         }
 
 
+class OrganizationDashboardSettingsSerializer(serializers.Serializer):
+    """Writable settings override fields; null clears an override and restores global fallback."""
+
+    id = serializers.IntegerField(read_only=True)
+    monthly_subscription_cost = serializers.DecimalField(
+        max_digits=15, decimal_places=2, min_value=decimal.Decimal("0.00"), required=False, allow_null=True
+    )
+    engineer_avg_hourly_rate = serializers.DecimalField(
+        max_digits=15, decimal_places=2, min_value=decimal.Decimal("0.00"), required=False, allow_null=True
+    )
+    include_template_creation_time_in_costs = serializers.BooleanField(required=False, allow_null=True)
+
+
 class TemplateMetadataSerializer(serializers.ModelSerializer):
     """Serializer for TemplateMetadata, exposing user-overridable time estimate fields."""
 

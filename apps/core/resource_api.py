@@ -1,12 +1,13 @@
 """Resource Registry configuration for DAB."""
 
+from ansible_base.rbac.models import RoleDefinition
 from ansible_base.resource_registry.registry import (
     ParentResource,
     ResourceConfig,
     ServiceAPIConfig,
     SharedResource,
 )
-from ansible_base.resource_registry.shared_types import OrganizationType, TeamType, UserType
+from ansible_base.resource_registry.shared_types import OrganizationType, RoleDefinitionType, TeamType, UserType
 
 from apps.core.models import Organization, Team, User
 
@@ -42,5 +43,12 @@ RESOURCE_LIST = [
             is_provider=False,
         ),
         name_field="username",
+    ),
+    ResourceConfig(
+        RoleDefinition,
+        shared_resource=SharedResource(
+            serializer=RoleDefinitionType,
+            is_provider=False,
+        ),
     ),
 ]

@@ -119,6 +119,16 @@ Created automatically on `migrate` via `ANSIBLE_BASE_MANAGED_ROLE_REGISTRY`:
 `ALLOW_LOCAL_ASSIGNING_JWT_ROLES=True`. Set to `False` when using a resource
 server for assignment sync.
 
+### Automation Dashboard organization roles
+
+Gateway seeds **Automation Dashboard Viewer** and **Automation Dashboard
+Editor** as roles on `shared.organization`. They grant
+`view_automation_dashboard` and, for editors, `change_automation_dashboard`.
+Customer-defined organization roles may include these dashboard permissions
+through Gateway's role builder. Metrics-service consumes shared role definitions
+and assignments through its resource sync; these object-scoped roles are
+evaluated locally and are not JWT managed-role claims.
+
 ### Model registry
 
 ```python
