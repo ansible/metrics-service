@@ -362,15 +362,18 @@ python manage.py runserver
 
 Production requires a password for each database (`default` and `awx`) unless
 that database has both a non-empty `sslcert` and `sslkey` and an `sslmode` of
-`require`, `verify-ca`, or `verify-full`. Configure each database independently;
-one can use a password while the other uses certificates. Partial certificate
-configuration is rejected even if a password is provided.
+`prefer`, `require`, `verify-ca`, or `verify-full`. Configure each database
+independently; one can use a password while the other uses certificates. Partial
+certificate configuration is rejected even if a password is provided.
 
 Prefer `verify-full` with a trusted server CA: it verifies both the server
 certificate and hostname. `require` ensures encryption but does not generally
-verify the server's identity. `disable`, `allow`, and the default `prefer` are
-rejected when a client certificate or key is configured because they do not
-guarantee TLS. See [PostgreSQL SSL support](https://www.postgresql.org/docs/current/libpq-ssl.html).
+verify the server's identity. `prefer` is accepted for compatibility with
+containerized installer configurations; it tries TLS first, then falls back to
+an unencrypted connection if the server does not support TLS. Keep the database
+configured for TLS when using client certificates. `disable` and `allow` are
+rejected with client certificate configuration. See
+[PostgreSQL SSL support](https://www.postgresql.org/docs/current/libpq-ssl.html).
 
 For example, after configuring the database hosts, users, names, and other
 required production settings:
@@ -438,7 +441,7 @@ Editable:
 | `METRICS_SERVICE_DATABASES__awx__PASSWORD` | AWX database password | Unless client certificates are configured |
 | `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslcert` | Client certificate path (`default` or `awx`) | With client certificate authentication |
 | `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslkey` | Client private key path | With client certificate authentication |
-| `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslmode` | TLS mode; prefer `verify-full` | `require`, `verify-ca`, or `verify-full` with client certificates |
+| `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslmode` | TLS mode; prefer `verify-full` | `prefer`, `require`, `verify-ca`, or `verify-full` with client certificates |
 | `METRICS_SERVICE_DATABASES__<alias>__OPTIONS__sslrootcert` | Trusted server CA path | Configure for server certificate verification |
 | `METRICS_SERVICE_ALLOWED_HOSTS`                | Allowed hosts (comma-separated)           | **Yes** (production)         |
 

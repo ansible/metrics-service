@@ -257,15 +257,15 @@ class TestDatabaseAuthValidation:
     @pytest.mark.parametrize("alias", ["default", "awx"])
     @pytest.mark.parametrize("password", ["", "test-only"])
     @pytest.mark.parametrize("sslmode", [None, "disable", "allow", "prefer", "require", "verify-ca", "verify-full"])
-    def test_certificates_require_tls(self, alias, password, sslmode):
+    def test_certificate_sslmode_validation(self, alias, password, sslmode):
         options = {"sslcert": "/client.crt", "sslkey": "/client.key"}
         if sslmode is not None:
             options["sslmode"] = sslmode
         settings = self._settings(alias, password, options)
-        if sslmode in ("require", "verify-ca", "verify-full"):
+        if sslmode in ("prefer", "require", "verify-ca", "verify-full"):
             settings.validators.validate()
         else:
-            with pytest.raises(ValidationError, match="sslmode must be require, verify-ca or verify-full"):
+            with pytest.raises(ValidationError, match="sslmode must be prefer, require, verify-ca or verify-full"):
                 settings.validators.validate()
 
     @pytest.mark.parametrize("alias", ["default", "awx"])
