@@ -136,6 +136,7 @@ AWX job execution record for reporting.
 | Field group | Examples |
 |-------------|----------|
 | AWX identity | `job_id` (unique), `template_id`, `project_id`, `organization_id` |
+| Shared identity | `organization_ansible_id` (Controller DAB resource UUID; used for organization authorization) |
 | Timing | `started`, `finished`, `elapsed` |
 | Status | `status` (`successful`, `failed`, …) |
 | Hosts | `num_hosts` |
@@ -164,9 +165,19 @@ Saved UI filter configurations (user-owned).
 
 Singleton ROI settings (`pk=1`): monthly subscription cost, engineer hourly rate.
 
+### OrganizationDashboardSettings
+
+Private per-user, per-organization overrides for subscription costs. Missing
+fields fall back to the shared `SubscriptionCost` values.
+
 ### TemplateMetadata
 
 Estimated run duration per AWX job template for cost calculations.
+
+### OrganizationTemplateMetadataOverride
+
+Private per-user, per-organization, per-template overrides for manual and
+automation time estimates. Missing values use the shared `TemplateMetadata` row.
 
 ## Dynamic Settings (`apps/dynamic_settings/models.py`)
 

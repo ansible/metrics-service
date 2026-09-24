@@ -99,6 +99,28 @@ class TestOrgAdminAccess:
 
 
 @pytest.mark.django_db
+def test_dashboard_access_reuses_organization_member_and_admin_roles(organization, org_admin_rd):
+    from django.contrib.auth import get_user_model
+
+    from apps.dashboard_reports.permissions import get_dashboard_scope
+
+    user_model = get_user_model()
+    member = user_model.objects.create_user(username=f"dashboard-member-{uuid.uuid4().hex[:8]}")
+    admin = user_model.objects.create_user(username=f"dashboard-admin-{uuid.uuid4().hex[:8]}")
+    org_member_rd = RoleDefinition.objects.get(name="Organization Member")
+    org_member_rd.give_permission(member, organization)
+    org_admin_rd.give_permission(admin, organization)
+
+    member_scope = get_dashboard_scope(member)
+    admin_scope = get_dashboard_scope(admin)
+
+    assert not member_scope.global_access
+    assert [(org.id, org.can_edit) for org in member_scope.organizations] == [(organization.id, False)]
+    assert not admin_scope.global_access
+    assert [(org.id, org.can_edit) for org in admin_scope.organizations] == [(organization.id, True)]
+
+
+@pytest.mark.django_db
 class TestTeamRoleAccess:
     """Team Admin vs Team Member permissions."""
 

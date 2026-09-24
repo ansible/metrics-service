@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
 from apps.dashboard_reports.models import JobData
+from apps.dashboard_reports.permissions import can_view_dashboard
 from apps.dynamic_settings.models import Setting
 from apps.tasks.models import Task
 from apps.tasks.task_groups import get_feature_enabled_from_db
@@ -88,10 +89,11 @@ class DashboardCollectionStatusViewSet(ViewSet):
         initial_collection_status reflects the status of the one-shot initial collection task:
         "pending", "running", "completed", "failed", or "cancelled".
         """
-        is_system_admin_or_auditor = IsSystemAdminOrAuditor().has_permission(request, self)
         enabled = get_feature_enabled_from_db("DASHBOARD_COLLECTION", default=True)
         show_gamification = get_feature_enabled_from_db("SHOW_GAMIFICATION", default=False)
-        show_dashboard = get_feature_enabled_from_db("SHOW_DASHBOARD", default=True) and is_system_admin_or_auditor
+        show_dashboard = get_feature_enabled_from_db("SHOW_DASHBOARD", default=True) and can_view_dashboard(
+            request.user
+        )
 
         next_run = None
         initial_collection_status = None
@@ -123,6 +125,6 @@ class DashboardCollectionStatusViewSet(ViewSet):
                 "initial_collection_status": initial_collection_status,
                 "min_collection_timestamp": min_collection_timestamp,
                 "show_gamification": show_gamification,  # toggle-able by admins/system-auditors
-                "show_dashboard": show_dashboard,  # only if user == admin
+                "show_dashboard": show_dashboard,
             }
         )

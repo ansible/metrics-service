@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 import pytest
 
@@ -90,6 +91,11 @@ class TestAWXQueries:
         clause, params = awx_queries._build_where_clause("z.", "bar", 7)
         assert clause == " WHERE z.name ilike %s ESCAPE E'\\\\' AND z.id = %s"
         assert params == ["%bar%", 7]
+
+    def test_build_where_clause_scopes_allowed_ids(self):
+        clause, params = awx_queries._build_where_clause("mo.", None, None, [3, 9])
+        assert clause == " WHERE mo.id = ANY(%s)"
+        assert params == [[3, 9]]
 
     def test_format_id_name_rows(self):
         rows = [(1, "A"), (2, "B")]
@@ -244,3 +250,25 @@ class TestAWXQueries:
         assert "main_label l" in AWXQuery.LABELS.value
         assert "JOIN main_organization o" in AWXQuery.LABELS.value
         assert "organization_name" in AWXQuery.LABELS.value
+
+    def test_fetch_controller_organizations_joins_shared_resource_identity(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchall.return_value = [(17, "Org A", "22222222-2222-2222-2222-222222222222")]
+        mock_conn.cursor.return_value = mock_cursor
+
+        rows = awx_queries.fetch_controller_organizations(
+            mock_conn, ansible_ids=["22222222-2222-2222-2222-222222222222"]
+        )
+
+        assert rows == [{"id": 17, "name": "Org A", "ansible_id": UUID("22222222-2222-2222-2222-222222222222")}]
+        query, params = mock_cursor.execute.call_args.args
+        assert "django_content_type organization_ct" in query
+        assert "organization_ct.app_label = 'main'" in query
+        assert "organization_ct.model = 'organization'" in query
+        assert "dab_resource_registry_resource resource" in query
+        assert "resource.object_id = mo.id::text" in query
+        assert "resource.ansible_id::text = ANY(%s)" in query
+        assert params == [["22222222-2222-2222-2222-222222222222"]]

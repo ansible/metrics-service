@@ -64,20 +64,17 @@ class TestResourceAPIConfiguration(TestCase):
         org_config = org_configs[0]
         assert org_config.model == Organization
 
-    def test_resource_list_does_not_include_roledefinition(self):
-        """Test that RoleDefinition is not included in RESOURCE_LIST (matching platform-service-example pattern)."""
+    def test_resource_list_includes_roledefinition_for_pull_sync(self):
+        """Role definitions are shared read-only resources so Gateway definitions can sync into metrics."""
+        from ansible_base.rbac.models import RoleDefinition
+        from ansible_base.resource_registry.shared_types import RoleDefinitionType
+
         from apps.core.resource_api import RESOURCE_LIST
 
-        # RoleDefinition is not included in the resource list for this service
-        try:
-            from ansible_base.rbac.models import RoleDefinition
-
-            role_configs = [rc for rc in RESOURCE_LIST if rc.model == RoleDefinition]
-            # RoleDefinition should NOT be in RESOURCE_LIST (platform-service-example pattern)
-            assert len(role_configs) == 0
-        except ImportError:
-            # If import fails, that's fine - RoleDefinition wouldn't be there anyway
-            pass
+        role_configs = [rc for rc in RESOURCE_LIST if rc.model == RoleDefinition]
+        assert len(role_configs) == 1
+        assert role_configs[0].externally_managed is True
+        assert role_configs[0].managed_serializer is RoleDefinitionType
 
     def test_module_imports(self):
         """Test that all required modules can be imported."""
