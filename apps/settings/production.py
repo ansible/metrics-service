@@ -28,7 +28,7 @@ Usage:
    export METRICS_SERVICE_DATABASES__default__PASSWORD=your-db-password
    # For either database (default or awx), a password may instead be omitted
    # when OPTIONS__sslcert and OPTIONS__sslkey are both set and OPTIONS__sslmode
-   # is require, verify-ca, or verify-full. Use lowercase OPTIONS keys exactly.
+   # is prefer, require, verify-ca, or verify-full. Use lowercase OPTIONS keys exactly.
    # Prefer verify-full with OPTIONS__sslrootcert pointing to the server CA.
    # ... set all other required environment variables
    python manage.py metrics_service run --workers 4
@@ -205,7 +205,7 @@ def _database_auth_validators(alias: str) -> list[Validator]:
     )
     pair_message = f"{cert} and {key} must be set together."
     tls_message = (
-        f"{prefix}__OPTIONS__sslmode must be require, verify-ca or verify-full "
+        f"{prefix}__OPTIONS__sslmode must be prefer, require, verify-ca or verify-full "
         "when client certificate authentication is configured."
     )
     return [
@@ -226,7 +226,7 @@ def _database_auth_validators(alias: str) -> list[Validator]:
         Validator(
             f"{prefix}__OPTIONS__sslmode",
             must_exist=True,
-            is_in=("require", "verify-ca", "verify-full"),
+            is_in=("prefer", "require", "verify-ca", "verify-full"),
             when=certificate_configured,
             messages={"must_exist_true": tls_message, "operations": tls_message},
         ),
