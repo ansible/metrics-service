@@ -367,6 +367,30 @@ class TestSystemTaskCreation(TestCase):
         assert task.status == "completed"
 
     @pytest.mark.django_db(transaction=True)
+    def test_completed_initial_resource_sync_is_requeued_on_reinit(self):
+        """A completed Gateway resource sync is pending again after system task initialization."""
+        Task.objects.create(
+            name="initial_resource_sync",
+            function_name="sync_resources_from_gateway",
+            is_system_task=True,
+            cron_expression=None,
+            status="completed",
+        )
+        sync_config = {
+            "initial_resource_sync": {
+                "function": "sync_resources_from_gateway",
+                "description": "Gateway resource sync",
+                "cron": None,
+                "args": {},
+            }
+        }
+        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=sync_config):
+            tasks_system.create_system_tasks()
+
+        task = Task.objects.get(name="initial_resource_sync", is_system_task=True)
+        assert task.status == "pending"
+
+    @pytest.mark.django_db(transaction=True)
     def test_failed_oneshot_is_reset_to_pending(self):
         """A failed one-shot task is recreated as pending so it can retry on next init."""
         Task.objects.create(

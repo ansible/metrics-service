@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 RETRY_BASE_DELAY_SECONDS = 480  # 8 minutes - must not be a multiple of 5 (task cron spacing) to avoid retry collisions
 RETRY_MAX_DELAY_SECONDS = 28800  # 8 hours - upper cap on any single retry delay
 
+# Reconcile Gateway resources every time system tasks are initialized, including
+# after installation and upgrades. Other completed one-shot tasks stay completed.
+RERUN_ON_SYSTEM_TASK_INIT = {"initial_resource_sync"}
+
 
 def compute_retry_delay(base_delay: int, attempts: int) -> int:
     """Seconds before next retry: min(base_delay * 2**max(0, attempts - 1), RETRY_MAX_DELAY_SECONDS)."""
@@ -257,16 +261,19 @@ def create_system_tasks() -> dict[str, Any]:
 
     results = {"created": 0, "removed": 0, "tasks": []}
 
-    # Snapshot completed one-shot tasks before deletion so that upgrades don't re-trigger
-    # tasks (e.g. initial_dashboard_collection) that have already run successfully.
-    # Only one-shot tasks (cron_expression=None) are preserved — recurring tasks are always
+    # Snapshot completed one-shot tasks before deletion so upgrades don't re-trigger
+    # one-time work such as initial dashboard collection. Resource sync is excluded so
+    # it runs again after each install/upgrade and reconciles local resources with Gateway.
+    # Only one-shot tasks (cron_expression=None) are preserved; recurring tasks are always
     # recreated as pending so their schedules stay in sync with updated cron expressions.
     completed_oneshots = set(
         Task.objects.filter(
             is_system_task=True,
             cron_expression__isnull=True,
             status="completed",
-        ).values_list("name", flat=True)
+        )
+        .exclude(name__in=RERUN_ON_SYSTEM_TASK_INIT)
+        .values_list("name", flat=True)
     )
 
     # Remove all existing system tasks
