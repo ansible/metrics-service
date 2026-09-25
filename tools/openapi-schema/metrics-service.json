@@ -187,6 +187,120 @@
                 "x-ai-description": "Retrieve a audit trail entry for tracking system changes and user actions"
             }
         },
+        "/api/v1/analytics/": {
+            "get": {
+                "operationId": "analytics_retrieve",
+                "description": "Return the enabled collectors and their rows URLs.",
+                "tags": [
+                    "analytics"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                },
+                "x-ai-description": "Retrieve single analytic"
+            }
+        },
+        "/api/v1/analytics/{collector}/": {
+            "get": {
+                "operationId": "analytics_list",
+                "description": "Return one collector's stored raw payloads, window-overlap filtered + paginated.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "collector",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    },
+                    {
+                        "name": "page",
+                        "required": false,
+                        "in": "query",
+                        "description": "A page number within the paginated result set.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "page_size",
+                        "required": false,
+                        "in": "query",
+                        "description": "Number of results to return per page.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginatedAnalyticsPayloadList"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "x-ai-description": "List all analytics"
+            }
+        },
+        "/api/v1/analytics/{collector}/collect/": {
+            "post": {
+                "operationId": "analytics_collect_create",
+                "description": "Create a pending task and return its details without claiming a payload row.",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "collector",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "required": true
+                    }
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No response body"
+                    }
+                },
+                "x-ai-description": "Create new collect for an analytic"
+            }
+        },
         "/api/v1/dashboard_reports/collection_status/": {
             "get": {
                 "operationId": "dashboard_reports_collection_status_list",
@@ -1102,9 +1216,8 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         },
-                        "description": "A unique integer value identifying this Job Data.",
                         "required": true
                     }
                 ],
@@ -1633,9 +1746,8 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         },
-                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -1692,9 +1804,8 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         },
-                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -11279,6 +11390,58 @@
                     "username"
                 ]
             },
+            "AnalyticsPayload": {
+                "type": "object",
+                "description": "Serialise one stored raw collection envelope.",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "readOnly": true
+                    },
+                    "collector": {
+                        "type": "string",
+                        "readOnly": true,
+                        "description": "Collector name (collector_type / API path segment)"
+                    },
+                    "source": {
+                        "type": "string",
+                        "readOnly": true,
+                        "description": "Originating platform component, such as local, controller, eda, or hub."
+                    },
+                    "since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "readOnly": true,
+                        "nullable": true,
+                        "description": "`since` passed to the collector (inclusive), if any"
+                    },
+                    "until": {
+                        "type": "string",
+                        "format": "date-time",
+                        "readOnly": true,
+                        "nullable": true,
+                        "description": "`until` passed to the collector (exclusive), if any"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "readOnly": true,
+                        "description": "When collection (gather) started"
+                    },
+                    "finished_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "readOnly": true,
+                        "description": "When collection (gather) finished"
+                    },
+                    "payload": {
+                        "type": "object",
+                        "additionalProperties": {},
+                        "readOnly": true,
+                        "description": "Raw pre-prepare() gather() output, JSON-serialisable"
+                    }
+                }
+            },
             "AutomationStreak": {
                 "type": "object",
                 "description": "Daily successful-run series plus the current consecutive-day streak.",
@@ -12117,6 +12280,37 @@
                 "required": [
                     "name"
                 ]
+            },
+            "PaginatedAnalyticsPayloadList": {
+                "type": "object",
+                "required": [
+                    "count",
+                    "results"
+                ],
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "example": 123
+                    },
+                    "next": {
+                        "type": "string",
+                        "nullable": true,
+                        "format": "uri",
+                        "example": "http://api.example.org/accounts/?page=4"
+                    },
+                    "previous": {
+                        "type": "string",
+                        "nullable": true,
+                        "format": "uri",
+                        "example": "http://api.example.org/accounts/?page=2"
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AnalyticsPayload"
+                        }
+                    }
+                }
             },
             "PaginatedDABContentTypeList": {
                 "type": "object",
