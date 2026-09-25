@@ -50,7 +50,7 @@ spec:
     - name: pipeline-github-pr-number
       value: "{{pull_request_number}}"
     - name: aap-dev-component-source-name
-      value: "ansible-metrics-service"
+      value: "metrics-service-rhel9"
 
   workspaces:
     - name: workspace
