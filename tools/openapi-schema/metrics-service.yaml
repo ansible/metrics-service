@@ -7142,8 +7142,8 @@ paths:
   /api/v1/users/me/:
     get:
       operationId: users_me_retrieve
-      description: Get currently logged in user's details, including `member_of_organizations`
-        from locally synced RBAC assignments.
+      description: Get the current user's local organization memberships and whether
+        they hold the global Platform Auditor role.
       summary: Get current user details
       tags:
       - users
@@ -10111,7 +10111,8 @@ components:
       - username
     UserMe:
       type: object
-      description: Serializer for `/users/me/`, including explicit organization memberships.
+      description: Serializer for `/users/me/`, including organization membership
+        and auditor status.
       properties:
         id:
           type: integer
@@ -10135,6 +10136,10 @@ components:
           items:
             $ref: '#/components/schemas/OrganizationMembership'
           readOnly: true
+        is_system_auditor:
+          type: boolean
+          readOnly: true
+          description: Whether the user has the global Platform Auditor role.
         last_login:
           type: string
           format: date-time

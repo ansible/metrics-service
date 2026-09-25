@@ -79,8 +79,7 @@ class UserViewSet(BaseViewSet):
     @extend_schema(
         summary="Get current user details",
         description=(
-            "Get currently logged in user's details, including `member_of_organizations` "
-            "from locally synced RBAC assignments."
+            "Get the current user's local organization memberships and whether they hold the global Platform Auditor role."
         ),
         responses={200: UserMeSerializer},
     )
@@ -89,6 +88,7 @@ class UserViewSet(BaseViewSet):
         """Return the current user's profile and locally synced organization memberships."""
         serializer = self.get_serializer(request.user)
         data = serializer.data
+        data["is_system_auditor"] = request.user.is_platform_auditor
         try:
             data["member_of_organizations"] = request.user.get_member_organizations()
         except Exception:
