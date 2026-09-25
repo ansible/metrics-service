@@ -2602,7 +2602,7 @@ paths:
       x-ai-description: Retrieve single assignment for a role_definition
   /api/v1/role_definitions/{id}/user_assignments/:
     get:
-      operationId: role_definitions_user_assignments_retrieve
+      operationId: role_definitions_user_assignments_list
       description: |-
         Manage Role User Assignment objects in the 'user_assignments' relationship of this particular Role Definition.
 
@@ -2616,6 +2616,41 @@ paths:
           type: string
           pattern: ^[0-9]+$
         required: true
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - role_definitions
       security:
@@ -2623,8 +2658,12 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
-      x-ai-description: Retrieve single assignment for a role_definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoleUserAssignmentList'
+          description: ''
+      x-ai-description: List all assignments for a role_definition
   /api/v1/role_metadata/:
     get:
       operationId: role_metadata_retrieve
@@ -2915,7 +2954,7 @@ paths:
       x-ai-description: List all role user access
   /api/v1/role_user_access/{model_name}/{id}/{actor_pk}/:
     get:
-      operationId: role_user_access_retrieve
+      operationId: role_user_access_list_2
       description: |-
         This gives drill-down information about the means of inheritance
         for all the permissions show in the higher-level view of the access list
@@ -2936,6 +2975,41 @@ paths:
         schema:
           type: string
         required: true
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - role_user_access
       security:
@@ -2943,11 +3017,51 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
-      x-ai-description: Retrieve single role user access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserAccessAssignmentList'
+          description: ''
+      x-ai-description: List all role user access
   /api/v1/role_user_assignments/:
     get:
-      operationId: role_user_assignments_retrieve
+      operationId: role_user_assignments_list
+      parameters:
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - role_user_assignments
       security:
@@ -2955,9 +3069,13 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
-      x-ai-description: Retrieve a RBAC role grants assigning permissions to user
-        for specific resources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoleUserAssignmentList'
+          description: ''
+      x-ai-description: List RBAC role grants assigning permissions to users for specific
+        resources
     post:
       operationId: role_user_assignments_create
       description: Give a user permission to a resource, an organization, or globally
@@ -3011,12 +3129,16 @@ paths:
       - basicAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleUserAssignment'
+          description: ''
       x-ai-description: Create a RBAC role grants assigning permissions to user for
         specific resources
   /api/v1/role_user_assignments/{id}/:
     get:
-      operationId: role_user_assignments_retrieve_2
+      operationId: role_user_assignments_retrieve
       parameters:
       - in: path
         name: id
@@ -3031,7 +3153,11 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleUserAssignment'
+          description: ''
       x-ai-description: Retrieve a RBAC role grants assigning permissions to user
         for specific resources
     delete:
@@ -7142,8 +7268,8 @@ paths:
   /api/v1/users/me/:
     get:
       operationId: users_me_retrieve
-      description: Get currently logged in user's details, including `member_of_organizations`
-        from locally synced RBAC assignments.
+      description: Get the current user's local organization memberships and whether
+        they hold the global Platform Auditor role.
       summary: Get current user details
       tags:
       - users
@@ -8123,6 +8249,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RoleDefinition'
+    PaginatedRoleUserAssignmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleUserAssignment'
     PaginatedServiceRoleTeamAssignmentList:
       type: object
       required:
@@ -8284,6 +8433,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Team'
+    PaginatedUserAccessAssignmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserAccessAssignment'
     PaginatedUserAccessViewSet_User_List:
       type: object
       required:
@@ -9054,6 +9226,67 @@ components:
             its content type.
       required:
       - allowed_permissions
+    RoleUserAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+        related:
+          type: object
+          additionalProperties:
+            type: string
+          readOnly: true
+        summary_fields:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+          description: The date/time this resource was created.
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: The user who created this resource.
+        content_type:
+          type: string
+          description: String to use for references to this type from other models
+            in the API.
+          readOnly: true
+        object_id:
+          type: string
+          nullable: true
+          description: The primary key of the object this assignment applies to; null
+            value indicates system-wide assignment.
+        object_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource id of the object this role applies to. An alternative
+            to the object_id field.
+        role_definition:
+          type: integer
+          description: The role definition which defines permissions conveyed by this
+            assignment.
+        user:
+          type: integer
+          nullable: true
+        user_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource ID of the user who will receive permissions from
+            this assignment. An alternative to user field.
+      required:
+      - role_definition
     ScheduleImmediateResponse:
       type: object
       properties:
@@ -10071,6 +10304,70 @@ components:
           format: date-time
       required:
       - username
+    UserAccessAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+        related:
+          type: object
+          additionalProperties:
+            type: string
+          readOnly: true
+        summary_fields:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+          description: The date/time this resource was created.
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: The user who created this resource.
+        content_type:
+          type: string
+          description: String to use for references to this type from other models
+            in the API.
+          readOnly: true
+        object_id:
+          type: string
+          nullable: true
+          description: The primary key of the object this assignment applies to; null
+            value indicates system-wide assignment.
+        object_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource id of the object this role applies to. An alternative
+            to the object_id field.
+        role_definition:
+          type: integer
+          description: The role definition which defines permissions conveyed by this
+            assignment.
+        user:
+          type: integer
+          nullable: true
+        user_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource ID of the user who will receive permissions from
+            this assignment. An alternative to user field.
+        intermediary_roles:
+          type: string
+          readOnly: true
+      required:
+      - role_definition
     UserAccessViewSet_User_:
       type: object
       description: controller uses auth.User model so this needs to be as compatible
@@ -10111,7 +10408,8 @@ components:
       - username
     UserMe:
       type: object
-      description: Serializer for `/users/me/`, including explicit organization memberships.
+      description: Serializer for `/users/me/`, including organization membership
+        and auditor status.
       properties:
         id:
           type: integer
@@ -10135,6 +10433,10 @@ components:
           items:
             $ref: '#/components/schemas/OrganizationMembership'
           readOnly: true
+        is_system_auditor:
+          type: boolean
+          readOnly: true
+          description: Whether the user has the global Platform Auditor role.
         last_login:
           type: string
           format: date-time

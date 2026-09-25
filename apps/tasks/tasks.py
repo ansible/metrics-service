@@ -73,6 +73,7 @@ TASK_FUNCTIONS = {
 # The lock key is the function name. Locking is applied in execute_db_task,
 # so direct invocations (e.g. run_task.py) run without contention.
 TASK_LOCKS = {
+    "sync_resources_from_gateway",
     "collect_hourly_metrics",
     "collect_snapshot_metrics",
     "daily_metrics_rollup",

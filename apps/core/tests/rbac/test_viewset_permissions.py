@@ -45,6 +45,7 @@ class TestSuperuserAccess:
         r = admin_api_client.get("/api/v1/users/me/")
         assert r.status_code == 200
         assert r.data["member_of_organizations"] == []
+        assert r.data["is_system_auditor"] is False
 
 
 @pytest.mark.django_db
@@ -79,6 +80,7 @@ class TestNormalUserAccess:
         assert r.status_code == 200
         assert r.data["username"] == rando.username
         assert r.data["member_of_organizations"] == []
+        assert r.data["is_system_auditor"] is False
         get_client.assert_not_called()
 
 
@@ -195,6 +197,7 @@ class TestUsersEndpointRBAC:
         r = user_api_client.get("/api/v1/users/me/")
         assert r.status_code == 200
         assert r.data["member_of_organizations"] == []
+        assert r.data["is_system_auditor"] is True
 
     def test_superuser_can_list_users(self, admin_api_client):
         r = admin_api_client.get("/api/v1/users/")

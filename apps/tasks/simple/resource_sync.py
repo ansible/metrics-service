@@ -1,38 +1,112 @@
-"""One-time resource sync task — pulls users, orgs, teams and RBAC assignments from gateway."""
+"""One-time resource sync task — pulls users, orgs, teams and RBAC assignments from Gateway."""
 
 import logging
 from io import StringIO
 
-from ansible_base.resource_registry.tasks.sync import SyncExecutor
+from ansible_base.resource_registry.tasks.sync import (
+    AssignmentTuple,
+    SyncExecutor,
+    create_api_client,
+    create_local_assignment,
+    delete_local_assignment,
+    get_local_assignments,
+    get_remote_assignments,
+)
 
 from ..utils import create_task_result
 
 logger = logging.getLogger(__name__)
 
 
+def _reconcile_assignments(remote_assignments: set[AssignmentTuple], stdout: StringIO) -> dict[str, int]:
+    """Apply a complete Gateway assignment snapshot to the local RBAC tables."""
+    local_assignments = get_local_assignments()
+    to_delete = local_assignments - remote_assignments
+    to_create = remote_assignments - local_assignments
+
+    summary = {"assignments_created": 0, "assignments_deleted": 0, "assignment_errors": 0}
+
+    for assignment in to_delete:
+        detail = (
+            f"{assignment.assignment_type} {assignment.actor_ansible_id} -> "
+            f"{assignment.role_definition_name} on {assignment.ansible_id_or_pk or 'global'}"
+        )
+        if delete_local_assignment(assignment):
+            summary["assignments_deleted"] += 1
+            stdout.write(f"DELETED assignment {detail}\n")
+        else:
+            summary["assignment_errors"] += 1
+            stdout.write(f"FAILED to delete assignment {detail}\n")
+
+    for assignment in to_create:
+        detail = (
+            f"{assignment.assignment_type} {assignment.actor_ansible_id} -> "
+            f"{assignment.role_definition_name} on {assignment.ansible_id_or_pk or 'global'}"
+        )
+        if create_local_assignment(assignment):
+            summary["assignments_created"] += 1
+            stdout.write(f"CREATED assignment {detail}\n")
+        else:
+            summary["assignment_errors"] += 1
+            stdout.write(f"FAILED to create assignment {detail}\n")
+
+    return summary
+
+
 def sync_resources_from_gateway(**kwargs) -> dict:
     """
-    Sync all shared resources and RBAC role assignments from the gateway.
+    Sync shared resources and complete RBAC role-assignment snapshots from Gateway.
 
-    Runs SyncExecutor with no resource type filter so organization and team
-    objects are created before user assignments that reference them, avoiding
-    DoesNotExist errors on object-scoped roles.
-
-    Idempotent — safe to run on upgrade and on first boot.
+    Sync resources independently from role assignments. DAB's built-in assignment sync
+    is disabled so this task can require a complete assignment snapshot before applying
+    snapshot-based assignment reconciliation; incomplete snapshots return an error and
+    are retried later.
     """
     stdout = StringIO()
-    executor = SyncExecutor(stdout=stdout)
+    summary = {}
 
     try:
+        api_client = create_api_client()
+        executor = SyncExecutor(api_client=api_client, sync_assignments=False, stdout=stdout)
         executor.run()
+
+        results = getattr(executor, "results", {})
+        summary = {key: len(value) for key, value in results.items() if isinstance(value, list)}
+        resource_errors = sum(len(results.get(status, [])) for status in ("error", "unavailable"))
+        if resource_errors:
+            error = f"Resource sync completed with {resource_errors} errors; assignments were not reconciled."
+            logger.error(error)
+            return create_task_result("error", data={"summary": summary, "output": stdout.getvalue()}, error=error)
+
+        resource_conflicts = len(results.get("conflict", []))
+        if resource_conflicts:
+            logger.warning(
+                "Resource sync completed with %s conflicts; continuing with assignment reconciliation.",
+                resource_conflicts,
+            )
+
+        remote_result = get_remote_assignments(api_client)
     except Exception as exc:
-        logger.error("resource sync failed: %s", exc, exc_info=True)
-        output = stdout.getvalue()
-        return create_task_result("error", data={"output": output}, error=str(exc))
+        logger.error("resource sync or assignment fetch failed: %s", exc, exc_info=True)
+        return create_task_result("error", data={"summary": summary, "output": stdout.getvalue()}, error=str(exc))
 
-    output = stdout.getvalue()
-    results = getattr(executor, "results", {})
-    summary = {k: len(v) for k, v in results.items() if isinstance(v, list)}
+    if not remote_result.is_complete:
+        error = "Gateway role-assignment fetch was incomplete; no local assignment reconciliation was applied."
+        logger.warning(error)
+        stdout.write(f"{error}\n")
+        return create_task_result("error", data={"summary": summary, "output": stdout.getvalue()}, error=error)
+
+    try:
+        assignment_summary = _reconcile_assignments(remote_result.assignments, stdout)
+    except Exception as exc:
+        logger.error("role assignment reconciliation failed: %s", exc, exc_info=True)
+        return create_task_result("error", data={"summary": summary, "output": stdout.getvalue()}, error=str(exc))
+
+    summary.update(assignment_summary)
+    if assignment_summary["assignment_errors"]:
+        error = f"Role assignment reconciliation had {assignment_summary['assignment_errors']} errors."
+        logger.error(error)
+        return create_task_result("error", data={"summary": summary, "output": stdout.getvalue()}, error=error)
+
     logger.info("resource sync complete: %s", summary)
-
-    return create_task_result("success", {"summary": summary, "output": output})
+    return create_task_result("success", {"summary": summary, "output": stdout.getvalue()})

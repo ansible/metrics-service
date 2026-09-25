@@ -53,6 +53,12 @@ class UserViewSet(BaseViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
+    def get_serializer_class(self):
+        """Use the profile serializer for `/users/me/`."""
+        if self.action == "me":
+            return UserMeSerializer
+        return super().get_serializer_class()
+
     def get_permissions(self):
         """
         Return permission instances based on the current action.
@@ -79,8 +85,7 @@ class UserViewSet(BaseViewSet):
     @extend_schema(
         summary="Get current user details",
         description=(
-            "Get currently logged in user's details, including `member_of_organizations` "
-            "from locally synced RBAC assignments."
+            "Get the current user's local organization memberships and whether they hold the global Platform Auditor role."
         ),
         responses={200: UserMeSerializer},
     )

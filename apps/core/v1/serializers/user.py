@@ -45,6 +45,11 @@ class OrganizationMembershipSerializer(serializers.Serializer):
 
 
 class UserMeSerializer(UserSerializer):
-    """Serializer for `/users/me/`, including explicit organization memberships."""
+    """Serializer for `/users/me/`, including organization membership and auditor status."""
 
     member_of_organizations = OrganizationMembershipSerializer(many=True, read_only=True)
+    is_system_auditor = serializers.BooleanField(
+        source="is_platform_auditor",
+        read_only=True,
+        help_text="Whether the user has the global Platform Auditor role.",
+    )
