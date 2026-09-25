@@ -165,7 +165,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
         {
             "task_id": "initial_resource_sync",
             "function": "sync_resources_from_gateway",
-            "cron": None,  # Run once after each system-task initialization
+            "cron": None,  # Run once for each installed service/DAB build
             "args": {
                 # Short base delay so retries align with the gateway's 60s service-id
                 # populate cooldown.  Backoff: 60s → 120s → 240s → 480s.
@@ -173,7 +173,7 @@ SYSTEM_TASKS_GROUP = TaskGroup(
             },
             "max_attempts": 5,
             "enabled": True,
-            "description": "Reconcile users, orgs, teams and RBAC role assignments from Gateway during service initialization",
+            "description": "Reconcile users, orgs, teams and RBAC role assignments from Gateway after install or upgrade",
         },
     ],
 )

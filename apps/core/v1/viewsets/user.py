@@ -53,6 +53,12 @@ class UserViewSet(BaseViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
+    def get_serializer_class(self):
+        """Use the profile serializer for `/users/me/`."""
+        if self.action == "me":
+            return UserMeSerializer
+        return super().get_serializer_class()
+
     def get_permissions(self):
         """
         Return permission instances based on the current action.
@@ -88,7 +94,6 @@ class UserViewSet(BaseViewSet):
         """Return the current user's profile and locally synced organization memberships."""
         serializer = self.get_serializer(request.user)
         data = serializer.data
-        data["is_system_auditor"] = request.user.is_platform_auditor
         try:
             data["member_of_organizations"] = request.user.get_member_organizations()
         except Exception:

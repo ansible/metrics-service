@@ -367,14 +367,15 @@ class TestSystemTaskCreation(TestCase):
         assert task.status == "completed"
 
     @pytest.mark.django_db(transaction=True)
-    def test_completed_initial_resource_sync_is_requeued_on_reinit(self):
-        """A completed Gateway resource sync is pending again after system task initialization."""
+    def test_completed_initial_resource_sync_is_preserved_for_same_build(self):
+        """A successful Gateway resource sync stays complete across restarts of the same build."""
         Task.objects.create(
             name="initial_resource_sync",
             function_name="sync_resources_from_gateway",
             is_system_task=True,
             cron_expression=None,
             status="completed",
+            task_data={"_resource_sync_version": "build-a"},
         )
         sync_config = {
             "initial_resource_sync": {
@@ -384,11 +385,65 @@ class TestSystemTaskCreation(TestCase):
                 "args": {},
             }
         }
-        with patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=sync_config):
+        with (
+            patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=sync_config),
+            patch("apps.tasks.tasks_system._get_resource_sync_version", return_value="build-a"),
+        ):
+            tasks_system.create_system_tasks()
+
+        task = Task.objects.get(name="initial_resource_sync", is_system_task=True)
+        assert task.status == "completed"
+        assert task.task_data["_resource_sync_version"] == "build-a"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_completed_initial_resource_sync_is_requeued_for_new_build(self):
+        """A successful sync is pending again when the installed build changes."""
+        Task.objects.create(
+            name="initial_resource_sync",
+            function_name="sync_resources_from_gateway",
+            is_system_task=True,
+            cron_expression=None,
+            status="completed",
+            task_data={"_resource_sync_version": "build-a"},
+        )
+        sync_config = {
+            "initial_resource_sync": {
+                "function": "sync_resources_from_gateway",
+                "description": "Gateway resource sync",
+                "cron": None,
+                "args": {},
+            }
+        }
+        with (
+            patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=sync_config),
+            patch("apps.tasks.tasks_system._get_resource_sync_version", return_value="build-b"),
+        ):
             tasks_system.create_system_tasks()
 
         task = Task.objects.get(name="initial_resource_sync", is_system_task=True)
         assert task.status == "pending"
+        assert task.task_data["_resource_sync_version"] == "build-b"
+
+    @pytest.mark.django_db(transaction=True)
+    def test_initial_resource_sync_records_build_fingerprint(self):
+        """A fresh sync task records the build that it must complete for."""
+        sync_config = {
+            "initial_resource_sync": {
+                "function": "sync_resources_from_gateway",
+                "description": "Gateway resource sync",
+                "cron": None,
+                "args": {},
+            }
+        }
+        with (
+            patch("apps.tasks.task_groups.get_all_tasks_for_init", return_value=sync_config),
+            patch("apps.tasks.tasks_system._get_resource_sync_version", return_value="build-a"),
+        ):
+            tasks_system.create_system_tasks()
+
+        task = Task.objects.get(name="initial_resource_sync", is_system_task=True)
+        assert task.status == "pending"
+        assert task.task_data["_resource_sync_version"] == "build-a"
 
     @pytest.mark.django_db(transaction=True)
     def test_failed_oneshot_is_reset_to_pending(self):

@@ -5,7 +5,11 @@ This module provides system-level tasks including cleanup, maintenance,
 communication, and testing tasks with proper error handling and status tracking.
 """
 
+import hashlib
 import logging
+from importlib import util as importlib_util
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from typing import Any
 
 from django.db import models, transaction
@@ -24,9 +28,45 @@ logger = logging.getLogger(__name__)
 RETRY_BASE_DELAY_SECONDS = 480  # 8 minutes - must not be a multiple of 5 (task cron spacing) to avoid retry collisions
 RETRY_MAX_DELAY_SECONDS = 28800  # 8 hours - upper cap on any single retry delay
 
-# Reconcile Gateway resources every time system tasks are initialized, including
-# after installation and upgrades. Other completed one-shot tasks stay completed.
-RERUN_ON_SYSTEM_TASK_INIT = {"initial_resource_sync"}
+RESOURCE_SYNC_TASK_NAME = "initial_resource_sync"
+RESOURCE_SYNC_VERSION_KEY = "_resource_sync_version"
+
+
+def _get_resource_sync_version() -> str:
+    """Return a stable fingerprint for the installed service and DAB build."""
+    source_root = Path(__file__).resolve().parents[2]
+    digest = hashlib.sha256()
+
+    source_roots = [("apps", source_root / "apps"), ("metrics_service", source_root / "metrics_service")]
+    dab_spec = importlib_util.find_spec("ansible_base")
+    if dab_spec:
+        dab_roots = dab_spec.submodule_search_locations or (
+            [str(Path(dab_spec.origin).parent)] if dab_spec.origin else []
+        )
+        source_roots.extend(("ansible_base", Path(root)) for root in dab_roots)
+
+    source_files = []
+    for package_name, package_root in source_roots:
+        if package_root.exists():
+            source_files.extend(
+                (f"{package_name}/{path.relative_to(package_root).as_posix()}", path)
+                for path in package_root.rglob("*")
+                if path.is_file() and "__pycache__" not in path.parts and path.suffix not in {".pyc", ".pyo"}
+            )
+    for relative_path, path in sorted(source_files):
+        digest.update(relative_path.encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+
+    versions = []
+    for distribution in ("metrics-service", "django-ansible-base"):
+        try:
+            distribution_version = version(distribution)
+        except PackageNotFoundError:
+            distribution_version = "unknown"
+        versions.append(f"{distribution}={distribution_version}")
+
+    return f"{';'.join(versions)};source={digest.hexdigest()}"
 
 
 def compute_retry_delay(base_delay: int, attempts: int) -> int:
@@ -242,9 +282,11 @@ def create_system_tasks() -> dict[str, Any]:
     """
     Create system-defined tasks from task groups in the database.
 
-    This function is intended to be called only from the init container
+    This function is intended to be called from the init container
     (entrypoint-init.sh), before the application and scheduler start. At that
-    point no tasks can be running, so unconditional deletion is safe.
+    point no tasks can be running, so unconditional deletion is safe. A completed
+    Gateway resource sync is preserved across restarts while the installed build
+    fingerprint is unchanged.
 
     Removes all existing system tasks and recreates them from task group
     definitions, ensuring the database always matches the code.
@@ -261,20 +303,27 @@ def create_system_tasks() -> dict[str, Any]:
 
     results = {"created": 0, "removed": 0, "tasks": []}
 
-    # Snapshot completed one-shot tasks before deletion so upgrades don't re-trigger
-    # one-time work such as initial dashboard collection. Resource sync is excluded so
-    # it runs again after each install/upgrade and reconciles local resources with Gateway.
-    # Only one-shot tasks (cron_expression=None) are preserved; recurring tasks are always
-    # recreated as pending so their schedules stay in sync with updated cron expressions.
+    resource_sync_version = _get_resource_sync_version()
+
+    # Snapshot completed one-shot tasks before deletion so restarts don't re-trigger
+    # one-time work. Resource sync is preserved only for the same installed service/DAB
+    # build; an upgrade or an earlier failed sync leaves it pending. Recurring tasks are
+    # always recreated as pending so their schedules stay in sync with updated cron expressions.
     completed_oneshots = set(
         Task.objects.filter(
             is_system_task=True,
             cron_expression__isnull=True,
             status="completed",
-        )
-        .exclude(name__in=RERUN_ON_SYSTEM_TASK_INIT)
-        .values_list("name", flat=True)
+        ).values_list("name", flat=True)
     )
+    previous_sync = Task.objects.filter(
+        name=RESOURCE_SYNC_TASK_NAME,
+        is_system_task=True,
+        cron_expression__isnull=True,
+        status="completed",
+    ).first()
+    if previous_sync is None or previous_sync.task_data.get(RESOURCE_SYNC_VERSION_KEY) != resource_sync_version:
+        completed_oneshots.discard(RESOURCE_SYNC_TASK_NAME)
 
     # Remove all existing system tasks
     _, deletion_info = Task.objects.filter(is_system_task=True).delete()
@@ -294,6 +343,10 @@ def create_system_tasks() -> dict[str, Any]:
     # Create fresh tasks from task groups
     for task_id, config in task_groups.items():
         try:
+            if task_id == RESOURCE_SYNC_TASK_NAME:
+                config = config.copy()
+                config["args"] = config.get("args", {}).copy()
+                config["args"][RESOURCE_SYNC_VERSION_KEY] = resource_sync_version
             _create_task_from_group(task_id, config, results, Task)
         except Exception as e:
             results["tasks"].append(f"Error with {task_id}: {str(e)}")
