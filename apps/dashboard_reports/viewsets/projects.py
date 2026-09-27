@@ -40,6 +40,7 @@ class ProjectsViewSet(FilterOptionsViewSet):
     """
 
     awx_query_function = staticmethod(fetch_projects)
+    option_field = "project_id"
     list_error_msg = "Failed to fetch projects"
     retrieve_error_msg = "Failed to fetch project"
 

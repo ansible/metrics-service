@@ -143,6 +143,7 @@ _DASHBOARD_COLUMNS = [
     "name",
     "unified_job_template_id",
     "organization_id",
+    "organization_ansible_id",
     "organization_name",
     "started",
     "finished",
@@ -160,7 +161,15 @@ _DASHBOARD_COLUMNS = [
 
 
 _INT_FIELDS = ("id", "organization_id", "unified_job_template_id", "launched_by_id", "project_id", "num_hosts")
-_STRING_FIELDS = ("name", "organization_name", "status", "launched_by_username", "project_name", "label_ids")
+_STRING_FIELDS = (
+    "name",
+    "organization_name",
+    "organization_ansible_id",
+    "status",
+    "launched_by_username",
+    "project_name",
+    "label_ids",
+)
 
 
 def _is_nan(value: Any) -> bool:
@@ -190,8 +199,11 @@ def _serialize_dashboard_string_fields(row: dict) -> None:
     # Entirely missing string columns can also arrive as float NaN from pandas.
     for field in _STRING_FIELDS:
         val = row.get(field)
-        if _is_nan(val):
+        if val is None or _is_nan(val):
             row[field] = None
+        elif field == "organization_ansible_id":
+            # psycopg returns UUID objects; task_data is a JSONField payload.
+            row[field] = str(val)
 
 
 def _serialize_dashboard_elapsed(row: dict) -> None:

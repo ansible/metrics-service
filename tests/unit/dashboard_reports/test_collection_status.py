@@ -14,6 +14,7 @@ from apps.dashboard_reports.viewsets.collection_status import DashboardCollectio
 PATCH_FLAG = "apps.dashboard_reports.viewsets.collection_status.get_feature_enabled_from_db"
 PATCH_TASK = "apps.dashboard_reports.viewsets.collection_status.Task"
 PATCH_PERM = "ansible_base.rbac.api.permissions.IsSystemAdminOrAuditor.has_permission"
+PATCH_CAN_VIEW = "apps.dashboard_reports.viewsets.collection_status.can_view_dashboard"
 PATCH_MIN_TS = "apps.dashboard_reports.viewsets.collection_status.JobData.min_timestamp"
 PATCH_SETTING = "apps.dashboard_reports.viewsets.collection_status.Setting"
 factory = APIRequestFactory()
@@ -27,7 +28,7 @@ class TestDashboardCollectionStatusViewSet:
 
     @pytest.fixture(autouse=True)
     def bypass_permissions(self):
-        with patch(PATCH_PERM, return_value=True):
+        with patch(PATCH_CAN_VIEW, return_value=True):
             yield
 
     def _get(self):
@@ -93,6 +94,31 @@ class TestDashboardCollectionStatusViewSet:
             "show_gamification": True,
             "show_dashboard": True,
         }
+
+    @patch(PATCH_CAN_VIEW, return_value=True)
+    @patch(PATCH_FLAG, return_value=True)
+    @patch(PATCH_TASK)
+    @patch(PATCH_MIN_TS, return_value=None)
+    def test_dashboard_viewer_can_see_dashboard(self, mock_min_ts, mock_task_class, mock_flag, mock_can_view):
+        """Users granted dashboard viewer/editor access receive the dashboard flag."""
+        mock_task_class.objects.filter.return_value.first.return_value = None
+
+        response = self._get()
+
+        assert response.data["show_dashboard"] is True
+
+    @patch(PATCH_CAN_VIEW, return_value=False)
+    @patch(PATCH_FLAG, return_value=True)
+    @patch(PATCH_TASK)
+    @patch(PATCH_MIN_TS, return_value=None)
+    def test_user_without_dashboard_access_cannot_see_dashboard(
+        self, mock_min_ts, mock_task_class, mock_flag, mock_can_view
+    ):
+        mock_task_class.objects.filter.return_value.first.return_value = None
+
+        response = self._get()
+
+        assert response.data["show_dashboard"] is False
 
     @patch(PATCH_MIN_TS, return_value=datetime(2024, 3, 1, 8, 30, 0, tzinfo=UTC))
     @patch(PATCH_FLAG, return_value=True)

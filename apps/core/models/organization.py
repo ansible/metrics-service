@@ -12,4 +12,8 @@ class Organization(AbstractOrganization):
     objects = models.Manager()
 
     class Meta:
-        permissions = [("member_organization", "User is member of this organization")]
+        permissions = [
+            ("member_organization", "User is member of this organization"),
+            ("view_automation_dashboard", "Can view organization automation dashboard data"),
+            ("change_automation_dashboard", "Can edit organization automation dashboard settings"),
+        ]
