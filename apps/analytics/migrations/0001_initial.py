@@ -82,6 +82,7 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "Analytics Payloads",
                 "ordering": ["-started_at"],
                 "indexes": [
+                    models.Index(fields=["created"], name="analytics_a_created_71d55a_idx"),
                     models.Index(fields=["collector", "since"], name="analytics_a_collect_2c3ed1_idx"),
                     models.Index(fields=["collector", "until"], name="analytics_a_collect_7842e4_idx"),
                     models.Index(fields=["collector", "started_at"], name="analytics_a_collect_712e4b_idx"),

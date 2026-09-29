@@ -61,8 +61,22 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
     if entry is None or not entry.enabled:
         return create_task_result("error", error=f"Unknown or disabled collector: {collector}")
 
-    since = parse_datetime_string(kwargs.get("since")) if kwargs.get("since") else None
-    until = parse_datetime_string(kwargs.get("until")) if kwargs.get("until") else None
+    raw_since = kwargs.get("since")
+    raw_until = kwargs.get("until")
+    since = parse_datetime_string(raw_since) if raw_since else None
+    until = parse_datetime_string(raw_until) if raw_until else None
+    window_error = next(
+        (
+            f"Invalid {name}: {raw}"
+            for name, raw, parsed in (("since", raw_since, since), ("until", raw_until, until))
+            if raw and parsed is None
+        ),
+        None,
+    )
+    if window_error is None and since and until and until <= since:
+        window_error = "until must be after since"
+    if window_error:
+        return create_task_result("error", error=window_error)
 
     collector_func = _collector_func(entry.collector_type, entry.mode)
     if collector_func is None:

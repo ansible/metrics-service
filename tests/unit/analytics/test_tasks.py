@@ -31,6 +31,25 @@ def test_on_demand_missing_collector_errors():
     assert result["status"] == "error"
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"since": "not-a-date"}, "Invalid since"),
+        ({"until": "not-a-date"}, "Invalid until"),
+        (
+            {"since": "2026-08-17T11:00:00Z", "until": "2026-08-17T10:00:00Z"},
+            "until must be after since",
+        ),
+    ],
+)
+def test_on_demand_invalid_window_errors(kwargs, message):
+    result = collect_analytics_on_demand(collector=UNIFIED, **kwargs)
+
+    assert result["status"] == "error"
+    assert message in result["error"]
+    assert not AnalyticsPayload.objects.exists()
+
+
 @patch("apps.analytics.tasks.get_db_connection")
 def test_on_demand_happy_path_persists(_mock_db):
     df = pd.DataFrame([{"id": 1}])

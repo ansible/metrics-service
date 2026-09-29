@@ -1,8 +1,5 @@
 """Analytics storage models (ANSTRAT-1587 / AAP-87799)."""
 
-import json
-import logging
-
 from django.db import models
 
 # Reuse the same DAB base classes / fallbacks as the tasks app.
@@ -23,8 +20,6 @@ except ImportError:  # pragma: no cover - simple fallback for setups without DAB
             abstract = True
 
 
-logger = logging.getLogger(__name__)
-
 # Default origin for a local install.
 LOCAL_SOURCE = "local"
 
@@ -41,6 +36,7 @@ class AnalyticsPayload(CommonModel, AuditableModel):
         app_label = "analytics"
         ordering = ["-started_at"]
         indexes = [
+            models.Index(fields=["created"]),
             models.Index(fields=["collector", "since"]),
             models.Index(fields=["collector", "until"]),
             models.Index(fields=["collector", "started_at"]),
@@ -73,11 +69,3 @@ class AnalyticsPayload(CommonModel, AuditableModel):
         """Return a readable representation: collector + window (or 'snapshot')."""
         window = f"{self.since} → {self.until}" if self.since or self.until else "snapshot"
         return f"{self.collector} [{self.source}] ({window})"
-
-    def save(self, *args, **kwargs):
-        """Warn (but don't fail) if the payload isn't JSON-serialisable before hitting the DB."""
-        try:
-            json.dumps(self.payload)
-        except TypeError:
-            logger.warning("AnalyticsPayload.payload for %s is not JSON-serialisable", self.collector)
-        super().save(*args, **kwargs)

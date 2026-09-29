@@ -213,7 +213,7 @@
         "/api/v1/analytics/{collector}/": {
             "get": {
                 "operationId": "analytics_list",
-                "description": "Return one collector's stored raw payloads, window-overlap filtered + paginated.",
+                "description": "Return paginated payloads for the requested collector.",
                 "parameters": [
                     {
                         "in": "path",
@@ -240,6 +240,24 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "in": "query",
+                        "name": "since",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "description": "Return rows whose collection window overlaps this inclusive bound."
+                    },
+                    {
+                        "in": "query",
+                        "name": "until",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "description": "Return rows whose collection window overlaps this exclusive bound."
                     }
                 ],
                 "tags": [
@@ -285,6 +303,25 @@
                 "tags": [
                     "analytics"
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AnalyticsCollectRequestRequest"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AnalyticsCollectRequestRequest"
+                            }
+                        },
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AnalyticsCollectRequestRequest"
+                            }
+                        }
+                    }
+                },
                 "security": [
                     {
                         "cookieAuth": []
@@ -294,8 +331,15 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "No response body"
+                    "202": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AnalyticsCollectResponse"
+                                }
+                            }
+                        },
+                        "description": ""
                     }
                 },
                 "x-ai-description": "Create new collect for an analytic"
@@ -11575,6 +11619,48 @@
                     "rank",
                     "runs",
                     "username"
+                ]
+            },
+            "AnalyticsCollectRequestRequest": {
+                "type": "object",
+                "properties": {
+                    "since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true,
+                        "description": "Collection start; omitted values use the mode default."
+                    },
+                    "until": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true,
+                        "description": "Collection end; omitted values use the mode default."
+                    }
+                }
+            },
+            "AnalyticsCollectResponse": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer"
+                    },
+                    "task_url": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "collector": {
+                        "type": "string"
+                    },
+                    "task_data": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "required": [
+                    "collector",
+                    "task_data",
+                    "task_id",
+                    "task_url"
                 ]
             },
             "AnalyticsPayload": {

@@ -9,7 +9,10 @@ from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
 from django.db.models import Q
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import generics, status
+from rest_framework import serializers as drf_serializers
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
@@ -77,6 +80,26 @@ class CollectorRowsView(generics.ListAPIView):
     # DAB pagination but own the filtering here.
     filter_backends: list = []
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="since",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                description="Return rows whose collection window overlaps this inclusive bound.",
+            ),
+            OpenApiParameter(
+                name="until",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                description="Return rows whose collection window overlaps this exclusive bound.",
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        """Return paginated payloads for the requested collector."""
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
         """Filter stored payloads for the collector by since/until *window overlap*.
 
@@ -122,6 +145,8 @@ class CollectorRowsView(generics.ListAPIView):
 class CollectorCollectView(APIView):
     """Create one claimless on-demand collection task for an enabled collector."""
 
+    # Collection triggers are intentionally admin-only for now; auditor-trigger support will be
+    # addressed separately, potentially through a future read-style trigger endpoint.
     permission_classes = [IsSystemAdminOrAuditor]
 
     def _resolve_window(self, entry, request):
@@ -158,6 +183,34 @@ class CollectorCollectView(APIView):
             )
         return (since, until), None
 
+    @extend_schema(
+        request=inline_serializer(
+            name="AnalyticsCollectRequest",
+            fields={
+                "since": drf_serializers.DateTimeField(
+                    required=False,
+                    allow_null=True,
+                    help_text="Collection start; omitted values use the mode default.",
+                ),
+                "until": drf_serializers.DateTimeField(
+                    required=False,
+                    allow_null=True,
+                    help_text="Collection end; omitted values use the mode default.",
+                ),
+            },
+        ),
+        responses={
+            202: inline_serializer(
+                name="AnalyticsCollectResponse",
+                fields={
+                    "task_id": drf_serializers.IntegerField(),
+                    "task_url": drf_serializers.URLField(),
+                    "collector": drf_serializers.CharField(),
+                    "task_data": drf_serializers.DictField(),
+                },
+            ),
+        },
+    )
     def post(self, request, *args, **kwargs):
         """Create a pending task and return its details without claiming a payload row."""
         collector = self.kwargs["collector"]
