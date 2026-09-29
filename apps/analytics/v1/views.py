@@ -10,7 +10,7 @@ from ansible_base.rest_pagination import DefaultPaginator
 from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import generics, status
 from rest_framework import serializers as drf_serializers
 from rest_framework.response import Response
@@ -20,6 +20,18 @@ from rest_framework.views import APIView
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.registry import enabled_collectors, get_entry
 from apps.analytics.v1.serializers import AnalyticsPayloadSerializer, CollectorDiscoverySerializer
+
+_ANALYTICS_ROW_FIELDS_DESCRIPTION = """The linked collector row endpoints return paginated collection envelopes. Each row contains:
+
+- `id`: unique stored collection row identifier.
+- `collector`: public `group.function` collector name.
+- `source`: originating platform component, normally `local`.
+- `since`: inclusive start bound passed to the collector, or null for an open bound or snapshot.
+- `until`: exclusive end bound passed to the collector, or null for an open bound or snapshot.
+- `started_at`: timestamp when collection started.
+- `finished_at`: timestamp when collection finished.
+- `payload`: raw JSON output from the collector before rollup preparation.
+"""
 
 
 def _parse_dt(value):
@@ -54,13 +66,50 @@ def _default_window(mode, now):
     return None, None
 
 
+def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:
+    """Build the OpenAPI example from the enabled collector registry."""
+    return {
+        "collectors": [
+            {
+                "name": entry.name,
+                "description": entry.description,
+                "mode": entry.mode,
+                "accepts_since_until": entry.accepts_since_until,
+                "rows_url": f"https://metrics.example.com/api/v1/analytics/{entry.name}/",
+                "collect_url": f"https://metrics.example.com/api/v1/analytics/{entry.name}/collect/",
+            }
+            for entry in enabled_collectors().values()
+        ]
+    }
+
+
 class AnalyticsRootView(APIView):
     """List the collectors the analytics API exposes (discovery entry point)."""
 
     permission_classes = [IsSystemAdminOrAuditor]
 
+    @extend_schema(
+        summary="Discover enabled analytics collectors.",
+        description=(
+            "Return the enabled analytics collectors, their descriptions, and their API URLs.\n\n"
+            f"{_ANALYTICS_ROW_FIELDS_DESCRIPTION}"
+        ),
+        responses={
+            200: inline_serializer(
+                name="AnalyticsRootResponse",
+                fields={"collectors": CollectorDiscoverySerializer(many=True)},
+            )
+        },
+        examples=[
+            OpenApiExample(
+                name="Enabled analytics collectors",
+                value=_collector_discovery_example(),
+                response_only=True,
+            )
+        ],
+    )
     def get(self, request, *args, **kwargs):
-        """Return the enabled collectors and their rows URLs."""
+        """Return the enabled collectors, descriptions, and their rows URLs."""
         serializer = CollectorDiscoverySerializer(
             enabled_collectors().values(),
             many=True,
@@ -81,6 +130,7 @@ class CollectorRowsView(generics.ListAPIView):
     filter_backends: list = []
 
     @extend_schema(
+        description=_ANALYTICS_ROW_FIELDS_DESCRIPTION,
         parameters=[
             OpenApiParameter(
                 name="since",

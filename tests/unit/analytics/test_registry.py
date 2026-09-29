@@ -24,6 +24,7 @@ def test_enabled_collectors_are_all_enabled():
     enabled = registry.enabled_collectors()
     assert enabled, "expected at least one enabled collector"
     assert all(e.enabled for e in enabled.values())
+    assert all(e.description for e in enabled.values())
     # Disabled/excluded collectors must not leak into the enabled set.
     assert "service.task_executions_service" not in enabled
     assert "controller.job_host_summary" not in enabled

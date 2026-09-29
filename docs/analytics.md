@@ -17,6 +17,7 @@ The registry is the source of truth in
 - `mode`: `hourly`, `daily`, or `snapshot`
 - `enabled`: whether the collector is persisted and exposed
 - `database`: source database, defaulting to `awx`
+- `description`: customer-facing summary of the data returned by the collector
 - `note`: explanation for disabled or excluded entries
 
 `accepts_since_until` is derived from `mode`. It describes whether the collector
@@ -87,6 +88,7 @@ The response contains entries such as:
   "collectors": [
     {
       "name": "controller.config",
+      "description": "Selected Controller settings and license details, plus Controller and metrics-utility versions and runtime platform metadata.",
       "mode": "snapshot",
       "accepts_since_until": false,
       "rows_url": "https://metrics.example.com/api/v1/analytics/controller.config/",

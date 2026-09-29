@@ -34,6 +34,11 @@ def test_root_lists_enabled_collectors(authenticated_client):
     names = {collector["name"] for collector in response.json()["collectors"]}
     assert UNIFIED in names
     assert CONFIG in names
+    unified = next(collector for collector in response.json()["collectors"] if collector["name"] == UNIFIED)
+    assert unified["description"] == (
+        "Job executions, including status and timing, organization, inventory, project, template, "
+        "execution environment, launcher, labels, and host count."
+    )
     assert "service.task_executions_service" not in names
     assert all(
         collector["rows_url"].startswith("http://testserver/api/v1/analytics/")

@@ -9,6 +9,7 @@ class CollectorDiscoverySerializer(serializers.Serializer):
     """Serialize one enabled collector and its hyperlinked API endpoints."""
 
     name = serializers.CharField(read_only=True)
+    description = serializers.CharField(read_only=True)
     mode = serializers.CharField(read_only=True)
     accepts_since_until = serializers.BooleanField(read_only=True)
     rows_url = serializers.HyperlinkedIdentityField(
