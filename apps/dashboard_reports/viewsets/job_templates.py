@@ -40,6 +40,7 @@ class JobTemplatesViewSet(FilterOptionsViewSet):
     """
 
     awx_query_function = staticmethod(fetch_templates)
+    option_field = "template_id"
     list_error_msg = "Failed to fetch job templates"
     retrieve_error_msg = "Failed to fetch job template"
 

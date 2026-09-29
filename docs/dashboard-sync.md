@@ -6,6 +6,22 @@ data for the automation-reports REST API (`/api/v1/dashboard_reports/`). It is
 but dashboard data is stored in `JobData` / `JobHostSummary` for local API
 consumers, not sent to Segment.
 
+Organization-scoped dashboard access uses the Controller organization
+`Resource.ansible_id` UUID, not its database ID. The dashboard collector stores
+that UUID on each `JobData` row. After upgrading existing deployments, run
+`python manage.py backfill_dashboard_organization_ids` before granting the
+organization dashboard roles. Rows without a resolvable Controller resource
+remain excluded from organization-scoped reports.
+
+The read-only `GET /api/v1/dashboard_reports/access/` endpoint returns the
+dashboard feature toggle, the caller's `global` or `organization` scope, and
+the accessible Controller organization IDs with `can_edit`. Organization
+settings endpoints accept `?organization=<controller-id>` for users with
+organization scope and keep each user's cost and template estimate overrides
+private to that organization; omitted override fields continue to use the
+global dashboard values. Global administrators and auditors continue to use
+the shared settings path.
+
 See [collectors.md](collectors.md) for the metrics rollup path that runs in
 parallel on the same hourly collectors.
 

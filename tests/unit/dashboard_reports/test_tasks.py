@@ -327,6 +327,7 @@ class TestSyncDashboardJobRecords:
             "name": "Test Job",
             "unified_job_template_id": 10,
             "organization_id": 1,
+            "organization_ansible_id": "11111111-1111-1111-1111-111111111111",
             "organization_name": "Org",
             "started": "2024-01-01T00:00:00+00:00",
             "finished": "2024-01-01T01:00:00+00:00",
@@ -353,6 +354,16 @@ class TestSyncDashboardJobRecords:
         args, kwargs = mock_result.call_args
         assert args[0] == "success"
         assert kwargs["data"]["job_count"] == 2
+
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_success_preserves_organization_ansible_id(self, mock_result, mock_log, mock_sync):
+        """Hourly raw jobs retain the shared organization UUID through the persistence task."""
+        sync_dashboard_job_records(raw_jobs=[self._raw_job()], hour_timestamp="2024-01-01T00:00:00")
+
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["organization_ansible_id"] == "11111111-1111-1111-1111-111111111111"
 
     @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[1])
     @patch("apps.dashboard_reports.tasks.log_task_execution")

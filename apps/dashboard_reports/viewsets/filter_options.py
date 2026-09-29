@@ -4,14 +4,15 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from apps.dashboard_reports.models import JobData
+from apps.dashboard_reports.awx_queries import fetch_controller_organizations
+from apps.dashboard_reports.models import JobData, JobLabel
+from apps.dashboard_reports.permissions import DashboardReadPermission, get_dashboard_scope
 from apps.dashboard_reports.serializers import (
     FilterOptionWithIdSerializer,
 )
@@ -30,7 +31,8 @@ class FilterOptionsViewSet(GenericViewSet):
     awx_query_function: Callable[..., tuple[list[dict[str, Any]], int]] | None = None  # To be defined in subclasses
     versioning_class = None  # Disable versioning for this viewset
     pagination_class = DefaultPaginator
-    permission_classes = [IsSystemAdminOrAuditor]
+    permission_classes = [DashboardReadPermission]
+    option_field: str | None = None
 
     list_error_msg = "Failed to fetch records"
     retrieve_error_msg = "Failed to fetch record"
@@ -47,6 +49,21 @@ class FilterOptionsViewSet(GenericViewSet):
     def search(request: Request) -> str | None:
         """Extracts search query from request parameters."""
         return request.query_params.get("search", "").strip() or None
+
+    def get_allowed_ids(self, db_connection=None) -> list[int] | None:
+        """Limit organization-role filter options to IDs present in accessible job data."""
+        scope = get_dashboard_scope(self.request.user)
+        if scope.global_access:
+            return None
+        if self.option_field == "organization_id":
+            organizations = fetch_controller_organizations(db_connection, ansible_ids=scope.ansible_ids)
+            return [organization["id"] for organization in organizations]
+        jobs = JobData.objects.filter(organization_ansible_id__in=scope.ansible_ids)
+        if self.option_field == "label_id":
+            ids = JobLabel.objects.filter(job_data__in=jobs, label_id__isnull=False).values_list("label_id", flat=True)
+        else:
+            ids = jobs.exclude(**{f"{self.option_field}__isnull": True}).values_list(self.option_field, flat=True)
+        return list(ids.distinct())
 
     @staticmethod
     def retrieve_response(data: list[dict[str, Any]], error_msg: str) -> Response:
@@ -70,6 +87,10 @@ class FilterOptionsViewSet(GenericViewSet):
         """
         try:
             db_connection = get_db_connection("awx")
+            allowed_ids = self.get_allowed_ids(db_connection)
+            if allowed_ids == []:
+                self.paginate_queryset(range(0))
+                return self.get_paginated_response([])
             page_size = self.paginator.get_page_size(request)
             try:
                 page_num = int(request.query_params.get(self.paginator.page_query_param, 1))
@@ -81,6 +102,7 @@ class FilterOptionsViewSet(GenericViewSet):
                 search_str=FilterOptionsViewSet.search(request),
                 limit=page_size,
                 offset=offset,
+                allowed_ids=allowed_ids,
             )
             # Initialise paginator state (count, page, request) using a zero-cost range so
             # that get_paginated_response can build correct next/previous links and the count
@@ -109,7 +131,10 @@ class FilterOptionsViewSet(GenericViewSet):
 
         try:
             db_connection = get_db_connection("awx")
-            data, _ = self.awx_query_function(db_connection=db_connection, pk=pk)
+            allowed_ids = self.get_allowed_ids(db_connection)
+            if allowed_ids == []:
+                return self.retrieve_response([], error_msg=self.not_found_msg(pk))
+            data, _ = self.awx_query_function(db_connection=db_connection, pk=pk, allowed_ids=allowed_ids)
             return self.retrieve_response(data, error_msg=self.not_found_msg(pk))
         except Exception:
             logger.exception(self.retrieve_error_msg)

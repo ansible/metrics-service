@@ -197,7 +197,12 @@ class SubscriptionCost(CommonModel):
         return total_cost / decimal.Decimal(total_days) if total_days > 0 else default_daily_cost
 
     def per_second_subscription_cost(
-        self, start: datetime | None = None, end: datetime | None = None
+        self,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        *,
+        organization_ansible_id=None,
+        monthly_subscription_cost: decimal.Decimal | None = None,
     ) -> decimal.Decimal:
         """
         Calculates the weighted subscription cost per elapsed second for a given date range.
@@ -210,7 +215,10 @@ class SubscriptionCost(CommonModel):
         Formula: cost_per_elapsed_second = period_cost / sum(elapsed_seconds_in_period)
         Verification: sum(job.elapsed * cost_per_elapsed_second) == period_cost
         """
-        monthly_cost = decimal.Decimal(str(self.monthly_subscription_cost))
+        cost_value = (
+            monthly_subscription_cost if monthly_subscription_cost is not None else self.monthly_subscription_cost
+        )
+        monthly_cost = decimal.Decimal(str(cost_value))
 
         if start is None or end is None:
             now = datetime.now(UTC)
@@ -224,11 +232,14 @@ class SubscriptionCost(CommonModel):
         # Normalize end to end-of-day to ensure the filter matches the day-count formula
         end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-        elapsed_result = JobData.objects.filter(
+        elapsed_queryset = JobData.objects.filter(
             status__in=[JobStatusChoices.SUCCESSFUL, JobStatusChoices.FAILED],
             finished__gte=start,
             finished__lte=end,
-        ).aggregate(total_seconds=Sum("elapsed"))
+        )
+        if organization_ansible_id is not None:
+            elapsed_queryset = elapsed_queryset.filter(organization_ansible_id=organization_ansible_id)
+        elapsed_result = elapsed_queryset.aggregate(total_seconds=Sum("elapsed"))
 
         total_elapsed_raw = elapsed_result["total_seconds"]
         if total_elapsed_raw is None or total_elapsed_raw == 0:
@@ -315,6 +326,52 @@ class FilterSet(CommonModel):
     def __str__(self) -> str:
         """Return the filter set name."""
         return self.name
+
+
+class OrganizationDashboardSettings(CommonModel):
+    """Private dashboard cost overrides for one user and organization."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="dashboard_settings")
+    organization = models.ForeignKey("core.Organization", on_delete=models.CASCADE, related_name="dashboard_settings")
+    monthly_subscription_cost = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(decimal.Decimal("0.00"))]
+    )
+    engineer_avg_hourly_rate = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(decimal.Decimal("0.00"))]
+    )
+    include_template_creation_time_in_costs = models.BooleanField(null=True, blank=True)
+
+    class Meta:
+        db_table = "dashboard_org_settings"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "organization"], name="dashboard_settings_user_org_uniq"),
+        ]
+
+
+class OrganizationTemplateMetadataOverride(CommonModel):
+    """Per-user, per-organization estimates for an AWX job template."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="dashboard_template_overrides"
+    )
+    organization = models.ForeignKey(
+        "core.Organization", on_delete=models.CASCADE, related_name="dashboard_template_overrides"
+    )
+    template_id = models.IntegerField(help_text="AWX job template ID")
+    time_taken_manually_execute_minutes = models.BigIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    time_taken_create_automation_minutes = models.BigIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+
+    class Meta:
+        db_table = "dashboard_org_template_override"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "organization", "template_id"], name="dashboard_template_override_user_org_tpl_uniq"
+            ),
+        ]
 
 
 class TemplateMetadata(CommonModel):
@@ -568,6 +625,13 @@ class JobData(CommonModel):
         help_text="AWX organization ID",
     )
 
+    organization_ansible_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Stable DAB ansible_id for the AWX organization; null until identity is resolved",
+    )
+
     organization_name = models.CharField(
         max_length=512, null=True, blank=True, help_text="Organization name for display (from AWX)"
     )
@@ -693,6 +757,7 @@ class JobData(CommonModel):
                 "project_id": awx_job["project_id"],
                 "project_name": awx_job["project_name"],
                 "organization_id": awx_job["organization_id"],
+                "organization_ansible_id": awx_job.get("organization_ansible_id"),
                 "organization_name": awx_job.get("organization_name"),
                 "status": awx_job["status"],
                 "started": awx_job["started"],
