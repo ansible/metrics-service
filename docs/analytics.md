@@ -72,7 +72,7 @@ developers. They are not persisted or exposed by the analytics API.
 
 ## Read API
 
-The analytics root lists enabled collectors and their row URLs:
+The analytics root lists enabled collectors and links to their row and collection-task endpoints:
 
 ```http
 GET /api/v1/analytics/
@@ -87,7 +87,8 @@ The response contains entries such as:
       "name": "controller.config",
       "mode": "snapshot",
       "accepts_since_until": false,
-      "rows_url": "https://metrics.example.com/api/v1/analytics/controller.config/"
+      "rows_url": "https://metrics.example.com/api/v1/analytics/controller.config/",
+      "collect_url": "https://metrics.example.com/api/v1/analytics/controller.config/collect/"
     }
   ]
 }
