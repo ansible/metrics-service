@@ -152,18 +152,17 @@ paths:
     get:
       operationId: analytics_retrieve
       description: |
-        Return the enabled analytics collectors, their descriptions, and their API URLs.
+        List the collectors the analytics API exposes (discovery entry point).
 
-        The linked collector row endpoints return paginated collection envelopes. Each row contains:
+        Response fields:
 
-        - `id`: unique stored collection row identifier.
-        - `collector`: public `group.function` collector name.
-        - `source`: originating platform component, normally `local`.
-        - `since`: inclusive start bound passed to the collector, or null for an open bound or snapshot.
-        - `until`: exclusive end bound passed to the collector, or null for an open bound or snapshot.
-        - `started_at`: timestamp when collection started.
-        - `finished_at`: timestamp when collection finished.
-        - `payload`: raw JSON output from the collector before rollup preparation.
+        - `collectors`: list of enabled collector descriptions.
+        - `name`: public `group.function` collector name.
+        - `description`: summary of the collector's output.
+        - `mode`: `hourly`, `daily`, or `snapshot`.
+        - `accepts_since_until`: whether collection windows are supported.
+        - `rows_url`: URL for stored collection envelopes.
+        - `collect_url`: URL for triggering an on-demand collection task.
       summary: Discover enabled analytics collectors.
       tags:
       - analytics

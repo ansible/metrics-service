@@ -55,6 +55,16 @@ def test_root_browsable_response_links_collector_urls(authenticated_client):
 
     assert response.status_code == 200
     assert 'href="http://testserver/api/v1/analytics/controller.config/"' in response.text
+    assert "accepts_since_until" in response.text
+    assert "collect_url" in response.text
+
+
+def test_rows_browsable_response_shows_field_description(authenticated_client):
+    response = authenticated_client.get(f"{ROOT}{CONFIG}/", HTTP_ACCEPT="text/html")
+
+    assert response.status_code == 200
+    assert "The linked collector row endpoints return paginated collection envelopes." in response.text
+    assert "payload" in response.text
 
 
 def test_root_requires_auth(api_client):

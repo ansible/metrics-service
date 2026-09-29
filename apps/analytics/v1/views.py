@@ -33,6 +33,19 @@ _ANALYTICS_ROW_FIELDS_DESCRIPTION = """The linked collector row endpoints return
 - `payload`: raw JSON output from the collector before rollup preparation.
 """
 
+_ANALYTICS_ROOT_DESCRIPTION = """List the collectors the analytics API exposes (discovery entry point).
+
+Response fields:
+
+- `collectors`: list of enabled collector descriptions.
+- `name`: public `group.function` collector name.
+- `description`: summary of the collector's output.
+- `mode`: `hourly`, `daily`, or `snapshot`.
+- `accepts_since_until`: whether collection windows are supported.
+- `rows_url`: URL for stored collection envelopes.
+- `collect_url`: URL for triggering an on-demand collection task.
+"""
+
 
 def _parse_dt(value):
     """Parse an ISO datetime value from a query param / request body.
@@ -84,16 +97,13 @@ def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:
 
 
 class AnalyticsRootView(APIView):
-    """List the collectors the analytics API exposes (discovery entry point)."""
+    __doc__ = _ANALYTICS_ROOT_DESCRIPTION
 
     permission_classes = [IsSystemAdminOrAuditor]
 
     @extend_schema(
         summary="Discover enabled analytics collectors.",
-        description=(
-            "Return the enabled analytics collectors, their descriptions, and their API URLs.\n\n"
-            f"{_ANALYTICS_ROW_FIELDS_DESCRIPTION}"
-        ),
+        description=_ANALYTICS_ROOT_DESCRIPTION,
         responses={
             200: inline_serializer(
                 name="AnalyticsRootResponse",
@@ -119,7 +129,7 @@ class AnalyticsRootView(APIView):
 
 
 class CollectorRowsView(generics.ListAPIView):
-    """Return one collector's stored raw payloads, window-overlap filtered + paginated."""
+    __doc__ = _ANALYTICS_ROW_FIELDS_DESCRIPTION
 
     permission_classes = [IsSystemAdminOrAuditor]
     serializer_class = AnalyticsPayloadSerializer

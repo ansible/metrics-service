@@ -190,7 +190,7 @@
         "/api/v1/analytics/": {
             "get": {
                 "operationId": "analytics_retrieve",
-                "description": "Return the enabled analytics collectors, their descriptions, and their API URLs.\n\nThe linked collector row endpoints return paginated collection envelopes. Each row contains:\n\n- `id`: unique stored collection row identifier.\n- `collector`: public `group.function` collector name.\n- `source`: originating platform component, normally `local`.\n- `since`: inclusive start bound passed to the collector, or null for an open bound or snapshot.\n- `until`: exclusive end bound passed to the collector, or null for an open bound or snapshot.\n- `started_at`: timestamp when collection started.\n- `finished_at`: timestamp when collection finished.\n- `payload`: raw JSON output from the collector before rollup preparation.\n",
+                "description": "List the collectors the analytics API exposes (discovery entry point).\n\nResponse fields:\n\n- `collectors`: list of enabled collector descriptions.\n- `name`: public `group.function` collector name.\n- `description`: summary of the collector's output.\n- `mode`: `hourly`, `daily`, or `snapshot`.\n- `accepts_since_until`: whether collection windows are supported.\n- `rows_url`: URL for stored collection envelopes.\n- `collect_url`: URL for triggering an on-demand collection task.\n",
                 "summary": "Discover enabled analytics collectors.",
                 "tags": [
                     "analytics"
