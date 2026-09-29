@@ -224,13 +224,24 @@ POST /api/v1/tasks/
 The task uses the collector's default behavior. A snapshot receives no
 `since`/`until` bounds.
 
-### Daily Cron Task
+### Recurring Cron Tasks
 
-Use the dedicated recurring-task endpoint when a recurring daily schedule is wanted:
+Use the dedicated recurring-task endpoint for recurring collection:
 
 ```http
 POST /api/v1/tasks/schedule_recurring/
 ```
+
+Recurring tasks must use the mode-specific collection function. The scheduler
+uses the function name to inject the rolling default window at dispatch time:
+
+| Mode | `function_name` | `task_data` | Default collection |
+| --- | --- | --- | --- |
+| Hourly | `collect_hourly_metrics` | `collector_type` | Previous full hour |
+| Daily | `collect_daily_metrics` | `collector_type` | Previous calendar day |
+| Snapshot | `collect_snapshot_metrics` | `collector_type` | Current state, no window |
+
+For example, a daily recurring task is:
 
 ```json
 {
@@ -243,9 +254,16 @@ POST /api/v1/tasks/schedule_recurring/
 }
 ```
 
+Do not use `collect_analytics_on_demand` for a recurring hourly or daily task
+when the rolling default window is wanted. Without explicit bounds, that
+function passes an unbounded window to hourly/daily collectors; the scheduler's
+default-window injection applies to the three mode-specific functions above.
+
 The response contains a success message and `task_id`. The recurring row is a
 template. Each cron fire creates a non-recurring child task, which is then
-dispatched normally.
+dispatched normally. One-off collections, including custom hourly or daily
+windows, use `collect_analytics_on_demand` through the analytics trigger
+endpoint described above.
 
 ### Custom Window Task
 
