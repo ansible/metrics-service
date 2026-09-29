@@ -220,7 +220,12 @@ TASK_METADATA = {
             {"name": "Default retention", "data": {}},
             {
                 "name": "Custom retention",
-                "data": {"hourly_retention_days": 14, "daily_retention_days": 60, "payload_retention_days": 14},
+                "data": {
+                    "hourly_retention_days": 14,
+                    "daily_retention_days": 60,
+                    "payload_retention_days": 14,
+                    "analytics_retention_days": 180,
+                },
             },
             {"name": "Dry run", "data": {"dry_run": True}},
         ],
@@ -250,6 +255,9 @@ TASK_METADATA = {
                 "name": "Specific hour",
                 "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
             },
+            {"name": "Raw automation events", "data": {"collector_type": "events_table"}},
+            {"name": "Workflow job nodes", "data": {"collector_type": "workflow_job_node_table"}},
+            {"name": "Query metadata", "data": {"collector_type": "query_info"}},
         ],
     },
     "collect_daily_metrics": {
@@ -282,6 +290,8 @@ TASK_METADATA = {
                     "until": "2024-01-02T00:00:00Z",
                 },
             },
+            {"name": "Changed host inventory", "data": {"collector_type": "main_host_daily"}},
+            {"name": "Host metrics", "data": {"collector_type": "main_hostmetric"}},
         ],
     },
     "collect_snapshot_metrics": {
@@ -301,6 +311,22 @@ TASK_METADATA = {
             {"name": "Controller version", "data": {"collector_type": "controller_version_service"}},
             {"name": "Table metadata", "data": {"collector_type": "table_metadata"}},
             {"name": "Feature flags", "data": {"collector_type": "feature_flags_service"}},
+            {"name": "Host inventory", "data": {"collector_type": "main_host"}},
+            {"name": "Controller counts", "data": {"collector_type": "counts"}},
+            {"name": "Credential type counts", "data": {"collector_type": "cred_type_counts"}},
+            {
+                "name": "Monthly host metric summary",
+                "data": {"collector_type": "host_metric_summary_monthly_table"},
+            },
+            {"name": "Controller instance information", "data": {"collector_type": "instance_info"}},
+            {"name": "Inventory counts", "data": {"collector_type": "inventory_counts"}},
+            {"name": "Organization counts", "data": {"collector_type": "org_counts"}},
+            {"name": "Projects by SCM type", "data": {"collector_type": "projects_by_scm_type"}},
+            {"name": "Unified job templates", "data": {"collector_type": "unified_job_template_table"}},
+            {
+                "name": "Workflow job template nodes",
+                "data": {"collector_type": "workflow_job_template_node_table"},
+            },
         ],
     },
     "collect_analytics_on_demand": {

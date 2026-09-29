@@ -579,6 +579,16 @@ def generic_collect_metrics(
         if post_collect_hook is not None:
             _run_post_collect_hook(post_collect_hook, raw_data, collector_type, task_execution_instance)
 
+        if not config.get("persist_to_hourly", True):
+            return create_task_result(
+                "success",
+                {
+                    "message": f"Persisted analytics-only collection for {collector_type}",
+                    "task_type": f"collect_{collector_type}",
+                    "collector_type": collector_type,
+                },
+            )
+
         rollup_data = config["rollup_processor"]().prepare(raw_data) if config["rollup_processor"] else raw_data
 
         return _persist_collection(
@@ -594,19 +604,21 @@ def generic_collect_metrics(
     except Exception as e:
         logger.exception(f"Failed to collect {collector_type} {collection_mode} metrics: {str(e)}")
 
-        # Store failed collection for audit trail (critical for diagnosing missing rollup data)
-        with contextlib.suppress(Exception):
-            HourlyMetricsCollection.objects.update_or_create(
-                collector_type=collector_type,
-                collection_timestamp=timestamp,
-                defaults={
-                    "raw_data": {},
-                    "status": "failed",
-                    "error_message": str(e),
-                    "collection_parameters": collection_params,
-                    "task_execution": task_execution_instance,
-                },
-            )
+        # Store failed collection for audit trail (critical for diagnosing missing rollup data).
+        # Analytics-only collectors deliberately do not use the hourly collection table.
+        if config.get("persist_to_hourly", True):
+            with contextlib.suppress(Exception):
+                HourlyMetricsCollection.objects.update_or_create(
+                    collector_type=collector_type,
+                    collection_timestamp=timestamp,
+                    defaults={
+                        "raw_data": {},
+                        "status": "failed",
+                        "error_message": str(e),
+                        "collection_parameters": collection_params,
+                        "task_execution": task_execution_instance,
+                    },
+                )
 
         return create_task_result(
             "error",

@@ -71,16 +71,19 @@ def _get_hourly_collectors():
         "events_table": {
             "collector_func": events_table,
             "rollup_processor": None,
+            "persist_to_hourly": False,
             "description": "Raw automation event rows",
         },
         "workflow_job_node_table": {
             "collector_func": workflow_job_node_table,
             "rollup_processor": None,
+            "persist_to_hourly": False,
             "description": "Workflow job node rows",
         },
         "query_info": {
             "collector_func": query_info,
             "rollup_processor": None,
+            "persist_to_hourly": False,
             "description": "Analytics collection query metadata",
         },
     }
@@ -92,7 +95,8 @@ def collect_hourly_metrics(**kwargs) -> dict[str, Any]:
 
     This function handles all time-series collectors that gather data
     for a specific hour window. It collects raw data, computes rollup
-    statistics, and stores only the rollup in HourlyMetricsCollection.
+    statistics, and stores the rollup in HourlyMetricsCollection. Raw analytics-only
+    collectors are persisted in AnalyticsPayload instead and do not create an hourly row.
 
     Args:
         **kwargs: Task data containing:

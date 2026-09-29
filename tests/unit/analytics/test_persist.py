@@ -144,3 +144,32 @@ def test_generic_collection_passes_raw_data_to_persistence():
         started_at=ANY,
         finished_at=ANY,
     )
+
+
+def test_generic_collection_does_not_persist_analytics_only_data_to_hourly_table():
+    from apps.tasks.utils import generic_collect_metrics
+
+    collector = MagicMock()
+    collector.gather.return_value = {"rows": [1, 2]}
+    collector_func = MagicMock(return_value=collector)
+
+    with (
+        patch("apps.analytics.persist.persist_analytics_payload"),
+        patch("apps.tasks.utils._persist_collection") as persist_collection,
+    ):
+        result = generic_collect_metrics(
+            collector_type="analytics_only",
+            collector_registry={
+                "analytics_only": {
+                    "collector_func": collector_func,
+                    "rollup_processor": None,
+                    "persist_to_hourly": False,
+                }
+            },
+            collection_mode="hourly",
+            timestamp=_times()[0],
+            db_connection=MagicMock(),
+        )
+
+    assert result["status"] == "success"
+    persist_collection.assert_not_called()

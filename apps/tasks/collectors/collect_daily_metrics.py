@@ -60,12 +60,14 @@ def _get_daily_collectors():
         "main_host_daily": {
             "collector_func": main_host_daily,
             "rollup_processor": None,
+            "persist_to_hourly": False,
             "description": "Changed host inventory daily collection",
             "database": "awx",
         },
         "main_hostmetric": {
             "collector_func": main_hostmetric,
             "rollup_processor": None,
+            "persist_to_hourly": False,
             "description": "Renewal Guidance host metrics daily collection",
             "database": "awx",
         },
@@ -78,7 +80,8 @@ def collect_daily_metrics(**kwargs) -> dict[str, Any]:
 
     Unlike hourly collectors (24x/day, 1-hour windows) and snapshot collectors
     (current state, no time window), daily collectors run once per day and cover
-    the previous full calendar day.
+    the previous full calendar day. Analytics-only collectors are persisted in
+    AnalyticsPayload instead of HourlyMetricsCollection.
 
     The collection is stored with a timestamp of yesterday 23:00 UTC so that
     the daily_metrics_rollup task finds it within its query window alongside
