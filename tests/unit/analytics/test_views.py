@@ -67,6 +67,23 @@ def test_rows_browsable_response_shows_field_description(authenticated_client):
     assert "payload" in response.text
 
 
+def test_rows_pagination_links_are_absolute(authenticated_client):
+    for index in range(2):
+        _row(
+            CONFIG,
+            datetime(2026, 8, 17, 10 + index, tzinfo=UTC),
+            datetime(2026, 8, 17, 11 + index, tzinfo=UTC),
+            {"index": index},
+        )
+
+    response = authenticated_client.get(f"{ROOT}{CONFIG}/?page_size=1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["next"].startswith("http://testserver/api/v1/analytics/")
+    assert body["previous"] is None
+
+
 def test_root_requires_auth(api_client):
     assert api_client.get(ROOT).status_code in (401, 403)
 

@@ -13,6 +13,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import generics, status
 from rest_framework import serializers as drf_serializers
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
@@ -96,6 +97,18 @@ def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:
     }
 
 
+class AnalyticsPaginator(DefaultPaginator):
+    """Use absolute navigation URLs while retaining the DAB pagination options."""
+
+    def get_next_link(self) -> str | None:
+        """Return an absolute URL for the next page, when present."""
+        return PageNumberPagination.get_next_link(self)
+
+    def get_previous_link(self) -> str | None:
+        """Return an absolute URL for the previous page, when present."""
+        return PageNumberPagination.get_previous_link(self)
+
+
 class AnalyticsRootView(APIView):
     __doc__ = _ANALYTICS_ROOT_DESCRIPTION
 
@@ -133,7 +146,7 @@ class CollectorRowsView(generics.ListAPIView):
 
     permission_classes = [IsSystemAdminOrAuditor]
     serializer_class = AnalyticsPayloadSerializer
-    pagination_class = DefaultPaginator
+    pagination_class = AnalyticsPaginator
     # Disable the DAB field-lookup/filter backends: they would treat ``since``/``until`` as
     # exact-match field lookups on the model and override our window-*overlap* semantics. We keep
     # DAB pagination but own the filtering here.
