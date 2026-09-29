@@ -25,34 +25,36 @@ present.
 
 ## Enabled Collectors
 
-All enabled collectors are persisted and exposed by the read API.
+All enabled collectors are persisted and exposed by the read API. Except for
+`controller.query_info`, which reports collection metadata, these collectors
+read from the Controller (`awx`) database.
 
-| Name | `collector_type` | Mode | `accepts_since_until` |
-| --- | --- | --- | --- |
-| `controller.unified_jobs_dashboard` | `unified_jobs` | hourly | yes |
-| `controller.job_host_summary_service` | `job_host_summary_service` | hourly | yes |
-| `controller.credentials_service` | `credentials_service` | hourly | yes |
-| `controller.main_jobevent_service` | `main_jobevent_service` | hourly | yes |
-| `controller.events_table` | `events_table` | hourly | yes |
-| `controller.workflow_job_node_table` | `workflow_job_node_table` | hourly | yes |
-| `controller.query_info` | `query_info` | hourly | yes |
-| `controller.execution_environments` | `execution_environments` | snapshot | no |
-| `controller.config` | `config` | snapshot | no |
-| `controller.controller_version_service` | `controller_version_service` | snapshot | no |
-| `controller.table_metadata` | `table_metadata` | snapshot | no |
-| `controller.feature_flags_service` | `feature_flags_service` | snapshot | no |
-| `controller.counts` | `counts` | snapshot | no |
-| `controller.cred_type_counts` | `cred_type_counts` | snapshot | no |
-| `controller.host_metric_summary_monthly_table` | `host_metric_summary_monthly_table` | snapshot | no |
-| `controller.instance_info` | `instance_info` | snapshot | no |
-| `controller.inventory_counts` | `inventory_counts` | snapshot | no |
-| `controller.org_counts` | `org_counts` | snapshot | no |
-| `controller.projects_by_scm_type` | `projects_by_scm_type` | snapshot | no |
-| `controller.unified_job_template_table` | `unified_job_template_table` | snapshot | no |
-| `controller.workflow_job_template_node_table` | `workflow_job_template_node_table` | snapshot | no |
-| `controller.main_host` | `main_host` | snapshot | no |
-| `controller.main_host_daily` | `main_host_daily` | daily | yes |
-| `controller.main_hostmetric` | `main_hostmetric` | daily | yes |
+| Name | `collector_type` | Mode | `accepts_since_until` | Controller data extracted |
+| --- | --- | --- | --- | --- |
+| `controller.unified_jobs_dashboard` | `unified_jobs` | hourly | yes | Job executions, including status and timing, organization, inventory, project, template, execution environment, launcher, labels, and host count. |
+| `controller.job_host_summary_service` | `job_host_summary_service` | hourly | yes | Per-job host results and counts, with host, job, template, inventory, organization, and project context. |
+| `controller.credentials_service` | `credentials_service` | hourly | yes | Distinct managed credential types used by jobs completed in the collection window. |
+| `controller.main_jobevent_service` | `main_jobevent_service` | hourly | yes | Selected job events for jobs completed in the window, including event actions, task/play/role, host, result flags, warnings, and deprecations. |
+| `controller.events_table` | `events_table` | hourly | yes | Raw job events modified in the window, including event details, playbook statistics, task/play/role, host, timing, warnings, and deprecations. |
+| `controller.workflow_job_node_table` | `workflow_job_node_table` | hourly | yes | Workflow job node executions, their job/template/workflow/inventory references, and success, failure, and always edges. |
+| `controller.query_info` | `query_info` | hourly | yes | Collection metadata: requested bounds and collection type; it does not query the Controller database. |
+| `controller.execution_environments` | `execution_environments` | snapshot | no | Execution environment records, including image, description, ownership, organization, credential, management, and pull settings. |
+| `controller.config` | `config` | snapshot | no | Selected Controller settings and license details, plus Controller and metrics-utility versions and runtime platform metadata. |
+| `controller.controller_version_service` | `controller_version_service` | snapshot | no | Distinct versions reported by enabled control and hybrid Controller instances. |
+| `controller.table_metadata` | `table_metadata` | snapshot | no | Estimated row counts and table, index, and total sizes for the job event, unified job, and job host summary tables. |
+| `controller.feature_flags_service` | `feature_flags_service` | snapshot | no | Enabled boolean platform feature flags and their descriptions, support levels, toggle types, and visibility. |
+| `controller.counts` | `counts` | snapshot | no | Counts of Controller objects, inventories by kind, non-sync jobs, active hosts and sessions, running and pending jobs, and database connections. |
+| `controller.cred_type_counts` | `cred_type_counts` | snapshot | no | Credential counts grouped by credential type, including type name and whether the type is managed. |
+| `controller.host_metric_summary_monthly_table` | `host_metric_summary_monthly_table` | snapshot | no | Monthly host capacity and usage summaries, including hosts added, deleted, and indirectly managed. |
+| `controller.instance_info` | `instance_info` | snapshot | no | Controller instance topology, version, capacity, CPU, memory, node type, enablement, and current and remaining capacity. |
+| `controller.inventory_counts` | `inventory_counts` | snapshot | no | Inventory names and kinds with host and source counts, source details, and smart inventory entries. |
+| `controller.org_counts` | `org_counts` | snapshot | no | Organization names with distinct user and team counts. |
+| `controller.projects_by_scm_type` | `projects_by_scm_type` | snapshot | no | Project counts grouped by source-control type, with empty types reported as manual. |
+| `controller.unified_job_template_table` | `unified_job_template_table` | snapshot | no | Unified job template identity, type, execution environment, ownership, last/current/next job references, scheduling, and status. |
+| `controller.workflow_job_template_node_table` | `workflow_job_template_node_table` | snapshot | no | Workflow job template node definitions, inventory and template references, convergence settings, and success, failure, and always edges. |
+| `controller.main_host` | `main_host` | snapshot | no | Enabled inventory hosts with inventory and organization context, last automation time, connection variables, and selected hardware and system facts. |
+| `controller.main_host_daily` | `main_host_daily` | daily | yes | Enabled hosts created or modified in the window, with the same inventory, organization, automation, connection, and selected fact data as `main_host`. |
+| `controller.main_hostmetric` | `main_hostmetric` | daily | yes | Host automation and deletion metrics, counters, inventory usage, and selected host identity and connection facts. |
 
 ## Disabled And Excluded Collectors
 
