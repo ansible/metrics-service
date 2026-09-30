@@ -5,8 +5,11 @@ from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
+from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory
 
 from apps.analytics.models import AnalyticsPayload
+from apps.analytics.v1 import views
 from apps.tasks.models import Task
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
@@ -14,6 +17,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 ROOT = "/api/v1/analytics/"
 UNIFIED = "controller.unified_jobs_dashboard"
 CONFIG = "controller.config"
+DAILY = "controller.main_host_daily"
 
 
 def _row(collector, since, until, payload=None):
@@ -438,3 +442,141 @@ def test_collect_get_snapshot_creates_immediate_task_when_stale(authenticated_cl
     assert demand["action"] == "triggered"
     assert demand["task_url"].endswith(f"/api/v1/tasks/{demand['task_id']}/")
     assert Task.objects.get().task_data == {"collector": CONFIG}
+
+
+def test_collect_get_unknown_collector_and_invalid_window_are_rejected(authenticated_client):
+    assert authenticated_client.get(f"{ROOT}nope.nope/collect/").status_code == 404
+
+    response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/?since=not-a-date")
+
+    assert response.status_code == 400
+
+
+def test_collect_get_daily_triggers_previous_and_schedules_current(authenticated_client):
+    now = datetime(2026, 8, 18, 1, 30, tzinfo=UTC)
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        response = authenticated_client.get(f"{ROOT}{DAILY}/collect/")
+
+    assert response.status_code == 200
+    demand = response.json()["collection_demand"]
+    assert demand["previous"]["action"] == "triggered"
+    assert demand["current"]["action"] == "scheduled"
+    assert demand["current"]["scheduled_time"] == "2026-08-19T00:00:00Z"
+
+
+def test_collect_get_suppresses_demand_for_unresolvable_task(authenticated_client):
+    Task.objects.create(
+        name="malformed-hourly-task",
+        description="",
+        function_name="collect_hourly_metrics",
+        task_data={"collector_type": "unified_jobs", "hour_timestamp": "invalid"},
+        status="pending",
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=datetime(2026, 8, 17, 10, 30, tzinfo=UTC)):
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert response.status_code == 200
+    demand = response.json()["collection_demand"]
+    assert demand["previous"] == {"action": "suppressed", "reason": "unresolved_task_metadata"}
+    assert demand["current"] == {"action": "suppressed", "reason": "unresolved_task_metadata"}
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 0
+
+
+def test_collect_get_ignores_demand_for_another_collector(authenticated_client):
+    Task.objects.create(
+        name="other-collector-demand",
+        description="",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": CONFIG},
+        status="pending",
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=datetime(2026, 8, 17, 10, 30, tzinfo=UTC)):
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert response.status_code == 200
+    demand = response.json()["collection_demand"]
+    assert demand["previous"]["action"] == "triggered"
+    assert demand["current"]["action"] == "scheduled"
+
+
+def test_collect_get_snapshot_reuses_recent_snapshot_task(authenticated_client):
+    Task.objects.create(
+        name="other-collector-demand",
+        description="",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": UNIFIED},
+        status="pending",
+    )
+    Task.objects.create(
+        name="recent-snapshot",
+        description="",
+        function_name="collect_snapshot_metrics",
+        task_data={"collector_type": "config", "collection_timestamp": "2026-08-16T23:00:00Z"},
+        status="pending",
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=datetime(2026, 9, 30, 10, 30, tzinfo=UTC)):
+        response = authenticated_client.get(f"{ROOT}{CONFIG}/collect/")
+
+    assert response.status_code == 200
+    assert response.json()["collection_demand"]["snapshot"]["action"] == "existing_task"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_get_snapshot_suppresses_unresolvable_snapshot_task(authenticated_client):
+    Task.objects.create(
+        name="malformed-snapshot",
+        description="",
+        function_name="collect_snapshot_metrics",
+        task_data={"collector_type": "config", "collection_timestamp": "invalid"},
+        status="pending",
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=datetime(2026, 9, 30, 10, 30, tzinfo=UTC)):
+        response = authenticated_client.get(f"{ROOT}{CONFIG}/collect/")
+
+    assert response.status_code == 200
+    assert response.json()["collection_demand"]["snapshot"] == {
+        "action": "suppressed",
+        "reason": "unresolved_task_metadata",
+    }
+    assert not Task.objects.filter(function_name="collect_analytics_on_demand").exists()
+
+
+def test_collect_post_rejects_unknown_snapshot_bounds_and_reversed_windows(authenticated_client):
+    unknown = authenticated_client.post(f"{ROOT}nope.nope/collect/", {}, format="json")
+    snapshot = authenticated_client.post(f"{ROOT}{CONFIG}/collect/", {"since": "2026-08-17T00:00:00Z"}, format="json")
+    reversed_window = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": "2026-08-17T11:00:00Z", "until": "2026-08-17T10:00:00Z"},
+        format="json",
+    )
+
+    assert unknown.status_code == 404
+    assert snapshot.status_code == 400
+    assert reversed_window.status_code == 400
+
+
+def test_collect_get_handles_rows_response_error(authenticated_client):
+    error = Response({"detail": "invalid"}, status=400)
+
+    with (
+        patch.object(views.CollectorCollectView, "_schedule_demand", return_value={}),
+        patch("apps.analytics.v1.views._rows_response", return_value=error),
+    ):
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert response.status_code == 400
+
+
+def test_rows_response_returns_validation_error():
+    request = APIRequestFactory().get(f"{ROOT}{UNIFIED}/?since=not-a-date")
+    error = Response({"detail": "invalid"}, status=400)
+
+    with patch("apps.analytics.v1.views._validate_rows_request", return_value=error):
+        response = views._rows_response(request, UNIFIED)
+
+    assert response is error
