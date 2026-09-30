@@ -30,6 +30,30 @@ def test_enabled_collectors_are_all_enabled():
     assert "controller.job_host_summary" not in enabled
 
 
+def test_enabled_collectors_have_named_payload_schemas():
+    enabled = registry.enabled_collectors().values()
+
+    assert all(entry.payload_schema.name for entry in enabled)
+    assert all(entry.payload_schema.description for entry in enabled)
+    assert {entry.payload_schema.kind for entry in enabled} == {"array", "object"}
+
+
+def test_payload_schema_types_match_representative_collector_fields():
+    jobs = registry.get_entry("controller.unified_jobs_dashboard").payload_schema
+    assert {field.name: field.type for field in jobs.item_fields}["id"] == "integer"
+    assert {field.name: field.type for field in jobs.item_fields}["finished"] == "datetime"
+    assert {field.name: field.type for field in jobs.item_fields}["failed"] == "boolean"
+
+    counts = registry.get_entry("controller.counts").payload_schema
+    assert counts.kind == "object"
+    assert {field.name: field.type for field in counts.fields}["running_jobs"] == "integer"
+    assert counts.additional_properties is None
+
+    instance_info = registry.get_entry("controller.instance_info").payload_schema
+    assert instance_info.additional_properties.type == "object"
+    assert {field.name: field.type for field in instance_info.additional_properties.fields}["capacity"] == "integer"
+
+
 @pytest.mark.unit
 def test_accepts_since_until_by_mode():
     assert registry.get_entry("controller.unified_jobs_dashboard").accepts_since_until is True  # hourly
