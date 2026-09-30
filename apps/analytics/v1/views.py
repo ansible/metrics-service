@@ -29,7 +29,11 @@ from apps.analytics.demand import (
 )
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.registry import enabled_collectors, get_entry
-from apps.analytics.v1.serializers import AnalyticsPayloadSerializer, CollectorDiscoverySerializer
+from apps.analytics.v1.serializers import (
+    AnalyticsPayloadSerializer,
+    CollectionDemandSerializer,
+    CollectorDiscoverySerializer,
+)
 from apps.tasks.models import Task
 
 logger = logging.getLogger(__name__)
@@ -59,6 +63,36 @@ Response fields:
 - `collect_url`: POST URL for triggering an on-demand collection task, or GET URL for returning rows
   while recording collection demand.
 """
+
+_ANALYTICS_WINDOW_PARAMETERS = [
+    OpenApiParameter(
+        name="since",
+        type=OpenApiTypes.DATETIME,
+        location=OpenApiParameter.QUERY,
+        description="Return rows whose collection window overlaps this inclusive bound.",
+    ),
+    OpenApiParameter(
+        name="until",
+        type=OpenApiTypes.DATETIME,
+        location=OpenApiParameter.QUERY,
+        description="Return rows whose collection window overlaps this exclusive bound.",
+    ),
+]
+
+_ANALYTICS_PAGINATION_PARAMETERS = [
+    OpenApiParameter(
+        name="page",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        description="A page number within the paginated result set.",
+    ),
+    OpenApiParameter(
+        name="page_size",
+        type=OpenApiTypes.INT,
+        location=OpenApiParameter.QUERY,
+        description="Number of results to return per page.",
+    ),
+]
 
 
 def _parse_dt(value):
@@ -167,20 +201,7 @@ class CollectorRowsView(generics.ListAPIView):
 
     @extend_schema(
         description=_ANALYTICS_ROW_FIELDS_DESCRIPTION,
-        parameters=[
-            OpenApiParameter(
-                name="since",
-                type=OpenApiTypes.DATETIME,
-                location=OpenApiParameter.QUERY,
-                description="Return rows whose collection window overlaps this inclusive bound.",
-            ),
-            OpenApiParameter(
-                name="until",
-                type=OpenApiTypes.DATETIME,
-                location=OpenApiParameter.QUERY,
-                description="Return rows whose collection window overlaps this exclusive bound.",
-            ),
-        ],
+        parameters=_ANALYTICS_PAGINATION_PARAMETERS + _ANALYTICS_WINDOW_PARAMETERS,
     )
     def get(self, request, *args, **kwargs):
         """Return paginated payloads for the requested collector."""
@@ -210,6 +231,7 @@ class CollectorCollectView(APIView):
 
     @extend_schema(
         summary="Return analytics rows and record collection demand.",
+        parameters=_ANALYTICS_PAGINATION_PARAMETERS + _ANALYTICS_WINDOW_PARAMETERS,
         responses=inline_serializer(
             name="AnalyticsCollectRowsResponse",
             fields={
@@ -217,7 +239,7 @@ class CollectorCollectView(APIView):
                 "next": drf_serializers.URLField(allow_null=True),
                 "previous": drf_serializers.URLField(allow_null=True),
                 "results": AnalyticsPayloadSerializer(many=True),
-                "collection_demand": drf_serializers.DictField(),
+                "collection_demand": CollectionDemandSerializer(),
             },
         ),
     )

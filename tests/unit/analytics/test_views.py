@@ -60,6 +60,33 @@ def test_root_browsable_response_links_collector_urls(authenticated_client):
     assert "collect_url" in response.text
 
 
+def test_collect_get_schema_documents_query_parameters_and_demand_response():
+    from drf_spectacular.generators import SchemaGenerator
+
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    operation = schema["paths"]["/api/v1/analytics/{collector}/collect/"]["get"]
+    params_by_name = {parameter["name"]: parameter for parameter in operation["parameters"]}
+
+    assert {"collector", "page", "page_size", "since", "until"} == set(params_by_name)
+    assert params_by_name["since"]["schema"] == {"type": "string", "format": "date-time"}
+    assert params_by_name["until"]["schema"] == {"type": "string", "format": "date-time"}
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/AnalyticsCollectRowsResponse"
+    }
+
+    demand_schema = schema["components"]["schemas"]["CollectionDemand"]
+    assert set(demand_schema["properties"]) == {"previous", "current", "snapshot"}
+    result_schema = schema["components"]["schemas"]["CollectionDemandResult"]
+    assert result_schema["properties"]["action"]["enum"] == [
+        "already_collected",
+        "cron_covered",
+        "existing_task",
+        "scheduled",
+        "suppressed",
+        "triggered",
+    ]
+
+
 def test_rows_browsable_response_shows_field_description(authenticated_client):
     response = authenticated_client.get(f"{ROOT}{CONFIG}/", HTTP_ACCEPT="text/html")
 
