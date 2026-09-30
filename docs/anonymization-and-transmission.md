@@ -47,9 +47,12 @@ still run under `METRICS_COLLECTION`.
 2. Calls `metrics_utility.anonymized_rollups.anonymize_rollups()` on merged collector rollups.
 3. Adds `summary_metadata` (`install_type`, collection counts, missing hours).
 4. Embeds `dashboard_telemetry` from rollup metrics (collection performance, not raw jobs).
-5. Creates `AnonymizedMetricsPayload` with `status="pending"`.
-6. Sets summary `status="anonymized"`.
-7. Creates a **scheduled** `send_anonymized_to_segment` task with random jitter
+5. Embeds `analytics_usage` from the Prometheus aggregate collector. This is a
+   separate bounded section containing only public collector names, request
+   counts, and duration totals/averages in milliseconds.
+6. Creates `AnonymizedMetricsPayload` with `status="pending"`.
+7. Sets summary `status="anonymized"`.
+8. Creates a **scheduled** `send_anonymized_to_segment` task with random jitter
    (1–240 minutes) to spread transmission load.
 
 Uses advisory locking and `max_attempts=7` (`SEGMENT_MAX_ATTEMPTS` in
@@ -59,10 +62,13 @@ Uses advisory locking and `max_attempts=7` (`SEGMENT_MAX_ATTEMPTS` in
 
 Rollup JSON from collectors (jobs, credentials, event modules, execution
 environments, controller version, table metadata, **platform** `feature_flags_service`
-snapshot, task executions observability, indirect nodes if collected).
+snapshot, task executions observability, indirect nodes if collected), plus the
+separate aggregate-only `analytics_usage` section.
 
 **Not included:** raw `JobData` rows, user-identifiable AWX job detail used by
-the dashboard API. See [dashboard-reports-api.md](dashboard-reports-api.md).
+the dashboard API, analytics query parameters, request payloads, organization
+names, hostnames, or raw Prometheus labels. See
+[dashboard-reports-api.md](dashboard-reports-api.md).
 
 ## send_anonymized_to_segment
 

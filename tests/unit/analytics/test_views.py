@@ -1,6 +1,7 @@
 """Tests for the read-only analytics API."""
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -105,6 +106,23 @@ def test_rows_return_collection_envelope(authenticated_client):
     assert "started_at" in result
     assert "finished_at" in result
     assert "state" not in result
+
+
+def test_rows_records_public_collector_and_duration(authenticated_client):
+    with patch("apps.analytics.v1.views.record_collector_get") as record:
+        response = authenticated_client.get(f"{ROOT}{CONFIG}/")
+
+    assert response.status_code == 200
+    record.assert_called_once()
+    assert record.call_args.args[0] == CONFIG
+    assert record.call_args.args[1] >= 0
+
+
+def test_rows_succeeds_when_telemetry_recording_raises(authenticated_client):
+    with patch("apps.analytics.v1.views.record_collector_get", side_effect=RuntimeError("metrics unavailable")):
+        response = authenticated_client.get(f"{ROOT}{CONFIG}/")
+
+    assert response.status_code == 200
 
 
 def test_rows_retain_duplicate_collections(authenticated_client):

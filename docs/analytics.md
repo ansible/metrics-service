@@ -163,6 +163,34 @@ Examples:
 Every successful collection is retained. Repeated windows and repeated snapshots
 are not upserts.
 
+## Usage Telemetry
+
+Each enabled collector row `GET` records two Prometheus metrics through the
+default `django-prometheus` registry:
+
+| Metric | Type | Label | Unit |
+| --- | --- | --- | --- |
+| `analytics_collector_get_requests_total` | Counter | `collector` | requests |
+| `analytics_collector_get_duration_milliseconds` | Histogram | `collector` | milliseconds |
+
+The `collector` label is the fully qualified public registry name, such as
+`controller.unified_jobs_dashboard`. It is selected from the enabled collector
+registry and cannot be supplied by the request. No query parameters, payload
+contents, organization names, hostnames, or other customer values are labels.
+The histogram uses millisecond buckets and exports `_sum` and `_count`; the
+average is `duration_milliseconds_sum / duration_milliseconds_count`. The
+Prometheus endpoint combines worker processes when multiprocess mode is
+enabled.
+
+The daily rollup reads the current Prometheus aggregates once per rollup. The
+values are cumulative since process metrics were initialized, or since the
+multiprocess files were reset, rather than a database-backed request window.
+If no samples exist, `analytics_usage` is an empty object. Scrape failures are
+logged and also produce an empty object. The anonymized payload carries these
+bounded aggregates under the separate `analytics_usage` key; they never travel
+directly from an API request to Segment and do not use the `dashboard_telemetry`
+key.
+
 ### Triggering Collection
 
 The collector trigger creates a normal pending `Task`. It does not execute the

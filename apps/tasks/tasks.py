@@ -33,6 +33,7 @@ from .cleanup.cleanup_metrics_data import cleanup_metrics_data
 from .cleanup.cleanup_old_tasks import cleanup_old_tasks
 
 # Import collector tasks
+from .collectors.collect_analytics_usage import collect_analytics_usage
 from .collectors.collect_daily_metrics import collect_daily_metrics
 from .collectors.collect_hourly_metrics import collect_hourly_metrics
 from .collectors.collect_snapshot_metrics import collect_snapshot_metrics
@@ -57,6 +58,7 @@ TASK_FUNCTIONS = {
     "collect_hourly_metrics": collect_hourly_metrics,
     "collect_snapshot_metrics": collect_snapshot_metrics,
     "collect_daily_metrics": collect_daily_metrics,
+    "collect_analytics_usage": collect_analytics_usage,
     # On-demand analytics collection (ANSTRAT-1587 BYO-BI) — runs one enabled collector for an
     # arbitrary window and stores raw output in AnalyticsPayload (does not touch the rollup path).
     "collect_analytics_on_demand": collect_analytics_on_demand,
@@ -293,6 +295,13 @@ TASK_METADATA = {
             {"name": "Changed host inventory", "data": {"collector_type": "main_host_daily"}},
             {"name": "Host metrics", "data": {"collector_type": "main_hostmetric"}},
         ],
+    },
+    "collect_analytics_usage": {
+        "queue": "metrics",
+        "category": "Metrics Collection",
+        "description": "Read aggregate Prometheus usage for analytics collector GET requests",
+        "parameters": {},
+        "examples": [{"name": "Current usage aggregates", "data": {}}],
     },
     "collect_snapshot_metrics": {
         "queue": "metrics",
