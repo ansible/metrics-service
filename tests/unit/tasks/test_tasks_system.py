@@ -245,6 +245,7 @@ class TestTaskRegistry(TestCase):
         expected_functions = [
             "hello_world",
             "cleanup_old_tasks",
+            "collect_analytics_usage",
         ]
 
         for func_name in expected_functions:

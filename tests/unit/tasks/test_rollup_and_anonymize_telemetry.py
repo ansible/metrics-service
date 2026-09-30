@@ -133,6 +133,10 @@ class TestDailyMetricsRollupTelemetry:
                 return_value=telemetry_rows,
             ) as mock_aggregate,
             patch(
+                "apps.tasks.collectors.collect_analytics_usage.aggregate_analytics_usage",
+                return_value={"controller.config": {"request_count": 2, "duration_ms_average": 15.5}},
+            ) as mock_usage,
+            patch(
                 "apps.tasks.collectors.daily_metrics_rollup._collect_and_group_hourly_collections"
             ) as mock_collections,
             patch("apps.tasks.collectors.daily_metrics_rollup._merge_hourly_rollups") as mock_merge,
@@ -159,6 +163,8 @@ class TestDailyMetricsRollupTelemetry:
         rollup_arg = call_args[0][1]  # second positional arg is the daily_rollup dict
         assert "dashboard_telemetry" in rollup_arg
         assert rollup_arg["dashboard_telemetry"] == telemetry_rows
+        mock_usage.assert_called_once_with()
+        assert rollup_arg["analytics_usage"] == {"controller.config": {"request_count": 2, "duration_ms_average": 15.5}}
 
     def test_rollup_uses_summary_date_for_telemetry_query(self):
         """_aggregate_dashboard_telemetry is called with the summary_date being rolled up."""
@@ -239,6 +245,48 @@ class TestDailyAnonymizeTelemetry:
         assert result["status"] == "success"
         payload = AnonymizedMetricsPayload.objects.get(summary_date=specific_date)
         assert payload.anonymized_data["dashboard_telemetry"] == telemetry
+
+    def test_analytics_usage_included_in_anonymized_data(self):
+        """Prometheus usage remains in its own aggregate-only payload section."""
+        from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
+
+        specific_date = date(2024, 8, 1)
+        usage = {"controller.config": {"request_count": 2, "duration_ms_average": 15.5}}
+        DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()
+        DailyMetricsSummary.objects.create(
+            summary_date=specific_date,
+            status="aggregated",
+            aggregated_metrics={"unified_jobs": {}, "job_host_summary_service": {}, "analytics_usage": usage},
+        )
+
+        with patch("metrics_utility.anonymized_rollups.anonymize_rollups", return_value={"data": {}}):
+            result = daily_anonymize_and_prepare(summary_date=specific_date.isoformat())
+
+        assert result["status"] == "success"
+        payload = AnonymizedMetricsPayload.objects.get(summary_date=specific_date)
+        assert payload.anonymized_data["analytics_usage"] == usage
+        assert "organization_name" not in str(payload.anonymized_data["analytics_usage"])
+
+    def test_missing_analytics_usage_is_empty(self):
+        """A missing or empty Prometheus scrape does not block anonymization."""
+        from apps.tasks.collectors.daily_anonymize_and_prepare import daily_anonymize_and_prepare
+        from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
+
+        specific_date = date(2024, 8, 2)
+        DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()
+        DailyMetricsSummary.objects.create(
+            summary_date=specific_date,
+            status="aggregated",
+            aggregated_metrics={"unified_jobs": {}, "job_host_summary_service": {}},
+        )
+
+        with patch("metrics_utility.anonymized_rollups.anonymize_rollups", return_value={"data": {}}):
+            result = daily_anonymize_and_prepare(summary_date=specific_date.isoformat())
+
+        assert result["status"] == "success"
+        payload = AnonymizedMetricsPayload.objects.get(summary_date=specific_date)
+        assert payload.anonymized_data["analytics_usage"] == {}
 
     def test_missing_dashboard_telemetry_defaults_to_empty_list(self):
         """When dashboard_telemetry is absent from the summary metrics,
