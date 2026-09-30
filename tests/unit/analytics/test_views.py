@@ -1,6 +1,7 @@
 """Tests for the read-only analytics API."""
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -256,3 +257,157 @@ def test_collect_rejects_configured_source(authenticated_client):
     )
 
     assert response.status_code == 400
+
+
+def test_collect_get_triggers_previous_and_schedules_current_window(authenticated_client):
+    now = datetime(2026, 8, 17, 10, 30, tzinfo=UTC)
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["results"] == []
+    demand = body["collection_demand"]
+    assert demand["previous"]["action"] == "triggered"
+    assert demand["current"]["action"] == "scheduled"
+    assert demand["current"]["scheduled_time"] == "2026-08-17T11:00:00Z"
+    assert demand["previous"]["task_url"].endswith(f"/api/v1/tasks/{demand['previous']['task_id']}/")
+    assert demand["current"]["task_url"].endswith(f"/api/v1/tasks/{demand['current']['task_id']}/")
+
+    tasks = list(Task.objects.order_by("id"))
+    assert len(tasks) == 2
+    assert tasks[0].task_data == {
+        "collector": UNIFIED,
+        "since": "2026-08-17T09:00:00+00:00",
+        "until": "2026-08-17T10:00:00+00:00",
+    }
+    assert tasks[1].task_data == {
+        "collector": UNIFIED,
+        "since": "2026-08-17T10:00:00+00:00",
+        "until": "2026-08-17T11:00:00+00:00",
+    }
+
+
+def test_collect_get_does_not_duplicate_existing_current_task(authenticated_client):
+    now = datetime(2026, 8, 17, 10, 30, tzinfo=UTC)
+    current_since = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    current_until = datetime(2026, 8, 17, 11, tzinfo=UTC)
+    Task.objects.create(
+        name="existing-demand",
+        description="",
+        function_name="collect_analytics_on_demand",
+        task_data={
+            "collector": UNIFIED,
+            "since": current_since.isoformat(),
+            "until": current_until.isoformat(),
+        },
+        status="pending",
+    )
+    _row(UNIFIED, datetime(2026, 8, 17, 9, tzinfo=UTC), datetime(2026, 8, 17, 10, tzinfo=UTC))
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert response.status_code == 200
+    demand = response.json()["collection_demand"]
+    assert demand["previous"]["action"] == "already_collected"
+    assert demand["current"]["action"] == "existing_task"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_get_does_not_treat_overlapping_custom_window_as_match(authenticated_client):
+    now = datetime(2026, 8, 17, 10, 30, tzinfo=UTC)
+    Task.objects.create(
+        name="custom-overlap",
+        description="",
+        function_name="collect_analytics_on_demand",
+        task_data={
+            "collector": UNIFIED,
+            "since": "2026-08-17T09:30:00+00:00",
+            "until": "2026-08-17T10:30:00+00:00",
+        },
+        status="pending",
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert response.status_code == 200
+    demand = response.json()["collection_demand"]
+    assert demand["previous"]["action"] == "triggered"
+    assert demand["current"]["action"] == "scheduled"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 3
+
+
+def test_collect_get_is_idempotent_for_sequential_requests(authenticated_client):
+    now = datetime(2026, 8, 17, 10, 30, tzinfo=UTC)
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        first = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+        second = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert first.status_code == second.status_code == 200
+    demand = second.json()["collection_demand"]
+    assert demand["previous"]["action"] == "existing_task"
+    assert demand["current"]["action"] == "existing_task"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 2
+
+
+def test_collect_get_uses_cron_for_current_but_catches_up_previous(authenticated_client):
+    now = datetime(2026, 8, 17, 10, 30, tzinfo=UTC)
+    Task.objects.create(
+        name="hourly-unified-jobs",
+        description="",
+        function_name="collect_hourly_metrics",
+        task_data={"collector_type": "unified_jobs"},
+        cron_expression="5 * * * *",
+        status="pending",
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/collect/")
+
+    assert response.status_code == 200
+    demand = response.json()["collection_demand"]
+    assert demand["previous"]["action"] == "triggered"
+    assert demand["current"]["action"] == "cron_covered"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_get_snapshot_runs_once_per_24_hours(authenticated_client):
+    now = datetime(2026, 8, 17, 10, 30, tzinfo=UTC)
+    started = now - timedelta(hours=2)
+    AnalyticsPayload.objects.create(
+        collector=CONFIG,
+        started_at=started,
+        finished_at=started + timedelta(minutes=1),
+        payload={"v": 1},
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        response = authenticated_client.get(f"{ROOT}{CONFIG}/collect/")
+
+    assert response.status_code == 200
+    assert response.json()["collection_demand"]["snapshot"]["action"] == "already_collected"
+    assert not Task.objects.exists()
+
+
+def test_collect_get_snapshot_creates_immediate_task_when_stale(authenticated_client):
+    now = datetime(2026, 8, 17, 10, 30, tzinfo=UTC)
+    old = now - timedelta(days=1, minutes=1)
+    AnalyticsPayload.objects.create(
+        collector=CONFIG,
+        started_at=old,
+        finished_at=old,
+        payload={"v": 1},
+    )
+
+    with patch("apps.analytics.v1.views.timezone.now", return_value=now):
+        response = authenticated_client.get(f"{ROOT}{CONFIG}/collect/")
+
+    assert response.status_code == 200
+    demand = response.json()["collection_demand"]["snapshot"]
+    assert demand["action"] == "triggered"
+    assert demand["task_url"].endswith(f"/api/v1/tasks/{demand['task_id']}/")
+    assert Task.objects.get().task_data == {"collector": CONFIG}

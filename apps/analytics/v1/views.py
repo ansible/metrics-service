@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, timedelta
 from uuid import uuid4
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -18,9 +20,19 @@ from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
+from apps.analytics.demand import (
+    CollectionWindow,
+    has_cron_template,
+    previous_and_current_windows,
+    relevant_tasks,
+    resolve_task_period,
+)
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.registry import enabled_collectors, get_entry
 from apps.analytics.v1.serializers import AnalyticsPayloadSerializer, CollectorDiscoverySerializer
+from apps.tasks.models import Task
+
+logger = logging.getLogger(__name__)
 
 _ANALYTICS_ROW_FIELDS_DESCRIPTION = """The linked collector row endpoints return paginated collection envelopes. Each row contains:
 
@@ -44,7 +56,8 @@ Response fields:
 - `mode`: `hourly`, `daily`, or `snapshot`.
 - `accepts_since_until`: whether collection windows are supported.
 - `rows_url`: URL for stored collection envelopes.
-- `collect_url`: URL for triggering an on-demand collection task.
+- `collect_url`: POST URL for triggering an on-demand collection task, or GET URL for returning rows
+  while recording collection demand.
 """
 
 
@@ -179,48 +192,157 @@ class CollectorRowsView(generics.ListAPIView):
         A row matches when its stored ``[since, until)`` overlaps the query window (``until``
         exclusive). A null bound is treated as open-ended.
         """
-        collector = self.kwargs["collector"]
-        qs = AnalyticsPayload.objects.filter(collector=collector)
-
-        parsed_since = _parse_dt(self.request.query_params.get("since"))
-        parsed_until = _parse_dt(self.request.query_params.get("until"))
-        # Overlap: row.until > q_since AND row.since < q_until (null bounds = open-ended = match).
-        if parsed_since:
-            qs = qs.filter(Q(until__isnull=True) | Q(until__gt=parsed_since))
-        if parsed_until:
-            qs = qs.filter(Q(since__isnull=True) | Q(since__lt=parsed_until))
-        return qs.order_by("-started_at", "-id")
+        return _rows_queryset(self.request, self.kwargs["collector"])
 
     def list(self, request, *args, **kwargs):
         """Reject unknown/disabled collectors and invalid query windows up front."""
-        entry = get_entry(self.kwargs["collector"])
-        if entry is None or not entry.enabled:
-            return Response(
-                {"detail": f"Unknown or disabled collector: {self.kwargs['collector']}"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        since = _parse_dt(request.query_params.get("since"))
-        until = _parse_dt(request.query_params.get("until"))
-        for param, value in (("since", since), ("until", until)):
-            if value is False:
-                return Response(
-                    {"detail": f"Invalid {param}: {request.query_params.get(param)}"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        if since is not None and until is not None and until <= since:
-            return Response(
-                {"detail": "until must be after since"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        error = _validate_rows_request(request, self.kwargs["collector"])
+        if error is not None:
+            return error
         return super().list(request, *args, **kwargs)
 
 
 class CollectorCollectView(APIView):
-    """Create one claimless on-demand collection task for an enabled collector."""
+    """Read analytics rows and create on-demand collection tasks for an enabled collector."""
 
-    # Collection triggers are intentionally admin-only for now; auditor-trigger support will be
-    # addressed separately, potentially through a future read-style trigger endpoint.
+    # Collection triggers are intentionally limited to the existing system-admin/auditor policy.
     permission_classes = [IsSystemAdminOrAuditor]
+
+    @extend_schema(
+        summary="Return analytics rows and record collection demand.",
+        responses=inline_serializer(
+            name="AnalyticsCollectRowsResponse",
+            fields={
+                "count": drf_serializers.IntegerField(),
+                "next": drf_serializers.URLField(allow_null=True),
+                "previous": drf_serializers.URLField(allow_null=True),
+                "results": AnalyticsPayloadSerializer(many=True),
+                "collection_demand": drf_serializers.DictField(),
+            },
+        ),
+    )
+    def get(self, request, *args, **kwargs):
+        """Return stored rows while recording demand for the current collection period."""
+        collector = self.kwargs["collector"]
+        entry = get_entry(collector)
+        if entry is None or not entry.enabled:
+            return Response(
+                {"detail": f"Unknown or disabled collector: {collector}"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        error = _validate_rows_request(request, collector)
+        if error is not None:
+            return error
+
+        now = timezone.now()
+        with transaction.atomic():
+            demand = self._schedule_demand(entry, now, request)
+
+        response = _rows_response(request, collector)
+        if response.status_code != status.HTTP_200_OK:
+            return response
+        response.data = {**response.data, "collection_demand": demand}
+        response["Cache-Control"] = "no-store"
+        return response
+
+    def _task_details(self, task, request, action: str) -> dict[str, object]:
+        """Return API metadata for an existing or newly-created task."""
+        return {
+            "action": action,
+            "task_id": task.pk,
+            "task_url": reverse("tasks:v1:task-detail", kwargs={"pk": task.pk}, request=request),
+            "status": task.status,
+            "scheduled_time": task.scheduled_time,
+        }
+
+    def _matching_window_task(self, entry, window: CollectionWindow, now):
+        """Find a task with the exact canonical window, conservatively on bad metadata."""
+        for task in relevant_tasks(entry):
+            period = resolve_task_period(entry, task, now)
+            if period is None:
+                continue
+            if not period.resolvable:
+                logger.warning("Suppressing analytics demand for %s due to task %s metadata", entry.name, task.pk)
+                return None, True
+            if period.window == window:
+                return task, False
+        return None, False
+
+    def _matching_snapshot_task(self, entry, now):
+        """Find a recent task for a snapshot collector, conservatively on bad metadata."""
+        cutoff = now - timedelta(days=1)
+        for task in relevant_tasks(entry):
+            period = resolve_task_period(entry, task, now)
+            if period is None:
+                continue
+            if not period.resolvable:
+                logger.warning("Suppressing analytics demand for %s due to task %s metadata", entry.name, task.pk)
+                return None, True
+            if period.snapshot_at and period.snapshot_at >= cutoff:
+                return task, False
+        return None, False
+
+    def _create_demand_task(self, entry, request, *, window: CollectionWindow | None, scheduled_time=None):
+        """Create a task for one canonical demand request."""
+        task_data = {"collector": entry.name}
+        if window is not None:
+            task_data.update({"since": window.since.isoformat(), "until": window.until.isoformat()})
+
+        return Task.objects.create(
+            name=f"ondemand_analytics_{entry.name}_{uuid4().hex}",
+            description=f"Demand-driven analytics collection for {entry.name}",
+            function_name="collect_analytics_on_demand",
+            task_data=task_data,
+            is_system_task=False,
+            status="pending",
+            scheduled_time=scheduled_time,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+
+    def _window_demand(self, entry, window: CollectionWindow, now, request, *, current: bool) -> dict:
+        """Resolve one previous/current demand window."""
+        task, unresolved = self._matching_window_task(entry, window, now)
+        if task is not None:
+            return self._task_details(task, request, "existing_task")
+        if AnalyticsPayload.objects.filter(collector=entry.name, since=window.since, until=window.until).exists():
+            return {"action": "already_collected"}
+        if unresolved:
+            return {"action": "suppressed", "reason": "unresolved_task_metadata"}
+        if current and has_cron_template(entry):
+            return {"action": "cron_covered"}
+
+        task = self._create_demand_task(
+            entry,
+            request,
+            window=window,
+            scheduled_time=window.until if current else None,
+        )
+        return self._task_details(task, request, "scheduled" if current else "triggered")
+
+    def _snapshot_demand(self, entry, now, request) -> dict:
+        """Resolve daily demand for a snapshot collector."""
+        task, unresolved = self._matching_snapshot_task(entry, now)
+        if task is not None:
+            return self._task_details(task, request, "existing_task")
+        if AnalyticsPayload.objects.filter(collector=entry.name, finished_at__gte=now - timedelta(days=1)).exists():
+            return {"action": "already_collected"}
+        if unresolved:
+            return {"action": "suppressed", "reason": "unresolved_task_metadata"}
+
+        task = self._create_demand_task(entry, request, window=None)
+        return self._task_details(task, request, "triggered")
+
+    def _schedule_demand(self, entry, now, request) -> dict[str, dict]:
+        """Create missing demand tasks and return their status metadata."""
+        if entry.mode == "snapshot":
+            return {"snapshot": self._snapshot_demand(entry, now, request)}
+
+        previous, current = previous_and_current_windows(entry.mode, now)
+        return {
+            "previous": self._window_demand(entry, previous, now, request, current=False),
+            "current": self._window_demand(entry, current, now, request, current=True),
+        }
 
     def _resolve_window(self, entry, request):
         """Parse request bounds, apply mode defaults, and return a task window or an error."""
@@ -335,3 +457,51 @@ class CollectorCollectView(APIView):
         )
         response["Location"] = task_url
         return response
+
+
+def _validate_rows_request(request, collector):
+    """Validate a collector rows request and return an error response when invalid."""
+    entry = get_entry(collector)
+    if entry is None or not entry.enabled:
+        return Response(
+            {"detail": f"Unknown or disabled collector: {collector}"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    since = _parse_dt(request.query_params.get("since"))
+    until = _parse_dt(request.query_params.get("until"))
+    for param, value in (("since", since), ("until", until)):
+        if value is False:
+            return Response(
+                {"detail": f"Invalid {param}: {request.query_params.get(param)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    if since is not None and until is not None and until <= since:
+        return Response(
+            {"detail": "until must be after since"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
+
+
+def _rows_queryset(request, collector):
+    """Build the analytics rows queryset using the existing overlap semantics."""
+    qs = AnalyticsPayload.objects.filter(collector=collector)
+    parsed_since = _parse_dt(request.query_params.get("since"))
+    parsed_until = _parse_dt(request.query_params.get("until"))
+    # Overlap: row.until > q_since AND row.since < q_until (null bounds = open-ended = match).
+    if parsed_since:
+        qs = qs.filter(Q(until__isnull=True) | Q(until__gt=parsed_since))
+    if parsed_until:
+        qs = qs.filter(Q(since__isnull=True) | Q(since__lt=parsed_until))
+    return qs.order_by("-started_at", "-id")
+
+
+def _rows_response(request, collector):
+    """Return the standard paginated response for a collector."""
+    error = _validate_rows_request(request, collector)
+    if error is not None:
+        return error
+    paginator = AnalyticsPaginator()
+    page = paginator.paginate_queryset(_rows_queryset(request, collector), request, view=None)
+    serializer = AnalyticsPayloadSerializer(page, many=True, context={"request": request})
+    return paginator.get_paginated_response(serializer.data)
