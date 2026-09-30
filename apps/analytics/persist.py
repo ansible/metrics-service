@@ -54,12 +54,14 @@ def persist_analytics_payload(
     started_at: datetime.datetime,
     finished_at: datetime.datetime,
     source: str = LOCAL_SOURCE,
-) -> None:
+    strict: bool = False,
+) -> AnalyticsPayload | None:
     """Persist raw ``gather()`` output for an enabled collector, keyed by public name.
 
-    No-op for collectors that aren't enabled in the analytics registry. Best-effort: logs and
-    swallows all errors so the caller's rollup path is unaffected. Stores the public ``name``
-    (``group.function``) in ``collector``. Every successful collection is appended.
+    No-op for collectors that aren't enabled in the analytics registry. Best-effort by default:
+    logs and swallows all errors so the caller's rollup path is unaffected. ``strict=True``
+    propagates persistence errors for on-demand tasks. Stores the public ``name`` (``group.function``)
+    in ``collector``. Every successful collection is appended.
 
     Args:
         collector_type: metrics-service collector key (mapped to the public name via the registry).
@@ -69,6 +71,7 @@ def persist_analytics_payload(
         started_at: when the ``gather()`` call started.
         finished_at: when the ``gather()`` call finished.
         source: origin of the data; defaults to the local install.
+        strict: whether persistence errors should be raised to the caller.
     """
     entry = get_entry_by_type(collector_type)
     if entry is None or not entry.enabled:
@@ -78,7 +81,7 @@ def persist_analytics_payload(
         payload = _to_jsonable(raw_data)
         # collector_type is the internal task key (for example, ``main_host``)
         # entry.name is the full whitelist/API/storage name (for example, ``controller.main_host``)
-        AnalyticsPayload.objects.create(
+        return AnalyticsPayload.objects.create(
             collector=entry.name,
             source=source,
             since=since,
@@ -89,3 +92,6 @@ def persist_analytics_payload(
         )
     except Exception:  # noqa: BLE001 - never let analytics persistence break collection
         logger.exception("Failed to persist analytics payload for collector %s", collector_type)
+        if strict:
+            raise
+        return None

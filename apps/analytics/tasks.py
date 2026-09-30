@@ -13,6 +13,7 @@ from typing import Any
 
 from django.conf import settings
 
+from apps.analytics.claims import claim_for_execution, finish_claim, start_claim
 from apps.analytics.persist import persist_analytics_payload
 from apps.analytics.registry import get_entry
 from apps.tasks.utils import create_task_result, get_db_connection, parse_datetime_string
@@ -41,7 +42,7 @@ def _collector_func(collector_type: str, mode: str):
     return registry_fn().get(collector_type, {}).get("collector_func")
 
 
-def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
+def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:  # noqa: PLR0911
     """Run one enabled collector for a given window and store its raw payload.
 
     Args:
@@ -69,7 +70,7 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
         (
             f"Invalid {name}: {raw}"
             for name, raw, parsed in (("since", raw_since, since), ("until", raw_until, until))
-            if raw and parsed is None
+            if raw is not None and (not isinstance(raw, str) or not raw or parsed is None)
         ),
         None,
     )
@@ -77,10 +78,18 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
         window_error = "until must be after since"
     if window_error:
         return create_task_result("error", error=window_error)
+    if not entry.accepts_since_until and (raw_since is not None or raw_until is not None):
+        return create_task_result(
+            "error", error=f"Collector {collector} is snapshot-only and does not accept since/until"
+        )
 
     collector_func = _collector_func(entry.collector_type, entry.mode)
     if collector_func is None:
         return create_task_result("error", error=f"No collector function for {collector}")
+
+    claim = claim_for_execution(kwargs.get("execution_id"))
+    if claim is not None and not start_claim(claim):
+        return create_task_result("error", {"collector": collector}, error="Collection claim was superseded")
 
     # Windowed collectors take since/until; snapshots take neither.
     collector_kwargs: dict[str, Any] = {}
@@ -100,15 +109,25 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
         finished = timezone.now()
     except Exception as e:
         logger.exception("On-demand analytics collection failed for %s", collector)
+        if claim is not None:
+            finish_claim(claim, status="failed", error_message=f"Collection failed: {e}")
         return create_task_result("error", {"collector": collector}, error=f"Collection failed: {e}")
 
     # Persistence appends the completed collection and maps collector_type to the public name.
-    persist_analytics_payload(
-        entry.collector_type,
-        raw_data,
-        since=since,
-        until=until,
-        started_at=started,
-        finished_at=finished,
-    )
+    try:
+        payload = persist_analytics_payload(
+            entry.collector_type,
+            raw_data,
+            since=since,
+            until=until,
+            started_at=started,
+            finished_at=finished,
+            strict=claim is not None,
+        )
+    except Exception as e:
+        if claim is not None:
+            finish_claim(claim, status="failed", error_message=f"Persistence failed: {e}")
+        return create_task_result("error", {"collector": collector}, error=f"Persistence failed: {e}")
+    if claim is not None:
+        finish_claim(claim, status="completed", payload=payload)
     return create_task_result("success", {"collector": collector, "message": f"Collected {collector}"})
