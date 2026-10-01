@@ -162,7 +162,8 @@ paths:
         - `mode`: `hourly`, `daily`, or `snapshot`.
         - `accepts_since_until`: whether collection windows are supported.
         - `rows_url`: URL for stored collection envelopes.
-        - `collect_url`: URL for triggering an on-demand collection task.
+        - `collect_url`: POST URL for triggering an on-demand collection task, or GET URL for returning rows
+          while recording collection demand.
       summary: Discover enabled analytics collectors.
       tags:
       - analytics
@@ -383,18 +384,16 @@ paths:
         schema:
           type: string
         required: true
-      - name: page
-        required: false
-        in: query
+      - in: query
+        name: page
+        schema:
+          type: integer
         description: A page number within the paginated result set.
+      - in: query
+        name: page_size
         schema:
           type: integer
-      - name: page_size
-        required: false
-        in: query
         description: Number of results to return per page.
-        schema:
-          type: integer
       - in: query
         name: since
         schema:
@@ -421,6 +420,52 @@ paths:
           description: ''
       x-ai-description: List all analytics
   /api/v1/analytics/{collector}/collect/:
+    get:
+      operationId: analytics_collect_retrieve
+      description: Return stored rows while recording demand for the current collection
+        period.
+      summary: Return analytics rows and record collection demand.
+      parameters:
+      - in: path
+        name: collector
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: A page number within the paginated result set.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Number of results to return per page.
+      - in: query
+        name: since
+        schema:
+          type: string
+          format: date-time
+        description: Return rows whose collection window overlaps this inclusive bound.
+      - in: query
+        name: until
+        schema:
+          type: string
+          format: date-time
+        description: Return rows whose collection window overlaps this exclusive bound.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsCollectRowsResponse'
+          description: ''
+      x-ai-description: Retrieve single collect for an analytic
     post:
       operationId: analytics_collect_create
       description: Create a pending task and return its details without claiming a
@@ -7713,6 +7758,31 @@ components:
       - task_data
       - task_id
       - task_url
+    AnalyticsCollectRowsResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsPayload'
+        collection_demand:
+          $ref: '#/components/schemas/CollectionDemand'
+      required:
+      - collection_demand
+      - count
+      - next
+      - previous
+      - results
     AnalyticsPayload:
       type: object
       description: Serialise one stored raw collection envelope.
@@ -7804,6 +7874,52 @@ components:
           $ref: '#/components/schemas/SegmentSend'
       required:
       - database
+    CollectionDemand:
+      type: object
+      description: Serialize collection demand outcomes for windowed and snapshot
+        collectors.
+      properties:
+        previous:
+          $ref: '#/components/schemas/CollectionDemandResult'
+        current:
+          $ref: '#/components/schemas/CollectionDemandResult'
+        snapshot:
+          $ref: '#/components/schemas/CollectionDemandResult'
+    CollectionDemandResult:
+      type: object
+      description: Serialize the outcome for one analytics collection demand period.
+      properties:
+        action:
+          enum:
+          - already_collected
+          - cron_covered
+          - existing_task
+          - scheduled
+          - suppressed
+          - triggered
+          type: string
+          description: |-
+            * `already_collected` - already_collected
+            * `cron_covered` - cron_covered
+            * `existing_task` - existing_task
+            * `scheduled` - scheduled
+            * `suppressed` - suppressed
+            * `triggered` - triggered
+        task_id:
+          type: integer
+        task_url:
+          type: string
+          format: uri
+        status:
+          type: string
+        scheduled_time:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+      required:
+      - action
     CollectorDiscovery:
       type: object
       description: Serialize one enabled collector and its hyperlinked API endpoints.
