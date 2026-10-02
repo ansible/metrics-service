@@ -124,6 +124,8 @@ Precedence: env/settings key wins; file load skipped if already set.
 | `INSTALL_TYPE` | Included in anonymized `summary_metadata` (`containerized`, etc.) |
 
 Event name default: `Controller Metrics Daily Rollup` (or test suffix).
+Controller events include `properties.version: "v1"` so downstream consumers can
+identify the payload schema independently of the event name.
 
 ## Opt-Out
 
