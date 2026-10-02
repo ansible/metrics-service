@@ -1,12 +1,14 @@
 """Tests for the on-demand analytics collection task."""
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from apps.analytics.models import AnalyticsPayload
+from apps.analytics.models import AnalyticsCollectionClaim, AnalyticsPayload
 from apps.analytics.tasks import collect_analytics_on_demand
+from apps.tasks.models import Task, TaskExecution
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 
@@ -87,3 +89,67 @@ def test_on_demand_snapshot_no_window(_mock_db):
     _, kwargs = func.call_args
     assert "since" not in kwargs and "until" not in kwargs
     assert AnalyticsPayload.objects.get(collector="controller.config").payload == {"version": "9"}
+
+
+@patch("apps.analytics.tasks.get_db_connection")
+def test_on_demand_claim_transitions_to_completed_after_persistence(_mock_db):
+    since, until = "2026-08-17T10:00:00Z", "2026-08-17T11:00:00Z"
+    since_dt = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    until_dt = datetime(2026, 8, 17, 11, tzinfo=UTC)
+    task = Task.objects.create(
+        name="claimed", function_name="collect_analytics_on_demand", task_data={"collector": UNIFIED}
+    )
+    execution = TaskExecution.objects.create(task=task, status="running")
+    claim = AnalyticsCollectionClaim.objects.create(
+        claim_key=AnalyticsCollectionClaim.make_key(UNIFIED, "local", since_dt, until_dt),
+        collector=UNIFIED,
+        since=since_dt,
+        until=until_dt,
+        task=task,
+    )
+    func = _fake_collector(pd.DataFrame([{"id": 1}]))
+
+    with patch("apps.analytics.tasks._collector_func", return_value=func):
+        result = collect_analytics_on_demand(collector=UNIFIED, since=since, until=until, execution_id=execution.pk)
+
+    claim.refresh_from_db()
+    assert result["status"] == "success"
+    assert claim.status == "completed"
+    assert claim.payload_id == AnalyticsPayload.objects.get(collector=UNIFIED).pk
+
+
+@patch("apps.analytics.tasks.get_db_connection")
+def test_on_demand_claim_failure_is_recoverable(_mock_db):
+    task = Task.objects.create(
+        name="claimed-failure", function_name="collect_analytics_on_demand", task_data={"collector": UNIFIED}
+    )
+    execution = TaskExecution.objects.create(task=task, status="running")
+    since = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    until = datetime(2026, 8, 17, 11, tzinfo=UTC)
+    claim = AnalyticsCollectionClaim.objects.create(
+        claim_key=AnalyticsCollectionClaim.make_key(UNIFIED, "local", since, until),
+        collector=UNIFIED,
+        since=since,
+        until=until,
+        task=task,
+    )
+    boom = MagicMock()
+    boom.return_value.gather.side_effect = RuntimeError("kaboom")
+
+    with patch("apps.analytics.tasks._collector_func", return_value=boom):
+        result = collect_analytics_on_demand(
+            collector=UNIFIED, since=since.isoformat(), until=until.isoformat(), execution_id=execution.pk
+        )
+
+    claim.refresh_from_db()
+    assert result["status"] == "error"
+    assert claim.status == "failed"
+    assert "kaboom" in claim.error_message
+    assert not AnalyticsPayload.objects.exists()
+
+
+def test_snapshot_rejects_window_in_worker():
+    result = collect_analytics_on_demand(collector="controller.config", since="2026-08-17T10:00:00Z")
+
+    assert result["status"] == "error"
+    assert "snapshot-only" in result["error"]

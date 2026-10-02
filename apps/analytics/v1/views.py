@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
+from apps.analytics.claims import acquire_claim
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.registry import enabled_collectors, get_entry
 from apps.analytics.v1.serializers import AnalyticsPayloadSerializer, CollectorDiscoverySerializer
@@ -54,8 +55,10 @@ def _parse_dt(value):
     Returns None when no value was given, the parsed datetime on success, or False when the
     value is present but malformed (so callers can distinguish "absent" from "invalid").
     """
-    if not value:
+    if value is None:
         return None
+    if value == "" or not isinstance(value, str):
+        return False
     from django.utils.dateparse import parse_datetime
 
     try:
@@ -216,7 +219,7 @@ class CollectorRowsView(generics.ListAPIView):
 
 
 class CollectorCollectView(APIView):
-    """Create one claimless on-demand collection task for an enabled collector."""
+    """Create or reuse an atomic on-demand collection claim for an enabled collector."""
 
     # Collection triggers are intentionally admin-only for now; auditor-trigger support will be
     # addressed separately, potentially through a future read-style trigger endpoint.
@@ -273,25 +276,54 @@ class CollectorCollectView(APIView):
             },
         ),
         responses={
+            200: inline_serializer(
+                name="AnalyticsCollectReuseResponse",
+                fields={
+                    "claim_id": drf_serializers.IntegerField(),
+                    "state": drf_serializers.CharField(),
+                    "status": drf_serializers.CharField(),
+                    "collector": drf_serializers.CharField(),
+                    "task_id": drf_serializers.IntegerField(allow_null=True),
+                    "task_url": drf_serializers.URLField(allow_null=True),
+                    "task_data": drf_serializers.DictField(),
+                    "payload_id": drf_serializers.IntegerField(allow_null=True),
+                    "reused": drf_serializers.BooleanField(),
+                },
+            ),
             202: inline_serializer(
                 name="AnalyticsCollectResponse",
                 fields={
+                    "claim_id": drf_serializers.IntegerField(),
+                    "state": drf_serializers.CharField(),
+                    "status": drf_serializers.CharField(),
                     "task_id": drf_serializers.IntegerField(),
                     "task_url": drf_serializers.URLField(),
                     "collector": drf_serializers.CharField(),
                     "task_data": drf_serializers.DictField(),
+                    "payload_id": drf_serializers.IntegerField(allow_null=True),
+                    "reused": drf_serializers.BooleanField(),
                 },
             ),
         },
     )
     def post(self, request, *args, **kwargs):
-        """Create a pending task and return its details without claiming a payload row."""
+        """Create or reuse a pending task for the resolved collector window."""
         collector = self.kwargs["collector"]
         entry = get_entry(collector)
         if entry is None or not entry.enabled:
             return Response(
                 {"detail": f"Unknown or disabled collector: {collector}"},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not isinstance(request.data, dict):
+            return Response({"detail": "Request body must be a JSON object"}, status=status.HTTP_400_BAD_REQUEST)
+
+        unknown_fields = set(request.data) - {"since", "until", "source"}
+        if unknown_fields:
+            return Response(
+                {"detail": f"Unknown request field(s): {', '.join(sorted(unknown_fields))}"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         if "source" in request.data:
@@ -313,25 +345,33 @@ class CollectorCollectView(APIView):
 
         from apps.tasks.models import Task
 
-        task = Task.objects.create(
-            name=f"ondemand_analytics_{collector}_{uuid4().hex}",
-            description=f"On-demand analytics collection for {collector}",
-            function_name="collect_analytics_on_demand",
-            task_data=task_data,
-            is_system_task=False,
-            status="pending",
-            scheduled_time=None,
-            created_by=request.user if request.user.is_authenticated else None,
-        )
-        task_url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk}, request=request)
-        response = Response(
-            {
-                "task_id": task.pk,
-                "task_url": task_url,
-                "collector": collector,
-                "task_data": task_data,
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
-        response["Location"] = task_url
+        def task_factory():
+            return Task.objects.create(
+                name=f"ondemand_analytics_{collector}_{uuid4().hex}",
+                description=f"On-demand analytics collection for {collector}",
+                function_name="collect_analytics_on_demand",
+                task_data=task_data,
+                is_system_task=False,
+                status="pending",
+                scheduled_time=None,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+
+        claim, action = acquire_claim(collector=collector, since=since, until=until, task_factory=task_factory)
+        task = claim.task
+        task_url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk}, request=request) if task else None
+        body = {
+            "claim_id": claim.pk,
+            "state": claim.status,
+            "status": claim.status,
+            "task_id": task.pk if task else None,
+            "task_url": task_url,
+            "collector": collector,
+            "task_data": task.task_data if task else task_data,
+            "payload_id": claim.payload_id,
+            "reused": action != "created",
+        }
+        response = Response(body, status=status.HTTP_200_OK if action == "completed" else status.HTTP_202_ACCEPTED)
+        if task_url:
+            response["Location"] = task_url
         return response

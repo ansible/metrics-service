@@ -423,8 +423,7 @@ paths:
   /api/v1/analytics/{collector}/collect/:
     post:
       operationId: analytics_collect_create
-      description: Create a pending task and return its details without claiming a
-        payload row.
+      description: Create or reuse a pending task for the resolved collector window.
       parameters:
       - in: path
         name: collector
@@ -448,6 +447,12 @@ paths:
       - cookieAuth: []
       - basicAuth: []
       responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsCollectReuseResponse'
+          description: ''
         '202':
           content:
             application/json:
@@ -7698,6 +7703,12 @@ components:
     AnalyticsCollectResponse:
       type: object
       properties:
+        claim_id:
+          type: integer
+        state:
+          type: string
+        status:
+          type: string
         task_id:
           type: integer
         task_url:
@@ -7708,8 +7719,54 @@ components:
         task_data:
           type: object
           additionalProperties: {}
+        payload_id:
+          type: integer
+          nullable: true
+        reused:
+          type: boolean
       required:
+      - claim_id
       - collector
+      - payload_id
+      - reused
+      - state
+      - status
+      - task_data
+      - task_id
+      - task_url
+    AnalyticsCollectReuseResponse:
+      type: object
+      properties:
+        claim_id:
+          type: integer
+        state:
+          type: string
+        status:
+          type: string
+        collector:
+          type: string
+        task_id:
+          type: integer
+          nullable: true
+        task_url:
+          type: string
+          format: uri
+          nullable: true
+        task_data:
+          type: object
+          additionalProperties: {}
+        payload_id:
+          type: integer
+          nullable: true
+        reused:
+          type: boolean
+      required:
+      - claim_id
+      - collector
+      - payload_id
+      - reused
+      - state
+      - status
       - task_data
       - task_id
       - task_url
