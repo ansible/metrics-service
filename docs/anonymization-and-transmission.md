@@ -125,6 +125,26 @@ Precedence: env/settings key wins; file load skipped if already set.
 
 Event name default: `Controller Metrics Daily Rollup` (or test suffix).
 
+## Segment Payload Contract
+
+The final payload sent through Segment combines the `AnonymizedPayload` contract
+provided by `metrics-utility` with metrics-service `summary_metadata` and
+`dashboard_telemetry` fields. Generate its OpenAPI schema with:
+
+```bash
+uv run python tools/generate_segment_schema.py --output tools/segment-schema/metrics-service.yaml
+```
+
+The canonical generated schema is stored at
+`tools/segment-schema/metrics-service.yaml`; pull-request checks regenerate it
+and fail if the committed file is stale.
+
+Validate a captured payload with:
+
+```bash
+uv run python tools/validate_segment_contract.py path/to/payload.json
+```
+
 ## Opt-Out
 
 Customers can disable upstream transmission while keeping local collection:
