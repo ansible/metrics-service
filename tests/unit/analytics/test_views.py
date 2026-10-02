@@ -37,8 +37,14 @@ def test_root_lists_enabled_collectors(authenticated_client):
     unified = next(collector for collector in response.json()["collectors"] if collector["name"] == UNIFIED)
     assert unified["description"] == (
         "Job executions, including status and timing, organization, inventory, project, template, "
-        "execution environment, launcher, labels, and host count."
+        "execution environment, launcher, labels, and host count. The nested installed_collections "
+        "object is keyed by collection FQCN."
     )
+    assert unified["payload_shape"] == "array"
+    assert unified["key_field"] is None
+    config = next(collector for collector in response.json()["collectors"] if collector["name"] == CONFIG)
+    assert config["payload_shape"] == "object"
+    assert config["key_field"] is None
     assert "service.task_executions_service" not in names
     assert all(
         collector["rows_url"].startswith("http://testserver/api/v1/analytics/")
@@ -76,6 +82,8 @@ def test_root_browsable_response_links_collector_urls(authenticated_client):
     assert response.status_code == 200
     assert 'href="http://testserver/api/v1/analytics/controller.config/"' in response.text
     assert "accepts_since_until" in response.text
+    assert "payload_shape" in response.text
+    assert "key_field" in response.text
     assert "collect_url" in response.text
 
 
