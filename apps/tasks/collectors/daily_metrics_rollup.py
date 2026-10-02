@@ -318,6 +318,12 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         # Append dashboard telemetry
         daily_rollup["dashboard_telemetry"] = _aggregate_dashboard_telemetry(summary_date)
 
+        # Prometheus handles the cross-process aggregation; keep this usage signal separate from
+        # customer-facing rollup data and pass it through the normal anonymization boundary.
+        from .collect_analytics_usage import aggregate_analytics_usage
+
+        daily_rollup["analytics_usage"] = aggregate_analytics_usage()
+
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
             summary_date,
