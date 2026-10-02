@@ -59,6 +59,9 @@ class CollectorEntry:
         mode: ``"hourly"`` / ``"snapshot"`` / ``"daily"`` (scheduling + window model); ``""`` for
             EXCLUDED collectors (never scheduled).
         enabled: whether the collector is persisted and exposed by the API.
+        payload_shape: top-level JSON shape stored in ``payload`` (``object`` or ``array``).
+        key_field: field represented by top-level object keys, or ``None`` when the object has
+            fixed keys or the payload is an array.
         database: which Django DB connection the collector reads (defaults to ``awx``).
         note: why a collector is disabled/excluded, or any relevant caveat.
         description: customer-facing summary of the data returned by the collector.
@@ -68,6 +71,8 @@ class CollectorEntry:
     collector_type: str = field(kw_only=True)
     mode: str = field(kw_only=True)
     enabled: bool = field(kw_only=True)
+    payload_shape: str = field(kw_only=True)
+    key_field: str | None = field(kw_only=True)
     database: str = field(default="awx", kw_only=True)
     note: str = field(default="", kw_only=True)
     description: str = field(default="", kw_only=True)
@@ -79,6 +84,8 @@ class CollectorEntry:
         group, separator, mu_function = self.name.partition(".")
         if not separator or not group or not mu_function:
             raise ValueError(f"Collector name must be group.function: {self.name}")
+        if self.payload_shape not in {"object", "array"}:
+            raise ValueError(f"Unsupported payload shape for {self.name}: {self.payload_shape}")
         object.__setattr__(self, "group", group)
         object.__setattr__(self, "mu_function", mu_function)
 
@@ -98,13 +105,17 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="unified_jobs",
         mode="hourly",
         enabled=True,
-        description="Job executions, including status and timing, organization, inventory, project, template, execution environment, launcher, labels, and host count.",
+        payload_shape="array",
+        key_field=None,
+        description="Job executions, including status and timing, organization, inventory, project, template, execution environment, launcher, labels, and host count. The nested installed_collections object is keyed by collection FQCN.",
     ),
     CollectorEntry(
         "controller.job_host_summary_service",
         collector_type="job_host_summary_service",
         mode="hourly",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Per-job host results and counts, with host, job, template, inventory, organization, and project context.",
     ),
     CollectorEntry(
@@ -112,6 +123,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="credentials_service",
         mode="hourly",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Distinct managed credential types used by jobs completed in the collection window.",
     ),
     CollectorEntry(
@@ -119,6 +132,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="main_jobevent_service",
         mode="hourly",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Selected job events for jobs completed in the window, including event actions, task/play/role, host, result flags, warnings, and deprecations.",
     ),
     CollectorEntry(
@@ -126,6 +141,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="events_table",
         mode="hourly",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Raw job events modified in the window, including event details, playbook statistics, task/play/role, host, timing, warnings, and deprecations.",
     ),
     CollectorEntry(
@@ -133,6 +150,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="workflow_job_node_table",
         mode="hourly",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Workflow job node executions, their job/template/workflow/inventory references, and success, failure, and always edges.",
     ),
     CollectorEntry(
@@ -140,6 +159,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="query_info",
         mode="hourly",
         enabled=True,
+        payload_shape="object",
+        key_field=None,
         description="Collection metadata: requested bounds and collection type; it does not query the Controller database.",
     ),
     # Snapshot (collect_snapshot_metrics registry; current-state, no since/until window)
@@ -148,6 +169,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="execution_environments",
         mode="snapshot",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Execution environment records, including image, description, ownership, organization, credential, management, and pull settings.",
     ),
     CollectorEntry(
@@ -155,6 +178,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="config",
         mode="snapshot",
         enabled=True,
+        payload_shape="object",
+        key_field=None,
         note="already keeps raw (no rollup)",
         description="Selected Controller settings and license details, plus Controller and metrics-utility versions and runtime platform metadata.",
     ),
@@ -163,6 +188,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="controller_version_service",
         mode="snapshot",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Distinct versions reported by enabled control and hybrid Controller instances.",
     ),
     CollectorEntry(
@@ -170,6 +197,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="table_metadata",
         mode="snapshot",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Estimated row counts and table, index, and total sizes for the job event, unified job, and job host summary tables.",
     ),
     CollectorEntry(
@@ -177,6 +206,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="feature_flags_service",
         mode="snapshot",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Enabled boolean platform feature flags and their descriptions, support levels, toggle types, and visibility.",
     ),
     CollectorEntry(
@@ -184,20 +215,26 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="counts",
         mode="snapshot",
         enabled=True,
-        description="Counts of Controller objects, inventories by kind, non-sync jobs, active hosts and sessions, running and pending jobs, and database connections.",
+        payload_shape="object",
+        key_field=None,
+        description="Counts of Controller objects, inventories by kind, non-sync jobs, active hosts and sessions, running and pending jobs, and database connections. The nested inventories object is keyed by kind.",
     ),
     CollectorEntry(
         "controller.cred_type_counts",
         collector_type="cred_type_counts",
         mode="snapshot",
         enabled=True,
-        description="Credential counts grouped by credential type, including type name and whether the type is managed.",
+        payload_shape="object",
+        key_field="credential_type_id",
+        description="Credential counts grouped by credential type, including type name and whether the type is managed. The object is keyed by credential_type_id.",
     ),
     CollectorEntry(
         "controller.host_metric_summary_monthly_table",
         collector_type="host_metric_summary_monthly_table",
         mode="snapshot",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Monthly host capacity and usage summaries, including hosts added, deleted, and indirectly managed.",
     ),
     CollectorEntry(
@@ -205,34 +242,44 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="instance_info",
         mode="snapshot",
         enabled=True,
-        description="Controller instance topology, version, capacity, CPU, memory, node type, enablement, and current and remaining capacity.",
+        payload_shape="object",
+        key_field="uuid",
+        description="Controller instance topology, version, capacity, CPU, memory, node type, enablement, and current and remaining capacity. The object is keyed by uuid.",
     ),
     CollectorEntry(
         "controller.inventory_counts",
         collector_type="inventory_counts",
         mode="snapshot",
         enabled=True,
-        description="Inventory names and kinds with host and source counts, source details, and smart inventory entries.",
+        payload_shape="object",
+        key_field="inventory_id",
+        description="Inventory names and kinds with host and source counts, source details, and smart inventory entries. The object is keyed by inventory_id.",
     ),
     CollectorEntry(
         "controller.org_counts",
         collector_type="org_counts",
         mode="snapshot",
         enabled=True,
-        description="Organization names with distinct user and team counts.",
+        payload_shape="object",
+        key_field="organization_id",
+        description="Organization names with distinct user and team counts. The object is keyed by organization_id.",
     ),
     CollectorEntry(
         "controller.projects_by_scm_type",
         collector_type="projects_by_scm_type",
         mode="snapshot",
         enabled=True,
-        description="Project counts grouped by source-control type, with empty types reported as manual.",
+        payload_shape="object",
+        key_field="scm_type",
+        description="Project counts grouped by source-control type, with empty types reported as manual. The object is keyed by scm_type.",
     ),
     CollectorEntry(
         "controller.unified_job_template_table",
         collector_type="unified_job_template_table",
         mode="snapshot",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Unified job template identity, type, execution environment, ownership, last/current/next job references, scheduling, and status.",
     ),
     CollectorEntry(
@@ -240,6 +287,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="workflow_job_template_node_table",
         mode="snapshot",
         enabled=True,
+        payload_shape="array",
+        key_field=None,
         description="Workflow job template node definitions, inventory and template references, convergence settings, and success, failure, and always edges.",
     ),
     CollectorEntry(
@@ -247,6 +296,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="main_host",
         mode="snapshot",
         enabled=SERVICE_FUNCTIONS_AVAILABLE,
+        payload_shape="array",
+        key_field=None,
         description="Enabled inventory hosts with inventory and organization context, last automation time, connection variables, and selected hardware and system facts.",
     ),
     # Daily (collect_daily_metrics registry)
@@ -255,6 +306,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="main_host_daily",
         mode="daily",
         enabled=SERVICE_FUNCTIONS_AVAILABLE,
+        payload_shape="array",
+        key_field=None,
         description="Enabled hosts created or modified in the window, with the same inventory, organization, automation, connection, and selected fact data as main_host.",
     ),
     CollectorEntry(
@@ -262,6 +315,8 @@ _ENABLED: list[CollectorEntry] = [
         collector_type="main_hostmetric",
         mode="daily",
         enabled=SERVICE_FUNCTIONS_AVAILABLE,
+        payload_shape="array",
+        key_field=None,
         description="Host automation and deletion metrics, counters, inventory usage, and selected host identity and connection facts.",
     ),
 ]
@@ -276,6 +331,8 @@ _DISABLED: list[CollectorEntry] = [
         collector_type="task_executions_service",
         mode="daily",
         enabled=False,
+        payload_shape="array",
+        key_field=None,
         database="default",
         note="reads the metrics-service own DB (tasks_taskexecution) — pipeline/observability, "
         "not customer data. Needs a product decision to expose ops data.",
@@ -285,6 +342,8 @@ _DISABLED: list[CollectorEntry] = [
         collector_type="indirect_managed_nodes",
         mode="daily",
         enabled=False,
+        payload_shape="array",
+        key_field=None,
         note="indirect node audit needs the ANSTRAT-2160 path to GA before exposing.",
     ),
 ]
@@ -299,6 +358,8 @@ _EXCLUDED: list[CollectorEntry] = [
         collector_type="job_host_summary",
         mode="",
         enabled=False,
+        payload_shape="array",
+        key_field=None,
         note="legacy collector superseded by job_host_summary_service.",
     ),
     CollectorEntry(
@@ -306,6 +367,8 @@ _EXCLUDED: list[CollectorEntry] = [
         collector_type="main_jobevent_legacy",
         mode="",
         enabled=False,
+        payload_shape="array",
+        key_field=None,
         note="legacy CCSP collector superseded by the partition-optimized main_jobevent_service.",
     ),
     CollectorEntry(
@@ -313,6 +376,8 @@ _EXCLUDED: list[CollectorEntry] = [
         collector_type="unified_jobs_base",
         mode="",
         enabled=False,
+        payload_shape="array",
+        key_field=None,
         note="base collector superseded by unified_jobs_dashboard, which includes the required dashboard fields.",
     ),
     CollectorEntry(
@@ -320,6 +385,8 @@ _EXCLUDED: list[CollectorEntry] = [
         collector_type="config_django",
         mode="",
         enabled=False,
+        payload_shape="object",
+        key_field=None,
         note="imports awx.conf.license / awx.main.utils at runtime; superseded by config (SQL variant).",
     ),
     CollectorEntry(
@@ -327,6 +394,8 @@ _EXCLUDED: list[CollectorEntry] = [
         collector_type="total_workers_vcpu",
         mode="",
         enabled=False,
+        payload_shape="object",
+        key_field=None,
         note="Prometheus/CLI billing path only; not registered in the service.",
     ),
     CollectorEntry(
@@ -334,6 +403,8 @@ _EXCLUDED: list[CollectorEntry] = [
         collector_type="dashboard_jobs",
         mode="",
         enabled=False,
+        payload_shape="object",
+        key_field=None,
         note="used by the separate dashboard synchronization pipeline, not analytics collection.",
     ),
 ]

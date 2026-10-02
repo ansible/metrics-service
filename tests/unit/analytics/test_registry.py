@@ -25,6 +25,8 @@ def test_enabled_collectors_are_all_enabled():
     assert enabled, "expected at least one enabled collector"
     assert all(e.enabled for e in enabled.values())
     assert all(e.description for e in enabled.values())
+    assert all(e.payload_shape in {"object", "array"} for e in registry.COLLECTORS.values())
+    assert all(e.key_field is None or e.key_field for e in registry.COLLECTORS.values())
     # Disabled/excluded collectors must not leak into the enabled set.
     assert "service.task_executions_service" not in enabled
     assert "controller.job_host_summary" not in enabled
@@ -36,6 +38,14 @@ def test_accepts_since_until_by_mode():
     assert registry.get_entry("controller.events_table").accepts_since_until is True  # hourly
     assert registry.get_entry("controller.config").accepts_since_until is False  # snapshot
     assert registry.get_entry("controller.counts").accepts_since_until is False  # snapshot
+
+
+@pytest.mark.unit
+def test_payload_metadata():
+    assert registry.get_entry("controller.cred_type_counts").payload_shape == "object"
+    assert registry.get_entry("controller.cred_type_counts").key_field == "credential_type_id"
+    assert registry.get_entry("controller.unified_jobs_dashboard").payload_shape == "array"
+    assert registry.get_entry("controller.unified_jobs_dashboard").key_field is None
 
 
 @pytest.mark.unit
