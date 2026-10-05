@@ -264,6 +264,13 @@ _ENABLED: list[CollectorEntry] = [
         enabled=SERVICE_FUNCTIONS_AVAILABLE,
         description="Host automation and deletion metrics, counters, inventory usage, and selected host identity and connection facts.",
     ),
+    CollectorEntry(
+        "controller.main_indirectmanagednodeaudit",
+        collector_type="indirect_managed_nodes",
+        mode="daily",
+        enabled=True,
+        description="Audit records for indirect managed nodes, including their organization and collection data.",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -279,13 +286,6 @@ _DISABLED: list[CollectorEntry] = [
         database="default",
         note="reads the metrics-service own DB (tasks_taskexecution) — pipeline/observability, "
         "not customer data. Needs a product decision to expose ops data.",
-    ),
-    CollectorEntry(
-        "controller.main_indirectmanagednodeaudit",
-        collector_type="indirect_managed_nodes",
-        mode="daily",
-        enabled=False,
-        note="indirect node audit needs the ANSTRAT-2160 path to GA before exposing.",
     ),
 ]
 

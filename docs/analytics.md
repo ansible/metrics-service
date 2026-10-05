@@ -56,6 +56,7 @@ read from the Controller (`awx`) database.
 | `controller.main_host` | `main_host` | snapshot | no | Enabled inventory hosts with inventory and organization context, last automation time, connection variables, and selected hardware and system facts. |
 | `controller.main_host_daily` | `main_host_daily` | daily | yes | Enabled hosts created or modified in the window, with the same inventory, organization, automation, connection, and selected fact data as `main_host`. |
 | `controller.main_hostmetric` | `main_hostmetric` | daily | yes | Host automation and deletion metrics, counters, inventory usage, and selected host identity and connection facts. |
+| `controller.main_indirectmanagednodeaudit` | `indirect_managed_nodes` | daily | yes | Audit records for indirect managed nodes, including their organization and collection data. |
 
 ## Disabled And Excluded Collectors
 
@@ -65,7 +66,6 @@ developers. They are not persisted or exposed by the analytics API.
 | Name | `collector_type` | Status | Reason |
 | --- | --- | --- | --- |
 | `service.task_executions_service` | `task_executions_service` | disabled | Reads metrics-service operational task data, not customer data; product decision needed. |
-| `controller.main_indirectmanagednodeaudit` | `indirect_managed_nodes` | disabled | Requires the ANSTRAT-2160 path to reach GA. |
 | `controller.job_host_summary` | `job_host_summary` | excluded | Legacy collector superseded by `job_host_summary_service`. |
 | `controller.main_jobevent` | `main_jobevent_legacy` | excluded | Legacy collector superseded by `main_jobevent_service`. |
 | `controller.unified_jobs` | `unified_jobs_base` | excluded | Base collector superseded by `unified_jobs_dashboard`. |

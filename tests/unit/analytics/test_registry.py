@@ -47,6 +47,16 @@ def test_get_entry_by_type_maps_internal_key():
 
 
 @pytest.mark.unit
+def test_indirect_managed_node_audit_is_enabled():
+    entry = registry.get_entry("controller.main_indirectmanagednodeaudit")
+    assert entry is not None
+    assert entry.collector_type == "indirect_managed_nodes"
+    assert entry.mode == "daily"
+    assert entry.enabled is True
+    assert entry in registry.enabled_collectors().values()
+
+
+@pytest.mark.unit
 def test_registry_covers_metrics_utility_collectors():
     expected = {
         *(f"controller.{name}" for name in controller_collectors),
