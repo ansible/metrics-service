@@ -429,6 +429,15 @@
                                                     "last_collect": null,
                                                     "rows_url": "https://metrics.example.com/api/v1/analytics/controller.main_hostmetric/",
                                                     "collect_url": "https://metrics.example.com/api/v1/analytics/controller.main_hostmetric/collect/"
+                                                },
+                                                {
+                                                    "name": "controller.main_indirectmanagednodeaudit",
+                                                    "description": "Audit records for indirect managed nodes, including their organization and collection data.",
+                                                    "mode": "daily",
+                                                    "accepts_since_until": true,
+                                                    "last_collect": null,
+                                                    "rows_url": "https://metrics.example.com/api/v1/analytics/controller.main_indirectmanagednodeaudit/",
+                                                    "collect_url": "https://metrics.example.com/api/v1/analytics/controller.main_indirectmanagednodeaudit/collect/"
                                                 }
                                             ]
                                         },
