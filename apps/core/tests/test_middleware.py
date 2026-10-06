@@ -203,6 +203,48 @@ class TestServicePrefixMiddlewareUnit(TestCase):
             # get_full_path() must restore the prefixed form so response URLs are correct
             self.assertIn("/api/metrics/", request.get_full_path())
 
+    def test_drf_reverse_uses_configured_prefix_without_duplicating_api(self):
+        """Request-aware DRF links replace /api with URL_PREFIX exactly once."""
+        from django.http import JsonResponse
+        from django.test import RequestFactory
+        from rest_framework.reverse import reverse
+
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/api/metrics/"):
+            request = RequestFactory().get("/api/metrics/v1/")
+            generated_urls = []
+
+            def capture_get_response(req):
+                generated_urls.append(reverse("tasks:v1:task-list", request=req))
+                return JsonResponse({"ok": True})
+
+            middleware = ServicePrefixMiddleware(capture_get_response)
+            middleware(request)
+
+        self.assertEqual(generated_urls, ["http://testserver/api/metrics/v1/tasks/"])
+
+    def test_drf_reverse_keeps_local_api_path_when_url_prefix_is_unset(self):
+        """Local request-aware links remain under the canonical /api/v1 root."""
+        from django.http import JsonResponse
+        from django.test import RequestFactory
+        from rest_framework.reverse import reverse
+
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX=None):
+            request = RequestFactory().get("/api/v1/")
+            generated_urls = []
+
+            def capture_get_response(req):
+                generated_urls.append(reverse("tasks:v1:task-list", request=req))
+                return JsonResponse({"ok": True})
+
+            middleware = ServicePrefixMiddleware(capture_get_response)
+            middleware(request)
+
+        self.assertEqual(generated_urls, ["http://testserver/api/v1/tasks/"])
+
     def test_middleware_strips_trailing_slash_from_url_prefix(self):
         """URL_PREFIX with a trailing slash is handled correctly."""
         from apps.core.middleware import ServicePrefixMiddleware

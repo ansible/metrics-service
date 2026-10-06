@@ -36,6 +36,8 @@ python manage.py runserver
 make compose
 # Then in another terminal — run migrations, start dev server
 tools/dev.sh --init
+# To exercise AAP-mounted API URLs (/api/metrics/v1/)
+tools/dev.sh --init --prefix
 
 # Full service stack (web + dispatcher + scheduler)
 make compose-service

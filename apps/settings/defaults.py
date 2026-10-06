@@ -135,7 +135,9 @@ FEATURE = {
     "INDIRECT_NODE_COLLECTION": True,
 }
 
-# Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
+# Public API root replacing the URLconf's internal "/api" segment. For example,
+# "/api/metrics/" maps "/api/v1/..." to "/api/metrics/v1/...". None keeps
+# canonical "/api/v1/" URLs used locally.
 URL_PREFIX = None
 
 # Prevent DAB from registering its default api_documentation URL patterns so that

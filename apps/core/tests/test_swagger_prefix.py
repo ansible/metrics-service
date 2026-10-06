@@ -1,21 +1,20 @@
 """
-Tests for AAP-80896: Swagger UI schema URL and feature_flags redirect include service prefix.
+Tests for prefix-aware Swagger/OpenAPI URLs and feature-flag redirects.
 
 Two bugs were fixed:
 
-1. The Swagger UI (/api/metrics/v1/docs/) fetched its OpenAPI schema from a
-   bare internal path (/api/v1/docs/schema/) that is unreachable through the
-   AAP Gateway.  MetricsSpectacularSwaggerView overrides _get_schema_url to
-   prepend the service prefix stored on the request by ServicePrefixMiddleware.
+1. The Swagger UI needs the mounted schema URL, and the served OpenAPI document
+   needs mounted path keys. The prefix-aware views replace only the internal
+   /api root, retaining the /v1/... suffix.
 
-2. The feature_flags redirect (/api/v1/feature_flags/) sent a 301 Location
-   header pointing to /api/v1/feature_flags/states/ — a path unreachable
-   through the gateway.  The redirect URL was updated to the fully-prefixed
-   /api/metrics/v1/feature_flags/states/.
+2. Feature-flag redirects need the same request/configured-prefix mapping while
+   leaving local /api/v1/ requests unchanged.
 """
 
+import json
+
 import pytest
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import set_script_prefix
 from rest_framework.test import APIClient
 
@@ -115,9 +114,25 @@ class TestSwaggerEndpointWithPrefix:
         assert response.status_code == 200
 
     def test_swagger_schema_endpoint_responds_200(self):
-        """GET /api/v1/docs/schema/ returns 200 (OpenAPI JSON schema)."""
-        response = self.client.get("/api/v1/docs/schema/")
+        """The local OpenAPI schema keeps its canonical /api/v1 paths."""
+        response = self.client.get("/api/v1/docs/schema/", HTTP_ACCEPT="application/vnd.oai.openapi+json")
         assert response.status_code == 200
+        paths = json.loads(response.content)["paths"]
+        assert "/api/v1/tasks/" in paths
+        assert "/api/metrics/v1/tasks/" not in paths
+
+    @override_settings(URL_PREFIX="/api/metrics/")
+    def test_mounted_openapi_schema_paths_preserve_v1_suffix(self):
+        """Mounted OpenAPI paths replace /api with /api/metrics exactly once."""
+        response = APIClient().get(
+            "/api/metrics/v1/docs/schema/",
+            HTTP_ACCEPT="application/vnd.oai.openapi+json",
+        )
+        assert response.status_code == 200
+        paths = json.loads(response.content)["paths"]
+        assert "/api/metrics/v1/tasks/" in paths
+        assert "/api/v1/tasks/" not in paths
+        assert "/api/metrics/api/v1/tasks/" not in paths
 
     def test_swagger_ui_via_api_metrics_prefix_responds_200(self):
         """GET /api/metrics-service/v1/docs/ (service prefix) returns 200."""
@@ -162,12 +177,25 @@ class TestFeatureFlagsRedirect:
         yield
         set_script_prefix("/")
 
-    def test_feature_flags_redirect_location_contains_metrics_prefix(self):
-        """GET /api/v1/feature_flags/ redirects to a URL that includes /api/metrics/."""
+    def test_feature_flags_redirect_keeps_canonical_prefix_locally(self):
+        """Without URL_PREFIX, redirects stay under the local /api/v1/ root."""
         response = self.client.get("/api/v1/feature_flags/", follow=False)
         assert response.status_code == 301
-        location = response["Location"]
-        assert location == "/api/metrics/v1/feature_flags/states/"
+        assert response["Location"] == "/api/v1/feature_flags/states/"
+
+    @override_settings(URL_PREFIX="/api/metrics/")
+    def test_feature_flags_redirect_uses_configured_url_prefix(self):
+        """A configured public API root replaces /api rather than being prepended."""
+        response = APIClient().get("/api/v1/feature_flags/", follow=False)
+        assert response.status_code == 301
+        assert response["Location"] == "/api/metrics/v1/feature_flags/states/"
+
+    @override_settings(URL_PREFIX="/api/metrics/")
+    def test_prefixed_feature_flags_redirect_does_not_duplicate_api_root(self):
+        """A request through the mounted path redirects to one /api/metrics root."""
+        response = APIClient().get("/api/metrics/v1/feature_flags/", follow=False)
+        assert response.status_code == 301
+        assert response["Location"] == "/api/metrics/v1/feature_flags/states/"
 
     def test_feature_flags_redirect_is_permanent(self):
         """The redirect is permanent (HTTP 301)."""
@@ -182,5 +210,6 @@ class TestFeatureFlagsRedirect:
         response = self.client.get(f"/api/{service_name}/v1/feature_flags/", follow=False)
         assert response.status_code == 301
         location = response["Location"]
-        # The Location must include the metrics service prefix.
-        assert location == "/api/metrics/v1/feature_flags/states/"
+        # Without a configured URL_PREFIX, the middleware preserves the alias
+        # used for this request rather than hardcoding the production prefix.
+        assert location == f"/api/{service_name}/v1/feature_flags/states/"

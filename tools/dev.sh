@@ -7,9 +7,44 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+INIT=0
+PREFIX=0
+
+usage() {
+    echo "Usage: tools/dev.sh [--init] [--prefix]"
+    echo "  --init     Run migrations and create the local admin user"
+    echo "  --prefix   Expose the API under /api/metrics/v1/"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --init)
+            INIT=1
+            ;;
+        --prefix)
+            PREFIX=1
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+if [[ "$PREFIX" -eq 1 ]]; then
+    export METRICS_SERVICE_URL_PREFIX="/api/metrics/"
+    echo "Using API prefix /api/metrics/ (API URLs: /api/metrics/v1/)"
+fi
+
 MANAGE="uv run python manage.py"
 
-if [[ "${1:-}" == "--init" ]]; then
+if [[ "$INIT" -eq 1 ]]; then
     $MANAGE migrate
     DJANGO_SUPERUSER_PASSWORD=admin $MANAGE createsuperuser --username admin --email admin@example.com --noinput 2>/dev/null || true
     $MANAGE shell -c "
@@ -18,7 +53,6 @@ u = get_user_model().objects.get(username='admin')
 u.set_password('admin')
 u.save()
 "
-    shift
 else
     echo "Hint: run with --init to migrate and create an admin/admin superuser"
 fi

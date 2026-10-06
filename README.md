@@ -36,7 +36,13 @@ make compose
 
 # In another terminal — run migrations, start dev server
 tools/dev.sh --init
+
+# To exercise the AAP-mounted API paths locally (/api/metrics/v1/)
+tools/dev.sh --init --prefix
 ```
+
+`--prefix` sets `METRICS_SERVICE_URL_PREFIX=/api/metrics/`; omit it to use the
+default local `/api/v1/` URLs.
 
 Your service will be available at:
 

@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
+from django.conf import settings
 from django.db.models import Max, Q
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -22,6 +23,7 @@ from rest_framework.views import APIView
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.registry import enabled_collectors, get_entry
 from apps.analytics.v1.serializers import AnalyticsPayloadSerializer, CollectorDiscoverySerializer
+from apps.core.url_prefix import replace_api_root
 
 _ANALYTICS_ROW_FIELDS_DESCRIPTION = """The linked collector row endpoints return paginated collection envelopes. Each row contains:
 
@@ -94,8 +96,14 @@ def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:
                 "mode": entry.mode,
                 "accepts_since_until": entry.accepts_since_until,
                 "last_collect": None,
-                "rows_url": f"https://metrics.example.com/api/v1/analytics/{entry.name}/",
-                "collect_url": f"https://metrics.example.com/api/v1/analytics/{entry.name}/collect/",
+                "rows_url": replace_api_root(
+                    f"https://metrics.example.com/api/v1/analytics/{entry.name}/",
+                    settings.URL_PREFIX,
+                ),
+                "collect_url": replace_api_root(
+                    f"https://metrics.example.com/api/v1/analytics/{entry.name}/collect/",
+                    settings.URL_PREFIX,
+                ),
             }
             for entry in enabled_collectors().values()
         ]

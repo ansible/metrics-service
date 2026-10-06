@@ -5,8 +5,9 @@ Allows the service to be accessed with a /<service-name> prefix:
 - /api/<service-name>/v1/users → /api/v1/users
 - /<service-name>/ping → /ping
 
-For the /api/<service-name> case, no SCRIPT_NAME is set so reverse()
-generates canonical /api/... URLs.
+For the /api/<service-name> case, Django resolves paths internally under
+/api/..., while request-aware URL building replaces only the /api root with the
+public prefix. For example, /api/v1/tasks/ becomes /api/metrics/v1/tasks/.
 
 For the /<service-name> case, SCRIPT_NAME is set so reverse()
 generates /<service-name>/... URLs.
@@ -17,6 +18,8 @@ gives service_prefix="/metrics"), falling back to a name derived from ROOT_URLCO
 
 from django.conf import settings
 from django.urls import set_script_prefix
+
+from apps.core.url_prefix import replace_api_root
 
 
 class ServicePrefixMiddleware:
@@ -49,8 +52,8 @@ class ServicePrefixMiddleware:
         path = request.path_info
 
         # Handle /api/<service-name>/... → /api/...
-        # No SCRIPT_NAME set - reverse() generates canonical /api/... URLs
-        # Store the API prefix so views can build correct absolute URLs
+        # Resolve requests internally under /api/... and remember the public
+        # root so request-aware URL generation can retain the /v1/... suffix.
         # Store original path for DRF breadcrumbs
         # Patch get_full_path to return the original path for templates
         api_prefix = self.api_prefix
@@ -75,6 +78,18 @@ class ServicePrefixMiddleware:
                 return canonical
 
             request.get_full_path = patched_get_full_path
+
+            # DRF's reverse() builds absolute links via request.build_absolute_uri().
+            # Translate canonical /api/... URLs there so hyperlinked fields and
+            # explicit DRF reverses use the externally reachable prefix.
+            original_build_absolute_uri = request.build_absolute_uri
+
+            def patched_build_absolute_uri(location=None):
+                if location is not None:
+                    location = replace_api_root(str(location), api_prefix)
+                return original_build_absolute_uri(location)
+
+            request.build_absolute_uri = patched_build_absolute_uri
         # Handle /<service-name>/... → /...
         # Set SCRIPT_NAME so reverse() generates /<service-name>/... URLs
         elif path.startswith(self.service_prefix):

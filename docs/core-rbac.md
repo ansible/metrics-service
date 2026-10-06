@@ -226,7 +226,11 @@ Behind the AAP gateway, the service is mounted at `/api/metrics`:
 
 - `ServicePrefixMiddleware` strips the gateway prefix and patches
   `get_full_path()` for DRF breadcrumbs.
-- `URL_PREFIX` / `SCRIPT_NAME` configure path prefix handling.
+- `URL_PREFIX` configures both incoming prefix stripping and generated API URLs;
+  it replaces only the internal `/api` segment and preserves the remaining path
+  (for example, `/api/v1/tasks/` becomes `/api/metrics/v1/tasks/`).
+- The live OpenAPI document applies the same mapping to its `paths` keys.
+- `SCRIPT_NAME` is used for the separate `/<service>/...` access pattern.
 - `ServiceBrowsableAPIRenderer` fixes browsable API links with prefix.
 
 `NullByteQueryParamMiddleware` returns 400 for `%00` in query strings (AAP-74806).
