@@ -83,10 +83,7 @@ SPECTACULAR_SETTINGS__DESCRIPTION = "API documentation for the metrics_service"
 SPECTACULAR_SETTINGS__VERSION = "v1"
 # Split components into request and response for generating clients
 SPECTACULAR_SETTINGS__COMPONENT_SPLIT_REQUEST = True
-SPECTACULAR_SETTINGS__POSTPROCESSING_HOOKS = [
-    "drf_spectacular.hooks.postprocess_schema_enums",
-    "apps.core.openapi.replace_openapi_api_root",
-]
+SPECTACULAR_SETTINGS__DEFAULT_GENERATOR_CLASS = "apps.core.openapi.MetricsSchemaGenerator"
 
 CACHES = {
     "default": {

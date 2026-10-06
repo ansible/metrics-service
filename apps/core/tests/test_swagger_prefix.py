@@ -120,6 +120,7 @@ class TestSwaggerEndpointWithPrefix:
         paths = json.loads(response.content)["paths"]
         assert "/api/v1/tasks/" in paths
         assert "/api/metrics/v1/tasks/" not in paths
+        assert paths["/api/v1/tasks/"]["get"]["x-ai-description"] == "List all tasks"
 
     @override_settings(URL_PREFIX="/api/metrics/")
     def test_mounted_openapi_schema_paths_preserve_v1_suffix(self):
@@ -133,6 +134,7 @@ class TestSwaggerEndpointWithPrefix:
         assert "/api/metrics/v1/tasks/" in paths
         assert "/api/v1/tasks/" not in paths
         assert "/api/metrics/api/v1/tasks/" not in paths
+        assert paths["/api/metrics/v1/tasks/"]["get"]["x-ai-description"] == "List all tasks"
 
     def test_swagger_ui_via_api_metrics_prefix_responds_200(self):
         """GET /api/metrics-service/v1/docs/ (service prefix) returns 200."""
