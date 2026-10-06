@@ -114,7 +114,7 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
             results["anonymized_payloads"]["deleted"] = sent_deleted + unsent_deleted
 
         # Cleanup analytics payloads (BYO-BI raw collector output) older than retention period.
-        # Keyed on `created` (row age), not `finished_at`, which may be null for incomplete rows.
+        # Keyed on `created` (row age), not `finished_at` (collection completion time).
         analytics_cutoff = now - timedelta(days=analytics_retention_days)
         old_analytics = AnalyticsPayload.objects.filter(created__lt=analytics_cutoff)
         results["analytics_payloads"]["found"] = old_analytics.count()
