@@ -229,7 +229,8 @@ Behind the AAP gateway, the service is mounted at `/api/metrics`:
 - `URL_PREFIX` configures both incoming prefix stripping and generated API URLs;
   it replaces only the internal `/api` segment and preserves the remaining path
   (for example, `/api/v1/tasks/` becomes `/api/metrics/v1/tasks/`).
-- The live OpenAPI document applies the same mapping to its `paths` keys.
+- Live and centrally generated OpenAPI documents apply the same mapping to
+  their `paths` keys.
 - `SCRIPT_NAME` is used for the separate `/<service>/...` access pattern.
 - `ServiceBrowsableAPIRenderer` fixes browsable API links with prefix.
 

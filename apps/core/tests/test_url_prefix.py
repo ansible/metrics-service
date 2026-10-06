@@ -1,6 +1,7 @@
 """Tests for translating internal API paths to the configured public prefix."""
 
 import pytest
+from django.test import override_settings
 
 from apps.core.url_prefix import replace_api_root
 
@@ -22,3 +23,30 @@ from apps.core.url_prefix import replace_api_root
 )
 def test_replace_api_root_preserves_version_suffix_and_avoids_duplicates(url, prefix, expected):
     assert replace_api_root(url, prefix) == expected
+
+
+@override_settings(URL_PREFIX="/api/metrics/")
+def test_openapi_postprocessor_prefixes_offline_schema_paths():
+    from apps.core.openapi import replace_openapi_api_root
+
+    result = {"paths": {"/api/v1/tasks/": {"get": {}}}}
+
+    actual = replace_openapi_api_root(result, generator=None, request=None, public=True)
+
+    assert "/api/metrics/v1/tasks/" in actual["paths"]
+    assert "/api/v1/tasks/" not in actual["paths"]
+
+
+@override_settings(URL_PREFIX="/api/metrics/")
+def test_openapi_postprocessor_does_not_prefix_unmounted_live_requests():
+    from types import SimpleNamespace
+
+    from apps.core.openapi import replace_openapi_api_root
+
+    result = {"paths": {"/api/v1/tasks/": {"get": {}}}}
+    request = SimpleNamespace()
+
+    actual = replace_openapi_api_root(result, generator=None, request=request, public=True)
+
+    assert "/api/v1/tasks/" in actual["paths"]
+    assert "/api/metrics/v1/tasks/" not in actual["paths"]

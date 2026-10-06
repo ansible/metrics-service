@@ -285,6 +285,10 @@ python manage.py metrics_service init-system-tasks
 
 The OpenAPI schema files are committed to `tools/openapi-schema/` and must be kept in sync with the codebase. A CI check will fail if the committed schema differs from what the code generates.
 
+These committed files use the local `/api/v1/` paths. The central OpenAPI sync
+workflow sets `METRICS_SERVICE_URL_PREFIX=/api/metrics/`, so the published AAP
+spec uses `/api/metrics/v1/` paths.
+
 #### Generating the schema
 
 Requires the database to be running:
