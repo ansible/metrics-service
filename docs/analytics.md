@@ -160,15 +160,16 @@ Examples:
 | `(-infinity, 11:00)` | `[11:00, 12:00)` | no match |
 | `[null, null]` | any valid query | match |
 
-Every successful collection is retained. Repeated windows and repeated snapshots
-are not upserts.
+Every successful collection is retained in the raw payload store. Claim records are
+separate coordination records; pending and failed claims are never exposed as
+completed analytics rows.
 
 ### Triggering Collection
 
-The collector trigger creates a normal pending `Task`. It does not execute the
-collector in the web request, create a payload row, claim a window, or coordinate
-with another request. The scheduler discovers and dispatches the task through the
-normal task machinery.
+The collector trigger resolves the requested window and atomically creates a
+coordination claim plus a normal pending `Task`. It does not execute the collector
+in the web request or create a payload row. The scheduler discovers and dispatches
+the task through the normal task machinery.
 
 ```http
 POST /api/v1/analytics/controller.config/collect/
@@ -180,9 +181,18 @@ For a snapshot, an empty JSON body uses the collector defaults:
 {}
 ```
 
-The response is `202 Accepted` and includes `task_id`, `task_url`, `collector`,
-and the resolved `task_data`. Each request creates a separate task, even when
-the collector and bounds are identical.
+New and in-progress work returns `202 Accepted`. The response includes `claim_id`,
+`state`, `task_id`, `task_url`, `collector`, `task_data`, `payload_id`, and
+`reused`. The claim state is `pending`, `running`, `completed`, or `failed`.
+An identical request reuses the existing task and claim instead of creating
+another task. A completed claim returns `200 OK` with its stored `payload_id`.
+
+Failed claims are retried by a later identical trigger with a new pending task.
+Pending or running claims older than the configured
+`ANALYTICS_ON_DEMAND_CLAIM_STALE_AFTER` interval are treated as orphaned and
+recovered with a new task. This timeout is a recovery boundary, not a guarantee
+that a worker which is still alive will be stopped; callers should use the task
+and claim state for operational visibility.
 
 Window-capable collectors accept no bound, one bound, or both bounds. A missing
 key receives the normal hourly or daily default; an explicit JSON `null` leaves
@@ -285,5 +295,7 @@ For a specific collection window, pass ISO timestamps in `task_data`:
 
 The trigger POST maps directly to the same task data: a snapshot POST with no
 body creates the name-only task, while a request body containing `since` and
-`until` creates the custom-window task. Claims, overlap coordination, and
-re-collection decisions are intentionally not part of this contract.
+`until` creates the custom-window task. The analytics trigger is the safe
+on-demand entry point. Direct task creation is still supported for internal use,
+but it does not create an HTTP claim unless it originates from the trigger.
+Scheduled collector persistence remains separate from on-demand claim coordination.

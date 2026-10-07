@@ -1,11 +1,14 @@
 """Tests for the read-only analytics API."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from django.test import override_settings
 from django.utils import timezone
 
-from apps.analytics.models import AnalyticsPayload
+from apps.analytics.claims import acquire_claim
+from apps.analytics.models import AnalyticsCollectionClaim, AnalyticsPayload
 from apps.tasks.models import Task
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
@@ -276,3 +279,137 @@ def test_collect_rejects_configured_source(authenticated_client):
     )
 
     assert response.status_code == 400
+
+
+def test_collect_reuses_pending_claim_and_task(authenticated_client):
+    body = {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"}
+
+    first = authenticated_client.post(f"{ROOT}{UNIFIED}/collect/", body, format="json")
+    second = authenticated_client.post(f"{ROOT}{UNIFIED}/collect/", body, format="json")
+
+    assert first.status_code == second.status_code == 202
+    assert first.json()["task_id"] == second.json()["task_id"]
+    assert first.json()["claim_id"] == second.json()["claim_id"]
+    assert second.json()["state"] == "pending"
+    assert second.json()["reused"] is True
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+    assert AnalyticsCollectionClaim.objects.count() == 1
+
+
+def test_collect_successful_claim_is_reused(authenticated_client):
+    since = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    until = datetime(2026, 8, 17, 11, tzinfo=UTC)
+    task = Task.objects.create(name="completed", function_name="collect_analytics_on_demand", task_data={})
+    payload = _row(UNIFIED, since, until, {"v": 1})
+    claim = AnalyticsCollectionClaim.objects.create(
+        claim_key=AnalyticsCollectionClaim.make_key(UNIFIED, "local", since, until),
+        collector=UNIFIED,
+        since=since,
+        until=until,
+        status="completed",
+        task=task,
+        payload=payload,
+    )
+
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": since.isoformat(), "until": until.isoformat()},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "completed"
+    assert response.json()["payload_id"] == payload.pk
+    assert response.json()["task_id"] == task.pk
+    assert AnalyticsCollectionClaim.objects.get(pk=claim.pk).status == "completed"
+
+
+def test_collect_failed_claim_creates_retry(authenticated_client):
+    since = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    until = datetime(2026, 8, 17, 11, tzinfo=UTC)
+    failed_task = Task.objects.create(
+        name="failed", function_name="collect_analytics_on_demand", task_data={}, status="failed"
+    )
+    claim = AnalyticsCollectionClaim.objects.create(
+        claim_key=AnalyticsCollectionClaim.make_key(UNIFIED, "local", since, until),
+        collector=UNIFIED,
+        since=since,
+        until=until,
+        status="failed",
+        task=failed_task,
+        error_message="controller unavailable",
+    )
+
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": since.isoformat(), "until": until.isoformat()},
+        format="json",
+    )
+
+    claim.refresh_from_db()
+    assert response.status_code == 202
+    assert response.json()["state"] == "pending"
+    assert response.json()["reused"] is True
+    assert claim.status == "pending"
+    assert claim.task_id != failed_task.pk
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 2
+
+
+@override_settings(ANALYTICS_ON_DEMAND_CLAIM_STALE_AFTER=1)
+def test_collect_recovers_stale_pending_claim(authenticated_client):
+    since = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    until = datetime(2026, 8, 17, 11, tzinfo=UTC)
+    old_task = Task.objects.create(name="orphan", function_name="collect_analytics_on_demand", task_data={})
+    claim = AnalyticsCollectionClaim.objects.create(
+        claim_key=AnalyticsCollectionClaim.make_key(UNIFIED, "local", since, until),
+        collector=UNIFIED,
+        since=since,
+        until=until,
+        task=old_task,
+    )
+    AnalyticsCollectionClaim.objects.filter(pk=claim.pk).update(modified=timezone.now() - timedelta(seconds=10))
+
+    response = authenticated_client.post(
+        f"{ROOT}{UNIFIED}/collect/",
+        {"since": since.isoformat(), "until": until.isoformat()},
+        format="json",
+    )
+
+    claim.refresh_from_db()
+    assert response.status_code == 202
+    assert response.json()["state"] == "pending"
+    assert claim.task_id != old_task.pk
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 2
+
+
+def test_collect_rejects_malformed_body_and_unknown_fields(authenticated_client):
+    assert authenticated_client.post(f"{ROOT}{CONFIG}/collect/", [], format="json").status_code == 400
+    assert authenticated_client.post(f"{ROOT}{CONFIG}/collect/", {"window": 1}, format="json").status_code == 400
+    assert authenticated_client.post(f"{ROOT}{CONFIG}/collect/", {"since": "bad"}, format="json").status_code == 400
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_identical_requests_acquire_one_claim():
+    # Use the claim service directly to keep the race focused and avoid sharing one API client
+    # across worker threads.
+    since = datetime(2026, 8, 17, 10, tzinfo=UTC)
+    until = datetime(2026, 8, 17, 11, tzinfo=UTC)
+
+    def acquire():
+        return acquire_claim(
+            collector=UNIFIED,
+            since=since,
+            until=until,
+            task_factory=lambda: Task.objects.create(
+                name=f"concurrent-{timezone.now().timestamp()}",
+                function_name="collect_analytics_on_demand",
+                task_data={},
+            ),
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: acquire(), range(2)))
+
+    assert {claim.pk for claim, _ in results} == {results[0][0].pk}
+    assert AnalyticsCollectionClaim.objects.count() == 1
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
