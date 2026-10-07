@@ -231,14 +231,14 @@ class TestLastSync:
 
     @patch(PATCH_TASK_EXECUTION)
     def test_query_filters_on_completed_status_and_sync_function(self, mock_task_execution_class):
-        """The query filters on status=completed and function_name=sync_dashboard_job_records,
-        ordered by the most recent completed_at."""
+        """The query filters on status=completed and function_name in (sync_dashboard_job_records,
+        collect_dashboard_reports_initial_data), ordered by the most recent completed_at."""
         mock_task_execution_class.DoesNotExist = TaskExecution.DoesNotExist
         mock_qs = mock_task_execution_class.objects.filter.return_value
         DashboardCollectionStatusViewSet._get_latest_completed_hourly_sync()
         mock_task_execution_class.objects.filter.assert_called_once_with(
             status="completed",
-            task__function_name="sync_dashboard_job_records",
+            task__function_name__in=("sync_dashboard_job_records", "collect_dashboard_reports_initial_data"),
         )
         mock_qs.latest.assert_called_once_with("completed_at")
 

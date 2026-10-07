@@ -132,6 +132,7 @@ class TestCollectionStatusLastSync(TestCase):
     """Integration tests for last_sync: no sync -> trigger sync -> completed execution reflected."""
 
     def setUp(self):
+        """Enable DASHBOARD_COLLECTION and authenticate as a superuser."""
         super().setUp()
         # last_sync is only computed when DASHBOARD_COLLECTION is enabled; set it explicitly
         # rather than relying on the ambient default, which isn't guaranteed across environments.
@@ -144,11 +145,11 @@ class TestCollectionStatusLastSync(TestCase):
         )
         self.client.force_authenticate(user=self.admin)
 
-    def _create_completed_sync_execution(self, completed_at):
-        """Create a Task + a completed TaskExecution for sync_dashboard_job_records."""
+    def _create_completed_sync_execution(self, completed_at, function_name="sync_dashboard_job_records"):
+        """Create a Task + a completed TaskExecution for the given dashboard sync function."""
         task = Task.objects.create(
-            name=f"sync_dashboard_jobs_{completed_at.isoformat()}_0",
-            function_name="sync_dashboard_job_records",
+            name=f"{function_name}_{completed_at.isoformat()}_0",
+            function_name=function_name,
         )
         execution = TaskExecution.objects.create(task=task, status="completed")
         execution.completed_at = completed_at
@@ -174,6 +175,31 @@ class TestCollectionStatusLastSync(TestCase):
         assert response.status_code == 200
         returned = datetime.fromisoformat(response.json()["last_sync"].replace("Z", "+00:00"))
         assert returned == completed_at
+
+    def test_last_sync_reflects_initial_collection_when_no_hourly_sync(self):
+        """With only a completed collect_dashboard_reports_initial_data execution, last_sync is its completed_at."""
+        completed_at = datetime(2026, 9, 29, 10, 0, 0, tzinfo=UTC)
+        self._create_completed_sync_execution(completed_at, function_name="collect_dashboard_reports_initial_data")
+
+        response = self.client.get(COLLECTION_STATUS_ENDPOINT)
+        assert response.status_code == 200
+        returned = datetime.fromisoformat(response.json()["last_sync"].replace("Z", "+00:00"))
+        assert returned == completed_at
+
+    def test_last_sync_prefers_later_hourly_sync_over_initial_collection(self):
+        """When both have completed and the hourly sync finished after the initial collection,
+        last_sync is the sync_dashboard_job_records completed_at."""
+        initial_completed_at = datetime(2026, 9, 29, 10, 0, 0, tzinfo=UTC)
+        sync_completed_at = datetime(2026, 9, 29, 11, 3, 6, tzinfo=UTC)
+        self._create_completed_sync_execution(
+            initial_completed_at, function_name="collect_dashboard_reports_initial_data"
+        )
+        self._create_completed_sync_execution(sync_completed_at)
+
+        response = self.client.get(COLLECTION_STATUS_ENDPOINT)
+        assert response.status_code == 200
+        returned = datetime.fromisoformat(response.json()["last_sync"].replace("Z", "+00:00"))
+        assert returned == sync_completed_at
 
     def test_last_sync_ignores_running_or_pending_executions(self):
         """A running/pending TaskExecution for the same task must not surface as last_sync."""

@@ -67,14 +67,15 @@ class DashboardCollectionStatusViewSet(ViewSet):
 
     @staticmethod
     def _get_latest_completed_hourly_sync() -> TaskExecution | None:
-        # Tracks sync_dashboard_job_records (JobData), not sync_dashboard_host_summaries:
-        # the latter can silently skip records with no retry (see docs/dashboard-sync.md
+        """Return the most recent completed JobData sync execution (hourly or initial), or None."""
+        # Tracks sync_dashboard_job_records / collect_dashboard_reports_initial_data (JobData),
+        # not sync_dashboard_host_summaries: the latter can silently skip records with no retry (see docs/dashboard-sync.md
         # "Ordering constraint"), so a completed run there doesn't guarantee fresh data.
         latest = None
         try:
             latest = TaskExecution.objects.filter(
                 status="completed",
-                task__function_name="sync_dashboard_job_records",
+                task__function_name__in=("sync_dashboard_job_records", "collect_dashboard_reports_initial_data"),
             ).latest("completed_at")
         except TaskExecution.DoesNotExist:
             logger.debug("No sync found")
