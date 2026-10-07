@@ -19,6 +19,9 @@ PATCH_LATEST_SYNC = (
     "apps.dashboard_reports.viewsets.collection_status.DashboardCollectionStatusViewSet."
     "_get_latest_completed_hourly_sync"
 )
+PATCH_LATEST_JOB_DATA_CREATED = (
+    "apps.dashboard_reports.viewsets.collection_status.DashboardCollectionStatusViewSet._get_latest_job_data_created"
+)
 PATCH_PERM = "ansible_base.rbac.api.permissions.IsSystemAdminOrAuditor.has_permission"
 PATCH_MIN_TS = "apps.dashboard_reports.viewsets.collection_status.JobData.min_timestamp"
 PATCH_SETTING = "apps.dashboard_reports.viewsets.collection_status.Setting"
@@ -39,7 +42,7 @@ class TestDashboardCollectionStatusViewSet:
     @pytest.fixture(autouse=True)
     def no_sync_by_default(self):
         """Avoid a real DB hit in tests that don't care about last_sync."""
-        with patch(PATCH_LATEST_SYNC, return_value=None):
+        with patch(PATCH_LATEST_SYNC, return_value=None), patch(PATCH_LATEST_JOB_DATA_CREATED, return_value=None):
             yield
 
     def _get(self):
@@ -228,6 +231,37 @@ class TestLastSync:
         with patch(PATCH_LATEST_SYNC, return_value=mock_execution):
             response = self._get()
         assert response.data["last_sync"] == completed_at
+
+    @pytest.mark.parametrize(
+        ("latest_sync", "initial_status", "expected"),
+        [
+            # no execution left (e.g. after init-system-tasks) + initial collection completed -> JobData fallback
+            (None, "completed", datetime(2026, 9, 29, 9, 59, 0, tzinfo=UTC)),
+            # a completed execution exists -> it wins, no fallback
+            (MagicMock(completed_at=datetime(2026, 9, 29, 11, 3, 6, tzinfo=UTC)), "completed", None),
+            # initial collection not completed -> no fallback
+            (None, "running", None),
+        ],
+    )
+    @patch(PATCH_MIN_TS, return_value=None)
+    @patch(PATCH_FLAG, return_value=True)
+    @patch(PATCH_TASK)
+    def test_job_data_fallback(  # noqa: PLR0913
+        self, mock_task_class, mock_flag, mock_min_ts, latest_sync, initial_status, expected
+    ):
+        """last_sync falls back to the latest JobData.created only when the initial collection is completed
+        and no completed sync execution exists."""
+        job_data_created = datetime(2026, 9, 29, 9, 59, 0, tzinfo=UTC)
+        mock_task_class.objects.filter.return_value.first.return_value = MagicMock(status=initial_status)
+        with (
+            patch(PATCH_LATEST_SYNC, return_value=latest_sync),
+            patch(PATCH_LATEST_JOB_DATA_CREATED, return_value=job_data_created) as mock_fallback,
+        ):
+            response = self._get()
+        if expected is None:
+            mock_fallback.assert_not_called()
+            expected = latest_sync.completed_at if latest_sync else None
+        assert response.data["last_sync"] == expected
 
     @patch(PATCH_TASK_EXECUTION)
     def test_query_filters_on_completed_status_and_sync_function(self, mock_task_execution_class):

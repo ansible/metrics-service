@@ -2,8 +2,10 @@
 
 import json
 import logging
+from datetime import datetime
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
+from django.db.models import Max
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -81,6 +83,16 @@ class DashboardCollectionStatusViewSet(ViewSet):
             logger.debug("No sync found")
         return latest
 
+    @staticmethod
+    def _get_latest_job_data_created() -> datetime | None:
+        """Return when JobData was last written, or None if there is no JobData."""
+        # Fallback for last_sync when the initial collection is completed but no completed execution exists:
+        # init-system-tasks deletes and recreates system tasks, which cascades their TaskExecution rows (and
+        # resets Task.completed_at); only the initial collection's "completed" status is preserved. Without an
+        # hourly sync since then (e.g. METRICS_COLLECTION disabled), the latest JobData.created - the last record
+        # the initial collection wrote - is the closest remaining approximation of its completion time.
+        return JobData.objects.aggregate(Max("created"))["created__max"]
+
     def create(self, request: Request, *args, **kwargs) -> Response:
         is_system_admin_or_auditor = IsSystemAdminOrAuditor().has_permission(request, self)
         if not is_system_admin_or_auditor:
@@ -139,6 +151,11 @@ class DashboardCollectionStatusViewSet(ViewSet):
             ).first()
             if initial_task:
                 initial_collection_status = initial_task.status
+
+            # Approximate fallback only: a real execution's completed_at always wins, and JobData from a
+            # running, failed or not-yet-run initial collection must not be reported as a finished sync.
+            if last_sync is None and initial_collection_status == "completed":
+                last_sync = self._get_latest_job_data_created()
 
         return Response(
             {

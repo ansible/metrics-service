@@ -10,8 +10,10 @@ from django.test import TestCase
 from django.urls import resolve
 from rest_framework.test import APIClient
 
+from apps.dashboard_reports.models import JobData
 from apps.dynamic_settings.models import Setting
 from apps.tasks.models import Task, TaskExecution
+from apps.tasks.tasks_system import create_system_tasks
 from tests.test_utils import get_test_password
 
 User = get_user_model()
@@ -200,6 +202,43 @@ class TestCollectionStatusLastSync(TestCase):
         assert response.status_code == 200
         returned = datetime.fromisoformat(response.json()["last_sync"].replace("Z", "+00:00"))
         assert returned == sync_completed_at
+
+    def test_last_sync_survives_init_system_tasks_with_hourly_collection_disabled(self):
+        """Regression: init-system-tasks deletes and recreates system tasks (cascading their executions).
+        With hourly metrics collection disabled there is no sync_dashboard_job_records run to fall back on,
+        so last_sync falls back to the latest JobData.created written by the initial collection."""
+        Setting.objects.update_or_create(setting_key="METRICS_COLLECTION", defaults={"current_value": "false"})
+        initial_task = Task.objects.create(
+            name="initial_dashboard_collection",
+            function_name="collect_dashboard_reports_initial_data",
+            is_system_task=True,
+            cron_expression=None,
+            status="completed",
+        )
+        execution = TaskExecution.objects.create(task=initial_task, status="completed")
+        execution.completed_at = datetime(2026, 9, 29, 10, 0, 0, tzinfo=UTC)
+        execution.save()
+        job_created = datetime(2026, 9, 29, 9, 59, 0, tzinfo=UTC)
+        job = JobData.objects.create(
+            job_id=1001,
+            template_name="Test Template",
+            status="successful",
+            started=datetime(2025, 3, 1, 10, 0, 0, tzinfo=UTC),
+            finished=datetime(2025, 3, 1, 10, 8, 20, tzinfo=UTC),
+            elapsed=500,
+        )
+        JobData.objects.filter(pk=job.pk).update(created=job_created)
+
+        create_system_tasks()
+
+        assert not TaskExecution.objects.filter(task__function_name="collect_dashboard_reports_initial_data").exists()
+        response = self.client.get(COLLECTION_STATUS_ENDPOINT)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["initial_collection_status"] == "completed"
+        assert body["last_sync"] is not None
+        returned = datetime.fromisoformat(body["last_sync"].replace("Z", "+00:00"))
+        assert returned == job_created
 
     def test_last_sync_ignores_running_or_pending_executions(self):
         """A running/pending TaskExecution for the same task must not surface as last_sync."""
