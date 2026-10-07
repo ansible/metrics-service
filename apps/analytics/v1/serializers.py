@@ -10,6 +10,16 @@ class CollectorDiscoverySerializer(serializers.Serializer):
 
     name = serializers.CharField(read_only=True)
     description = serializers.CharField(read_only=True)
+    payload_shape = serializers.ChoiceField(
+        choices=("object", "array"),
+        read_only=True,
+        help_text="Top-level JSON shape of payload: object or array.",
+    )
+    key_field = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Field represented by top-level object keys, or null when not applicable.",
+    )
     mode = serializers.CharField(read_only=True)
     accepts_since_until = serializers.BooleanField(read_only=True)
     last_collect = serializers.DateTimeField(read_only=True, allow_null=True)
