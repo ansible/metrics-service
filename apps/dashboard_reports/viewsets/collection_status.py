@@ -2,10 +2,8 @@
 
 import json
 import logging
-from datetime import datetime
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
-from django.db.models import Max
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -69,29 +67,19 @@ class DashboardCollectionStatusViewSet(ViewSet):
 
     @staticmethod
     def _get_latest_completed_hourly_sync() -> TaskExecution | None:
-        """Return the most recent completed JobData sync execution (hourly or initial), or None."""
-        # Tracks sync_dashboard_job_records / collect_dashboard_reports_initial_data (JobData),
-        # not sync_dashboard_host_summaries: the latter can silently skip records with no retry (see docs/dashboard-sync.md
+        """Return the most recent completed sync_dashboard_job_records execution, or None."""
+        # Tracks sync_dashboard_job_records (JobData), not sync_dashboard_host_summaries:
+        # the latter can silently skip records with no retry (see docs/dashboard-sync.md
         # "Ordering constraint"), so a completed run there doesn't guarantee fresh data.
         latest = None
         try:
             latest = TaskExecution.objects.filter(
                 status="completed",
-                task__function_name__in=("sync_dashboard_job_records", "collect_dashboard_reports_initial_data"),
+                task__function_name="sync_dashboard_job_records",
             ).latest("completed_at")
         except TaskExecution.DoesNotExist:
             logger.debug("No sync found")
         return latest
-
-    @staticmethod
-    def _get_latest_job_data_created() -> datetime | None:
-        """Return when JobData was last written, or None if there is no JobData."""
-        # Fallback for last_sync when the initial collection is completed but no completed execution exists:
-        # init-system-tasks deletes and recreates system tasks, which cascades their TaskExecution rows (and
-        # resets Task.completed_at); only the initial collection's "completed" status is preserved. Without an
-        # hourly sync since then (e.g. METRICS_COLLECTION disabled), the latest JobData.created - the last record
-        # the initial collection wrote - is the closest remaining approximation of its completion time.
-        return JobData.objects.aggregate(Max("created"))["created__max"]
 
     def create(self, request: Request, *args, **kwargs) -> Response:
         is_system_admin_or_auditor = IsSystemAdminOrAuditor().has_permission(request, self)
@@ -151,11 +139,11 @@ class DashboardCollectionStatusViewSet(ViewSet):
             ).first()
             if initial_task:
                 initial_collection_status = initial_task.status
-
-            # Approximate fallback only: a real execution's completed_at always wins, and JobData from a
-            # running, failed or not-yet-run initial collection must not be reported as a finished sync.
-            if last_sync is None and initial_collection_status == "completed":
-                last_sync = self._get_latest_job_data_created()
+                # Task.completed_at (not its TaskExecution) survives init-system-tasks and cleanup_old_tasks,
+                # so it still reports the initial collection when no hourly sync has completed since
+                # (e.g. METRICS_COLLECTION disabled), including a collection that wrote zero jobs.
+                if initial_collection_status == "completed" and initial_task.completed_at:
+                    last_sync = max(filter(None, (last_sync, initial_task.completed_at)))
 
         return Response(
             {
