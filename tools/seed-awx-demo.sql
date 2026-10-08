@@ -5,6 +5,8 @@
 --
 -- The seed covers the four completed UTC hours before the script runs. It is
 -- intentionally separate from AWX migrations and safe to run more than once.
+-- Host changes, host metrics, and indirect-node audit rows also cover today in
+-- UTC so the daily collectors can be exercised with today's date window.
 
 DO $$
 DECLARE
@@ -302,6 +304,7 @@ BEGIN
                             'deprecations', jsonb_build_array()
                         )
                     )::text;
+                    -- The legacy event collector joins on the owning job's exact created time.
                     INSERT INTO main_jobevent (
                         created, modified, event, event_data, failed, changed, host_name,
                         play, role, task, counter, host_id, job_id, uuid, parent_uuid,
@@ -314,11 +317,46 @@ BEGIN
                         CASE WHEN event_number = 1 THEN 'Gather facts' ELSE 'Apply demo task' END,
                         event_number, h.id, job_id, gen_random_uuid()::text, '',
                         event_number, 'site.yml', event_number, format('%s on %s', event_name, h.name), 0,
-                        partition_start
+                        job_created
                     FROM main_host h
                     WHERE h.id = host_id;
                 END LOOP;
             END LOOP;
+
+            -- Include an indirect-node audit record for the daily collector.
+            -- Vary the host by job while keeping each row tied to this job's
+            -- finished timestamp and demo inventory/organization.
+            host_index := (job_index % 6) + 1;
+            INSERT INTO main_indirectmanagednodeaudit (
+                created, name, canonical_facts, facts, events, count,
+                host_id, inventory_id, job_id, organization_id
+            )
+            SELECT
+                job_finished, h.name,
+                jsonb_build_object(
+                    'ansible_host', h.variables::jsonb->>'ansible_host',
+                    'ansible_machine_id', h.ansible_facts->>'ansible_machine_id',
+                    'ansible_product_serial', h.ansible_facts->>'ansible_product_serial'
+                ),
+                h.ansible_facts,
+                jsonb_build_array(jsonb_build_object(
+                    'event', 'indirect_node_seen',
+                    'job_id', job_id,
+                    'task_runs', 3
+                )),
+                3, h.id, demo_inventory_id, job_id, demo_org_id
+            FROM main_host h
+            WHERE h.inventory_id = demo_inventory_id
+              AND h.name = format('metrics-demo-host-%s', host_index)
+            ON CONFLICT ON CONSTRAINT main_indirectmanagednodeaudit_name_job_id_640ba8b1_uniq DO UPDATE SET
+                created = EXCLUDED.created,
+                canonical_facts = EXCLUDED.canonical_facts,
+                facts = EXCLUDED.facts,
+                events = EXCLUDED.events,
+                count = EXCLUDED.count,
+                host_id = EXCLUDED.host_id,
+                inventory_id = EXCLUDED.inventory_id,
+                organization_id = EXCLUDED.organization_id;
 
             INSERT INTO main_workflowjobnode (
                 created, modified, job_id, unified_job_template_id, workflow_job_id,
@@ -344,7 +382,7 @@ BEGIN
         )
         VALUES (
             format('metrics-demo-host-%s', host_index),
-            now() - interval '30 days', now() - interval '2 days', NULL,
+            now() - interval '30 days', now() - interval '15 minutes', NULL,
             12 + host_index, 0, false, 1
         )
         ON CONFLICT (hostname) DO UPDATE SET

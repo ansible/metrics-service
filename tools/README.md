@@ -10,10 +10,11 @@ Seed the local AWX database after starting the compose stack:
 podman exec -i postgres psql -U awx -d awx < tools/seed-awx-demo.sql
 ```
 
-The seed adds four completed UTC hours of jobs, events, host summaries, and
-workflow nodes, plus supporting inventory, credentials, host metrics, and
-monthly summary data. It is safe to run repeatedly; a marker job prevents
-duplicate demo rows.
+The seed adds four completed UTC hours of jobs, events, host summaries, workflow
+nodes, and indirect-node audits, plus supporting inventory, credentials, host
+metrics, and monthly summary data. Host changes, host metrics, and indirect-node
+audits are timestamped in the current UTC day for daily collector windows. It is
+safe to run repeatedly; a marker job prevents duplicate demo rows.
 
 Performance tests are in `../metrics-utility/tools/`
 (`service_perf/`, `dashboard_perf/`).
