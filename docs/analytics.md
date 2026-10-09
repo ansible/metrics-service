@@ -246,28 +246,47 @@ operator API field or requiring companion operator/installer code changes:
 - AAP-managed MetricsService: set it in
   `spec.metrics.extra_settings` on the parent AAP CR; the existing AAP operator
   passes those settings to the child MetricsService CR.
-- Containerized installer: set it through `automationmetrics_extra_settings`;
-  host networking allows `http://127.0.0.1:8006/api/v1/metrics` with the default
-  Gunicorn port.
+- Containerized installer: the installer sets it for the tasks container from
+  `automationmetrics_api_port` (default `8006`, **not** 8000). All metrics
+  containers use host networking, so `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`
+  reaches the web container's Gunicorn directly. Override with
+  `automationmetrics_extra_settings` if the topology differs.
 - `aap-dev`: the direct `make aap` setup uses a local ConfigMap overlay; the
   operator-based `make aap-operator` setup uses the child CR's existing extra
   settings. These are separate deployment paths.
 - Local process tests: `tools/dev.sh --init` uses the development localhost
   default. The Metrics Utility `compose-service` profile has separate web and
-  dispatcher containers; Metrics Service supplies the dispatcher's URL through
-  `tools/docker-compose.service.override.yml`, without changing Metrics Utility.
+  dispatcher containers, so Metrics Utility's own compose file sets the
+  dispatcher's URL to `http://metrics-service-web:8000/api/v1/metrics`.
 
 Metrics Service's own split production Compose file already sets the dispatcher
 URL to `http://web:8000/api/v1/metrics` and binds Gunicorn on the private Compose
 network; the port is not published to the host.
 
+### Checking whether the scrape worked
+
+Usage telemetry never fails the daily rollup, so a broken scrape leaves the rest
+of the payload intact. The `daily_metrics_rollup` task result carries
+`analytics_usage_status` so a misconfigured deployment is visible through
+`GET /api/v1/tasks/` without reading dispatcher logs:
+
+| Status | Meaning |
+| --- | --- |
+| `ok` | Scraped and diffed against the previous baseline. |
+| `baseline` | First successful scrape; baseline saved, no deltas reported yet. |
+| `skipped` | Backfill of a date other than yesterday; no scrape attempted. |
+| `not_configured` | `INTERNAL_PROMETHEUS_URL` is empty. |
+| `scrape_failed` | The endpoint was unreachable, timed out, or returned an error. |
+| `delta_failed` | The scrape succeeded but the stored baseline could not be diffed. |
+
 ### Troubleshooting usage telemetry
 
 | Symptom | Likely cause and checks |
 | --- | --- |
-| Production fails to create Prometheus metrics or reports only one worker | `PROMETHEUS_MULTIPROC_DIR` must be set before `prometheus_client` is imported, and the web process user must be able to create files there. Metrics Service sets it early in production settings and creates the directory; override the path with `METRICS_SERVICE_PROMETHEUS_MULTIPROC_DIR` if needed. All Gunicorn workers in the same web pod must use that same local path. The dispatcher does not share it, and different web pods must not share a multiprocess directory. |
+| Production fails to create Prometheus metrics or reports only one worker | `PROMETHEUS_MULTIPROC_DIR` must be set before `prometheus_client` is imported, and the web process user must be able to create files there. Metrics Service sets it early in production settings and creates the directory; override the path with `METRICS_SERVICE_PROMETHEUS_MULTIPROC_DIR` if needed. Creating that directory is deliberately fatal at startup — a read-only root filesystem is not a supported deployment, and failing loudly beats booting into silently dropped worker metrics. All Gunicorn workers in the same web pod must use that same local path. The dispatcher does not share it, and different web pods must not share a multiprocess directory. |
 | The first payload has `"analytics_usage": {}` | Expected: the first successful scrape only records the cumulative baseline. The next successful scrape reports its delta. |
-| Every payload is empty and logs say the URL is missing | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. The source default is `http://127.0.0.1:8000/api/v1/metrics` for an all-in-one production process; split deployments must set their internal web URL. |
+| Every payload is empty and the rollup reports `not_configured` | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. The source default is `http://127.0.0.1:8000/api/v1/metrics` for an all-in-one production process; split deployments must set their internal web URL. |
+| The rollup reports `delta_failed` | The scrape succeeded but the stored `analytics_usage_snapshot` could not be diffed — typically a hand-edited row or a restored dump. The day's summary and payload are still written; clear the bad snapshot and the next run re-establishes a baseline. |
 | Scrapes fail with connection refused, timeout, or 404 | Check the URL, port, endpoint path, and task-to-web network policy. The operator uses `http://<MetricsService CR name>-service:8000/api/v1/metrics`; containerized installer uses `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`; production split Compose uses the un-published Gunicorn backend at `web:8000`, and Metrics Utility `compose-service` uses `metrics-service-web:8000`. |
 | Scrape returns 400 `DisallowedHost` or a redirect | Include the internal service hostname in `ALLOWED_HOSTS` and use the canonical `/api/v1/metrics` endpoint URL directly. The internal scraper does not follow redirects, so a misrouted HTTP-to-HTTPS redirect fails open with empty usage. |
 | Scrapes return 401/403 | The dispatcher signs `X-ANSIBLE-SERVICE-AUTH` with `RESOURCE_SERVER__SECRET_KEY`; confirm the web and tasks workloads use the same resource-server secret and that `init-service-id` has run. Ordinary API users still need the normal admin/auditor JWT. |
