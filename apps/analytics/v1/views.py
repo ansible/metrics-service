@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import UTC, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
@@ -201,16 +202,11 @@ class CollectorRowsView(generics.ListAPIView):
         if entry is None or not entry.enabled:
             return super().get(request, *args, **kwargs)
 
-        import time
-
         started = time.perf_counter()
         try:
             return super().get(request, *args, **kwargs)
         finally:
-            try:
-                record_collector_get(entry.name, (time.perf_counter() - started) * 1000)
-            except Exception:
-                logger.exception("Failed to record analytics telemetry for %s", entry.name)
+            record_collector_get(entry, (time.perf_counter() - started) * 1000)
 
     def get_queryset(self):
         """Filter stored payloads for the collector by since/until *window overlap*.

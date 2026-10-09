@@ -38,7 +38,27 @@ Usage:
 Validators are registered in metrics_service/settings.py and run during export().
 """
 
+import os
+from pathlib import Path
+from tempfile import gettempdir
+
 from dynaconf import Validator
+
+# Enable prometheus_client multiprocess mode before Django loads apps or constructs metrics.
+# Gunicorn workers share this pod-local directory; dispatcher pods scrape through the web API
+# rather than mounting this directory.
+_multiproc_dir = (
+    os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+    or os.environ.get("METRICS_SERVICE_PROMETHEUS_MULTIPROC_DIR")
+    or os.environ.get("prometheus_multiproc_dir")  # noqa: SIM112 - legacy prometheus_client spelling
+    or str(Path(gettempdir()) / "metrics-service-prometheus")
+)
+os.environ["PROMETHEUS_MULTIPROC_DIR"] = _multiproc_dir
+Path(_multiproc_dir).mkdir(parents=True, exist_ok=True)
+
+# All-in-one production deployments use localhost by default. Split deployments
+# override this through METRICS_SERVICE_INTERNAL_PROMETHEUS_URL.
+INTERNAL_PROMETHEUS_URL = "http://127.0.0.1:8000/api/v1/metrics"
 
 validators = []
 

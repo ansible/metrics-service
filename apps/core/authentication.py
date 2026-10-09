@@ -1,6 +1,14 @@
 """Custom authentication classes for the service."""
 
+from typing import Any
+
+import jwt
 from ansible_base.jwt_consumer.common.auth import JWTAuthentication
+from ansible_base.resource_registry.models import service_id
+from ansible_base.resource_registry.resource_server import get_resource_server_config
+from rest_framework.authentication import BaseAuthentication
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.request import Request
 
 
 class ServiceJWTAuthentication(JWTAuthentication):
@@ -20,3 +28,28 @@ class ServiceJWTAuthenticationNoRBAC(JWTAuthentication):
     """
 
     use_rbac_permissions = False
+
+
+class MetricsServiceTokenAuthentication(BaseAuthentication):
+    """Authenticate service-to-service requests signed with this service's resource-server key."""
+
+    def authenticate(self, request: Request) -> tuple[Any, str] | None:
+        token = request.headers.get("X-ANSIBLE-SERVICE-AUTH")
+        if not token:
+            return None
+
+        config = get_resource_server_config()
+        try:
+            claims = jwt.decode(
+                token,
+                config["SECRET_KEY"],
+                algorithms=[config["JWT_ALGORITHM"]],
+                options={"require": ["iss", "exp"]},
+            )
+        except jwt.PyJWTError as exc:
+            raise AuthenticationFailed("Invalid Metrics Service token") from exc
+
+        if claims["iss"] != str(service_id()):
+            raise AuthenticationFailed("Metrics Service token issuer does not match this service")
+
+        return None, "MetricsServiceTokenAuthentication"

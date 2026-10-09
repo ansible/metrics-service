@@ -133,9 +133,24 @@ class TestDailyMetricsRollupTelemetry:
                 return_value=telemetry_rows,
             ) as mock_aggregate,
             patch(
-                "apps.tasks.collectors.collect_analytics_usage.aggregate_analytics_usage",
-                return_value={"controller.config": {"request_count": 2, "duration_ms_average": 15.5}},
+                "apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage",
+                return_value={
+                    "controller.config": {"request_count": 5, "duration_ms_total": 60.0, "duration_sample_count": 4}
+                },
             ) as mock_usage,
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup._previous_analytics_usage_snapshot",
+                return_value={
+                    "observed_at": "2026-10-08T02:00:00+00:00",
+                    "metrics": {
+                        "controller.config": {
+                            "request_count": 3,
+                            "duration_ms_total": 30.0,
+                            "duration_sample_count": 2,
+                        }
+                    },
+                },
+            ),
             patch(
                 "apps.tasks.collectors.daily_metrics_rollup._collect_and_group_hourly_collections"
             ) as mock_collections,
@@ -164,7 +179,65 @@ class TestDailyMetricsRollupTelemetry:
         assert "dashboard_telemetry" in rollup_arg
         assert rollup_arg["dashboard_telemetry"] == telemetry_rows
         mock_usage.assert_called_once_with()
-        assert rollup_arg["analytics_usage"] == {"controller.config": {"request_count": 2, "duration_ms_average": 15.5}}
+        assert rollup_arg["analytics_usage"] == {
+            "controller.config": {"request_count": 2, "duration_ms_total": 30.0, "duration_ms_average": 15.0}
+        }
+        assert mock_save.call_args.args[6]["metrics"] == {
+            "controller.config": {"request_count": 5, "duration_ms_total": 60.0, "duration_sample_count": 4}
+        }
+
+    def test_first_usage_scrape_saves_baseline_without_reporting_partial_counts(self):
+        cumulative_usage = {
+            "controller.config": {"request_count": 5, "duration_ms_total": 60.0, "duration_sample_count": 4}
+        }
+        with (
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage", return_value=cumulative_usage
+            ),
+            patch("apps.tasks.collectors.daily_metrics_rollup._previous_analytics_usage_snapshot", return_value=None),
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup._collect_and_group_hourly_collections"
+            ) as mock_collections,
+            patch("apps.tasks.collectors.daily_metrics_rollup._merge_hourly_rollups", return_value=({}, [])),
+            patch("apps.tasks.collectors.daily_metrics_rollup._aggregate_dashboard_telemetry", return_value=[]),
+            patch("apps.tasks.collectors.daily_metrics_rollup._save_daily_summary") as mock_save,
+            patch("apps.tasks.collectors.daily_metrics_rollup.log_task_execution"),
+            patch("apps.tasks.models.HourlyMetricsCollection") as mock_hourly,
+            patch("apps.tasks.collectors.daily_metrics_rollup.create_task_result", return_value={"status": "success"}),
+        ):
+            mock_hourly.objects.filter.return_value.exists.return_value = True
+            mock_collections.return_value = ({}, None, None)
+
+            from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
+
+            daily_metrics_rollup()
+
+        rollup_arg = mock_save.call_args.args[1]
+        assert rollup_arg["analytics_usage"] == {}
+        assert mock_save.call_args.args[6]["metrics"] == cumulative_usage
+
+    def test_failed_usage_scrape_does_not_replace_saved_baseline(self):
+        with (
+            patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage", return_value=None),
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup._collect_and_group_hourly_collections"
+            ) as mock_collections,
+            patch("apps.tasks.collectors.daily_metrics_rollup._merge_hourly_rollups", return_value=({}, [])),
+            patch("apps.tasks.collectors.daily_metrics_rollup._aggregate_dashboard_telemetry", return_value=[]),
+            patch("apps.tasks.collectors.daily_metrics_rollup._save_daily_summary") as mock_save,
+            patch("apps.tasks.collectors.daily_metrics_rollup.log_task_execution"),
+            patch("apps.tasks.models.HourlyMetricsCollection") as mock_hourly,
+            patch("apps.tasks.collectors.daily_metrics_rollup.create_task_result", return_value={"status": "success"}),
+        ):
+            mock_hourly.objects.filter.return_value.exists.return_value = True
+            mock_collections.return_value = ({}, None, None)
+
+            from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
+
+            daily_metrics_rollup()
+
+        assert mock_save.call_args.args[1]["analytics_usage"] == {}
+        assert mock_save.call_args.args[6] is None
 
     def test_rollup_uses_summary_date_for_telemetry_query(self):
         """_aggregate_dashboard_telemetry is called with the summary_date being rolled up."""
@@ -175,6 +248,7 @@ class TestDailyMetricsRollupTelemetry:
                 "apps.tasks.collectors.daily_metrics_rollup._aggregate_dashboard_telemetry",
                 return_value=[],
             ) as mock_aggregate,
+            patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage") as mock_usage,
             patch(
                 "apps.tasks.collectors.daily_metrics_rollup._collect_and_group_hourly_collections"
             ) as mock_collections,
@@ -195,6 +269,7 @@ class TestDailyMetricsRollupTelemetry:
             daily_metrics_rollup(summary_date=specific_date.isoformat())
 
         mock_aggregate.assert_called_once_with(specific_date)
+        mock_usage.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

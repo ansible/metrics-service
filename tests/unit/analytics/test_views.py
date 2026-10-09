@@ -143,12 +143,12 @@ def test_rows_records_public_collector_and_duration(authenticated_client):
 
     assert response.status_code == 200
     record.assert_called_once()
-    assert record.call_args.args[0] == CONFIG
+    assert record.call_args.args[0].name == CONFIG
     assert record.call_args.args[1] >= 0
 
 
 def test_rows_succeeds_when_telemetry_recording_raises(authenticated_client):
-    with patch("apps.analytics.v1.views.record_collector_get", side_effect=RuntimeError("metrics unavailable")):
+    with patch("apps.analytics.telemetry.ANALYTICS_REQUESTS.labels", side_effect=RuntimeError("metrics unavailable")):
         response = authenticated_client.get(f"{ROOT}{CONFIG}/")
 
     assert response.status_code == 200

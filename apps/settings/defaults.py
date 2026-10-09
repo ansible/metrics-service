@@ -138,6 +138,12 @@ FEATURE = {
 # Used when generating API URLs in views, example "/api/metrics/"; None means "/api/"
 URL_PREFIX = None
 
+# Internal Django Prometheus scrape URL used by daily analytics usage aggregation. Production and
+# development all-in-one defaults are set in their mode-specific settings; split deployments can
+# override this with METRICS_SERVICE_INTERNAL_PROMETHEUS_URL.
+INTERNAL_PROMETHEUS_URL = ""
+INTERNAL_PROMETHEUS_TIMEOUT = 5
+
 # Prevent DAB from registering its default api_documentation URL patterns so that
 # the service can substitute MetricsSpectacularSwaggerView in their place.  The
 # app itself (and its ready() hooks) is still active — only URL registration is

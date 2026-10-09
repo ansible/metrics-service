@@ -12,6 +12,7 @@ from typing import Any
 
 from django.utils import timezone
 
+from apps.analytics.telemetry import aggregate_analytics_usage, daily_analytics_usage_delta
 from apps.dashboard_reports.models import DashboardTelemetry
 
 from ..utils import (
@@ -174,6 +175,7 @@ def _save_daily_summary(
     config_data: dict,
     missing_hours: list,
     execution_id: str | None,
+    analytics_usage_snapshot: dict | None = None,
 ) -> tuple:
     """
     Create or update DailyMetricsSummary record.
@@ -214,25 +216,41 @@ def _save_daily_summary(
     hourly_collections_count = sum(len(ids_list) for ids_list in hourly_collection_ids.values())
 
     # Create or update DailyMetricsSummary
+    defaults = {
+        "aggregated_metrics": daily_rollup,
+        "hourly_collection_ids": hourly_collection_ids,
+        "config_data": config_data,
+        "status": "aggregated",
+        "hourly_collections_count": hourly_collections_count,
+        "missing_hours": missing_hours,
+        "aggregation_completed_at": timezone.now(),
+        "rollup_task_execution_id": execution_id,
+        "error_message": "",  # Clear any previous error
+    }
+    if analytics_usage_snapshot is not None:
+        defaults["analytics_usage_snapshot"] = analytics_usage_snapshot
+
     daily_summary, created = DailyMetricsSummary.objects.update_or_create(
         summary_date=summary_date,
-        defaults={
-            "aggregated_metrics": daily_rollup,
-            "hourly_collection_ids": hourly_collection_ids,
-            "config_data": config_data,
-            "status": "aggregated",
-            "hourly_collections_count": hourly_collections_count,
-            "missing_hours": missing_hours,
-            "aggregation_completed_at": timezone.now(),
-            "rollup_task_execution_id": execution_id,
-            "error_message": "",  # Clear any previous error
-        },
+        defaults=defaults,
     )
 
     # Mark only the hourly collections we actually processed as "processed"
     HourlyMetricsCollection.objects.filter(id__in=all_processed_ids).update(status="processed")
 
     return daily_summary, created, hourly_collections_count
+
+
+def _previous_analytics_usage_snapshot(summary_date: date) -> dict | None:
+    """Return the latest successful usage baseline before this summary date."""
+    from apps.tasks.models import DailyMetricsSummary
+
+    snapshots = (
+        DailyMetricsSummary.objects.filter(summary_date__lt=summary_date)
+        .order_by("-summary_date")
+        .values_list("analytics_usage_snapshot", flat=True)
+    )
+    return next((snapshot for snapshot in snapshots if snapshot and "metrics" in snapshot), None)
 
 
 def _aggregate_dashboard_telemetry(summary_date: date) -> list[dict]:
@@ -318,11 +336,23 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
         # Append dashboard telemetry
         daily_rollup["dashboard_telemetry"] = _aggregate_dashboard_telemetry(summary_date)
 
-        # Prometheus handles the cross-process aggregation; keep this usage signal separate from
-        # customer-facing rollup data and pass it through the normal anonymization boundary.
-        from .collect_analytics_usage import aggregate_analytics_usage
-
-        daily_rollup["analytics_usage"] = aggregate_analytics_usage()
+        # Scrape the web Service; its Prometheus endpoint aggregates Gunicorn workers. Keep the
+        # cumulative baseline private and include only the scrape-to-scrape delta in the rollup.
+        analytics_usage_snapshot = None
+        if summary_date != timezone.now().date() - timedelta(days=1):
+            logger.info("Skipping analytics usage scrape for non-current summary date %s", summary_date)
+            daily_rollup["analytics_usage"] = {}
+        else:
+            cumulative_usage = aggregate_analytics_usage()
+            if cumulative_usage is None:
+                daily_rollup["analytics_usage"] = {}
+            else:
+                previous_snapshot = _previous_analytics_usage_snapshot(summary_date)
+                daily_rollup["analytics_usage"] = daily_analytics_usage_delta(cumulative_usage, previous_snapshot)
+                analytics_usage_snapshot = {
+                    "observed_at": timezone.now().isoformat(),
+                    "metrics": cumulative_usage,
+                }
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
@@ -332,6 +362,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
             config,
             missing_hours,
             kwargs.get("execution_id"),
+            analytics_usage_snapshot,
         )
 
         action = "Created" if created else "Updated"

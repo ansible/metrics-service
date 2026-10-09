@@ -35,6 +35,8 @@ ANSIBLE_BASE_CREATOR_DEFAULTS = ["add", "change", "delete", "view"]
 
 # Service identification
 SERVICE_ID = "test-service-id"
+RESOURCE_SERVER__URL = "http://127.0.0.1:8000"
+RESOURCE_SERVER__SECRET_KEY = "metrics-service-test-only-service-token-key"  # nosec B105 - test-only token key
 
 
 # Disable caching during tests
