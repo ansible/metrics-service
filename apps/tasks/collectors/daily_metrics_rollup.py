@@ -10,6 +10,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from django.conf import settings
 from django.utils import timezone
 
 from apps.analytics.telemetry import aggregate_analytics_usage, daily_analytics_usage_delta
@@ -245,12 +246,49 @@ def _previous_analytics_usage_snapshot(summary_date: date) -> dict | None:
     """Return the latest successful usage baseline before this summary date."""
     from apps.tasks.models import DailyMetricsSummary
 
-    snapshots = (
-        DailyMetricsSummary.objects.filter(summary_date__lt=summary_date)
+    return (
+        DailyMetricsSummary.objects.filter(
+            summary_date__lt=summary_date,
+            analytics_usage_snapshot__has_key="metrics",
+        )
         .order_by("-summary_date")
         .values_list("analytics_usage_snapshot", flat=True)
+        .first()
     )
-    return next((snapshot for snapshot in snapshots if snapshot and "metrics" in snapshot), None)
+
+
+def _analytics_usage(summary_date: date) -> tuple[dict, dict | None, str]:
+    """Return ``(daily usage, new baseline snapshot, status)`` for the summary date.
+
+    Analytics usage telemetry is a side feature: every failure mode here degrades to empty
+    usage and a status the caller can report, never an exception that would abort the rollup
+    and cost us the day's anonymized payload.
+
+    The status is one of ``ok``, ``baseline`` (first scrape, nothing to diff against yet),
+    ``skipped`` (backfill of an older date), ``not_configured``, ``scrape_failed``, or
+    ``delta_failed``.
+    """
+    if summary_date != timezone.now().date() - timedelta(days=1):
+        logger.info("Skipping analytics usage scrape for non-current summary date %s", summary_date)
+        return {}, None, "skipped"
+
+    if not settings.INTERNAL_PROMETHEUS_URL:
+        return {}, None, "not_configured"
+
+    cumulative_usage = aggregate_analytics_usage()
+    if cumulative_usage is None:
+        return {}, None, "scrape_failed"
+
+    try:
+        previous_snapshot = _previous_analytics_usage_snapshot(summary_date)
+        usage = daily_analytics_usage_delta(cumulative_usage, previous_snapshot)
+    except Exception:
+        # A malformed stored baseline must not cost us the whole daily summary.
+        logger.exception("Failed to derive analytics usage delta for %s", summary_date)
+        return {}, None, "delta_failed"
+
+    snapshot = {"observed_at": timezone.now().isoformat(), "metrics": cumulative_usage}
+    return usage, snapshot, "ok" if previous_snapshot else "baseline"
 
 
 def _aggregate_dashboard_telemetry(summary_date: date) -> list[dict]:
@@ -338,21 +376,9 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
         # Scrape the web Service; its Prometheus endpoint aggregates Gunicorn workers. Keep the
         # cumulative baseline private and include only the scrape-to-scrape delta in the rollup.
-        analytics_usage_snapshot = None
-        if summary_date != timezone.now().date() - timedelta(days=1):
-            logger.info("Skipping analytics usage scrape for non-current summary date %s", summary_date)
-            daily_rollup["analytics_usage"] = {}
-        else:
-            cumulative_usage = aggregate_analytics_usage()
-            if cumulative_usage is None:
-                daily_rollup["analytics_usage"] = {}
-            else:
-                previous_snapshot = _previous_analytics_usage_snapshot(summary_date)
-                daily_rollup["analytics_usage"] = daily_analytics_usage_delta(cumulative_usage, previous_snapshot)
-                analytics_usage_snapshot = {
-                    "observed_at": timezone.now().isoformat(),
-                    "metrics": cumulative_usage,
-                }
+        daily_rollup["analytics_usage"], analytics_usage_snapshot, analytics_usage_status = _analytics_usage(
+            summary_date
+        )
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
@@ -381,6 +407,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
                 "hourly_collections_count": hourly_collections_count,
                 "missing_hours": missing_hours,
                 "aggregated_collectors": list(daily_rollup.keys()),
+                "analytics_usage_status": analytics_usage_status,
                 "created": created,  # True if new record, False if updated existing
             },
         )

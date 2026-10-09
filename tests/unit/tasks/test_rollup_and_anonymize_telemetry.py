@@ -422,3 +422,113 @@ class TestDailyAnonymizeTelemetry:
         for entry in payload.anonymized_data["dashboard_telemetry"]:
             sensitive_keys = {"organization_name", "user_id", "username", "job_id"}
             assert not sensitive_keys.intersection(entry.keys())
+
+
+# ---------------------------------------------------------------------------
+# _analytics_usage — failure isolation and reported status
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAnalyticsUsageStatus:
+    """The usage helper degrades to empty usage and a status, never an exception."""
+
+    @staticmethod
+    def _yesterday():
+        from django.utils import timezone
+
+        return timezone.now().date() - timedelta(days=1)
+
+    def test_backfill_of_an_older_date_is_skipped(self):
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        usage, snapshot, status = _analytics_usage(self._yesterday() - timedelta(days=3))
+
+        assert (usage, snapshot, status) == ({}, None, "skipped")
+
+    def test_unconfigured_endpoint_is_reported_without_scraping(self):
+        from django.test import override_settings
+
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        with (
+            override_settings(INTERNAL_PROMETHEUS_URL=""),
+            patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage") as mock_usage,
+        ):
+            usage, snapshot, status = _analytics_usage(self._yesterday())
+
+        assert (usage, snapshot, status) == ({}, None, "not_configured")
+        mock_usage.assert_not_called()
+
+    def test_failed_scrape_is_reported(self):
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        with patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage", return_value=None):
+            usage, snapshot, status = _analytics_usage(self._yesterday())
+
+        assert (usage, snapshot, status) == ({}, None, "scrape_failed")
+
+    def test_first_scrape_reports_baseline(self):
+        cumulative = {"controller.config": {"request_count": 5, "duration_ms_total": 60.0, "duration_sample_count": 4}}
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        with (
+            patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage", return_value=cumulative),
+            patch("apps.tasks.collectors.daily_metrics_rollup._previous_analytics_usage_snapshot", return_value=None),
+        ):
+            usage, snapshot, status = _analytics_usage(self._yesterday())
+
+        assert usage == {}
+        assert snapshot["metrics"] == cumulative
+        assert status == "baseline"
+
+    def test_a_malformed_stored_baseline_does_not_raise(self):
+        """A non-dict value in the stored snapshot must not abort the caller's rollup."""
+        cumulative = {"controller.config": {"request_count": 5, "duration_ms_total": 60.0, "duration_sample_count": 4}}
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        with (
+            patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage", return_value=cumulative),
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup._previous_analytics_usage_snapshot",
+                return_value={"observed_at": "2026-10-08T02:00:00+00:00", "metrics": {"controller.config": "corrupt"}},
+            ),
+            patch("apps.tasks.collectors.daily_metrics_rollup.logger") as mock_logger,
+        ):
+            usage, snapshot, status = _analytics_usage(self._yesterday())
+
+        assert (usage, snapshot, status) == ({}, None, "delta_failed")
+        mock_logger.exception.assert_called_once()
+
+
+@pytest.mark.unit
+class TestDailyMetricsRollupSurvivesTelemetryFailure:
+    """Telemetry must never cost us the day's summary or its anonymized payload."""
+
+    def test_rollup_still_saves_a_summary_when_the_usage_delta_fails(self):
+        with (
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup._analytics_usage",
+                return_value=({}, None, "delta_failed"),
+            ),
+            patch("apps.tasks.collectors.daily_metrics_rollup._aggregate_dashboard_telemetry", return_value=[]),
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup._collect_and_group_hourly_collections"
+            ) as mock_collections,
+            patch("apps.tasks.collectors.daily_metrics_rollup._merge_hourly_rollups") as mock_merge,
+            patch("apps.tasks.collectors.daily_metrics_rollup._save_daily_summary") as mock_save,
+            patch("apps.tasks.collectors.daily_metrics_rollup.log_task_execution"),
+            patch("apps.tasks.models.HourlyMetricsCollection") as mock_hourly,
+        ):
+            mock_hourly.objects.filter.return_value.exists.return_value = True
+            mock_collections.return_value = ({}, None, None)
+            mock_merge.return_value = ({}, [])
+            mock_save.return_value = (MagicMock(id=7, aggregated_metrics={}), True, 0)
+
+            from apps.tasks.collectors.daily_metrics_rollup import daily_metrics_rollup
+
+            result = daily_metrics_rollup()
+
+        mock_save.assert_called_once()
+        assert result["status"] == "success"
+        assert result["analytics_usage_status"] == "delta_failed"
