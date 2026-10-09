@@ -50,7 +50,11 @@ still run under `METRICS_COLLECTION`.
    Adds a current `leaderboard_telemetry` settings observation (see below).
 5. Embeds `analytics_usage` from the authenticated internal Prometheus scrape.
    This is a separate bounded section containing only public collector names,
-   daily request-count deltas, and duration totals/averages in milliseconds.
+   request-count deltas, and duration totals/averages in milliseconds. The
+   interval a delta covers is the gap between two successful scrapes, which is
+   neither a calendar day nor reliably 24 hours — see
+   [analytics.md](analytics.md#what-interval-a-daily-figure-covers) before
+   reading these as daily rates.
 6. Creates `AnonymizedMetricsPayload` with `status="pending"`.
 7. Sets summary `status="anonymized"`.
 8. Creates a **scheduled** `send_anonymized_to_segment` task with random jitter

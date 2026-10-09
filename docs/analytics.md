@@ -204,15 +204,56 @@ The cumulative scrape is stored privately in
 the anonymizer. `analytics_usage` contains only deltas since the previous
 successful scrape, with `request_count`, `duration_ms_total`, and
 `duration_ms_average` for each collector. The first successful scrape saves a
-baseline and reports `{}`. Measuring a date happens once: re-running a rollup
-for a date that already has a baseline keeps the usage and baseline it
-recorded, so a late collector retry cannot widen the measured interval or make
-a second anonymized payload overlap the first. Daily rollups run at 02:00 UTC for the previous date,
-so the reported period is the rolling interval between rollup scrapes ending at
-about 02:00 UTC, attributed to that summary date; it is not a midnight-to-
-midnight calendar-day window. A historical rollup for any date other than
-yesterday omits this telemetry rather than assigning current usage to a past
-date.
+baseline and reports `{}`.
+
+### What interval a daily figure covers
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant W as web pod<br/>(cumulative counters)
+    participant R as daily_metrics_rollup
+    participant S as DailyMetricsSummary
+
+    Note over W: counters only ever grow,<br/>until the container restarts
+
+    R->>W: 02:00 UTC on day D — scrape
+    W-->>R: C1
+    R->>S: row D-1 — usage = C1 - C0, baseline = C1
+
+    Note over W: traffic during<br/>[D 02:00, D+1 02:00)
+
+    R->>W: 02:00 UTC on day D+1 — scrape
+    W-->>R: C2
+    S-->>R: latest earlier baseline = C1 (row D-1)
+    R->>S: row D — usage = C2 - C1, baseline = C2
+```
+
+The rollup for summary date `D` runs at 02:00 UTC on `D+1` and diffs the scrape
+it takes then against the baseline left by the previous successful scrape —
+normally the one on `D-1`'s row, taken at 02:00 UTC on `D`. So the figures
+attributed to `D` cover **`[D 02:00 UTC, D+1 02:00 UTC)`**: the last 22 hours of
+`D` plus the first two hours of `D+1`. It is not a midnight-to-midnight calendar
+day, and the offset is fixed by the rollup cron, not by the summary date.
+
+Caveats worth knowing before using these numbers:
+
+| Caveat | Effect |
+| --- | --- |
+| The window is shifted, not aligned | Two hours of the traffic reported for `D` actually happened on `D+1`. |
+| The window is not always 24 hours | A failed scrape saves no baseline, so the next success diffs against the last good one and attributes the whole multi-day span to a single summary date. Nothing is lost; it is lumped. |
+| Nothing normalizes for window length | `observed_at` is stored on the baseline but never read — the delta is purely `C_n - C_n-1`. A `request_count` covering three days is indistinguishable downstream from a one-day one, so treating these as daily rates overstates after any scrape outage. |
+| A web container restart resets the counters | The multiprocess directory is container-local and starts empty, so the counters go back to zero. The drop is detected per collector (any of `request_count`, `duration_ms_total`, `duration_sample_count` going backwards), logged as a warning, and the current value is used as that interval's delta — which silently under-reports everything between the last scrape and the restart. |
+| Gunicorn worker recycling does **not** reset | Each worker writes pid-keyed files that `MultiProcessCollector` sums, so retired workers still count toward the total. Only losing the directory resets. |
+| Multiple web replicas corrupt deltas | Multiprocess mode aggregates workers within one pod only, so each scrape reaches whichever replica the Service picked. Alternating between independent cumulative counters can skew a delta in either direction, including spurious reset warnings. Keep one web replica until per-pod scraping exists. |
+| A date is measured once | Re-running a rollup for a date that already has a baseline keeps the usage and baseline it recorded (status `preserved`). A late collector retry therefore cannot widen the measured interval, and re-anonymizing cannot ship an interval that overlaps an earlier payload. A scrape that *failed* saves no baseline, so retrying that date does still measure it. |
+| Historical backfill reports nothing | A rollup for any date other than yesterday omits this telemetry rather than assigning current usage to a past date, and leaves any usage that date already recorded untouched. |
+
+The baseline is written inside the same `update_or_create` as the summary
+itself, at about 02:00, and only when the scrape succeeded — a failed scrape
+omits the field and leaves the previous baseline as the anchor. `observed_at` is
+taken after the scrape returns, so it trails the values it stamps by well under
+a second.
 
 The anonymized payload carries deltas under the separate `analytics_usage` key;
 they never travel directly from an API request to Segment and do not use the
