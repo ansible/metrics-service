@@ -28,7 +28,7 @@ dependencies = [
     # Use `uv sync` so [tool.uv.sources] applies; plain `pip install .` will use latest from PyPI.
     "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]>=2026.1.26",
     "psycopg[binary]>=3.1", # Binary wheel; use [c] only if C build tools available
-    "psycopg2-binary>=2.9.0", # Binary wheel for dispatcherd PostgreSQL LISTEN/NOTIFY (no C compiler in Docker)
+    "pyodbc>=5.3.0", # SQL Server dispatcherd broker client
     "dynaconf>=3.1.0",
     "dispatcherd>=2026.1.27",
     "croniter>=6.2.2",

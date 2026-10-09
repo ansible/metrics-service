@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+DEFAULT_CHANNELS = ["dashboard", "maintenance", "metrics"]
 
 
 def get_config_file_path() -> Path:
@@ -30,13 +31,12 @@ def setup_dispatcherd_config() -> None:
     Setup dispatcherd configuration from file or Django settings.
 
     This function configures dispatcherd to work with the metrics service
-    database and task queues. It can be called from any process that needs
+    SQL Server broker and task queues. It can be called from any process that needs
     to submit tasks to dispatcherd.
 
-    Database connection settings always come from Django's DATABASES["default"]
-    which properly respects METRICS_SERVICE_DATABASES__default__* environment
-    variables. The YAML config file is used for other settings (channels,
-    queue routing, logging, etc.).
+    Broker connection settings come from DISPATCHERD_SQLSERVER and remain
+    independent from Django's DATABASES setting. The YAML config file provides
+    channels, queue routing, logging, and worker pool settings.
     """
     try:
         import dispatcherd.config
@@ -50,13 +50,13 @@ def setup_dispatcherd_config() -> None:
 
         # Fall back to Django settings when the configured file is absent.
         if config_file.exists():
-            # Load config file and merge with Django database settings
+            # Load config file and merge with dispatcherd SQL Server settings
             logger.info(f"Loading dispatcherd config from file: {config_file}")
-            config = _load_config_with_django_db(config_file)
+            config = _load_config_with_dispatcherd_settings(config_file)
         else:
             # Build config entirely from Django settings
             logger.info("Configuration file not found, using Django settings")
-            config = build_config_from_django_settings()
+            config = build_config_from_settings()
 
         # Configure dispatcherd with the merged config
         dispatcherd.config.setup(config)
@@ -73,36 +73,20 @@ def setup_dispatcherd_config() -> None:
         raise
 
 
-def _postgres_connection_config(db_config: dict[str, Any]) -> dict[str, Any]:
-    """Carry Django's PostgreSQL connection options into the pg_notify broker."""
-    options = db_config.get("OPTIONS", {}).copy()
-    # These options are consumed by Django, not psycopg.connect().
-    for name in ("assume_role", "isolation_level", "pool", "server_side_binding"):
-        options.pop(name, None)
-    return {
-        **options,
-        "dbname": db_config["NAME"],
-        "user": db_config["USER"],
-        "password": db_config["PASSWORD"],
-        "host": db_config["HOST"],
-        "port": db_config["PORT"],
-    }
+def _get_dispatcherd_sqlserver_config(django_settings) -> dict[str, Any]:
+    """Normalize Dynaconf's case-preserving nested environment keys for pyodbc."""
+    return {str(key).lower(): value for key, value in django_settings.DISPATCHERD_SQLSERVER.items()}
 
 
-def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
+def _load_config_with_dispatcherd_settings(config_file: Path) -> dict[str, Any]:
     """
-    Load dispatcherd config from YAML file but override database settings
-    with Django's DATABASES["default"] configuration.
-
-    This ensures database connection settings always come from Django settings
-    which properly respects METRICS_SERVICE_DATABASES__default__* environment
-    variables via Dynaconf.
+    Load dispatcherd config from YAML and inject the independent SQL Server broker settings.
 
     Args:
         config_file: Path to the dispatcherd YAML configuration file
 
     Returns:
-        Configuration dictionary with database settings from Django
+        Configuration dictionary with SQL Server broker settings from Django settings
     """
     import yaml
     from django.conf import settings as django_settings
@@ -111,35 +95,39 @@ def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
     with open(config_file) as f:
         config = yaml.safe_load(f) or {}
 
-    # Get database configuration from Django settings
-    db_config = django_settings.DATABASES["default"]
+    # Copy broker settings so dispatcherd setup does not mutate Django settings.
+    sql_server_config = _get_dispatcherd_sqlserver_config(django_settings)
 
-    # Build PostgreSQL connection config from Django settings
-    pg_config = _postgres_connection_config(db_config)
+    # Metrics-service is fully switched to SQL Server for dispatch in this phase.
+    brokers = config.setdefault("brokers", {})
+    postgres_broker = brokers.pop("pg_notify", {}) or {}
+    sql_server_broker = brokers.setdefault("sql_server", {})
+    sql_server_broker["config"] = sql_server_config
+    # Preserve broker-neutral routing options from existing PostgreSQL-only config files.
+    for key in ("channels", "default_publish_channel"):
+        if key not in sql_server_broker and key in postgres_broker:
+            sql_server_broker[key] = postgres_broker[key]
+    sql_server_broker.setdefault("channels", DEFAULT_CHANNELS.copy())
 
-    # Ensure brokers section exists
-    if "brokers" not in config:
-        config["brokers"] = {}
-    if "pg_notify" not in config["brokers"]:
-        config["brokers"]["pg_notify"] = {}
-
-    # Override database config with Django settings
-    config["brokers"]["pg_notify"]["config"] = pg_config
+    publish = config.setdefault("publish", {})
+    publish["default_broker"] = "sql_server"
+    if publish.get("default_control_broker") == "pg_notify":
+        publish["default_control_broker"] = "sql_server"
 
     # Override task timeout with Django setting
     config.setdefault("service", {}).setdefault("task_settings", {})["default_timeout"] = django_settings.TASK_TIMEOUT
 
     logger.info(
-        f"Configured dispatcherd with Django database settings: "
-        f"{pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
+        "Configured dispatcherd with SQL Server broker settings: "
+        f"{sql_server_config.get('server')}:{sql_server_config.get('port')}/{sql_server_config.get('database')}"
     )
 
     return config
 
 
-def build_config_from_django_settings() -> dict[str, Any]:
+def build_config_from_settings() -> dict[str, Any]:
     """
-    Build dispatcherd configuration from Django database settings.
+    Build dispatcherd configuration from Django settings without using DATABASES.
 
     Returns:
         Dictionary containing dispatcherd configuration
@@ -147,23 +135,15 @@ def build_config_from_django_settings() -> dict[str, Any]:
     try:
         from django.conf import settings as django_settings
 
-        # Get database configuration
-        db_config = django_settings.DATABASES["default"]
-
-        # Create PostgreSQL connection config
-        pg_config = _postgres_connection_config(db_config)
+        sql_server_config = _get_dispatcherd_sqlserver_config(django_settings)
 
         # Build dispatcherd configuration
         config = {
             "version": 2,
             "brokers": {
-                "pg_notify": {
-                    "config": pg_config,
-                    "channels": [
-                        "dashboard",
-                        "maintenance",
-                        "metrics",
-                    ],
+                "sql_server": {
+                    "config": sql_server_config,
+                    "channels": DEFAULT_CHANNELS.copy(),
                 },
             },
             "service": {
@@ -172,10 +152,12 @@ def build_config_from_django_settings() -> dict[str, Any]:
                     "default_timeout": django_settings.TASK_TIMEOUT,
                 },
             },
+            "publish": {"default_broker": "sql_server"},
         }
 
         logger.info(
-            f"Built dispatcherd config for database: {pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
+            "Built dispatcherd config for SQL Server broker: "
+            f"{sql_server_config.get('server')}:{sql_server_config.get('port')}/{sql_server_config.get('database')}"
         )
         return config
 

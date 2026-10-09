@@ -34,6 +34,11 @@ Worker execution uses [dispatcherd](https://github.com/ansible/dispatcherd).
 # Start base containers (postgres, minio)
 make compose
 
+# Copy settings
+cp settings.local.py.example settings.local.py
+
+- Edit the file to set DATABASES__awx__PASSWORD to "awx"
+
 # In another terminal — run migrations, start dev server
 tools/dev.sh --init
 ```

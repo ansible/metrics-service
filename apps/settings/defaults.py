@@ -120,6 +120,21 @@ DATABASES = {
     },
 }
 
+# Dispatcherd uses an independent SQL Server database for broker messages.
+# These values are overridden with METRICS_SERVICE_DISPATCHERD_SQLSERVER__<KEY>
+# environment variables; they are intentionally separate from Django DATABASES.
+DISPATCHERD_SQLSERVER = {
+    "server": "",
+    "port": 1433,
+    "database": "dispatcherd",
+    "user": "",
+    "password": "",
+    "driver": "ODBC Driver 18 for SQL Server",
+    "trust_server_certificate": "yes",
+    "connect_timeout_seconds": 15,
+    "query_timeout_seconds": 30,
+}
+
 # Feature flag defaults — controlled at runtime via METRICS_SERVICE_FEATURE__<KEY>=value env vars
 # (dynaconf nested-key syntax merges into this dict) or via the dynamic_settings DB API.
 # Keys present here provide the static default used by get_feature_enabled_from_db when no DB row

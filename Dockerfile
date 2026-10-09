@@ -14,13 +14,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 
 
 
-# Install only runtime dependencies (no build tools)
-# Use pre-built Python wheels instead of building from source
+# Install runtime dependencies, including the SQL Server ODBC client.
 USER root
 RUN dnf update -y && \
     dnf install -y \
         # Production runtime: Nginx for reverse proxy and TLS termination
         nginx \
+        curl \
+        unixODBC \
+        unixODBC-devel \
+    && curl --fail --silent --show-error --location \
+        https://packages.microsoft.com/config/rhel/9.0/prod.repo \
+        --output /etc/yum.repos.d/mssql-release.repo \
+    && ACCEPT_EULA=Y dnf install -y msodbcsql18 \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
