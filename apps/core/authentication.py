@@ -38,12 +38,19 @@ class MetricsServiceTokenAuthentication(BaseAuthentication):
         if not token:
             return None
 
-        config = get_resource_server_config()
+        # A deployment without RESOURCE_SERVER__SECRET_KEY cannot sign or verify these tokens.
+        # Reject the attempt rather than letting a KeyError surface as a 500 with a traceback.
+        try:
+            config = get_resource_server_config()
+            secret_key = config["SECRET_KEY"]
+        except KeyError as exc:
+            raise AuthenticationFailed("Metrics Service token authentication is not configured") from exc
+
         try:
             claims = jwt.decode(
                 token,
-                config["SECRET_KEY"],
-                algorithms=[config["JWT_ALGORITHM"]],
+                secret_key,
+                algorithms=[config.get("JWT_ALGORITHM", "HS256")],
                 options={"require": ["iss", "exp"]},
             )
         except jwt.PyJWTError as exc:

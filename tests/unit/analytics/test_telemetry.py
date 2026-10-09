@@ -3,7 +3,8 @@
 import os
 import subprocess
 import sys
-from datetime import timedelta
+import time
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
@@ -20,6 +21,7 @@ from rest_framework.test import APIClient
 from apps.analytics.registry import CollectorEntry, get_entry
 from apps.analytics.telemetry import (
     _open_metrics_endpoint,
+    _service_token,
     aggregate_analytics_usage,
     daily_analytics_usage_delta,
     record_collector_get,
@@ -182,6 +184,53 @@ analytics_collector_get_duration_milliseconds_sum{collector="controller.config"}
             "duration_sample_count": 2,
         }
     }
+
+
+def test_metrics_endpoint_rejects_tokens_when_no_resource_server_key_is_configured():
+    """A deployment without RESOURCE_SERVER__SECRET_KEY must 401, not 500 on a KeyError."""
+    token = jwt.encode(
+        {"iss": "test-service-id", "exp": timezone.now() + timedelta(minutes=1)},
+        settings.RESOURCE_SERVER["SECRET_KEY"],
+        algorithm="HS256",
+    )
+
+    with override_settings(RESOURCE_SERVER={}):
+        response = APIClient().get("/api/v1/metrics", HTTP_X_ANSIBLE_SERVICE_AUTH=token)
+
+    assert response.status_code in (401, 403)
+
+
+def test_service_token_expiry_is_utc_based_and_independent_of_local_timezone():
+    """DAB builds ``exp`` from a naive ``datetime.now()``; we must supply a UTC one instead."""
+    before = datetime.now(UTC)
+
+    with patch("apps.analytics.telemetry.get_service_token", return_value="token") as mint:
+        assert _service_token() == "token"
+
+    after = datetime.now(UTC)
+    # expiration=None suppresses DAB's naive exp so ours is the only one in the payload.
+    assert mint.call_args.kwargs["expiration"] is None
+    exp = datetime.fromtimestamp(mint.call_args.kwargs["exp"], UTC)
+    assert before + timedelta(seconds=59) <= exp <= after + timedelta(seconds=60)
+
+
+def test_service_token_is_accepted_by_the_metrics_endpoint_under_a_skewed_timezone(monkeypatch):
+    """A container TZ behind UTC must not mint an already-expired token."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        token = _service_token()
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()
+
+    claims = jwt.decode(
+        token,
+        settings.RESOURCE_SERVER["SECRET_KEY"],
+        algorithms=["HS256"],
+        options={"require": ["iss", "exp"]},
+    )
+    assert claims["exp"] > datetime.now(UTC).timestamp()
 
 
 def test_aggregate_analytics_usage_rejects_sensitive_or_unknown_labels():

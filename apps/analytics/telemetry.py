@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -33,6 +34,22 @@ _REQUESTS_SAMPLE = "analytics_collector_get_requests_total"
 _DURATION_COUNT_SAMPLE = "analytics_collector_get_duration_milliseconds_count"
 _DURATION_SUM_SAMPLE = "analytics_collector_get_duration_milliseconds_sum"
 _ZERO_METRICS = {"request_count": 0, "duration_ms_total": 0.0, "duration_sample_count": 0}
+
+# The token only has to survive one in-cluster request, but it is minted before the socket is
+# opened, so it must cover the connect and read timeouts with room to spare.
+_TOKEN_TTL_SECONDS = 60
+
+
+def _service_token() -> str:
+    """Mint a short-lived service token with an explicitly UTC-based expiry.
+
+    ``get_service_token(expiration=...)`` builds ``exp`` from a naive ``datetime.now()``, which
+    PyJWT then encodes as if it were UTC. On a container whose ``TZ`` is behind UTC that yields a
+    token that is already expired; ahead of UTC it silently outlives its intended lifetime. Passing
+    ``exp`` ourselves as a UTC timestamp keeps the lifetime correct regardless of the local zone.
+    """
+    exp = datetime.now(UTC) + timedelta(seconds=_TOKEN_TTL_SECONDS)
+    return get_service_token(expiration=None, exp=int(exp.timestamp()))
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -95,7 +112,7 @@ def aggregate_analytics_usage() -> dict[str, dict[str, Any]] | None:
 
         request = Request(  # noqa: S310 - metrics_url is deployment-controlled and HTTP(S)-validated above
             metrics_url,
-            headers={"X-ANSIBLE-SERVICE-AUTH": get_service_token(expiration=60)},
+            headers={"X-ANSIBLE-SERVICE-AUTH": _service_token()},
         )
         # This deployment-controlled URL targets the in-cluster web Service; reject non-HTTP schemes above.
         with _open_metrics_endpoint(request, timeout=settings.INTERNAL_PROMETHEUS_TIMEOUT) as response:
