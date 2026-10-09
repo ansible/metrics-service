@@ -13,6 +13,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 ROOT = "/api/v1/analytics/"
 UNIFIED = "controller.unified_jobs_dashboard"
 CONFIG = "controller.config"
+EVENTS = "controller.events_table"
 
 
 def _row(collector, since, until, payload=None, cluster_id=None):
@@ -134,6 +135,27 @@ def test_rows_return_collection_envelope(authenticated_client):
     assert "started_at" in result
     assert "finished_at" in result
     assert "state" not in result
+
+
+def test_rows_return_event_collection_fields_unchanged(authenticated_client):
+    payload = [
+        {
+            "event": "runner_on_ok",
+            "collection_name": "ansible.posix",
+            "collection_version": "1.2.0",
+        }
+    ]
+    _row(
+        EVENTS,
+        datetime(2026, 8, 17, 10, tzinfo=UTC),
+        datetime(2026, 8, 17, 11, tzinfo=UTC),
+        payload,
+    )
+
+    response = authenticated_client.get(f"{ROOT}{EVENTS}/")
+
+    assert response.status_code == 200
+    assert response.json()["results"][0]["payload"] == payload
 
 
 def test_rows_retain_duplicate_collections(authenticated_client):

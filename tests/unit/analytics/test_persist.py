@@ -29,6 +29,22 @@ def test_persist_dataframe_stores_records():
     assert row.payload == [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
 
 
+def test_persist_event_records_preserves_collection_fields():
+    started, finished = _times()
+    records = [
+        {
+            "event": "runner_on_ok",
+            "collection_name": "ansible.posix",
+            "collection_version": "1.2.0",
+        }
+    ]
+
+    persist_analytics_payload("events_table", records, since=None, until=None, started_at=started, finished_at=finished)
+
+    row = AnalyticsPayload.objects.get(collector="controller.events_table")
+    assert row.payload == records
+
+
 def test_persist_dict_payload():
     started, finished = _times()
     persist_analytics_payload(
