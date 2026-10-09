@@ -202,11 +202,13 @@ class CollectorRowsView(generics.ListAPIView):
         if entry is None or not entry.enabled:
             return super().get(request, *args, **kwargs)
 
+        # Only successful reads count as usage. Recording 4xx/5xx would inflate the request
+        # count with malformed queries and fold error-path latency into the average we ship.
         started = time.perf_counter()
-        try:
-            return super().get(request, *args, **kwargs)
-        finally:
+        response = super().get(request, *args, **kwargs)
+        if response.status_code < 400:
             record_collector_get(entry, (time.perf_counter() - started) * 1000)
+        return response
 
     def get_queryset(self):
         """Filter stored payloads for the collector by since/until *window overlap*.
