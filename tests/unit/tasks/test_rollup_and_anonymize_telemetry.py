@@ -117,6 +117,11 @@ class TestAggregateDashboardTelemetry:
 class TestDailyMetricsRollupTelemetry:
     """Tests that daily_metrics_rollup appends dashboard_telemetry to the daily summary."""
 
+    @pytest.fixture(autouse=True)
+    def _internal_prometheus_url(self, settings):
+        """Pin the scrape URL so these tests do not depend on METRICS_SERVICE_MODE."""
+        settings.INTERNAL_PROMETHEUS_URL = "http://metrics-web:8000/api/v1/metrics"
+
     def test_rollup_sets_dashboard_telemetry_key(self):
         """daily_metrics_rollup sets the 'dashboard_telemetry' key on the daily rollup."""
         telemetry_rows = [
@@ -435,6 +440,11 @@ class TestDailyAnonymizeTelemetry:
 class TestAnalyticsUsageStatus:
     """The usage helper degrades to empty usage and a status, never an exception."""
 
+    @pytest.fixture(autouse=True)
+    def _internal_prometheus_url(self, settings):
+        """Pin the scrape URL so these tests do not depend on METRICS_SERVICE_MODE."""
+        settings.INTERNAL_PROMETHEUS_URL = "http://metrics-web:8000/api/v1/metrics"
+
     @staticmethod
     def _yesterday():
         from django.utils import timezone
@@ -540,6 +550,11 @@ class TestDailyMetricsRollupSurvivesTelemetryFailure:
 @pytest.mark.django_db
 class TestAnalyticsUsagePreservedOnRerun:
     """Re-running a rollup must not re-measure a date that was already measured."""
+
+    @pytest.fixture(autouse=True)
+    def _internal_prometheus_url(self, settings):
+        """Pin the scrape URL so these tests do not depend on METRICS_SERVICE_MODE."""
+        settings.INTERNAL_PROMETHEUS_URL = "http://metrics-web:8000/api/v1/metrics"
 
     @staticmethod
     def _summary(summary_date, usage, snapshot):
