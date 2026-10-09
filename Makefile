@@ -50,14 +50,13 @@ fix:
 
 
 METRICS_UTILITY_COMPOSE = ../metrics-utility/tools/docker/docker-compose.yaml
-METRICS_SERVICE_COMPOSE_OVERRIDE = tools/docker-compose.service.override.yml
 COMPOSE_CMD ?= $(shell command -v podman-compose 2>/dev/null || echo "docker compose")
 
 compose:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) up
 
 compose-service:
-	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) -f $(METRICS_SERVICE_COMPOSE_OVERRIDE) --profile service up
+	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) --profile service up
 
 compose-pytest-svc:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) --profile pytest-svc up
