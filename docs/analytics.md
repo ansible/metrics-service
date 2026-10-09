@@ -168,8 +168,7 @@ are not upserts.
 
 ## Usage Telemetry
 
-Each enabled collector row `GET` records two Prometheus metrics through the
-default `django-prometheus` registry:
+Each enabled collector row `GET` records two Prometheus metrics:
 
 | Metric | Type | Label | Unit |
 | --- | --- | --- | --- |
@@ -180,19 +179,106 @@ The `collector` label is the fully qualified public registry name, such as
 `controller.unified_jobs_dashboard`. It is selected from the enabled collector
 registry and cannot be supplied by the request. No query parameters, payload
 contents, organization names, hostnames, or other customer values are labels.
-The histogram uses millisecond buckets and exports `_sum` and `_count`; the
-average is `duration_milliseconds_sum / duration_milliseconds_count`. The
-Prometheus endpoint combines worker processes when multiprocess mode is
-enabled.
+The histogram uses millisecond buckets and exports `_sum` and `_count`.
 
-The daily rollup reads the current Prometheus aggregates once per rollup. The
-values are cumulative since process metrics were initialized, or since the
-multiprocess files were reset, rather than a database-backed request window.
-If no samples exist, `analytics_usage` is an empty object. Scrape failures are
-logged and also produce an empty object. The anonymized payload carries these
-bounded aggregates under the separate `analytics_usage` key; they never travel
-directly from an API request to Segment and do not use the `dashboard_telemetry`
-key.
+In production, Metrics Service sets `PROMETHEUS_MULTIPROC_DIR` during settings
+startup and creates a writable directory under the container's temporary
+directory. Gunicorn workers in the web pod share that directory. The existing
+`/api/v1/metrics` view uses `MultiProcessCollector` to combine those workers.
+It also retains the default Python GC, platform, and process collectors from
+the worker serving the scrape; those process-specific values are not summed
+across workers. Any future custom non-multiprocess collector must be explicitly
+added to this endpoint's multiprocess registry.
+The default directory is container-local and is not shared with the dispatcher
+or other web pods; if overriding it, use a writable per-pod path and ensure it
+starts empty once per container lifecycle, never by clearing it from each worker.
+The dispatcher does **not** read its own registry or mount the web pod's
+directory; it scrapes the web Service over HTTP using
+`METRICS_SERVICE_INTERNAL_PROMETHEUS_URL`. The scrape carries a locally signed
+DAB resource-server service token, accepted only by this metrics view. This
+service-to-service request uses the in-cluster Service directly and does not
+route through the AAP Gateway.
+
+The cumulative scrape is stored privately in
+`DailyMetricsSummary.analytics_usage_snapshot`; that field is never passed to
+the anonymizer. `analytics_usage` contains only deltas since the previous
+successful scrape, with `request_count`, `duration_ms_total`, and
+`duration_ms_average` for each collector. The first successful scrape saves a
+baseline and reports `{}`. Daily rollups run at 02:00 UTC for the previous date,
+so the reported period is the rolling interval between rollup scrapes ending at
+about 02:00 UTC, attributed to that summary date; it is not a midnight-to-
+midnight calendar-day window. A historical rollup for any date other than
+yesterday omits this telemetry rather than assigning current usage to a past
+date.
+
+The anonymized payload carries deltas under the separate `analytics_usage` key;
+they never travel directly from an API request to Segment and do not use the
+`dashboard_telemetry` key. With no samples, the usage object is empty, and the
+average is `null` when the interval has no duration observations.
+
+Example:
+
+```json
+{
+  "analytics_usage": {
+    "controller.unified_jobs_dashboard": {
+      "request_count": 42,
+      "duration_ms_total": 613.0,
+      "duration_ms_average": 14.6
+    }
+  }
+}
+```
+
+### Configuring the internal scrape URL
+
+The Django setting is `INTERNAL_PROMETHEUS_URL`, overridden by the environment
+variable `METRICS_SERVICE_INTERNAL_PROMETHEUS_URL`. The all-in-one production
+default is `http://127.0.0.1:8000/api/v1/metrics`; deployments with separate web
+and tasks processes must supply their local web URL.
+
+Use the existing deployment settings mechanism rather than adding another
+operator API field or requiring companion operator/installer code changes:
+
+- Standalone MetricsService CR: set `INTERNAL_PROMETHEUS_URL` in
+  `spec.extra_settings`, typically to
+  `http://<CR name>-service:8000/api/v1/metrics`.
+- AAP-managed MetricsService: set it in
+  `spec.metrics.extra_settings` on the parent AAP CR; the existing AAP operator
+  passes those settings to the child MetricsService CR.
+- Containerized installer: set it through `automationmetrics_extra_settings`;
+  host networking allows `http://127.0.0.1:8006/api/v1/metrics` with the default
+  Gunicorn port.
+- `aap-dev`: the direct `make aap` setup uses a local ConfigMap overlay; the
+  operator-based `make aap-operator` setup uses the child CR's existing extra
+  settings. These are separate deployment paths.
+- Local process tests: `tools/dev.sh --init` uses the development localhost
+  default. The Metrics Utility `compose-service` profile has separate web and
+  dispatcher containers; Metrics Service supplies the dispatcher's URL through
+  `tools/docker-compose.service.override.yml`, without changing Metrics Utility.
+
+Metrics Service's own split production Compose file already sets the dispatcher
+URL to `http://web:8000/api/v1/metrics` and binds Gunicorn on the private Compose
+network; the port is not published to the host.
+
+### Troubleshooting usage telemetry
+
+| Symptom | Likely cause and checks |
+| --- | --- |
+| Production fails to create Prometheus metrics or reports only one worker | `PROMETHEUS_MULTIPROC_DIR` must be set before `prometheus_client` is imported, and the web process user must be able to create files there. Metrics Service sets it early in production settings and creates the directory; override the path with `METRICS_SERVICE_PROMETHEUS_MULTIPROC_DIR` if needed. All Gunicorn workers in the same web pod must use that same local path. The dispatcher does not share it, and different web pods must not share a multiprocess directory. |
+| The first payload has `"analytics_usage": {}` | Expected: the first successful scrape only records the cumulative baseline. The next successful scrape reports its delta. |
+| Every payload is empty and logs say the URL is missing | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. The source default is `http://127.0.0.1:8000/api/v1/metrics` for an all-in-one production process; split deployments must set their internal web URL. |
+| Scrapes fail with connection refused, timeout, or 404 | Check the URL, port, endpoint path, and task-to-web network policy. The operator uses `http://<MetricsService CR name>-service:8000/api/v1/metrics`; containerized installer uses `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`; production split Compose uses the un-published Gunicorn backend at `web:8000`, and Metrics Utility `compose-service` uses `metrics-service-web:8000`. |
+| Scrape returns 400 `DisallowedHost` or a redirect | Include the internal service hostname in `ALLOWED_HOSTS` and use the canonical `/api/v1/metrics` endpoint URL directly. The internal scraper does not follow redirects, so a misrouted HTTP-to-HTTPS redirect fails open with empty usage. |
+| Scrapes return 401/403 | The dispatcher signs `X-ANSIBLE-SERVICE-AUTH` with `RESOURCE_SERVER__SECRET_KEY`; confirm the web and tasks workloads use the same resource-server secret and that `init-service-id` has run. Ordinary API users still need the normal admin/auditor JWT. |
+| The endpoint is reachable but analytics samples are absent | Confirm requests reached enabled collector row endpoints. Unknown collector names and samples with extra labels are rejected; collectors with no requests may have no series yet. Known disabled series are retained only in the private baseline and never emitted. |
+| Metrics appear inconsistent after scaling web replicas | Multiprocess mode aggregates Gunicorn workers **within one web pod only**. The default operator deployment has one web replica. With multiple web replicas, each Service scrape reaches one pod; switching between independent cumulative counters can corrupt deltas in either direction. Keep one web replica until per-pod scraping is implemented. |
+| Counts drop or log a counter reset | The web multiprocess directory was reset, usually after a container/pod restart. The next payload uses values since reset as a best-effort delta; requests between the last baseline and reset cannot be recovered. If post-reset counts already exceed the prior snapshot, a counter-decrease check cannot detect the reset, so the interval can be understated or misattributed. This is approximate adoption telemetry, not accounting. The default temporary path resets with the container; if using persistent storage, clear it once before starting the whole web container, never from each worker or while workers are running. |
+| A scrape failure is followed by a larger delta | Failed scrapes leave the last good baseline intact, so the next successful delta spans the missed scrape interval. A historical rollup intentionally does not advance the baseline. |
+| The API response fails while telemetry is unavailable | Instrumentation errors are logged and swallowed; telemetry must not change the collector API response. |
+| A deployed image still behaves like the old code | Confirm the running image includes this Metrics Service source revision. The product image pins a downstream source submodule and must be rebuilt after the downstream source is synchronized. |
+| Local Compose or development works differently from AAP | `make compose` starts the Metrics Utility base dependencies; `make compose-service` adds separate web and dispatcher containers plus the Metrics Service-owned URL override. `tools/dev.sh --init` runs `runserver`, dispatcher, and scheduler as separate host processes and uses the development localhost URL. In `aap-dev`, the direct `make aap` deployment and operator-based setup (`make aap-operator` in this checkout) are distinct; check the static ConfigMap for the former and set the existing extra setting in the child CR for the latter. |
+| CI passes but the Utility service CI did not test this source branch | Metrics Service GitHub pytest runs in test mode with the scrape mocked, so it verifies parsing/deltas/auth unit behavior but not cluster DNS. Metrics Utility's `pytest-service` job checks out Metrics Service `devel`; run the Metrics Service PR's full suite for this branch and use the Utility compose/service profile with its URL setting to verify local cross-process wiring. |
 
 ### Triggering Collection
 

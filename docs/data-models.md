@@ -100,8 +100,9 @@ Merged daily rollup across all collectors for one calendar day.
 
 | Field | Purpose |
 |-------|---------|
-| `summary_date` | Unique calendar date |
+| `summary_date` | Unique date assigned to the daily rollup |
 | `aggregated_metrics` | Merged rollup JSON by collector key |
+| `analytics_usage_snapshot` | Private cumulative Prometheus baseline; never sent in anonymized payloads |
 | `hourly_collection_ids` | Map collector → list of `HourlyMetricsCollection` IDs |
 | `config_data` | Daily `config` collector snapshot |
 | `status` | `pending` → `aggregated` → `anonymized` → `sent` |
