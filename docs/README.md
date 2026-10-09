@@ -18,7 +18,7 @@ flowchart TB
     end
 
     Web -->|"REST API"| APIClients["API clients / Gateway"]
-    Scheduler -->|"submit_task_to_dispatcher"| Broker["PostgreSQL pg_notify\nbroker channels"]
+    Scheduler -->|"submit_task_to_dispatcher"| Broker["SQL Server table\nbroker messages"]
     Broker -->|"execute_db_task"| Workers
     Workers --> TASK_FUNCS["TASK_FUNCTIONS\nPython callables"]
     Scheduler --> DB["PostgreSQL\nTask rows"]
@@ -101,7 +101,7 @@ python manage.py metrics_service init-system-tasks
 
 | Component | Role | Documentation |
 |-----------|------|---------------|
-| [dispatcherd](https://github.com/ansible/dispatcherd) | Task worker broker (`pg_notify`); runs `execute_db_task` in subprocesses | [task-system.md](task-system.md), [dispatcherd config](https://github.com/ansible/dispatcherd/blob/main/docs/config.md) |
+| [dispatcherd](https://github.com/ansible/dispatcherd) | Task worker broker (SQL Server table); runs `execute_db_task` in subprocesses | [task-system.md](task-system.md), [dispatcherd config](dispatcherd-sql-server.md) |
 | [metrics-utility](https://github.com/ansible/metrics-utility) | Collector SQL, rollups, anonymization, Segment client | [collectors.md](collectors.md) |
 | [django-ansible-base](https://github.com/ansible/django-ansible-base) | RBAC, JWT, resource registry | [core-rbac.md](core-rbac.md) |
 

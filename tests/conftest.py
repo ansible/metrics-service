@@ -239,7 +239,7 @@ def mock_db_connection():
 
     Usage:
         def test_collector(mock_db_connection):
-            # mock_db_connection is the raw psycopg2 connection
+            # mock_db_connection is the raw psycopg connection
             collector = config(db=mock_db_connection)
             result = collector.gather()
     """
