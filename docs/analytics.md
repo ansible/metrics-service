@@ -204,7 +204,10 @@ The cumulative scrape is stored privately in
 the anonymizer. `analytics_usage` contains only deltas since the previous
 successful scrape, with `request_count`, `duration_ms_total`, and
 `duration_ms_average` for each collector. The first successful scrape saves a
-baseline and reports `{}`. Daily rollups run at 02:00 UTC for the previous date,
+baseline and reports `{}`. Measuring a date happens once: re-running a rollup
+for a date that already has a baseline keeps the usage and baseline it
+recorded, so a late collector retry cannot widen the measured interval or make
+a second anonymized payload overlap the first. Daily rollups run at 02:00 UTC for the previous date,
 so the reported period is the rolling interval between rollup scrapes ending at
 about 02:00 UTC, attributed to that summary date; it is not a midnight-to-
 midnight calendar-day window. A historical rollup for any date other than
@@ -274,6 +277,7 @@ of the payload intact. The `daily_metrics_rollup` task result carries
 | --- | --- |
 | `ok` | Scraped and diffed against the previous baseline. |
 | `baseline` | First successful scrape; baseline saved, no deltas reported yet. |
+| `preserved` | The date was already measured; the recorded usage and baseline were kept. |
 | `skipped` | Backfill of a date other than yesterday; no scrape attempted. |
 | `not_configured` | `INTERNAL_PROMETHEUS_URL` is empty. |
 | `scrape_failed` | The endpoint was unreachable, timed out, or returned an error. |

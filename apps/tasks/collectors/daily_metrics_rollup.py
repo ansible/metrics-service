@@ -257,6 +257,24 @@ def _previous_analytics_usage_snapshot(summary_date: date) -> dict | None:
     )
 
 
+def _recorded_analytics_usage(summary_date: date) -> dict | None:
+    """Return usage already recorded for this date, or ``None`` if it was never measured.
+
+    A stored baseline is what marks the date as measured: a scrape that failed saves none, so
+    a later re-run is still free to try again.
+    """
+    from apps.tasks.models import DailyMetricsSummary
+
+    existing = (
+        DailyMetricsSummary.objects.filter(summary_date=summary_date, analytics_usage_snapshot__has_key="metrics")
+        .values_list("aggregated_metrics", flat=True)
+        .first()
+    )
+    if existing is None:
+        return None
+    return existing.get("analytics_usage", {})
+
+
 def _analytics_usage(summary_date: date) -> tuple[dict, dict | None, str]:
     """Return ``(daily usage, new baseline snapshot, status)`` for the summary date.
 
@@ -265,9 +283,16 @@ def _analytics_usage(summary_date: date) -> tuple[dict, dict | None, str]:
     and cost us the day's anonymized payload.
 
     The status is one of ``ok``, ``baseline`` (first scrape, nothing to diff against yet),
-    ``skipped`` (backfill of an older date), ``not_configured``, ``scrape_failed``, or
-    ``delta_failed``.
+    ``preserved`` (this date was already measured), ``skipped`` (backfill of an older date),
+    ``not_configured``, ``scrape_failed``, or ``delta_failed``.
     """
+    # Measuring a date is a one-off: usage is the interval between two scrapes, so re-running a
+    # rollup must keep what the first run recorded. Re-scraping would widen the interval past the
+    # date it is attributed to, and re-anonymizing would then ship that overlap a second time.
+    existing_usage = _recorded_analytics_usage(summary_date)
+    if existing_usage is not None:
+        return existing_usage, None, "preserved"
+
     if summary_date != timezone.now().date() - timedelta(days=1):
         logger.info("Skipping analytics usage scrape for non-current summary date %s", summary_date)
         return {}, None, "skipped"

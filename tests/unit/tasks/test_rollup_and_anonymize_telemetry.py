@@ -113,6 +113,7 @@ class TestAggregateDashboardTelemetry:
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestDailyMetricsRollupTelemetry:
     """Tests that daily_metrics_rollup appends dashboard_telemetry to the daily summary."""
 
@@ -430,6 +431,7 @@ class TestDailyAnonymizeTelemetry:
 
 
 @pytest.mark.unit
+@pytest.mark.django_db
 class TestAnalyticsUsageStatus:
     """The usage helper degrades to empty usage and a status, never an exception."""
 
@@ -532,3 +534,75 @@ class TestDailyMetricsRollupSurvivesTelemetryFailure:
         mock_save.assert_called_once()
         assert result["status"] == "success"
         assert result["analytics_usage_status"] == "delta_failed"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestAnalyticsUsagePreservedOnRerun:
+    """Re-running a rollup must not re-measure a date that was already measured."""
+
+    @staticmethod
+    def _summary(summary_date, usage, snapshot):
+        from apps.tasks.models import DailyMetricsSummary
+
+        return DailyMetricsSummary.objects.create(
+            summary_date=summary_date,
+            status="aggregated",
+            aggregated_metrics={"unified_jobs": {}, "analytics_usage": usage},
+            analytics_usage_snapshot=snapshot,
+        )
+
+    def _yesterday(self):
+        from django.utils import timezone
+
+        return timezone.now().date() - timedelta(days=1)
+
+    def test_rerun_keeps_the_recorded_usage_and_baseline(self):
+        """A second scrape would report C2-C0, re-counting what C1-C0 already shipped."""
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        recorded = {"controller.config": {"request_count": 2, "duration_ms_total": 30.0, "duration_ms_average": 15.0}}
+        self._summary(
+            self._yesterday(),
+            recorded,
+            {
+                "observed_at": "2026-10-09T02:00:00+00:00",
+                "metrics": {"controller.config": {"request_count": 5, "duration_ms_total": 60.0}},
+            },
+        )
+
+        with patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage") as mock_usage:
+            usage, snapshot, status = _analytics_usage(self._yesterday())
+
+        assert usage == recorded
+        # A None snapshot leaves the stored baseline in place, so tomorrow still diffs against C1.
+        assert snapshot is None
+        assert status == "preserved"
+        mock_usage.assert_not_called()
+
+    def test_backfilling_an_older_date_does_not_blank_its_recorded_usage(self):
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        older = self._yesterday() - timedelta(days=5)
+        recorded = {"controller.config": {"request_count": 7, "duration_ms_total": 91.0, "duration_ms_average": 13.0}}
+        self._summary(older, recorded, {"observed_at": "2026-10-04T02:00:00+00:00", "metrics": {}})
+
+        usage, snapshot, status = _analytics_usage(older)
+
+        assert (usage, snapshot, status) == (recorded, None, "preserved")
+
+    def test_rerun_after_a_failed_scrape_still_measures_the_date(self):
+        """No stored baseline means the date was never measured, so a retry should scrape."""
+        from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+        self._summary(self._yesterday(), {}, {})
+        cumulative = {"controller.config": {"request_count": 5, "duration_ms_total": 60.0, "duration_sample_count": 4}}
+
+        with (
+            patch("apps.tasks.collectors.daily_metrics_rollup.aggregate_analytics_usage", return_value=cumulative),
+            patch("apps.tasks.collectors.daily_metrics_rollup._previous_analytics_usage_snapshot", return_value=None),
+        ):
+            usage, snapshot, status = _analytics_usage(self._yesterday())
+
+        assert (usage, status) == ({}, "baseline")
+        assert snapshot["metrics"] == cumulative
