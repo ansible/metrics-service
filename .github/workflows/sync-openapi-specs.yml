@@ -45,6 +45,7 @@ jobs:
           METRICS_SERVICE_DATABASES__default__NAME: ":memory:"
           METRICS_SERVICE_DATABASES__awx__ENGINE: django.db.backends.sqlite3
           METRICS_SERVICE_DATABASES__awx__NAME: ":memory:"
+          METRICS_SERVICE_URL_PREFIX: /api/metrics/
         run: |
           uv run --frozen python manage.py spectacular \
             --color \

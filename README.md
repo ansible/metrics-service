@@ -36,7 +36,13 @@ make compose
 
 # In another terminal — run migrations, start dev server
 tools/dev.sh --init
+
+# To exercise the AAP-mounted API paths locally (/api/metrics/v1/)
+tools/dev.sh --init --prefix
 ```
+
+`--prefix` sets `METRICS_SERVICE_URL_PREFIX=/api/metrics/`; omit it to use the
+default local `/api/v1/` URLs.
 
 Your service will be available at:
 
@@ -278,6 +284,10 @@ python manage.py metrics_service init-system-tasks
 ### OpenAPI Schema
 
 The OpenAPI schema files are committed to `tools/openapi-schema/` and must be kept in sync with the codebase. A CI check will fail if the committed schema differs from what the code generates.
+
+These committed files use the local `/api/v1/` paths. The central OpenAPI sync
+workflow sets `METRICS_SERVICE_URL_PREFIX=/api/metrics/`, so the published AAP
+spec uses `/api/metrics/v1/` paths.
 
 #### Generating the schema
 
