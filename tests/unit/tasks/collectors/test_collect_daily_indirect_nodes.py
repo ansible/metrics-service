@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import psycopg2
+import psycopg
 import pytest
-from psycopg2 import errors as pg_errors
+from psycopg import errors as pg_errors
 
 from apps.tasks.collectors.collect_daily_metrics import _get_daily_collectors, collect_daily_metrics
 from apps.tasks.models import HourlyMetricsCollection
@@ -186,7 +186,7 @@ class TestIndirectManagedNodesDailyCollector:
         """OperationalError from DB connection failure is recorded as failed."""
 
         def raise_connection_error(**kwargs):
-            raise psycopg2.OperationalError("could not connect to server")
+            raise psycopg.OperationalError("could not connect to server")
 
         mock_registry = {
             "indirect_managed_nodes": {

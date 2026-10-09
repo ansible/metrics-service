@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from apps.tasks.dispatcherd_config import (
-    _load_config_with_django_db,
-    build_config_from_django_settings,
+    _load_config_with_dispatcherd_settings,
+    build_config_from_settings,
     ensure_dispatcherd_configured,
     get_config_file_path,
     setup_dispatcherd_config,
@@ -23,60 +23,65 @@ from apps.tasks.dispatcherd_config import (
 
 @pytest.mark.parametrize("use_yaml", [False, True])
 @pytest.mark.parametrize("password", ["", "test-only"])
-def test_broker_preserves_postgres_options(use_yaml, password, tmp_path):
-    """Both broker builders pass TLS parameters through without mutating Django settings."""
-    from psycopg.conninfo import conninfo_to_dict, make_conninfo
-
-    options = {
-        "sslcert": "/certs/client.crt",
-        "sslkey": "/certs/client.key",
-        "sslrootcert": "/certs/ca.crt",
-        "sslmode": "verify-full",
-        "connect_timeout": 10,
+def test_dispatcherd_broker_uses_independent_sql_server_settings(use_yaml, password, tmp_path):
+    """Broker connection data comes from DISPATCHERD_SQLSERVER, not Django DATABASES."""
+    sql_server_config = {
+        "server": "sql.example.com",
+        "port": 1433,
+        "database": "dispatcherd",
+        "user": "dispatcherd",
+        "password": password,
+        "driver": "ODBC Driver 18 for SQL Server",
+        "trust_server_certificate": "no",
     }
-    database = {
-        "NAME": "metrics",
-        "USER": "metrics",
-        "PASSWORD": password,
-        "HOST": "db.example.com",
-        "PORT": "5432",
-        "OPTIONS": {
-            **options,
-            "pool": True,
-            "isolation_level": 1,
-            "assume_role": "metrics",
-            "server_side_binding": True,
-        },
-    }
-    original = deepcopy(database)
+    database = {"NAME": "metrics_pg", "USER": "pg_user", "PASSWORD": "pg_password", "HOST": "postgres", "PORT": "5432"}
+    original_database = deepcopy(database)
     with patch("django.conf.settings") as settings:
         settings.DATABASES = {"default": database}
+        settings.DISPATCHERD_SQLSERVER = sql_server_config
         settings.TASK_TIMEOUT = 3600
         if use_yaml:
             config_file = tmp_path / "dispatcherd.yaml"
             config_file.write_text(
-                "brokers:\n  pg_notify:\n    config:\n      sslmode: disable\n    channels: [existing]\n"
+                "brokers:\n  sql_server:\n    config:\n      server: old-server\n    channels: [existing]\n"
             )
-            config = _load_config_with_django_db(config_file)
-            assert config["brokers"]["pg_notify"]["channels"] == ["existing"]
+            config = _load_config_with_dispatcherd_settings(config_file)
+            assert config["brokers"]["sql_server"]["channels"] == ["existing"]
         else:
-            config = build_config_from_django_settings()
+            config = build_config_from_settings()
 
-    pg_config = config["brokers"]["pg_notify"]["config"]
-    assert pg_config == {
-        **options,
-        "dbname": "metrics",
-        "user": "metrics",
-        "password": password,
-        "host": "db.example.com",
-        "port": "5432",
-    }
-    assert database == original
-    # Let libpq parse the real connection parameters, not just a mocked connect call.
-    parsed = conninfo_to_dict(make_conninfo(**pg_config))
-    assert parsed["sslmode"] == "verify-full"
-    assert parsed["sslcert"] == options["sslcert"]
-    assert parsed["sslkey"] == options["sslkey"]
+    assert config["brokers"]["sql_server"]["config"] == sql_server_config
+    assert database == original_database
+    assert settings.DATABASES["default"] == original_database
+
+
+def test_build_config_normalizes_dynaconf_uppercase_sql_server_overrides():
+    with patch("django.conf.settings") as settings:
+        settings.DISPATCHERD_SQLSERVER = {
+            "server": "",
+            "port": 1433,
+            "database": "dispatcherd",
+            "user": "",
+            "password": "",
+            "driver": "ODBC Driver 18 for SQL Server",
+            "trust_server_certificate": "yes",
+            "SERVER": "sql.example.com",
+            "PORT": "1444",
+            "USER": "broker_user",
+            "PASSWORD": "env-secret",
+            "TRUST_SERVER_CERTIFICATE": "no",
+        }
+        settings.TASK_TIMEOUT = 3600
+
+        config = build_config_from_settings()
+
+    sql_config = config["brokers"]["sql_server"]["config"]
+    assert sql_config["server"] == "sql.example.com"
+    assert sql_config["port"] == "1444"
+    assert sql_config["user"] == "broker_user"
+    assert sql_config["password"] == "env-secret"
+    assert sql_config["trust_server_certificate"] == "no"
+    assert "SERVER" not in sql_config
 
 
 class TestGetConfigFilePath:
@@ -137,10 +142,10 @@ class TestSetupDispatcherdConfig:
     # error handling) are difficult to implement due to the _configured check in
     # setup_dispatcherd_config interacting poorly with MagicMock's hasattr behavior.
     # The function is adequately tested through integration tests and the individual
-    # helper functions (get_config_file_path, build_config_from_django_settings) are
+    # helper functions (get_config_file_path, build_config_from_settings) are
     # thoroughly tested below.
 
-    @patch("apps.tasks.dispatcherd_config._load_config_with_django_db")
+    @patch("apps.tasks.dispatcherd_config._load_config_with_dispatcherd_settings")
     @patch("apps.tasks.dispatcherd_config.get_config_file_path")
     @patch("apps.tasks.dispatcherd_config.logger")
     def test_loads_config_from_file_when_exists(self, mock_logger, mock_get_path, mock_load_config):
@@ -165,7 +170,7 @@ class TestSetupDispatcherdConfig:
         mock_dispatcherd.config.setup.assert_called_once_with(mock_config)
         assert mock_dispatcherd.config._configured is True
 
-    @patch("apps.tasks.dispatcherd_config.build_config_from_django_settings")
+    @patch("apps.tasks.dispatcherd_config.build_config_from_settings")
     @patch("apps.tasks.dispatcherd_config.get_config_file_path")
     @patch("apps.tasks.dispatcherd_config.logger")
     def test_builds_config_from_django_when_file_missing(self, mock_logger, mock_get_path, mock_build_config):
@@ -210,248 +215,125 @@ class TestSetupDispatcherdConfig:
         assert "Failed to configure dispatcherd" in str(mock_logger.exception.call_args)
 
 
-class TestLoadConfigWithDjangoDb:
-    """Tests for _load_config_with_django_db function."""
+class TestLoadConfigWithDispatcherdSettings:
+    """Tests for merging broker settings independently from Django DATABASES."""
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
     @patch("builtins.open")
     @patch("yaml.safe_load")
-    def test_loads_yaml_and_merges_django_db_config(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
-        """Test that function loads YAML config and merges Django database settings."""
-        # Arrange
-        mock_yaml_config = {
+    def test_loads_yaml_and_merges_sql_server_config(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
+        sql_config = {"server": "sql.example.com", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        mock_yaml_load.return_value = {
             "version": 2,
             "brokers": {
-                "pg_notify": {
-                    "config": {
-                        "dbname": "old_db",
-                        "user": "old_user",
-                    },
-                    "channels": ["existing_channel"],
-                },
+                "pg_notify": {"channels": ["old_pg_channel"]},
+                "sql_server": {"config": {"server": "old-server"}, "channels": ["existing_channel"]},
+                "other_broker": {},
             },
         }
-        mock_yaml_load.return_value = mock_yaml_config
-
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "new_db",
-                "USER": "new_user",
-                "PASSWORD": "new_pass",
-                "HOST": "new_host",
-                "PORT": "5433",
-            }
-        }
-
+        mock_settings.DISPATCHERD_SQLSERVER = sql_config
+        mock_settings.TASK_TIMEOUT = 2400
         config_file = Path("/test/config.yaml")
 
-        # Act
-        result = _load_config_with_django_db(config_file)
+        result = _load_config_with_dispatcherd_settings(config_file)
 
-        # Assert
-        # Verify YAML was loaded
         mock_open.assert_called_once_with(config_file)
-        mock_yaml_load.assert_called_once()
-
-        # Verify database config was overridden with Django settings
-        pg_config = result["brokers"]["pg_notify"]["config"]
-        assert pg_config["dbname"] == "new_db"
-        assert pg_config["user"] == "new_user"
-        assert pg_config["password"] == "new_pass"
-        assert pg_config["host"] == "new_host"
-        assert pg_config["port"] == "5433"
-
-        # Verify logging
-        mock_logger.info.assert_called_once()
-        assert "new_host:5433/new_db" in str(mock_logger.info.call_args)
+        assert result["brokers"]["sql_server"]["config"] == sql_config
+        assert result["brokers"]["sql_server"]["channels"] == ["existing_channel"]
+        assert "pg_notify" not in result["brokers"]
+        assert "other_broker" in result["brokers"]
+        assert result["service"]["task_settings"]["default_timeout"] == 2400
+        assert "secret" not in str(mock_logger.info.call_args)
+        assert "sql.example.com:1433/dispatcherd" in str(mock_logger.info.call_args)
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
     @patch("builtins.open")
     @patch("yaml.safe_load")
-    def test_creates_brokers_section_if_missing(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
-        """Test that function creates brokers section if not in YAML."""
-        # Arrange - YAML with no brokers section
-        mock_yaml_config = {"version": 2}
-        mock_yaml_load.return_value = mock_yaml_config
+    def test_creates_broker_and_service_sections_if_missing(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
+        mock_yaml_load.return_value = {"version": 2}
+        mock_settings.DISPATCHERD_SQLSERVER = {"server": "sql", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        mock_settings.TASK_TIMEOUT = 3600
 
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "test_host",
-                "PORT": "5432",
-            }
-        }
+        result = _load_config_with_dispatcherd_settings(Path("/test/config.yaml"))
 
-        config_file = Path("/test/config.yaml")
-
-        # Act
-        result = _load_config_with_django_db(config_file)
-
-        # Assert
-        assert "brokers" in result
-        assert "pg_notify" in result["brokers"]
-        assert "config" in result["brokers"]["pg_notify"]
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    @patch("builtins.open")
-    @patch("yaml.safe_load")
-    def test_creates_pg_notify_section_if_missing(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
-        """Test that function creates pg_notify section if not in brokers."""
-        # Arrange - YAML with brokers but no pg_notify
-        mock_yaml_config = {"version": 2, "brokers": {"other_broker": {}}}
-        mock_yaml_load.return_value = mock_yaml_config
-
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "test_host",
-                "PORT": "5432",
-            }
-        }
-
-        config_file = Path("/test/config.yaml")
-
-        # Act
-        result = _load_config_with_django_db(config_file)
-
-        # Assert
-        assert "pg_notify" in result["brokers"]
-        assert "config" in result["brokers"]["pg_notify"]
+        assert result["brokers"]["sql_server"]["config"] == mock_settings.DISPATCHERD_SQLSERVER
+        assert "pg_notify" not in result["brokers"]
+        assert result["service"]["task_settings"]["default_timeout"] == 3600
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
     @patch("builtins.open")
     @patch("yaml.safe_load")
     def test_handles_empty_yaml_file(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
-        """Test that function handles empty YAML file (returns None from safe_load)."""
-        # Arrange - Empty YAML file
         mock_yaml_load.return_value = None
+        mock_settings.DISPATCHERD_SQLSERVER = {"server": "sql", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        mock_settings.TASK_TIMEOUT = 3600
 
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "test_host",
-                "PORT": "5432",
-            }
-        }
+        result = _load_config_with_dispatcherd_settings(Path("/test/config.yaml"))
 
-        config_file = Path("/test/config.yaml")
-
-        # Act
-        result = _load_config_with_django_db(config_file)
-
-        # Assert
-        # Should create default structure
-        assert "brokers" in result
-        assert "pg_notify" in result["brokers"]
-        assert "config" in result["brokers"]["pg_notify"]
-
-
-class TestBuildConfigFromDjangoSettings:
-    """Tests for build_config_from_django_settings function."""
+        assert result["brokers"]["sql_server"]["config"] == mock_settings.DISPATCHERD_SQLSERVER
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
-    def test_builds_valid_config(self, mock_logger, mock_settings):
-        """Test that function builds valid dispatcherd config from Django settings."""
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "localhost",
-                "PORT": "5432",
-            }
+    @patch("builtins.open")
+    @patch("yaml.safe_load")
+    def test_migrates_channels_and_default_publish_channel_from_postgres_broker(
+        self, mock_yaml_load, mock_open, mock_logger, mock_settings
+    ):
+        mock_yaml_load.return_value = {
+            "version": 2,
+            "brokers": {
+                "pg_notify": {
+                    "channels": ["metrics", "dashboard"],
+                    "default_publish_channel": "metrics",
+                }
+            },
+            "publish": {"default_broker": "pg_notify", "default_control_broker": "pg_notify"},
         }
+        mock_settings.DISPATCHERD_SQLSERVER = {"server": "sql.example.com", "database": "dispatcherd"}
+        mock_settings.TASK_TIMEOUT = 2400
 
-        config = build_config_from_django_settings()
+        result = _load_config_with_dispatcherd_settings(Path("/test/config.yaml"))
+
+        assert result["brokers"]["sql_server"]["channels"] == ["metrics", "dashboard"]
+        assert result["brokers"]["sql_server"]["default_publish_channel"] == "metrics"
+        assert "pg_notify" not in result["brokers"]
+        assert result["publish"] == {"default_broker": "sql_server", "default_control_broker": "sql_server"}
+
+
+class TestBuildConfigFromSettings:
+    """Tests for building a broker config without reading Django DATABASES."""
+
+    @patch("django.conf.settings")
+    @patch("apps.tasks.dispatcherd_config.logger")
+    def test_builds_sql_server_config_and_keeps_postgres_settings_independent(self, mock_logger, mock_settings):
+        sql_config = {"server": "sql.example.com", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        mock_settings.DISPATCHERD_SQLSERVER = sql_config
+        mock_settings.DATABASES = {"default": {"HOST": "postgres", "NAME": "metrics_pg"}}
+        mock_settings.TASK_TIMEOUT = 3600
+
+        config = build_config_from_settings()
 
         assert config["version"] == 2
-        assert "brokers" in config
-        assert "pg_notify" in config["brokers"]
-        assert config["brokers"]["pg_notify"]["config"]["dbname"] == "test_db"
-        assert config["brokers"]["pg_notify"]["config"]["user"] == "test_user"
-        assert config["brokers"]["pg_notify"]["config"]["password"] == "test_pass"  # noqa: S105
-        assert config["brokers"]["pg_notify"]["config"]["host"] == "localhost"
-        assert config["brokers"]["pg_notify"]["config"]["port"] == "5432"
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_includes_all_channels(self, mock_logger, mock_settings):
-        """Test that config includes all required channels."""
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "localhost",
-                "PORT": "5432",
+        assert config["brokers"] == {
+            "sql_server": {
+                "config": sql_config,
+                "channels": ["dashboard", "maintenance", "metrics"],
             }
         }
-
-        config = build_config_from_django_settings()
-
-        channels = config["brokers"]["pg_notify"]["channels"]
-        assert "dashboard" in channels
-        assert "maintenance" in channels
-        assert "metrics" in channels
+        assert config["service"]["task_settings"]["default_timeout"] == 3600
+        assert "secret" not in str(mock_logger.info.call_args)
+        assert "sql.example.com:1433/dispatcherd" in str(mock_logger.info.call_args)
 
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
-    def test_includes_service_config(self, mock_logger, mock_settings):
-        """Test that config includes service configuration."""
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "localhost",
-                "PORT": "5432",
-            }
-        }
+    def test_raises_when_dispatcherd_sql_server_setting_is_missing(self, mock_logger, mock_settings):
+        mock_settings.DISPATCHERD_SQLSERVER = None
 
-        config = build_config_from_django_settings()
-
-        assert "service" in config
-        assert "pool_kwargs" in config["service"]
-        assert config["service"]["pool_kwargs"]["max_workers"] == 4
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_logs_database_info(self, mock_logger, mock_settings):
-        """Test that function logs database connection info."""
-        mock_settings.DATABASES = {
-            "default": {
-                "NAME": "test_db",
-                "USER": "test_user",
-                "PASSWORD": "test_pass",
-                "HOST": "localhost",
-                "PORT": "5432",
-            }
-        }
-
-        build_config_from_django_settings()
-
-        mock_logger.info.assert_called_once()
-        assert "localhost:5432/test_db" in str(mock_logger.info.call_args)
-
-    @patch("django.conf.settings")
-    @patch("apps.tasks.dispatcherd_config.logger")
-    def test_raises_on_missing_settings(self, mock_logger, mock_settings):
-        """Test that function raises exception when Django settings are invalid."""
-        mock_settings.DATABASES = {}
-
-        with pytest.raises(KeyError):
-            build_config_from_django_settings()
+        with pytest.raises(AttributeError):
+            build_config_from_settings()
 
         mock_logger.exception.assert_called()
         assert "Failed to build config from Django settings" in str(mock_logger.exception.call_args)
