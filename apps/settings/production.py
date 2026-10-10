@@ -61,9 +61,13 @@ os.environ["PROMETHEUS_MULTIPROC_DIR"] = _multiproc_dir
 # metrics are silently dropped.
 Path(_multiproc_dir).mkdir(parents=True, exist_ok=True)
 
-# All-in-one production deployments use localhost by default. Split deployments
-# override this through METRICS_SERVICE_INTERNAL_PROMETHEUS_URL.
-INTERNAL_PROMETHEUS_URL = "http://127.0.0.1:8000/api/v1/metrics"
+# INTERNAL_PROMETHEUS_URL is deliberately NOT set here: it stays "" from apps/settings/defaults.py.
+# Every production topology runs web and tasks apart, and the correct URL depends on
+# deployment-specific naming we cannot infer - the operator needs its CR name, the containerized
+# installer its api port. A loopback default would be plausible but wrong everywhere, failing as
+# a silent connection refused once a day; unset instead logs an error and reports
+# "not_configured" on the rollup task result. Each deployment supplies its own through
+# METRICS_SERVICE_INTERNAL_PROMETHEUS_URL.
 
 validators = []
 

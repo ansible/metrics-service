@@ -298,6 +298,13 @@ def _analytics_usage(summary_date: date) -> tuple[dict, dict | None, str]:
         return {}, None, "skipped"
 
     if not settings.INTERNAL_PROMETHEUS_URL:
+        # Unset is the shipped production default, so say so once per rollup rather than
+        # leaving the status on the task result as the only trace.
+        logger.error(
+            "INTERNAL_PROMETHEUS_URL is not set; skipping analytics usage for %s. "
+            "Set METRICS_SERVICE_INTERNAL_PROMETHEUS_URL to this deployment's internal web URL.",
+            summary_date,
+        )
         return {}, None, "not_configured"
 
     cumulative_usage = aggregate_analytics_usage()

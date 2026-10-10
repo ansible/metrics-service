@@ -277,12 +277,16 @@ Example:
 ### Configuring the internal scrape URL
 
 The Django setting is `INTERNAL_PROMETHEUS_URL`, overridden by the environment
-variable `METRICS_SERVICE_INTERNAL_PROMETHEUS_URL`. The source default is
-`http://127.0.0.1:8000/api/v1/metrics`, which only works where the web and tasks
-processes share a network namespace — in practice just
-`docker-compose.prod.single.yml`. **Every shipped production topology runs them
-apart and must supply its own value**, because the correct URL depends on
-deployment-specific naming the service cannot infer.
+variable `METRICS_SERVICE_INTERNAL_PROMETHEUS_URL`. **Production ships it
+empty**, so every deployment must supply its own value: each production topology
+runs web and tasks apart, and the correct URL depends on deployment-specific
+naming the service cannot infer — the operator needs its CR name, the
+containerized installer its api port. A loopback default would be plausible but
+wrong everywhere, failing as a silent connection refused once a day; unset
+instead logs an error and reports `not_configured` on the rollup task result.
+
+Development mode keeps a `http://127.0.0.1:8000/api/v1/metrics` default, because
+`tools/dev.sh` runs everything on one host.
 
 Where an override is needed, use the existing deployment settings mechanism
 rather than adding another operator API field:
@@ -338,7 +342,7 @@ of the payload intact. The `daily_metrics_rollup` task result carries
 | --- | --- |
 | Production fails to create Prometheus metrics or reports only one worker | `PROMETHEUS_MULTIPROC_DIR` must be set before `prometheus_client` is imported, and the web process user must be able to create files there. Metrics Service sets it early in production settings and creates the directory; override the path with `METRICS_SERVICE_PROMETHEUS_MULTIPROC_DIR` if needed. Creating that directory is deliberately fatal at startup — a read-only root filesystem is not a supported deployment, and failing loudly beats booting into silently dropped worker metrics. All Gunicorn workers in the same web pod must use that same local path. The dispatcher does not share it, and different web pods must not share a multiprocess directory. |
 | The first payload has `"analytics_usage": {}` | Expected: the first successful scrape only records the cumulative baseline. The next successful scrape reports its delta. |
-| Every payload is empty and the rollup reports `not_configured` | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. The source default is `http://127.0.0.1:8000/api/v1/metrics`, which only works when web and tasks share a network namespace; every shipped production topology must set its own internal web URL. |
+| Every payload is empty and the rollup reports `not_configured` | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. Production ships this setting empty on purpose; every deployment must set its own internal web URL. |
 | The rollup reports `delta_failed` | The scrape succeeded but the stored `analytics_usage_snapshot` could not be diffed — typically a hand-edited row or a restored dump. The day's summary and payload are still written; clear the bad snapshot and the next run re-establishes a baseline. |
 | Scrapes fail with connection refused, timeout, or 404 | Check the URL, port, endpoint path, and task-to-web network policy. The operator uses `http://<MetricsService CR name>-service:8000/api/v1/metrics`; containerized installer uses `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`; production split Compose uses the un-published Gunicorn backend at `web:8000`, and Metrics Utility `compose-service` uses `metrics-service-web:8000`. |
 | Scrape returns 400 `DisallowedHost` or a redirect | Include the internal service hostname in `ALLOWED_HOSTS` and use the canonical `/api/v1/metrics` endpoint URL directly. The internal scraper does not follow redirects, so a misrouted HTTP-to-HTTPS redirect fails open with empty usage. |

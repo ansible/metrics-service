@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.utils import timezone
 
 # ---------------------------------------------------------------------------
 # _aggregate_dashboard_telemetry
@@ -621,3 +622,25 @@ class TestAnalyticsUsagePreservedOnRerun:
 
         assert (usage, status) == ({}, "baseline")
         assert snapshot["metrics"] == cumulative
+
+
+@pytest.mark.unit
+def test_production_ships_no_internal_prometheus_url():
+    """An empty production default is deliberate: a loopback guess would fail silently."""
+    from apps.settings import production
+
+    assert not getattr(production, "INTERNAL_PROMETHEUS_URL", "")
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_unconfigured_usage_logs_an_error(settings):
+    """not_configured must be loud in the log too, not only on the task result."""
+    from apps.tasks.collectors.daily_metrics_rollup import _analytics_usage
+
+    settings.INTERNAL_PROMETHEUS_URL = ""
+    with patch("apps.tasks.collectors.daily_metrics_rollup.logger") as mock_logger:
+        usage, snapshot, status = _analytics_usage(timezone.now().date() - timedelta(days=1))
+
+    assert (usage, snapshot, status) == ({}, None, "not_configured")
+    mock_logger.error.assert_called_once()
