@@ -281,15 +281,16 @@ variable `METRICS_SERVICE_INTERNAL_PROMETHEUS_URL`. The all-in-one production
 default is `http://127.0.0.1:8000/api/v1/metrics`; deployments with separate web
 and tasks processes must supply their local web URL.
 
-Use the existing deployment settings mechanism rather than adding another
-operator API field or requiring companion operator/installer code changes:
+Where an override is needed, use the existing deployment settings mechanism
+rather than adding another operator API field:
 
-- Standalone MetricsService CR: set `INTERNAL_PROMETHEUS_URL` in
-  `spec.extra_settings`, typically to
-  `http://<CR name>-service:8000/api/v1/metrics`.
-- AAP-managed MetricsService: set it in
-  `spec.metrics.extra_settings` on the parent AAP CR; the existing AAP operator
-  passes those settings to the child MetricsService CR.
+- Operator (standalone MetricsService CR or AAP-managed): **no configuration
+  needed**. The operator runs one all-in-one pod — a single container executing
+  `manage.py metrics_service run`, so the web, dispatcher, and scheduler share a
+  network namespace and the shipped loopback default reaches the web process.
+  Should that ever become a split deployment, override `INTERNAL_PROMETHEUS_URL`
+  through `spec.extra_settings`, or `spec.metrics.extra_settings` on the parent
+  AAP CR, to `http://<CR name>-service:8000/api/v1/metrics`.
 - Containerized installer: the installer sets it for the tasks container from
   `automationmetrics_api_port` (default `8006`, **not** 8000). All metrics
   containers use host networking, so `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`
@@ -332,7 +333,7 @@ of the payload intact. The `daily_metrics_rollup` task result carries
 | The first payload has `"analytics_usage": {}` | Expected: the first successful scrape only records the cumulative baseline. The next successful scrape reports its delta. |
 | Every payload is empty and the rollup reports `not_configured` | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. The source default is `http://127.0.0.1:8000/api/v1/metrics` for an all-in-one production process; split deployments must set their internal web URL. |
 | The rollup reports `delta_failed` | The scrape succeeded but the stored `analytics_usage_snapshot` could not be diffed — typically a hand-edited row or a restored dump. The day's summary and payload are still written; clear the bad snapshot and the next run re-establishes a baseline. |
-| Scrapes fail with connection refused, timeout, or 404 | Check the URL, port, endpoint path, and task-to-web network policy. The operator uses `http://<MetricsService CR name>-service:8000/api/v1/metrics`; containerized installer uses `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`; production split Compose uses the un-published Gunicorn backend at `web:8000`, and Metrics Utility `compose-service` uses `metrics-service-web:8000`. |
+| Scrapes fail with connection refused, timeout, or 404 | Check the URL, port, endpoint path, and task-to-web network policy. The operator's all-in-one pod uses the loopback default and needs no setting; containerized installer uses `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`; production split Compose uses the un-published Gunicorn backend at `web:8000`, and Metrics Utility `compose-service` uses `metrics-service-web:8000`. |
 | Scrape returns 400 `DisallowedHost` or a redirect | Include the internal service hostname in `ALLOWED_HOSTS` and use the canonical `/api/v1/metrics` endpoint URL directly. The internal scraper does not follow redirects, so a misrouted HTTP-to-HTTPS redirect fails open with empty usage. |
 | Scrapes return 401/403 | The dispatcher signs `X-ANSIBLE-SERVICE-AUTH` with `RESOURCE_SERVER__SECRET_KEY`; confirm the web and tasks workloads use the same resource-server secret and that `init-service-id` has run. Ordinary API users still need the normal admin/auditor JWT. |
 | The endpoint is reachable but analytics samples are absent | Confirm requests reached enabled collector row endpoints. Unknown collector names and samples with extra labels are rejected; collectors with no requests may have no series yet. Known disabled series are retained only in the private baseline and never emitted. |
