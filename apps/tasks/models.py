@@ -448,6 +448,13 @@ class DailyMetricsSummary(CommonModel, AuditableModel):
     aggregated_metrics = models.JSONField(
         default=dict, help_text="Aggregated metrics for the day (sums, averages, counts)"
     )
+    analytics_usage_snapshot = models.JSONField(
+        default=dict,
+        help_text=(
+            "Private cumulative Prometheus snapshot used to derive usage deltas; this baseline is "
+            "not included in anonymized payloads."
+        ),
+    )
 
     # References to hourly snapshots (stored as list of IDs for efficient lookup)
     hourly_collection_ids = models.JSONField(

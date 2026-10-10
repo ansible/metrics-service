@@ -48,10 +48,21 @@ still run under `METRICS_COLLECTION`.
 3. Adds `summary_metadata` (`install_type`, collection counts, missing hours).
 4. Embeds `dashboard_telemetry` from rollup metrics (collection performance, not raw jobs).
    Adds a current `leaderboard_telemetry` settings observation (see below).
-5. Creates `AnonymizedMetricsPayload` with `status="pending"`.
-6. Sets summary `status="anonymized"`.
-7. Creates a **scheduled** `send_anonymized_to_segment` task with random jitter
-   (1–240 minutes) to spread transmission load.
+5. Embeds `analytics_usage` from the authenticated internal Prometheus scrape.
+   This is a separate bounded section containing only public collector names,
+   request-count deltas, and duration totals/averages in milliseconds. The
+   interval a delta covers is the gap between two successful scrapes, which is
+   neither a calendar day nor reliably 24 hours — see
+   [analytics.md](analytics.md#what-interval-a-daily-figure-covers) before
+   reading these as daily rates.
+6. Creates `AnonymizedMetricsPayload` with `status="pending"`.
+7. Sets summary `status="anonymized"`.
+8. Creates a **scheduled** `send_anonymized_to_segment` task with random jitter
+    (1–240 minutes) to spread transmission load.
+
+Metrics Utility splits top-level dictionary keys into separate chunks of the
+existing `Controller Metrics Daily Rollup` event; `analytics_usage` does not
+create a new event name or destination.
 
 Uses advisory locking and `max_attempts=7` (`SEGMENT_MAX_ATTEMPTS` in
 `task_groups.py`) for the anonymize task itself.
@@ -107,10 +118,14 @@ definitions remain follow-up work for AAP-88680.
 
 Rollup JSON from collectors (jobs, credentials, event modules, execution
 environments, controller version, table metadata, **platform** `feature_flags_service`
-snapshot, task executions observability, indirect nodes if collected).
+snapshot, task executions observability, indirect nodes if collected), plus the
+separate delta-only `analytics_usage` section. The cumulative Prometheus baseline
+is stored separately on `DailyMetricsSummary` and is never sent.
 
 **Not included:** raw `JobData` rows, user-identifiable AWX job detail used by
-the dashboard API. See [dashboard-reports-api.md](dashboard-reports-api.md).
+the dashboard API, analytics query parameters, request payloads, organization
+names, hostnames, or raw Prometheus labels. See
+[dashboard-reports-api.md](dashboard-reports-api.md).
 
 ## send_anonymized_to_segment
 

@@ -35,6 +35,13 @@ ANSIBLE_BASE_CREATOR_DEFAULTS = ["add", "change", "delete", "view"]
 
 # Service identification
 SERVICE_ID = "test-service-id"
+RESOURCE_SERVER__URL = "http://127.0.0.1:8000"
+RESOURCE_SERVER__SECRET_KEY = "metrics-service-test-only-service-token-key"  # nosec B105 - test-only token key
+
+# Nothing is scraped under test - every scrape is patched - but leaving this empty would make
+# the usage telemetry short-circuit as unconfigured, so test mode would silently stop covering
+# the code path. Tests that want the unconfigured branch override it back to "".
+INTERNAL_PROMETHEUS_URL = "http://127.0.0.1:8000/api/v1/metrics"
 
 
 # Disable caching during tests

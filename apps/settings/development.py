@@ -3,8 +3,17 @@ Development environment overrides
 Inherits from ./defaults.py and adds dev-specific defaults
 """
 
+import os
+
 DEBUG = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = False
+
+# tools/dev.sh runs runserver and dispatcherd as separate processes on the same host.
+INTERNAL_PROMETHEUS_URL = "http://127.0.0.1:8000/api/v1/metrics"
+RESOURCE_SERVER__URL = "http://127.0.0.1:8000"
+RESOURCE_SERVER__SECRET_KEY = os.environ.get(
+    "METRICS_SERVICE_RESOURCE_SERVER__SECRET_KEY", "metrics-service-development-only-service-token-key"
+)  # nosec B105 - development-only token key for local process-to-process requests
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",

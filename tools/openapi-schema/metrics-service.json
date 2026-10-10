@@ -3059,7 +3059,7 @@
         "/api/v1/metrics": {
             "get": {
                 "operationId": "metrics_retrieve",
-                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
+                "description": "Prometheus endpoint for system admins, auditors, and this service's internal scraper.",
                 "tags": [
                     "metrics"
                 ],
@@ -3082,7 +3082,7 @@
         "/api/v1/metrics/": {
             "get": {
                 "operationId": "metrics_retrieve_2",
-                "description": "Prometheus metrics endpoint restricted to system admins and auditors.",
+                "description": "Prometheus endpoint for system admins, auditors, and this service's internal scraper.",
                 "tags": [
                     "metrics"
                 ],

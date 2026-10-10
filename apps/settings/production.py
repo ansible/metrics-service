@@ -38,7 +38,36 @@ Usage:
 Validators are registered in metrics_service/settings.py and run during export().
 """
 
+import os
+from pathlib import Path
+from tempfile import gettempdir
+
 from dynaconf import Validator
+
+# Enable prometheus_client multiprocess mode before Django loads apps or constructs metrics.
+# Gunicorn workers share this pod-local directory; dispatcher pods scrape through the web API
+# rather than mounting this directory.
+_multiproc_dir = (
+    os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+    or os.environ.get("METRICS_SERVICE_PROMETHEUS_MULTIPROC_DIR")
+    or os.environ.get("prometheus_multiproc_dir")  # noqa: SIM112 - legacy prometheus_client spelling
+    or str(Path(gettempdir()) / "metrics-service-prometheus")
+)
+os.environ["PROMETHEUS_MULTIPROC_DIR"] = _multiproc_dir
+# Deliberately unguarded: no supported topology sets readOnlyRootFilesystem (neither
+# automation-metrics-operator nor the containerized installer's rootless podman containers do),
+# so the service always has a writable temp dir. A read-only root filesystem is not a
+# configuration we support, so fail at startup rather than booting into a state where worker
+# metrics are silently dropped.
+Path(_multiproc_dir).mkdir(parents=True, exist_ok=True)
+
+# INTERNAL_PROMETHEUS_URL is deliberately NOT set here: it stays "" from apps/settings/defaults.py.
+# Every production topology runs web and tasks apart, and the correct URL depends on
+# deployment-specific naming we cannot infer - the operator needs its CR name, the containerized
+# installer its api port. A loopback default would be plausible but wrong everywhere, failing as
+# a silent connection refused once a day; unset instead logs an error and reports
+# "not_configured" on the rollup task result. Each deployment supplies its own through
+# METRICS_SERVICE_INTERNAL_PROMETHEUS_URL.
 
 validators = []
 
