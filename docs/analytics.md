@@ -277,20 +277,27 @@ Example:
 ### Configuring the internal scrape URL
 
 The Django setting is `INTERNAL_PROMETHEUS_URL`, overridden by the environment
-variable `METRICS_SERVICE_INTERNAL_PROMETHEUS_URL`. The all-in-one production
-default is `http://127.0.0.1:8000/api/v1/metrics`; deployments with separate web
-and tasks processes must supply their local web URL.
+variable `METRICS_SERVICE_INTERNAL_PROMETHEUS_URL`. The source default is
+`http://127.0.0.1:8000/api/v1/metrics`, which only works where the web and tasks
+processes share a network namespace — in practice just
+`docker-compose.prod.single.yml`. **Every shipped production topology runs them
+apart and must supply its own value**, because the correct URL depends on
+deployment-specific naming the service cannot infer.
 
 Where an override is needed, use the existing deployment settings mechanism
 rather than adding another operator API field:
 
-- Operator (standalone MetricsService CR or AAP-managed): **no configuration
-  needed**. The operator runs one all-in-one pod — a single container executing
-  `manage.py metrics_service run`, so the web, dispatcher, and scheduler share a
-  network namespace and the shipped loopback default reaches the web process.
-  Should that ever become a split deployment, override `INTERNAL_PROMETHEUS_URL`
-  through `spec.extra_settings`, or `spec.metrics.extra_settings` on the parent
-  AAP CR, to `http://<CR name>-service:8000/api/v1/metrics`.
+- Operator (standalone MetricsService CR or AAP-managed): **required**.
+  `automation-metrics-operator` runs separate web, tasks, and scheduler
+  Deployments, so the loopback default resolves to the tasks pod itself and the
+  scrape is refused. Set `INTERNAL_PROMETHEUS_URL` to
+  `http://<CR name>-service:8000/api/v1/metrics` through `spec.extra_settings`,
+  or `spec.metrics.extra_settings` on the parent AAP CR. The Service forwards
+  8000 to the web pod's nginx on 8080, whose catch-all location proxies to
+  Gunicorn on `127.0.0.1:8050`. No NetworkPolicy change is needed: the web
+  policy already admits pods labelled
+  `app.kubernetes.io/managed-by: metrics-operator` on 8080, and tasks egress is
+  unrestricted.
 - Containerized installer: the installer sets it for the tasks container from
   `automationmetrics_api_port` (default `8006`, **not** 8000). All metrics
   containers use host networking, so `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`
@@ -331,9 +338,9 @@ of the payload intact. The `daily_metrics_rollup` task result carries
 | --- | --- |
 | Production fails to create Prometheus metrics or reports only one worker | `PROMETHEUS_MULTIPROC_DIR` must be set before `prometheus_client` is imported, and the web process user must be able to create files there. Metrics Service sets it early in production settings and creates the directory; override the path with `METRICS_SERVICE_PROMETHEUS_MULTIPROC_DIR` if needed. Creating that directory is deliberately fatal at startup — a read-only root filesystem is not a supported deployment, and failing loudly beats booting into silently dropped worker metrics. All Gunicorn workers in the same web pod must use that same local path. The dispatcher does not share it, and different web pods must not share a multiprocess directory. |
 | The first payload has `"analytics_usage": {}` | Expected: the first successful scrape only records the cumulative baseline. The next successful scrape reports its delta. |
-| Every payload is empty and the rollup reports `not_configured` | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. The source default is `http://127.0.0.1:8000/api/v1/metrics` for an all-in-one production process; split deployments must set their internal web URL. |
+| Every payload is empty and the rollup reports `not_configured` | Set the existing `INTERNAL_PROMETHEUS_URL` deployment setting as described above. The source default is `http://127.0.0.1:8000/api/v1/metrics`, which only works when web and tasks share a network namespace; every shipped production topology must set its own internal web URL. |
 | The rollup reports `delta_failed` | The scrape succeeded but the stored `analytics_usage_snapshot` could not be diffed — typically a hand-edited row or a restored dump. The day's summary and payload are still written; clear the bad snapshot and the next run re-establishes a baseline. |
-| Scrapes fail with connection refused, timeout, or 404 | Check the URL, port, endpoint path, and task-to-web network policy. The operator's all-in-one pod uses the loopback default and needs no setting; containerized installer uses `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`; production split Compose uses the un-published Gunicorn backend at `web:8000`, and Metrics Utility `compose-service` uses `metrics-service-web:8000`. |
+| Scrapes fail with connection refused, timeout, or 404 | Check the URL, port, endpoint path, and task-to-web network policy. The operator uses `http://<MetricsService CR name>-service:8000/api/v1/metrics`; containerized installer uses `http://127.0.0.1:<automationmetrics_api_port>/api/v1/metrics`; production split Compose uses the un-published Gunicorn backend at `web:8000`, and Metrics Utility `compose-service` uses `metrics-service-web:8000`. |
 | Scrape returns 400 `DisallowedHost` or a redirect | Include the internal service hostname in `ALLOWED_HOSTS` and use the canonical `/api/v1/metrics` endpoint URL directly. The internal scraper does not follow redirects, so a misrouted HTTP-to-HTTPS redirect fails open with empty usage. |
 | Scrapes return 401/403 | The dispatcher signs `X-ANSIBLE-SERVICE-AUTH` with `RESOURCE_SERVER__SECRET_KEY`; confirm the web and tasks workloads use the same resource-server secret and that `init-service-id` has run. Ordinary API users still need the normal admin/auditor JWT. |
 | The endpoint is reachable but analytics samples are absent | Confirm requests reached enabled collector row endpoints. Unknown collector names and samples with extra labels are rejected; collectors with no requests may have no series yet. Known disabled series are retained only in the private baseline and never emitted. |

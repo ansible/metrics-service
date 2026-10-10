@@ -54,10 +54,11 @@ _multiproc_dir = (
     or str(Path(gettempdir()) / "metrics-service-prometheus")
 )
 os.environ["PROMETHEUS_MULTIPROC_DIR"] = _multiproc_dir
-# Deliberately unguarded: every supported topology (the operator's all-in-one pod and the
-# containerized installer's rootless podman containers) gives the service a writable temp dir.
-# A read-only root filesystem is not a configuration we support, so fail at startup rather than
-# booting into a state where worker metrics are silently dropped.
+# Deliberately unguarded: no supported topology sets readOnlyRootFilesystem (neither
+# automation-metrics-operator nor the containerized installer's rootless podman containers do),
+# so the service always has a writable temp dir. A read-only root filesystem is not a
+# configuration we support, so fail at startup rather than booting into a state where worker
+# metrics are silently dropped.
 Path(_multiproc_dir).mkdir(parents=True, exist_ok=True)
 
 # All-in-one production deployments use localhost by default. Split deployments

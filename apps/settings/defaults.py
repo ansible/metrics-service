@@ -139,8 +139,8 @@ FEATURE = {
 URL_PREFIX = None
 
 # Internal Django Prometheus scrape URL used by daily analytics usage aggregation. Production and
-# development all-in-one defaults are set in their mode-specific settings; split deployments can
-# override this with METRICS_SERVICE_INTERNAL_PROMETHEUS_URL.
+# development set a same-namespace loopback default in their mode-specific settings; every
+# topology that runs web and tasks apart must override METRICS_SERVICE_INTERNAL_PROMETHEUS_URL.
 INTERNAL_PROMETHEUS_URL = ""
 INTERNAL_PROMETHEUS_TIMEOUT = 5
 
