@@ -166,6 +166,17 @@ Examples:
 Every successful collection is retained. Repeated windows and repeated snapshots
 are not upserts.
 
+### Daily endpoint usage
+
+Successful GETs of enabled collector row endpoints are measured by collector
+name. Each service instance atomically increments a shared database row keyed
+by date and collector, storing the request count and total response duration.
+This keeps usage from all web instances together without per-request records.
+The daily rollup adds `analytics_usage`, with `request_count`,
+`duration_ms_total`, and `duration_ms_average` per collector; the anonymized
+payload includes the same aggregate. Invalid and unsuccessful requests are not
+counted, and a telemetry write failure does not fail the API response.
+
 ### Triggering Collection
 
 The collector trigger creates a normal pending `Task`. It does not execute the

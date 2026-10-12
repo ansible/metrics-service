@@ -75,3 +75,30 @@ class AnalyticsPayload(CommonModel, AuditableModel):
         """Return a readable representation: collector + window (or 'snapshot')."""
         window = f"{self.since} → {self.until}" if self.since or self.until else "snapshot"
         return f"{self.collector} [{self.source}] ({window})"
+
+
+class AnalyticsUsage(models.Model):
+    """Daily aggregate of successful reads from one analytics collector endpoint."""
+
+    class Meta:
+        app_label = "analytics"
+        ordering = ["-usage_date", "collector"]
+        constraints = [
+            models.UniqueConstraint(fields=["usage_date", "collector"], name="analytics_usage_date_collector_uniq")
+        ]
+        verbose_name = "Analytics Usage"
+        verbose_name_plural = "Analytics Usage"
+
+    usage_date = models.DateField(help_text="Date the requests were recorded against")
+    collector = models.CharField(max_length=128, help_text="Analytics collector endpoint name")
+    request_count = models.PositiveBigIntegerField(default=0, help_text="Successful GET response count")
+    duration_ms_total = models.DecimalField(
+        max_digits=24,
+        decimal_places=6,
+        default=0,
+        help_text="Total response duration in milliseconds",
+    )
+
+    def __str__(self) -> str:
+        """Return the date and collector represented by this aggregate."""
+        return f"{self.usage_date} {self.collector}: {self.request_count} requests"

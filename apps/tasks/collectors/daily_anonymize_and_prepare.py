@@ -109,6 +109,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         # Get dashboard telemetry
         anonymized_data["dashboard_telemetry"] = metrics.get("dashboard_telemetry", [])
         anonymized_data["leaderboard_telemetry"] = _collect_leaderboard_telemetry()
+        anonymized_data["analytics_usage"] = metrics.get("analytics_usage", {})
 
         offset_minutes = random_offset()
         send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)

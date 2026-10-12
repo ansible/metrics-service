@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
@@ -21,6 +22,7 @@ from rest_framework.views import APIView
 
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.registry import enabled_collectors, get_entry
+from apps.analytics.telemetry import record_collector_get
 from apps.analytics.v1.serializers import AnalyticsPayloadSerializer, CollectorDiscoverySerializer
 
 _ANALYTICS_ROW_FIELDS_DESCRIPTION = """The linked collector row endpoints return paginated collection envelopes. Each row contains:
@@ -193,7 +195,12 @@ class CollectorRowsView(generics.ListAPIView):
     )
     def get(self, request, *args, **kwargs):
         """Return paginated payloads for the requested collector."""
-        return super().get(request, *args, **kwargs)
+        entry = get_entry(self.kwargs.get("collector"))
+        started = time.perf_counter()
+        response = super().get(request, *args, **kwargs)
+        if entry is not None and entry.enabled and response.status_code < 400:
+            record_collector_get(entry.name, (time.perf_counter() - started) * 1000)
+        return response
 
     def get_queryset(self):
         """Filter stored payloads for the collector by since/until *window overlap*.

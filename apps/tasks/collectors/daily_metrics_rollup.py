@@ -12,6 +12,7 @@ from typing import Any
 
 from django.utils import timezone
 
+from apps.analytics.telemetry import daily_analytics_usage
 from apps.dashboard_reports.models import DashboardTelemetry
 
 from ..utils import (
@@ -317,6 +318,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
         # Append dashboard telemetry
         daily_rollup["dashboard_telemetry"] = _aggregate_dashboard_telemetry(summary_date)
+        daily_rollup["analytics_usage"] = daily_analytics_usage(summary_date)
 
         # Save daily summary and update hourly collection status
         daily_summary, created, hourly_collections_count = _save_daily_summary(
