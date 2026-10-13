@@ -202,6 +202,8 @@ class TestServicePrefixMiddlewareUnit(TestCase):
             self.assertEqual(request._api_service_prefix, "/api/metrics")
             # get_full_path() must restore the prefixed form so response URLs are correct
             self.assertIn("/api/metrics/", request.get_full_path())
+            request.path_info = request.path = "/not-api/"
+            self.assertEqual(request.get_full_path(), "/not-api/")
 
     def test_drf_reverse_uses_configured_prefix_without_duplicating_api(self):
         """Request-aware DRF links replace /api with URL_PREFIX exactly once."""
@@ -244,6 +246,37 @@ class TestServicePrefixMiddlewareUnit(TestCase):
             middleware(request)
 
         self.assertEqual(generated_urls, ["http://testserver/api/v1/tasks/"])
+
+    def test_build_absolute_uri_translates_locations_and_preserves_default_path(self):
+        """API locations gain the public prefix, including the request's default path."""
+        from django.http import JsonResponse
+        from django.test import RequestFactory
+
+        from apps.core.middleware import ServicePrefixMiddleware
+
+        with self.settings(URL_PREFIX="/api/metrics"):
+            request = RequestFactory().get("/api/metrics/v1/")
+            generated_urls = []
+
+            def capture_get_response(req):
+                generated_urls.extend(
+                    [
+                        req.build_absolute_uri("/api/v1/tasks/"),
+                        req.build_absolute_uri(),
+                    ]
+                )
+                return JsonResponse({"ok": True})
+
+            middleware = ServicePrefixMiddleware(capture_get_response)
+            middleware(request)
+
+        self.assertEqual(
+            generated_urls,
+            [
+                "http://testserver/api/metrics/v1/tasks/",
+                "http://testserver/api/metrics/v1/",
+            ],
+        )
 
     def test_middleware_strips_trailing_slash_from_url_prefix(self):
         """URL_PREFIX with a trailing slash is handled correctly."""
