@@ -5,6 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from apps.core.json_utils import json_size_bytes, to_jsonable
@@ -44,3 +45,20 @@ def test_to_jsonable_uses_django_encodings_for_dates_and_uuids():
 
 def test_json_size_bytes_normalizes_before_encoding():
     assert json_size_bytes({"value": Decimal("1.0")}) == len(b'{"value": "1.0"}')
+
+
+def test_to_jsonable_keeps_integer_columns_with_nulls_as_integers():
+    frame = pd.DataFrame(
+        {
+            "host_id": [31, None],
+            "ratio": [0.5, None],
+            "whole_float": [2.0, 3.0],
+            "empty": [None, None],
+        }
+    )
+
+    assert to_jsonable(frame) == [
+        {"host_id": 31, "ratio": 0.5, "whole_float": 2, "empty": None},
+        {"host_id": None, "ratio": None, "whole_float": 3, "empty": None},
+    ]
+    assert isinstance(to_jsonable(frame)[0]["host_id"], int)
