@@ -21,12 +21,35 @@ def _json_key(value: Any) -> str:
     return str(value)
 
 
+# Largest integer a float64 represents exactly.
+_MAX_EXACT_FLOAT_INT = 2**53
+
+
+def _restore_integer_columns(frame: Any) -> Any:
+    """Cast whole-number float columns to nullable integers.
+
+    pandas stores an integer column that contains NULLs as float64, which would serialize
+    IDs and counts as ``31.0``. Columns whose non-null values are all whole numbers are
+    restored to ``Int64`` so they serialize as ``31``; other columns are left unchanged.
+    """
+    conversions = {}
+    for column in frame.columns:
+        series = frame[column]
+        if series.dtype.kind != "f":
+            continue
+        values = series.dropna()
+        if values.empty or values.abs().max() >= _MAX_EXACT_FLOAT_INT or (values % 1).any():
+            continue
+        conversions[column] = "Int64"
+    return frame.astype(conversions) if conversions else frame
+
+
 def _to_jsonable_complex(value: Any) -> Any:
     """Convert non-scalar values to JSON-compatible values."""
     # DataFrame serialization handles pandas and NumPy dtypes, timestamps, and missing values.
-    to_json = getattr(value, "to_json", None)
-    if callable(to_json) and hasattr(value, "columns"):
-        return json.loads(to_json(orient="records", date_format="iso"))
+    if callable(getattr(value, "to_json", None)) and hasattr(value, "columns"):
+        frame = _restore_integer_columns(value)
+        return json.loads(frame.to_json(orient="records", date_format="iso"))
 
     if isinstance(value, Mapping):
         return {_json_key(key): to_jsonable(item) for key, item in value.items()}

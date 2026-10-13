@@ -38,6 +38,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from apps.analytics.payload_schemas import PAYLOAD_SCHEMAS, PayloadSchema
+
 # The host collectors below require metrics-utility's PostgreSQL helper functions. Keep this
 # marker as the single backport switch if a target release cannot provide those functions.
 SERVICE_FUNCTIONS_AVAILABLE = True
@@ -63,6 +65,8 @@ class CollectorEntry:
         database: which Django DB connection the collector reads (defaults to ``awx``).
         note: why a collector is disabled/excluded, or any relevant caveat.
         description: customer-facing summary of the data returned by the collector.
+        payload_schema: typed description of the raw JSON payload for OpenAPI and BI consumers;
+            required for enabled collectors.
     """
 
     name: str
@@ -74,6 +78,7 @@ class CollectorEntry:
     database: str = field(default="awx", kw_only=True)
     note: str = field(default="", kw_only=True)
     description: str = field(default="", kw_only=True)
+    payload_schema: PayloadSchema | None = field(default=None, kw_only=True)
     group: str = field(init=False)
     mu_function: str = field(init=False)
 
@@ -88,6 +93,8 @@ class CollectorEntry:
             raise ValueError(f"key_field requires an object payload: {self.name}")
         object.__setattr__(self, "group", group)
         object.__setattr__(self, "mu_function", mu_function)
+        if self.enabled and self.payload_schema is None:
+            raise ValueError(f"Enabled collector needs a payload_schema: {self.name}")
 
     @property
     def accepts_since_until(self) -> bool:
@@ -107,6 +114,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["unified_jobs_dashboard"],
         description="Job executions, including status and timing, organization, inventory, project, template, execution environment, launcher, labels, and host count. The nested installed_collections object is keyed by collection FQCN.",
     ),
     CollectorEntry(
@@ -116,6 +124,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["unified_jobs"],
         description="Unified job records with status, timing, organization, inventory, execution environment, template, project SCM type, and job details. The nested installed_collections object is keyed by collection FQCN.",
     ),
     CollectorEntry(
@@ -125,6 +134,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["job_host_summary_service"],
         description="Per-job host results and counts, with host, job, template, inventory, organization, and project context.",
     ),
     CollectorEntry(
@@ -135,6 +145,7 @@ _ENABLED: list[CollectorEntry] = [
         payload_shape="array",
         key_field=None,
         note="requires metrics-utility PostgreSQL YAML/JSON helper functions",
+        payload_schema=PAYLOAD_SCHEMAS["job_host_summary"],
         description="Per-job host results, counts, host connection variables, and job, template, inventory, organization, and project context.",
     ),
     CollectorEntry(
@@ -144,6 +155,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["credentials_service"],
         description="Distinct managed credential types used by jobs completed in the collection window.",
     ),
     CollectorEntry(
@@ -153,6 +165,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["main_jobevent_service"],
         description="Selected job events for jobs completed in the window, including event actions, task/play/role, host, result flags, warnings, and deprecations.",
     ),
     CollectorEntry(
@@ -162,6 +175,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["main_jobevent"],
         description="Runner event records associated with job host summaries, including event action, task/play/role, host, and result flags.",
     ),
     CollectorEntry(
@@ -171,6 +185,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["events_table"],
         description="Raw job events modified in the window, including event details, playbook statistics, task/play/role, host, timing, warnings, and deprecations.",
     ),
     CollectorEntry(
@@ -180,6 +195,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["workflow_job_node_table"],
         description="Workflow job node executions, their job/template/workflow/inventory references, and success, failure, and always edges.",
     ),
     CollectorEntry(
@@ -189,6 +205,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="object",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["query_info"],
         description="Collection metadata: requested bounds and collection type; it does not query the Controller database.",
     ),
     # Snapshot (collect_snapshot_metrics registry; current-state, no since/until window)
@@ -199,6 +216,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["execution_environments"],
         description="Execution environment records, including image, description, ownership, organization, credential, management, and pull settings.",
     ),
     CollectorEntry(
@@ -209,6 +227,7 @@ _ENABLED: list[CollectorEntry] = [
         payload_shape="object",
         key_field=None,
         note="already keeps raw (no rollup)",
+        payload_schema=PAYLOAD_SCHEMAS["config"],
         description="Selected Controller settings and license details, plus Controller and metrics-utility versions and runtime platform metadata.",
     ),
     CollectorEntry(
@@ -218,6 +237,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["controller_version_service"],
         description="Distinct versions reported by enabled control and hybrid Controller instances.",
     ),
     CollectorEntry(
@@ -227,6 +247,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["table_metadata"],
         description="Estimated row counts and table, index, and total sizes for the job event, unified job, and job host summary tables.",
     ),
     CollectorEntry(
@@ -236,6 +257,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["feature_flags_service"],
         description="Enabled boolean platform feature flags and their descriptions, support levels, toggle types, and visibility.",
     ),
     CollectorEntry(
@@ -245,6 +267,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="object",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["counts"],
         description="Counts of Controller objects, inventories by kind, non-sync jobs, active hosts and sessions, running and pending jobs, and database connections. The nested inventories object is keyed by kind.",
     ),
     CollectorEntry(
@@ -254,6 +277,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="object",
         key_field="credential_type_id",
+        payload_schema=PAYLOAD_SCHEMAS["cred_type_counts"],
         description="Credential counts grouped by credential type, including type name and whether the type is managed.",
     ),
     CollectorEntry(
@@ -263,6 +287,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["host_metric_summary_monthly_table"],
         description="Monthly host capacity and usage summaries, including hosts added, deleted, and indirectly managed.",
     ),
     CollectorEntry(
@@ -272,6 +297,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="object",
         key_field="uuid",
+        payload_schema=PAYLOAD_SCHEMAS["instance_info"],
         description="Controller instance topology, version, capacity, CPU, memory, node type, enablement, and current and remaining capacity.",
     ),
     CollectorEntry(
@@ -281,6 +307,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="object",
         key_field="inventory_id",
+        payload_schema=PAYLOAD_SCHEMAS["inventory_counts"],
         description="Inventory names and kinds with host and source counts, source details, and smart inventory entries.",
     ),
     CollectorEntry(
@@ -290,6 +317,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="object",
         key_field="organization_id",
+        payload_schema=PAYLOAD_SCHEMAS["org_counts"],
         description="Organization names with distinct user and team counts.",
     ),
     CollectorEntry(
@@ -299,6 +327,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="object",
         key_field="scm_type",
+        payload_schema=PAYLOAD_SCHEMAS["projects_by_scm_type"],
         description="Project counts grouped by source-control type, with empty types reported as manual.",
     ),
     CollectorEntry(
@@ -308,6 +337,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["unified_job_template_table"],
         description="Unified job template identity, type, execution environment, ownership, last/current/next job references, scheduling, and status.",
     ),
     CollectorEntry(
@@ -317,6 +347,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["workflow_job_template_node_table"],
         description="Workflow job template node definitions, inventory and template references, convergence settings, and success, failure, and always edges.",
     ),
     CollectorEntry(
@@ -326,6 +357,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=SERVICE_FUNCTIONS_AVAILABLE,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["main_host"],
         description="Enabled inventory hosts with inventory and organization context, last automation time, connection variables, and selected hardware and system facts.",
     ),
     # Daily (collect_daily_metrics registry)
@@ -336,6 +368,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=SERVICE_FUNCTIONS_AVAILABLE,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["main_host_daily"],
         description="Enabled hosts created or modified in the window, with the same inventory, organization, automation, connection, and selected fact data as main_host.",
     ),
     CollectorEntry(
@@ -345,6 +378,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=SERVICE_FUNCTIONS_AVAILABLE,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["main_hostmetric"],
         description="Host automation and deletion metrics, counters, inventory usage, and selected host identity and connection facts.",
     ),
     CollectorEntry(
@@ -354,6 +388,7 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_shape="array",
         key_field=None,
+        payload_schema=PAYLOAD_SCHEMAS["main_indirectmanagednodeaudit"],
         description="Audit records for indirect managed nodes, including their organization and collection data.",
     ),
 ]
