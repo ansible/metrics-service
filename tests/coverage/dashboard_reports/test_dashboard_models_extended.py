@@ -6,7 +6,7 @@ coverage above 80%.  Covers:
   - _get_month_overlap_days helper
   - CommonModel fallback (DAB unavailable path)
   - SubscriptionCostObjectManager.create (singleton upsert)
-  - SubscriptionCost.__str__, daily_subscription_cost multi-month, per_second_subscription_cost
+  - SubscriptionCost.__str__, per_second_subscription_cost
   - TemplateMetadata._lookup_by_id, _lookup_or_create_by_name (all branches),
     _create_with_race_handling (happy path + IntegrityError recovery),
     _apply_time_estimate_defaults
@@ -174,92 +174,6 @@ def test_subscription_cost_get_returns_existing():
     cost = SubscriptionCost.get()
     assert cost.monthly_subscription_cost == decimal.Decimal("9999.00")
     assert SubscriptionCost.objects.count() == 1
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_daily_subscription_cost_no_args():
-    """daily_subscription_cost with no args returns the default monthly/days value."""
-    from apps.dashboard_reports.models import SubscriptionCost
-
-    SubscriptionCost.objects.all().delete()
-    cost = SubscriptionCost.get()
-    daily = cost.daily_subscription_cost()
-    assert isinstance(daily, decimal.Decimal)
-    assert daily > 0
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_daily_subscription_cost_reversed_start_end():
-    """When start > end, dates are swapped before calculation."""
-    from apps.dashboard_reports.models import SubscriptionCost
-
-    SubscriptionCost.objects.all().delete()
-    cost = SubscriptionCost.get()
-    start = datetime(2024, 1, 31, tzinfo=UTC)
-    end = datetime(2024, 1, 1, tzinfo=UTC)
-    # Should not raise, and should produce valid decimal
-    daily = cost.daily_subscription_cost(start=start, end=end)
-    assert isinstance(daily, decimal.Decimal)
-    assert daily > 0
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_daily_subscription_cost_same_month():
-    """start and end in same month: cost is monthly / days_in_month."""
-    import calendar
-
-    from apps.dashboard_reports.models import SubscriptionCost
-
-    SubscriptionCost.objects.all().delete()
-    cost = SubscriptionCost.objects.create(
-        monthly_subscription_cost=decimal.Decimal("3100.00"),
-        engineer_avg_hourly_rate=decimal.Decimal("60.00"),
-    )
-    start = datetime(2024, 1, 1, tzinfo=UTC)
-    end = datetime(2024, 1, 31, tzinfo=UTC)
-    daily = cost.daily_subscription_cost(start=start, end=end)
-    days = calendar.monthrange(2024, 1)[1]
-    expected = decimal.Decimal("3100.00") / decimal.Decimal(days)
-    assert abs(daily - expected) < decimal.Decimal("0.01")
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_daily_subscription_cost_multi_month():
-    """Multi-month date range iterates correctly and returns a weighted daily cost."""
-    from apps.dashboard_reports.models import SubscriptionCost
-
-    SubscriptionCost.objects.all().delete()
-    cost = SubscriptionCost.objects.create(
-        monthly_subscription_cost=decimal.Decimal("3000.00"),
-        engineer_avg_hourly_rate=decimal.Decimal("60.00"),
-    )
-    start = datetime(2024, 1, 15, tzinfo=UTC)
-    end = datetime(2024, 3, 15, tzinfo=UTC)
-    daily = cost.daily_subscription_cost(start=start, end=end)
-    assert isinstance(daily, decimal.Decimal)
-    assert daily > 0
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_daily_subscription_cost_year_boundary():
-    """Multi-month spanning a year boundary (Dec -> Jan) works correctly."""
-    from apps.dashboard_reports.models import SubscriptionCost
-
-    SubscriptionCost.objects.all().delete()
-    cost = SubscriptionCost.objects.create(
-        monthly_subscription_cost=decimal.Decimal("6000.00"),
-        engineer_avg_hourly_rate=decimal.Decimal("60.00"),
-    )
-    start = datetime(2023, 12, 1, tzinfo=UTC)
-    end = datetime(2024, 2, 28, tzinfo=UTC)
-    daily = cost.daily_subscription_cost(start=start, end=end)
-    assert isinstance(daily, decimal.Decimal)
-    assert daily > 0
 
 
 @pytest.mark.unit

@@ -59,21 +59,6 @@ def test_subscription_cost_per_minute():
     assert per_min >= 0
 
 
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_subscription_cost_daily():
-    from datetime import date
-
-    from apps.dashboard_reports.models import SubscriptionCost
-
-    SubscriptionCost.objects.all().delete()
-    cost = SubscriptionCost.get()
-    start = date(2024, 1, 1)
-    end = date(2024, 1, 31)
-    daily_cost = cost.daily_subscription_cost(start=start, end=end)
-    assert isinstance(daily_cost, decimal.Decimal)
-
-
 # ---------------------------------------------------------------------------
 # FilterSet model
 # ---------------------------------------------------------------------------

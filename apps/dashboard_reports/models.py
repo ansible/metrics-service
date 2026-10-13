@@ -162,40 +162,6 @@ class SubscriptionCost(CommonModel):
         """
         return decimal.Decimal(str(self.engineer_avg_hourly_rate)) / decimal.Decimal(60)
 
-    def daily_subscription_cost(self, start: datetime | None = None, end: datetime | None = None) -> decimal.Decimal:
-        """
-        Calculate and return the daily subscription cost based on the monthly subscription cost.
-        Assumes 30 days in a month for calculation.
-        """
-        now = datetime.now(UTC)
-        default_days_in_month = calendar.monthrange(now.year, now.month)[1]
-        monthly_cost = decimal.Decimal(str(self.monthly_subscription_cost))
-        default_daily_cost = monthly_cost / decimal.Decimal(default_days_in_month)
-
-        if start is None or end is None:
-            return default_daily_cost
-
-        if start > end:
-            start, end = end, start
-
-        if start.year == end.year and start.month == end.month:
-            days_in_month = calendar.monthrange(start.year, start.month)[1]
-            return monthly_cost / decimal.Decimal(days_in_month)
-
-        total_days = 0
-        total_cost = decimal.Decimal(0)
-        for current_year, current_month in _month_range_iter(start, end):
-            month_days, month_start_day, month_end_day = _get_month_overlap_days(
-                current_year, current_month, start, end
-            )
-            overlap_days = month_end_day - month_start_day + 1
-            if overlap_days <= 0:
-                continue
-            proportional_cost = monthly_cost * decimal.Decimal(overlap_days) / decimal.Decimal(month_days)
-            total_days += overlap_days
-            total_cost += proportional_cost
-        return total_cost / decimal.Decimal(total_days) if total_days > 0 else default_daily_cost
-
     def per_second_subscription_cost(
         self, start: datetime | None = None, end: datetime | None = None
     ) -> decimal.Decimal:
