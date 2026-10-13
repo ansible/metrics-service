@@ -10,13 +10,12 @@ import calendar
 import decimal
 import logging
 from datetime import UTC, datetime
-from typing import Any, Self
+from typing import Self
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import IntegrityError, models, transaction
-from django.db.models import Case, F, Sum, When
-from django.db.models.functions import Cast
+from django.db.models import Sum
 from metrics_utility.library.collectors.dashboard import AWXJobType
 
 # Import base classes, handling both DAB and simple fallbacks
@@ -784,54 +783,6 @@ class JobHostSummary(CommonModel):
     def __str__(self) -> str:
         """Return a string showing the host name and parent job template name."""
         return f"{self.host_name}: {self.job_data.template_name}"
-
-    @classmethod
-    def unique_count(
-        cls, start: datetime | None = None, end: datetime | None = None, options: dict[str, Any] | None = None
-    ) -> int:
-        """
-        Returns the count of unique hosts across all JobData records.
-        Filters by finished date range and additional options
-        (organization, project, template, label) if provided in the options dict.
-        """
-        options = options or {}
-        queryset = cls.objects
-
-        # Apply date range filters
-        if start is not None:
-            queryset = queryset.filter(job_data__finished__gte=start)
-        if end is not None:
-            queryset = queryset.filter(job_data__finished__lte=end)
-
-        # Mapping of option keys to their corresponding filter field
-        filter_mapping = {
-            "organization": "job_data__organization_id__in",
-            "project": "job_data__project_id__in",
-            "template": "job_data__template_id__in",
-        }
-
-        # Apply filters from options using the mapping
-        for option_key, filter_field in filter_mapping.items():
-            values = options.get(option_key)
-            if values:
-                queryset = queryset.filter(**{filter_field: values})
-
-        # Handle labels separately (requires subquery)
-        labels = options.get("label")
-        if labels:
-            labels_qs = JobLabel.objects.filter(label_id__in=labels).values_list("job_data_id", flat=True)
-            queryset = queryset.filter(job_data_id__in=labels_qs)
-
-        # Annotate a stable surrogate identifier: prefer host_id (cast to text) when
-        # present, fall back to host_name for hosts without a stable AWX ID.
-        queryset = queryset.annotate(
-            stable_host=Case(
-                When(host_id__isnull=False, then=Cast(F("host_id"), output_field=models.TextField())),
-                default=F("host_name"),
-                output_field=models.TextField(),
-            )
-        )
-        return queryset.values("stable_host").distinct().count()
 
 
 class DashboardTelemetry(CommonModel):
