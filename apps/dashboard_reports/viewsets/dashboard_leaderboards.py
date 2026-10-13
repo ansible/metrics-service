@@ -177,7 +177,8 @@ def _activity_level(
     """Build a per-user leaderboard for one activity level.
 
     ``ranked`` is the shared per-user aggregate (keyed by ``launched_by_id``)
-    already sorted by this activity level's metric descending, ties broken by id.
+    already sorted by this activity level's metric descending, ties broken by
+    display name, then id.
     Returns the top 10, the current user's rank (``None`` when they have no
     successful runs in the window) and ``total_users`` (the pool the rank is
     out of, i.e. "rank N of X").
@@ -382,20 +383,29 @@ def _build_activity_levels(
             consistency=Count(TruncDate("finished", tzinfo=UTC), distinct=True),  # active days
         )
     )
-    ranked_by_metric = {
-        metric: sorted(per_user_rows, key=lambda row, metric=metric: (-row[metric], row["launched_by_id"]))
-        for metric in ("volume", "breadth", "consistency")
-    }
-    # Latest known username, fetched only for the ids that actually surface in
-    # a top 10 (<= 30) — identity and ranking are by id, this is display only.
-    # An empty ``visible_ids`` makes ``__in`` a no-op (no query).
-    visible_ids = {row["launched_by_id"] for ranked in ranked_by_metric.values() for row in ranked[:10]}
+    # Latest known username per user. Identity is by id; the name only breaks
+    # ties, so it is needed for every ranked user, not just the visible top 10.
     usernames_by_id: dict[int, str | None] = dict(
-        successful_runs.filter(launched_by_id__in=visible_ids)
+        successful_runs.filter(launched_by_id__isnull=False)
         .order_by("launched_by_id", "-finished")
         .distinct("launched_by_id")
         .values_list("launched_by_id", "launched_by_username")
     )
+
+    def _rank_key(row: dict[str, Any], metric: str) -> tuple[int, bool, str, str, int]:
+        """Sort key: ``metric`` descending, then username, then id.
+
+        The username is compared upper-cased so ties read alphabetically as the
+        masked initials; users without a name come last. Id makes it a
+        deterministic total order that does not depend on who is viewing.
+        """
+        name = usernames_by_id.get(row["launched_by_id"]) or ""
+        return (-row[metric], not name, name.upper(), name, row["launched_by_id"])
+
+    ranked_by_metric = {
+        metric: sorted(per_user_rows, key=lambda row, metric=metric: _rank_key(row, metric))
+        for metric in ("volume", "breadth", "consistency")
+    }
     return [
         _activity_level(metric, ranked_by_metric[metric], usernames_by_id, current_user_id)
         for metric in ("volume", "breadth", "consistency")
@@ -510,8 +520,8 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
         # cannot be compared to ``launched_by_id`` directly. Resolve the AWX id
         # from the authenticated user's most recent successful run in the
         # window instead - the only link ``JobData`` offers back to a platform
-        # identity. ``usernames_by_id`` below is unrelated: display-only (other
-        # users' initials).
+        # identity. ``usernames_by_id`` in ``_build_activity_levels`` is
+        # unrelated: it only breaks ranking ties and renders other users' initials.
         current_user_id = (
             successful_runs.filter(launched_by_username=request.user.get_username())
             .order_by("-finished")

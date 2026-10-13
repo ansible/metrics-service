@@ -755,6 +755,7 @@ class TestEdgeCases:
         assert "accelerator" not in get(authenticated_client)["user_achievements"]
 
     def test_current_user_rank_reported_when_outside_top_10(self, authenticated_client, user):
+        """The current user gets a rank even when it is outside the visible top 10."""
         for uid in range(2, 13):  # 11 other users, each busier than the current user
             for _ in range(20 - uid):
                 make_job(day(1), launched_by_id=1000 + uid, launched_by_username=f"user{uid}")
@@ -766,7 +767,33 @@ class TestEdgeCases:
         assert len(volume["leaderboard"]) == 10
         assert all(row["username"] != user.username for row in volume["leaderboard"])
 
+    def test_activity_ties_broken_by_display_name(self, authenticated_client):
+        """Equal scores order by display name, not id; nameless users come last."""
+        # Ids deliberately not in name order (MM, AA, ZZ, BB); mixed case and a nameless user.
+        for uid, name in [(19, "MM"), (20, "aa"), (21, "ZZ"), (22, "BB"), (23, None)]:
+            make_job(day(1), launched_by_id=uid, launched_by_username=name)
+
+        volume = next(d for d in get(authenticated_client)["activity_levels"] if d["id"] == "volume")
+        assert [row["username"] for row in volume["leaderboard"]] == ["AA", "BB", "MM", "ZZ", ""]
+        assert [row["rank"] for row in volume["leaderboard"]] == [1, 2, 3, 4, 5]
+
+    def test_activity_tie_at_top_10_cutoff_decided_by_username(self, authenticated_client, user):
+        """A tie straddling rank 10 keeps names first alphabetically; the current user's rank follows suit."""
+        # The lowest ids go to the current user ("testuser") and "zed", so an id-based tie-break would
+        # put both on the board; by name ten users ("aa".."jj", ids in reverse name order) outrank them.
+        make_job(day(1), **_me(user, launched_by_id=1))
+        make_job(day(1), launched_by_id=2, launched_by_username="zed")
+        letters = "abcdefghij"
+        for offset, letter in enumerate(letters):
+            make_job(day(1), launched_by_id=1000 - offset, launched_by_username=letter * 2)
+
+        volume = next(d for d in get(authenticated_client)["activity_levels"] if d["id"] == "volume")
+        assert [row["username"] for row in volume["leaderboard"]] == [letter.upper() * 2 for letter in letters]
+        assert volume["current_user_rank"] == 11
+        assert volume["total_users"] == 12
+
     def test_activity_row_with_id_but_blank_username_does_not_crash(self, authenticated_client, user):
+        """Blank or null usernames render as an empty name instead of failing."""
         make_job(day(1), launched_by_id=9, launched_by_username="")
         make_job(day(1), launched_by_id=8, launched_by_username=None)
         make_job(day(1), **_me(user))
