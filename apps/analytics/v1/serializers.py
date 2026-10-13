@@ -106,7 +106,7 @@ def _payload_field(schema: PayloadSchema):
         if schema.additional_properties:
             return serializers.DictField(
                 child=_field_to_serializer(schema.additional_properties),
-                help_text=schema.description,
+                help_text=f"{schema.description} Keys are {schema.key_field} values.",
             )
         return _serializer_for_fields(schema.name, schema.fields)(help_text=schema.description)
     raise ValueError(f"Unsupported analytics payload schema kind: {schema.kind}")

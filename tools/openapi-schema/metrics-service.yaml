@@ -8073,7 +8073,8 @@ components:
             allOf:
             - $ref: '#/components/schemas/CredentialTypeCountPayload'
             nullable: true
-          description: Credential counts keyed by credential type ID.
+          description: Credential counts keyed by credential type ID. Keys are credential_type_id
+            values.
       required:
       - payload
     AnalyticsPayloadControllerCredentialsService:
@@ -8346,7 +8347,7 @@ components:
             - $ref: '#/components/schemas/InstanceInfoRecordPayload'
             nullable: true
           description: Controller instance topology and consumed capacity keyed by
-            UUID.
+            UUID. Keys are uuid values.
       required:
       - payload
     AnalyticsPayloadControllerInventoryCounts:
@@ -8393,7 +8394,8 @@ components:
             allOf:
             - $ref: '#/components/schemas/InventoryCountPayload'
             nullable: true
-          description: Inventory details keyed by inventory ID.
+          description: Inventory details keyed by inventory ID. Keys are inventory_id
+            values.
       required:
       - payload
     AnalyticsPayloadControllerJobHostSummary:
@@ -8806,6 +8808,7 @@ components:
             - $ref: '#/components/schemas/OrganizationCountPayload'
             nullable: true
           description: Organization user and team counts keyed by organization ID.
+            Keys are organization_id values.
       required:
       - payload
     AnalyticsPayloadControllerProjectsByScmType:
@@ -8852,7 +8855,7 @@ components:
             type: integer
             nullable: true
           description: Project counts keyed by source-control type, with manual for
-            projects without one.
+            projects without one. Keys are scm_type values.
       required:
       - payload
     AnalyticsPayloadControllerQueryInfo:

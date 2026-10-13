@@ -17,15 +17,17 @@ The registry is the source of truth in
 - `collector_type`: internal task registry key
 - `mode`: `hourly`, `daily`, or `snapshot`
 - `enabled`: whether the collector is persisted and exposed
-- `payload_shape`: top-level JSON shape of `payload`, `array` or `object`
-- `key_field`: what the top-level object keys represent (for example `credential_type_id`), or
-  null for arrays and fixed-key objects
 - `database`: source database, defaulting to `awx`
 - `description`: customer-facing summary of the data returned by the collector
 - `note`: explanation for not-enabled entries or a relevant caveat
 - `payload_schema`: typed OpenAPI shape for the raw collector output, defined in
   [`apps/analytics/payload_schemas.py`](../apps/analytics/payload_schemas.py);
   required for enabled entries
+
+`payload_shape` and `key_field` are derived from `payload_schema` and returned by the
+discovery endpoint: `payload_shape` is the top-level JSON shape of `payload` (`array` or
+`object`), and `key_field` says what the top-level object keys represent (for example
+`credential_type_id`), or null for arrays and fixed-key objects.
 
 `accepts_since_until` is derived from `mode`. It describes whether the collector
 can receive `since` and `until` bounds; it does not require both bounds to be
