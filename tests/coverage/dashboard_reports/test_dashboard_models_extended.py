@@ -10,7 +10,7 @@ coverage above 80%.  Covers:
   - TemplateMetadata._lookup_by_id, _lookup_or_create_by_name (all branches),
     _create_with_race_handling (happy path + IntegrityError recovery),
     _apply_time_estimate_defaults
-  - JobData.__str__, last_timestamp (with records), create_or_update_from_awx
+  - JobData.__str__, create_or_update_from_awx
     (create path + update path), _sync_labels, _sync_host_summaries
   - JobLabel.__str__, JobHostSummary.__str__, JobHostSummary.unique_count
   - label_ids_to_job_data_ids utility
@@ -432,7 +432,7 @@ def test_apply_time_estimate_defaults_capped_at_maximum():
 
 
 # ---------------------------------------------------------------------------
-# JobData.__str__ and last_timestamp
+# JobData.__str__
 # ---------------------------------------------------------------------------
 
 
@@ -448,20 +448,6 @@ def test_job_data_str():
     s = str(job)
     assert "5001" in s
     assert "str-tmpl" in s
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_job_data_last_timestamp_with_records():
-    """last_timestamp() returns the max awx_modified from JobData records."""
-    from apps.dashboard_reports.models import JobData
-
-    JobData.objects.filter(job_id__in=[6001, 6002]).delete()
-    JobData.create_or_update_from_awx(_make_awx_job(job_id=6001, template_id=600))
-    now = datetime.now(tz=UTC)
-    JobData.create_or_update_from_awx(_make_awx_job(job_id=6002, template_id=601, modified=now))
-    ts = JobData.last_timestamp()
-    assert ts is not None
 
 
 # ---------------------------------------------------------------------------

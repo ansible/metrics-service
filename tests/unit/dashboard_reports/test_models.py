@@ -366,29 +366,6 @@ class TestJobData:
                 template_metadata=None,
             )
 
-    def test_latest_timestamp_returns_none(self):
-        assert JobData.last_timestamp() is None
-
-    def test_all_records_null_awx_modified_returns_none(self):
-        JobData.objects.create(job_id=1, template_name="T1", elapsed=1)
-        JobData.objects.create(job_id=2, template_name="T2", elapsed=2)
-        assert JobData.last_timestamp() is None
-
-    def test_returns_latest_awx_modified(self):
-        now = datetime.datetime.now().astimezone(datetime.UTC)
-        earlier = (now - datetime.timedelta(days=1)).astimezone(datetime.UTC)
-        later = (now + datetime.timedelta(days=1)).astimezone(datetime.UTC)
-        JobData.objects.create(job_id=3, template_name="T3", elapsed=3, awx_modified=earlier)
-        JobData.objects.create(job_id=4, template_name="T4", elapsed=4, awx_modified=now)
-        JobData.objects.create(job_id=5, template_name="T5", elapsed=5, awx_modified=later)
-        assert JobData.last_timestamp() == later
-
-    def test_mixed_null_and_valid_awx_modified(self):
-        now = datetime.datetime.now().astimezone(datetime.UTC)
-        JobData.objects.create(job_id=6, template_name="T6", elapsed=6, awx_modified=None)
-        JobData.objects.create(job_id=7, template_name="T7", elapsed=7, awx_modified=now)
-        assert JobData.last_timestamp() == now
-
 
 @pytest.mark.unit
 @pytest.mark.django_db

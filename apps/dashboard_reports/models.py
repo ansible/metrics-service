@@ -609,14 +609,6 @@ class JobData(CommonModel):
         return f"Job {self.job_id} - Template: {self.template_name} - Status: {self.status}"
 
     @classmethod
-    def last_timestamp(cls) -> datetime | None:
-        """Returns the latest 'awx_modified' timestamp from JobData, or None if no records exist."""
-        latest_awx_modified = cls.objects.filter(awx_modified__isnull=False).aggregate(models.Max("awx_modified"))[
-            "awx_modified__max"
-        ]
-        return latest_awx_modified
-
-    @classmethod
     def last_finished_timestamp(cls) -> datetime | None:
         """Returns the latest 'finished' timestamp from JobData, or None if no records exist.
 

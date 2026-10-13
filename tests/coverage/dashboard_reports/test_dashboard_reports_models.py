@@ -132,16 +132,6 @@ def test_template_metadata_get_by_awx_id_or_name_creates():
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_job_data_last_timestamp_empty():
-    from apps.dashboard_reports.models import JobData
-
-    JobData.objects.all().delete()
-    result = JobData.last_timestamp()
-    assert result is None
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
 def test_job_data_queryset_methods():
     """JobDataQuerySet manager methods don't crash."""
     from apps.dashboard_reports.models import JobData
