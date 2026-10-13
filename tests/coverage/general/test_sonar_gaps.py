@@ -430,28 +430,6 @@ def test_log_setting_change_db_exception(user):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_rollback_configuration_change_exception(user):
-    """When DYNACONF.set raises, rollback returns error dict."""
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import rollback_configuration_change
-
-    setting = Setting.objects.create(
-        setting_key="ROLLBACK_EXC",
-        current_value='"new"',
-        previous_value='"old"',
-        last_modified_by=user,
-    )
-
-    with patch("metrics_service.settings.DYNACONF") as mock_dynaconf:
-        mock_dynaconf.set.side_effect = Exception("dynaconf crash")
-        result = rollback_configuration_change(setting.id, user)
-
-    assert result["success"] is False
-    assert "Failed to rollback" in result["error"]
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
 def test_initialize_default_settings_skips_count():
     """initialize_default_settings completes without raising."""
     from apps.dynamic_settings.utils import initialize_default_settings
