@@ -13,8 +13,11 @@ podman exec -i postgres psql -U awx -d awx < tools/seed-awx-demo.sql
 The seed adds four completed UTC hours of jobs, events, host summaries, workflow
 nodes, and indirect-node audits, plus supporting inventory, credentials, host
 metrics, and monthly summary data. Host changes, host metrics, and indirect-node
-audits are timestamped in the current UTC day for daily collector windows. It is
-safe to run repeatedly; a marker job prevents duplicate demo rows.
+audits are timestamped in the current UTC day for daily collector windows. Job
+events run modules from an installed collection, a collection missing from the
+job's `installed_collections`, and `ansible.builtin`, so the event collection
+name and version fields are populated. It is safe to run repeatedly; a marker
+job prevents duplicate demo rows.
 
 Performance tests are in `../metrics-utility/tools/`
 (`service_perf/`, `dashboard_perf/`).

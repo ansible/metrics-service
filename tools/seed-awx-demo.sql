@@ -35,6 +35,7 @@ DECLARE
     event_time timestamptz;
     event_name text;
     event_data text;
+    task_action text;
     partition_name text;
     partition_start timestamptz;
     partition_end timestamptz;
@@ -243,8 +244,10 @@ BEGIN
                 CASE WHEN job_status = 'failed' THEN 'Demo failure for status distribution' ELSE '' END,
                 '{}', CASE WHEN job_status = 'failed' THEN 'demo traceback' ELSE '' END,
                 gen_random_uuid()::text, 1, 'metrics-demo-controller', 3,
-                'metrics-demo-controller', true, '{"demo":true}', '2.16.0',
-                1, '{"demo":true}',
+                'metrics-demo-controller', true,
+                -- Same shape as AWX: collections installed in the EE, keyed by FQCN.
+                '{"ansible.posix": {"version": "1.5.4"}, "community.general": {"version": "8.6.0"}}',
+                '2.16.0', 1, '{"demo":true}',
                 (SELECT id FROM django_content_type WHERE app_label = 'main' AND model = 'job'),
                 demo_org_id, demo_ee_id
             )
@@ -292,16 +295,33 @@ BEGIN
                 FOREACH event_name IN ARRAY ARRAY['runner_on_start', 'runner_on_ok', 'playbook_on_stats'] LOOP
                     event_number := event_number + 1;
                     event_time := job_started + make_interval(secs => event_number * 10 + host_index);
+                    -- The main task covers an installed collection (with a version), a collection
+                    -- missing from installed_collections (null version), and a builtin module.
+                    task_action := CASE
+                        WHEN event_number = 1 THEN 'ansible.builtin.setup'
+                        WHEN job_index = 0 THEN 'ansible.posix.firewalld'
+                        WHEN job_index = 1 THEN 'community.crypto.openssl_privatekey'
+                        ELSE 'ansible.builtin.debug'
+                    END;
                     event_data := jsonb_build_object(
-                        'task_action', CASE WHEN event_number = 1 THEN 'ansible.builtin.setup' ELSE 'ansible.builtin.debug' END,
+                        'task_action', task_action,
+                        'resolved_action', task_action,
                         'task_uuid', format('%s-%s-%s', job_id, host_id, event_number),
                         'duration', '1.2',
                         'start', event_time - interval '1 second',
                         'end', event_time,
                         'res', jsonb_build_object(
                             'changed', event_number = 2,
-                            'warnings', jsonb_build_array(),
-                            'deprecations', jsonb_build_array()
+                            'warnings', CASE WHEN job_index = 1 AND event_number = 2
+                                THEN jsonb_build_array('Demo warning: key size is below the recommended minimum')
+                                ELSE jsonb_build_array() END,
+                            'deprecations', CASE WHEN job_index = 1 AND event_number = 2
+                                THEN jsonb_build_array(jsonb_build_object(
+                                    'msg', 'Demo deprecation: the size option is renamed to key_size',
+                                    'version', '3.0.0',
+                                    'collection_name', 'community.crypto'
+                                ))
+                                ELSE jsonb_build_array() END
                         )
                     )::text;
                     -- The legacy event collector joins on the owning job's exact created time.
@@ -339,11 +359,8 @@ BEGIN
                     'ansible_product_serial', h.ansible_facts->>'ansible_product_serial'
                 ),
                 h.ansible_facts,
-                jsonb_build_array(jsonb_build_object(
-                    'event', 'indirect_node_seen',
-                    'job_id', job_id,
-                    'task_runs', 3
-                )),
+                -- AWX stores the fully-qualified names of the modules that ran against the node.
+                jsonb_build_array('vmware.vmware.guest_info', 'vmware.vmware.vm_powerstate'),
                 3, h.id, demo_inventory_id, job_id, demo_org_id
             FROM main_host h
             WHERE h.inventory_id = demo_inventory_id
