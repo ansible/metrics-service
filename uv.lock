@@ -822,6 +822,7 @@ dependencies = [
     { name = "dynaconf" },
     { name = "gunicorn" },
     { name = "metrics-utility" },
+    { name = "mssql-django" },
     { name = "packaging" },
     { name = "pip" },
     { name = "psycopg", extra = ["binary"] },
@@ -888,6 +889,7 @@ requires-dist = [
     { name = "gunicorn", specifier = ">=23.0" },
     { name = "ldap-filter", marker = "extra == 'ldap'", specifier = ">=1.0.1" },
     { name = "metrics-utility", specifier = ">=0.8.0" },
+    { name = "mssql-django", specifier = ">=1.8,<2.0" },
     { name = "packaging", specifier = ">=26.2" },
     { name = "pip", specifier = ">=26.1.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
@@ -945,6 +947,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/82/e6/60d9ca03a75508584a07b9b8a5654588576218260899466c7562f3e415e6/metrics_utility-0.8.20260927.tar.gz", hash = "sha256:232a35b55227defe691afd4ec513af60facfdc165e5863cc4810c8b614d19265", size = 1217221, upload-time = "2026-09-27T02:12:22.255Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/29/f3/dd7c541dacfc5307a3518d5c4df5c83e58a1d56df3cb55d304b4ed15b95b/metrics_utility-0.8.20260927-py3-none-any.whl", hash = "sha256:f8e3dae4656a8a33678230a28f32a9bd6230386a8f6a7292e986568acbe043af", size = 612829, upload-time = "2026-09-27T02:12:20.517Z" },
+]
+
+[[package]]
+name = "mssql-django"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "pyodbc" },
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/a8/48d00b41ee1c7057ec9169ba472725f2e7342eacfec667802b25d5ebf1fe/mssql_django-1.8.0.tar.gz", hash = "sha256:023a3d55a85d1d0d9f38d731182c35c2fecbf6bdc7b2464ed7ebf29c9e7bbdb2", size = 74258, upload-time = "2026-08-07T10:41:35.77Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/0b/37df91c84149e51c504c301d665de103274890da578d9831d8ca28a000c2/mssql_django-1.8.0-py3-none-any.whl", hash = "sha256:1e97e303477ea228454e76514e544081d6041a5a4383f0c40a9313549d4724f2", size = 76288, upload-time = "2026-08-07T10:41:36.959Z" },
 ]
 
 [[package]]
@@ -1422,6 +1438,15 @@ dependencies = [
     { name = "pyasn1-modules" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fd/8b/1eeb4025dc1d3ac2f16678f38dec9ebdde6271c74955b72db5ce7a4dbfbd/python-ldap-3.4.4.tar.gz", hash = "sha256:7edb0accec4e037797705f3a05cbf36a9fde50d08c8f67f2aef99a2628fab828", size = 377889, upload-time = "2023-11-17T21:14:16.32Z" }
+
+[[package]]
+name = "pytz"
+version = "2026.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/21/d83d6ef28c4c912c4bb4d1dcf591f7b8c6bde87b9c66f9f454677314e16d/pytz-2026.5.tar.gz", hash = "sha256:fa23724b9c486543b9ff54a327ee7569ac83ade54bb9afd0fc18676620401c86", size = 318572, upload-time = "2026-10-04T02:37:58.719Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/ef/c66110d46fb800dda0bf33164182dfadabe26a90e4476844d502a23dca8e/pytz-2026.5-py2.py3-none-any.whl", hash = "sha256:e658af3757f9e26a9d25dd2aff38335acd92bc9104f890a894b2c1ba28311b03", size = 506342, upload-time = "2026-10-04T02:37:56.814Z" },
+]
 
 [[package]]
 name = "pyyaml"

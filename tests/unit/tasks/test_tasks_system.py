@@ -270,7 +270,8 @@ class TestTaskRegistry(TestCase):
         # Load valid queues from dispatcherd config
         config_path = Path(__file__).resolve().parents[3] / "apps" / "settings" / "dispatcherd.yaml"
         with open(config_path) as f:
-            valid_queues = set(yaml.safe_load(f)["brokers"]["pg_notify"]["channels"])
+            broker_config = yaml.safe_load(f)["brokers"]
+        valid_queues = {channel for broker in broker_config.values() for channel in broker.get("channels", [])}
 
         for func_name in TASK_FUNCTIONS:
             assert func_name in TASK_METADATA, f"{func_name} missing from TASK_METADATA"

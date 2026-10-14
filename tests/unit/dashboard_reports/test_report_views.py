@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.http import QueryDict
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 
@@ -486,54 +485,21 @@ class TestDashboardReportViewSet:
         # end_date must be Jan 1 2026 (next year), NOT Jan 1 2025 (same year as input).
         assert end == datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
 
-    # Test _prepare_chart_querysets with mocks
-    @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")
-    @patch("apps.dashboard_reports.viewsets.dashboard_report.JobData.objects")
-    def test__prepare_chart_querysets(self, mock_jobdata, mock_to_dates, viewset, factory):
-        mock_start_date, mock_end_date = (
-            datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
-            datetime(2026, 3, 12, 0, 0, tzinfo=UTC),
-        )
-        mock_to_dates.return_value = mock_start_date, mock_end_date
-
-        mock_qs = MagicMock()
-        mock_jobdata.all.return_value = mock_qs
-        mock_qs.values.return_value.filter.return_value = mock_qs
-        mock_qs.annotate.return_value.values.return_value.order_by.return_value = mock_qs
-        # Use MagicMock for request with QueryDict for query_params
-        mock_request = MagicMock()
-        mock_request.query_params = QueryDict()
-        viewset.request = mock_request
-
-        viewset.kwargs = {
-            "period": "last_7_days",
-            "tz": "UTC",
-            "start_date": mock_start_date,
-            "end_date": mock_end_date,
-        }
-        job_qs, host_qs = viewset._prepare_chart_querysets("day")
-        assert isinstance(job_qs, MagicMock | list)
-        assert isinstance(host_qs, MagicMock | list)
-
     # Test _format_chart_result
     def test__format_chart_result(self, viewset):
-        class Dummy:
-            def __init__(self, term, runs, hosts):
-                self.term = term
-                self.runs = runs
-                self.hosts = hosts
+        day_one = datetime(2026, 3, 11, 0, 0, tzinfo=UTC)
+        day_two = datetime(2026, 3, 12, 0, 0, tzinfo=UTC)
+        data_by_bucket = {day_one: (5, 10), day_two: (3, 7)}
 
-        data = [Dummy("2026-03-11", 5, 10), Dummy("2026-03-12", 3, 7)]
-        result = viewset._format_chart_result(data)
-        assert result["job_chart"]["items"][0]["label"] == "2026-03-11"
+        result = viewset._format_chart_result([day_one, day_two], data_by_bucket, "day")
+        assert result["job_chart"]["items"][0]["label"] == day_one
         assert result["job_chart"]["items"][0]["value"] == 5
         assert result["host_chart"]["items"][1]["value"] == 7
 
     # Test get_chart_data with mocks
     @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")
-    @patch("apps.dashboard_reports.viewsets.dashboard_report.generate_series")
-    @patch.object(DashboardReportViewSet, "_prepare_chart_querysets")
-    def test_get_chart_data(self, mock_prepare, mock_gen, mock_to_dates, viewset):
+    @patch("apps.dashboard_reports.viewsets.dashboard_report._chart_bucket_queryset")
+    def test_get_chart_data(self, mock_chart_queryset, mock_to_dates, viewset):
         mock_start_date, mock_end_date = (
             datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
             datetime(2026, 3, 12, 0, 0, tzinfo=UTC),
@@ -546,17 +512,14 @@ class TestDashboardReportViewSet:
             "start_date": mock_start_date,
             "end_date": mock_end_date,
         }
-        # Mock QuerySet-like objects for Subquery
-        mock_job_qs = MagicMock()
-        mock_host_qs = MagicMock()
-        mock_job_qs.query = MagicMock()
-        mock_host_qs.query = MagicMock()
-        mock_prepare.return_value = (mock_job_qs, mock_host_qs)
-        dummy_seq = [MagicMock(term="2026-03-11", runs=5, hosts=10)]
-        mock_gen.return_value.annotate.return_value = dummy_seq
-        result = viewset.get_chart_data()
-        assert result["job_chart"]["items"][0]["label"] == "2026-03-11"
+        mock_chart_queryset.return_value = [{"term": mock_start_date, "runs": 5, "hosts": 10}]
+        with patch.object(viewset, "_filter_raw_jobdata_queryset", return_value=MagicMock()):
+            result = viewset.get_chart_data()
+
+        assert result["job_chart"]["items"][0]["label"] == mock_start_date
         assert result["job_chart"]["items"][0]["value"] == 5
+        assert result["job_chart"]["items"][1]["value"] == 0
+        assert result["host_chart"]["items"][1]["value"] == 0
 
     # Test details endpoint logic with mocks
     @patch("apps.dashboard_reports.viewsets.dashboard_report.SubscriptionCost.get")

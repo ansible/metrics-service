@@ -33,71 +33,86 @@ def test_get_config_file_path_default():
 
 
 # ---------------------------------------------------------------------------
-# build_config_from_django_settings
+# build_config_from_settings
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
-def test_build_config_from_django_settings_has_brokers():
-    from apps.tasks.dispatcherd_config import build_config_from_django_settings
+def test_build_config_from_settings_has_brokers():
+    from apps.tasks.dispatcherd_config import build_config_from_settings
 
-    config = build_config_from_django_settings()
+    config = build_config_from_settings()
     assert "brokers" in config
-    assert "pg_notify" in config["brokers"]
-    assert "config" in config["brokers"]["pg_notify"]
+    assert "sql_server" in config["brokers"]
+    assert "config" in config["brokers"]["sql_server"]
 
 
 @pytest.mark.unit
-def test_build_config_from_django_settings_db_values():
+def test_build_config_from_settings_uses_dispatcherd_database_settings():
     from django.conf import settings
 
-    from apps.tasks.dispatcherd_config import build_config_from_django_settings
+    from apps.tasks.dispatcherd_config import build_config_from_settings
 
-    config = build_config_from_django_settings()
-    pg_config = config["brokers"]["pg_notify"]["config"]
-    db = settings.DATABASES["default"]
-    assert pg_config["dbname"] == db["NAME"]
-    assert pg_config["user"] == db["USER"]
+    config = build_config_from_settings()
+    expected_config = {str(key).lower(): value for key, value in settings.DISPATCHERD_SQLSERVER.items()}
+    assert config["brokers"]["sql_server"]["config"] == expected_config
 
 
 @pytest.mark.unit
-def test_build_config_from_django_settings_has_service_section():
-    from apps.tasks.dispatcherd_config import build_config_from_django_settings
+def test_build_config_from_settings_has_service_section():
+    from apps.tasks.dispatcherd_config import build_config_from_settings
 
-    config = build_config_from_django_settings()
-    assert "service" in config or "brokers" in config  # At minimum brokers must be there
+    config = build_config_from_settings()
+    assert "service" in config
+    assert "task_settings" in config["service"]
 
 
 # ---------------------------------------------------------------------------
-# _load_config_with_django_db
+# _load_config_with_dispatcherd_settings
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
-def test_load_config_overrides_db_from_django():
+def test_load_config_injects_dispatcherd_sql_server_config():
     from pathlib import Path
 
-    from django.conf import settings
+    from apps.tasks.dispatcherd_config import _load_config_with_dispatcherd_settings
 
-    from apps.tasks.dispatcherd_config import _load_config_with_django_db
+    yaml_content = {
+        "brokers": {"pg_notify": {"channels": ["metrics"], "config": {"host": "old_host", "port": "5432"}}},
+        "publish": {"default_broker": "pg_notify", "default_control_broker": "pg_notify"},
+    }
+    sql_config = {"server": "sql.example.com", "port": 1433, "database": "dispatcherd", "user": "broker"}
 
-    yaml_content = {"brokers": {"pg_notify": {"config": {"host": "old_host", "port": "5432"}}}}
+    with (
+        patch("builtins.open", mock_open()),
+        patch("yaml.safe_load", return_value=yaml_content),
+        patch("django.conf.settings") as settings,
+    ):
+        settings.DISPATCHERD_SQLSERVER = sql_config
+        settings.TASK_TIMEOUT = 3600
+        config = _load_config_with_dispatcherd_settings(Path("/fake/dispatcherd.yaml"))
 
-    with patch("builtins.open", mock_open()), patch("yaml.safe_load", return_value=yaml_content):
-        config = _load_config_with_django_db(Path("/fake/dispatcherd.yaml"))
-
-    # Django settings should override the YAML host
-    expected_host = settings.DATABASES["default"]["HOST"]
-    assert config["brokers"]["pg_notify"]["config"]["host"] == expected_host
+    assert config["brokers"]["sql_server"]["config"] == sql_config
+    assert config["brokers"]["sql_server"]["channels"] == ["metrics"]
+    assert "pg_notify" not in config["brokers"]
+    assert config["publish"] == {"default_broker": "sql_server", "default_control_broker": "sql_server"}
 
 
 @pytest.mark.unit
-def test_load_config_creates_brokers_section_if_missing():
+def test_load_config_creates_sql_server_broker_when_missing():
     from pathlib import Path
 
-    from apps.tasks.dispatcherd_config import _load_config_with_django_db
+    from apps.tasks.dispatcherd_config import _load_config_with_dispatcherd_settings
 
-    with patch("builtins.open", mock_open()), patch("yaml.safe_load", return_value={}):
-        config = _load_config_with_django_db(Path("/fake/dispatcherd.yaml"))
+    with (
+        patch("builtins.open", mock_open()),
+        patch("yaml.safe_load", return_value={}),
+        patch("django.conf.settings") as settings,
+    ):
+        settings.DISPATCHERD_SQLSERVER = {"server": "sql.example.com", "database": "dispatcherd"}
+        settings.TASK_TIMEOUT = 3600
+        config = _load_config_with_dispatcherd_settings(Path("/fake/dispatcherd.yaml"))
 
-    assert "brokers" in config
-    assert "pg_notify" in config["brokers"]
+    assert config["brokers"]["sql_server"]["config"] == settings.DISPATCHERD_SQLSERVER
+    assert config["brokers"]["sql_server"]["channels"]
+    assert config["service"]["task_settings"]["default_timeout"] == 3600
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +144,7 @@ def test_setup_dispatcherd_config_loads_yaml_when_file_exists():
     with patch("apps.tasks.dispatcherd_config.get_config_file_path") as mock_path:
         mock_path.return_value.exists.return_value = True
         with (
-            patch("apps.tasks.dispatcherd_config._load_config_with_django_db", return_value={}) as mock_load,
+            patch("apps.tasks.dispatcherd_config._load_config_with_dispatcherd_settings", return_value={}) as mock_load,
             patch("dispatcherd.config.setup") as mock_setup,
         ):
             setup_dispatcherd_config()
@@ -148,7 +163,7 @@ def test_setup_dispatcherd_config_uses_django_when_no_file():
     with patch("apps.tasks.dispatcherd_config.get_config_file_path") as mock_path:
         mock_path.return_value.exists.return_value = False
         with (
-            patch("apps.tasks.dispatcherd_config.build_config_from_django_settings", return_value={}) as mock_build,
+            patch("apps.tasks.dispatcherd_config.build_config_from_settings", return_value={}) as mock_build,
             patch("dispatcherd.config.setup") as mock_setup,
         ):
             setup_dispatcherd_config()

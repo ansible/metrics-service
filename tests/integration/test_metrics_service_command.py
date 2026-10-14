@@ -5,6 +5,7 @@ Tests the full metrics service management command functionality including
 service initialization, task management, and command line operations.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ from unittest.mock import patch
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.db import connections
 from django.test import TestCase, TransactionTestCase
 
 from apps.tasks.models import Task
@@ -242,8 +244,13 @@ class TestMetricsServiceCommandSubprocess(TestCase):
     def _run_command(self, *args, timeout=30):
         """Helper to run management command via subprocess."""
         cmd = [sys.executable, str(self.manage_py), "metrics_service"] + list(args)
+        # The child process starts with the normal configured database name, while
+        # Django has switched this process to its isolated test database. Point the
+        # subprocess at that same test database instead of the developer database.
+        env = os.environ.copy()
+        env["METRICS_SERVICE_DATABASES__default__NAME"] = str(connections["default"].settings_dict["NAME"])
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False, env=env)
             return result
         except subprocess.TimeoutExpired:
             pytest.fail(f"Command timed out: {' '.join(cmd)}")

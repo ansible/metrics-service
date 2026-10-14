@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     *dab_applications,
     *project_applications,
     *extra_applications,
-    "django_generate_series",  # Dashboard data for automation-reports integration
 ]
 
 # Enable debug mode
@@ -93,33 +92,52 @@ CACHES = {
 }
 CSRF_TRUSTED_ORIGINS = []
 
-# Databases settings, using PostgreSQL by default
+# Database backend selection is per alias. Defaults below remain PostgreSQL;
+# normalize_database_connections applies backend-specific ports and options
+# after local files, standard settings files, and environment overrides load.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "",  # require to be set at runtime
-        "PORT": "5432",
+        "PORT": "",
         "USER": "metrics_service",
         "PASSWORD": "",  # require to be set at runtime
         "NAME": "metrics_service",
-        "OPTIONS": {
-            "sslmode": "prefer",
-        },
+        "OPTIONS": {},
     },
     # AWX database for metrics-utility collector integration
     # Override with METRICS_SERVICE_DATABASES__awx__HOST, etc.
     "awx": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "",  # require to be set at runtime
-        "PORT": "5432",
+        "PORT": "",
         "USER": "awx",
         "PASSWORD": "",  # require to be set at runtime
         "NAME": "awx",
-        "OPTIONS": {
-            "sslmode": "prefer",
-        },
+        "OPTIONS": {},
     },
 }
+
+
+@post_hook
+def normalize_database_connections(settings: Dynaconf) -> dict:
+    """Apply port and connection-option defaults for each selected database engine."""
+    import copy
+
+    databases = copy.deepcopy(settings.get("DATABASES") or {})
+    for database in databases.values():
+        engine = database.get("ENGINE")
+        options = dict(database.get("OPTIONS") or {})
+        if engine == "mssql":
+            database["PORT"] = str(database.get("PORT") or "1433")
+            options.setdefault("driver", "ODBC Driver 18 for SQL Server")
+        elif engine == "django.db.backends.postgresql":
+            database["PORT"] = str(database.get("PORT") or "5432")
+            options.setdefault("sslmode", "prefer")
+        database["OPTIONS"] = options
+
+    return {"DATABASES": databases}
+
 
 # Dispatcherd uses an independent SQL Server database for broker messages.
 # These values are overridden with METRICS_SERVICE_DISPATCHERD_SQLSERVER__<KEY>

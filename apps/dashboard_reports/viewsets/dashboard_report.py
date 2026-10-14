@@ -12,10 +12,9 @@ from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
 from dateutil.relativedelta import relativedelta
 from django.db import models
-from django.db.models import Case, Count, F, OuterRef, Q, QuerySet, Subquery, Sum, Value, When
+from django.db.models import Case, Count, F, Q, QuerySet, Sum, Value, When
 from django.db.models.functions import Cast, Coalesce, Trunc
 from django.http import HttpResponse, JsonResponse
-from django_generate_series.models import generate_series  # PostgreSQL-only; revisit if other DB support is added
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import filters, serializers, status
@@ -36,6 +35,31 @@ from apps.dashboard_reports.utils import sec2time
 from apps.tasks.api_utils import build_error_response
 
 logger = logging.getLogger(__name__)
+
+
+def _chart_time_buckets(start: datetime, end: datetime, kind: str) -> list[datetime]:
+    """Generate the inclusive chart buckets in Python, without backend-specific SQL."""
+    step = {
+        "hour": relativedelta(hours=1),
+        "day": relativedelta(days=1),
+        "month": relativedelta(months=1),
+        "year": relativedelta(years=1),
+    }[kind]
+    buckets = []
+    current = start
+    while current <= end:
+        buckets.append(current)
+        current += step
+    return buckets
+
+
+def _chart_bucket_queryset(queryset: QuerySet[JobData], kind: str) -> QuerySet:
+    """Aggregate job and host counts by a portable Django date truncation."""
+    return (
+        queryset.values(term=Trunc("finished", kind=kind, output_field=models.DateTimeField()))
+        .annotate(runs=Count("id"), hosts=Sum("num_hosts"))
+        .order_by("term")
+    )
 
 
 class AliasedOrderingFilter(filters.OrderingFilter):
@@ -436,19 +460,27 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
         coalesced_manual_minutes = Coalesce(F("time_taken_manually_execute_minutes"), Value(0))
         coalesced_create_minutes = Coalesce(F("time_taken_create_automation_minutes"), Value(0))
+        currency_field = models.DecimalField(max_digits=30, decimal_places=10)
+        # Use fixed-point strings because Decimal.__str__ can emit scientific notation
+        # (for example, the empty-period sentinel is Decimal("0E-10")), which SQL Server
+        # cannot convert from nvarchar to numeric.
+        employee_cost_per_minute = Cast(Value(format(average_cost_employee_minute, "f")), output_field=currency_field)
+        subscription_cost_per_second = Cast(
+            Value(format(aap_subscription_per_second, "f")), output_field=currency_field
+        )
 
         if enable_template_creation_time:
-            automated_costs = (coalesced_create_minutes * average_cost_employee_minute) + (
-                F("elapsed") * aap_subscription_per_second
+            automated_costs = (coalesced_create_minutes * employee_cost_per_minute) + (
+                F("elapsed") * subscription_cost_per_second
             )
-            time_savings = F("manual_time") - F("elapsed") - (coalesced_create_minutes * decimal.Decimal(60))
+            time_savings = F("manual_time") - F("elapsed") - (coalesced_create_minutes * 60)
         else:
-            automated_costs = F("elapsed") * aap_subscription_per_second
+            automated_costs = F("elapsed") * subscription_cost_per_second
             time_savings = F("manual_time") - F("elapsed")
 
         # Manual minutes are a per-job-run estimate (see TemplateMetadata defaults); scale by runs,
         # not Sum(num_hosts), which would mis-apply one run's minute estimate across all hosts.
-        manual_costs = F("runs") * coalesced_manual_minutes * average_cost_employee_minute
+        manual_costs = F("runs") * coalesced_manual_minutes * employee_cost_per_minute
         manual_time = F("runs") * (coalesced_manual_minutes * 60)
 
         return (
@@ -469,13 +501,15 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
                 num_hosts=Sum("num_hosts"),
             )
             .annotate(
-                automated_costs=automated_costs,
-                manual_costs=manual_costs,
+                automated_costs=models.ExpressionWrapper(automated_costs, output_field=currency_field),
+                manual_costs=models.ExpressionWrapper(manual_costs, output_field=currency_field),
                 manual_time=manual_time,
             )
             .annotate(
-                time_savings=time_savings,
-                savings=(F("manual_costs") - F("automated_costs")),
+                time_savings=models.ExpressionWrapper(
+                    time_savings, output_field=models.DecimalField(max_digits=30, decimal_places=3)
+                ),
+                savings=models.ExpressionWrapper(F("manual_costs") - F("automated_costs"), output_field=currency_field),
             )
         )
 
@@ -555,10 +589,8 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
 
         Normalizes start_date and end_date to UTC and snaps start_date to the appropriate boundary
         (e.g. hour=0 for day-level, day=1 for month-level). end_date is advanced to the start of
-        the *next* period boundary so that generate_series always emits a bucket for the final
-        period — truncating end_date backward would omit data that falls after the truncated
-        boundary (e.g. a "year" end of Dec 2025 truncated to Jan 1 2025 could lose the 2025 bucket
-        when generate_series stops exactly there). Returns (start_date, end_date, kind).
+        the *next* period boundary so the final period is included in the generated buckets.
+        Returns (start_date, end_date, kind).
         """
         start_date = self.kwargs.get("start_date")
         end_date = self.kwargs.get("end_date")
@@ -610,28 +642,15 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
             queryset = backend().filter_queryset(self.request, queryset, self)
         return queryset
 
-    def _prepare_chart_querysets(self, kind: str) -> tuple[QuerySet, QuerySet]:
-        """
-        Prepares job and host chart querysets for the given kind.
-        Returns: (job_chart_qs, host_chart_qs)
-        """
-        qs = self._filter_raw_jobdata_queryset(JobData.objects.all())
-        qs = qs.values(date=Trunc(expression="finished", kind=kind, output_field=models.DateTimeField())).filter(
-            date=OuterRef("term")
-        )
-        job_chart_qs = qs.annotate(runs=Count("id")).values("runs").order_by()
-        host_chart_qs = qs.annotate(num_hosts=Sum("num_hosts")).values("num_hosts").order_by()
-        return job_chart_qs, host_chart_qs
-
-    def _format_chart_result(self, date_sequence_queryset: QuerySet) -> dict[str, Any]:
-        """
-        Formats the chart result from the date sequence queryset.
-        Returns: dict with host_chart and job_chart.
-        """
-        result = {"host_chart": {"kind": "", "items": []}, "job_chart": {"kind": "", "items": []}}
-        for row in date_sequence_queryset:
-            result["job_chart"]["items"].append({"label": row.term, "value": row.runs})
-            result["host_chart"]["items"].append({"label": row.term, "value": row.hosts})
+    def _format_chart_result(
+        self, time_buckets: Sequence[datetime], values_by_bucket: dict[datetime, tuple[int, int]], kind: str
+    ) -> dict[str, Any]:
+        """Format aggregated values against the complete, zero-filled chart buckets."""
+        result = {"host_chart": {"kind": kind, "items": []}, "job_chart": {"kind": kind, "items": []}}
+        for bucket in time_buckets:
+            runs, hosts = values_by_bucket.get(bucket, (0, 0))
+            result["job_chart"]["items"].append({"label": bucket, "value": runs})
+            result["host_chart"]["items"].append({"label": bucket, "value": hosts})
         return result
 
     def get_chart_data(self) -> dict[str, Any]:
@@ -642,27 +661,12 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         if not start_date or not end_date or not kind:
             return {"host_chart": {"kind": "", "items": []}, "job_chart": {"kind": "", "items": []}}
 
-        job_chart_qs, host_chart_qs = self._prepare_chart_querysets(kind)
+        queryset = self._filter_raw_jobdata_queryset(JobData.objects.all())
+        values_by_bucket = {
+            row["term"]: (row["runs"] or 0, row["hosts"] or 0) for row in _chart_bucket_queryset(queryset, kind)
+        }
 
-        # Generate a time series from start_date to end_date using PostgreSQL's generate_series function.
-        # - start/stop: Define the date range boundaries
-        # - step: Interval between each point (e.g., "1 hours", "1 days", "1 months", "1 years")
-        # - span: Number of intervals to include beyond the stop date (buffer for edge cases)
-        # - output_field: Ensures the series generates DateTimeField values
-        # The resulting queryset contains a 'term' column with each timestamp in the series.
-        date_sequence_queryset = generate_series(
-            start=start_date, stop=end_date, step=f"1 {kind}s", span=5, output_field=models.DateTimeField
-        ).annotate(
-            # For each time point in the series, fetch the count of job runs (or 0 if none)
-            runs=Coalesce(Subquery(job_chart_qs), Value(0)),
-            # For each time point in the series, fetch the sum of hosts (or 0 if none)
-            hosts=Coalesce(Subquery(host_chart_qs), Value(0)),
-        )
-
-        result = self._format_chart_result(date_sequence_queryset)
-        result["host_chart"]["kind"] = kind
-        result["job_chart"]["kind"] = kind
-        return result
+        return self._format_chart_result(_chart_time_buckets(start_date, end_date, kind), values_by_bucket, kind)
 
     @staticmethod
     def _csv_safe(value: Any) -> Any:
