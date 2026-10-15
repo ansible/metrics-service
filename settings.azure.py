@@ -1,0 +1,83 @@
+# Copy this file to settings.local.py and customize for your environment
+# Ensure to have on your shell:
+#
+# DJANGO_SETTINGS_MODULE=metrics_service.settings
+# METRICS_SERVICE_MODE=development
+# METRICS_SERVICE_LOG_LEVEL=DEBUG
+
+SECRET_KEY = "dev-secret-key-change-in-production"
+DEBUG = True
+
+# Database Configuration (PostgreSQL)
+# Using dunder notation for nested settings
+
+# DATABASES__default__ENGINE = "django.db.backends.postgresql"
+# DATABASES__default__NAME = "metrics_service"
+# DATABASES__default__OPTIONS__sslmode = "prefer"
+# DATABASES__default__PORT = 5432
+# DATABASES__default__USER = "metrics_service"
+
+DATABASES__default__HOST = "20.102.65.110"
+DATABASES__default__PASSWORD = "metrics_service"
+
+DATABASES__awx__HOST = "20.102.65.110"
+DATABASES__awx__PASSWORD = "awx"
+
+# Alternative: TLS client certificate authentication, independently for default/awx.
+# Replace the PASSWORD assignments above with empty strings for certificate auth.
+# Option names MUST be lowercase. Both sslcert and sslkey are required, with
+# sslmode=require, verify-ca, or verify-full (recommended with a trusted CA).
+# These paths must exist and be readable in every service container; private keys
+# must meet libpq permissions (normally 0600 and owned by the runtime user).
+# DATABASES__default__PASSWORD = ""
+# DATABASES__default__OPTIONS__sslmode = "verify-full"
+# DATABASES__default__OPTIONS__sslrootcert = "/etc/metrics/db-certs/ca.crt"
+# DATABASES__default__OPTIONS__sslcert = "/etc/metrics/db-certs/metrics.crt"
+# DATABASES__default__OPTIONS__sslkey = "/etc/metrics/db-certs/metrics.key"
+# DATABASES__awx__PASSWORD = ""
+# DATABASES__awx__OPTIONS__sslmode = "verify-full"
+# DATABASES__awx__OPTIONS__sslrootcert = "/etc/metrics/db-certs/ca.crt"
+# DATABASES__awx__OPTIONS__sslcert = "/etc/metrics/db-certs/awx.crt"
+# DATABASES__awx__OPTIONS__sslkey = "/etc/metrics/db-certs/awx.key"
+
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+
+# Service Configuration
+ID = "generated-uuid"
+
+# Development Tools
+ENABLE_DEBUG_TOOLBAR = True
+
+# Logging Configuration
+# Controls the verbosity of application logs
+# Valid values: DEBUG, INFO, WARNING, ERROR
+LOG_LEVEL = "INFO"
+
+# Segment Configuration
+# Custom Segment API endpoint for development/testing with a mock server
+# SEGMENT_URL = "http://localhost:8765"
+
+DISPATCHERD_SQLSERVER__SERVER = "20.102.65.110"
+DISPATCHERD_SQLSERVER__USER = "sqladmin"
+DISPATCHERD_SQLSERVER__PASSWORD = "AlsoEasy2Remember!"
+
+
+# Local SQL Server POC overrides (ignored by git).
+DATABASES__default__ENGINE = "mssql"
+DATABASES__default__HOST = '20.102.65.110'
+DATABASES__default__PORT = '1433'
+DATABASES__default__NAME = "metrics_service_poc"
+DATABASES__default__USER = 'sqladmin'
+DATABASES__default__PASSWORD = 'AlsoEasy2Remember!'
+DATABASES__default__OPTIONS = {"driver": 'ODBC Driver 18 for SQL Server', "extra_params": "Encrypt=yes;TrustServerCertificate=yes"}
+DATABASES__awx__ENGINE = "mssql"
+DATABASES__awx__HOST = '20.102.65.110'
+DATABASES__awx__PORT = '1433'
+DATABASES__awx__NAME = "metrics_awx_poc"
+DATABASES__awx__USER = 'sqladmin'
+DATABASES__awx__PASSWORD = 'AlsoEasy2Remember!'
+DATABASES__awx__OPTIONS = {"driver": 'ODBC Driver 18 for SQL Server', "extra_params": "Encrypt=yes;TrustServerCertificate=yes"}
+FEATURE__METRICS_COLLECTION = False
+FEATURE__DASHBOARD_COLLECTION = False
+FEATURE__INDIRECT_NODE_COLLECTION = False
+FEATURE__ANONYMIZED_DATA_COLLECTION = False

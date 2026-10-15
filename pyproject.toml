@@ -130,6 +130,7 @@ exclude = [
     "node_modules",
     "venv",
     "migrations",
+    "ms_migrations",
 ]
 
 [tool.ruff.lint]
