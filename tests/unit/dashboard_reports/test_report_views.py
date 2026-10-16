@@ -188,6 +188,7 @@ class TestRequireDateRange:
     # Test valid start/end dates
     @patch("apps.dashboard_reports.filters.DateFilter.to_start_date_end_date")
     def test_valid_periods(self, mock_to_dates, factory):
+        """A valid period passes validation and calls the wrapped view."""
         view = DummyView()
         start_date = "2026-03-11T12:00:00"
         end_date = "2026-03-12T12:00:00"
@@ -206,18 +207,42 @@ class TestRequireDateRange:
         assert response.data["success"] is True
         assert view.called
 
-    # Test missing period
-    def test_missing_period(self, factory):
+    # Test missing period defaults to last_30_days
+    def test_missing_period_defaults_to_last_30_days(self, factory):
+        """A missing period defaults to last_30_days with a 30-day window."""
         view = DummyView()
-        request = factory.get("/", {"end_date": "2026-03-12T12:00:00"})
+        request = factory.get("/")
         view.request = request
         response = view.view(request)
-        assert response.status_code == 400
-        assert "period is required" in response.data["error"]
-        assert not view.called
+        assert response.status_code == 200
+        assert view.called
+        assert view.kwargs["period"] == "last_30_days"
+        assert (view.kwargs["end_date"] - view.kwargs["start_date"]).days == 30
+
+    # Test empty period defaults to last_30_days
+    def test_empty_period_defaults_to_last_30_days(self, factory):
+        """An empty period defaults to last_30_days."""
+        view = DummyView()
+        request = factory.get("/", {"period": ""})
+        view.request = request
+        response = view.view(request)
+        assert response.status_code == 200
+        assert view.kwargs["period"] == "last_30_days"
+
+    # Test explicit period is not replaced by the default
+    def test_explicit_period_is_not_replaced_by_default(self, factory):
+        """An explicit period keeps its own value and window instead of the default."""
+        view = DummyView()
+        request = factory.get("/", {"period": "last_7_days"})
+        view.request = request
+        response = view.view(request)
+        assert response.status_code == 200
+        assert view.kwargs["period"] == "last_7_days"
+        assert (view.kwargs["end_date"] - view.kwargs["start_date"]).days == 7
 
     # Test invalid period format
     def test_invalid_period_format(self, factory):
+        """An unknown period returns 400 listing the allowed values and skips the view."""
         view = DummyView()
         request = factory.get("/", {"period": "invalid-period"})
         view.request = request

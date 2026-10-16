@@ -53,6 +53,7 @@ def currency_to_decimal(value: str) -> decimal.Decimal:
 
 @pytest.fixture
 def template_metadata():
+    """Create Template A and Template B metadata used by the export job fixtures."""
     templates = [
         TemplateMetadata(
             template_id=1,
@@ -68,6 +69,38 @@ def template_metadata():
         ),
     ]
     return TemplateMetadata.objects.bulk_create(templates)
+
+
+@pytest.fixture
+def period_window_jobs(template_metadata):
+    """
+    Jobs that pin the default report window to exactly last_30_days.
+
+    job_id 5: Template A, finished 20 days ago (inside last_30_days, outside last_14_days)
+    job_id 6: Template A, finished 45 days ago (outside last_30_days, inside last_60_days)
+    """
+    now = get_now()
+    tmpl = template_metadata[0]
+    jobs = [
+        JobData(
+            job_id=job_id,
+            template_name=tmpl.template_name,
+            template_id=tmpl.template_id,
+            project_id=10,
+            project_name="Project A",
+            organization_id=1,
+            status=JobStatusChoices.SUCCESSFUL,
+            started=now - datetime.timedelta(days=days_ago, minutes=10),
+            finished=now - datetime.timedelta(days=days_ago),
+            elapsed=60,
+            num_hosts=1,
+            launched_by_id=1,
+            launched_by_username="test_user",
+            template_metadata=tmpl,
+        )
+        for job_id, days_ago in ((5, 20), (6, 45))
+    ]
+    return JobData.objects.bulk_create(jobs)
 
 
 @pytest.fixture
@@ -185,17 +218,28 @@ class TestExportEndpointGeneral:
             yield
 
     def test_export_endpoint_resolves(self):
+        """The export URL resolves to a view."""
         from django.urls import resolve
 
         match = resolve("/api/v1/dashboard_reports/report/export/")
         assert match is not None
 
-    def test_export_missing_period_returns_400(self, admin_client):
+    def test_export_missing_period_defaults_to_last_30_days(self, job_data, period_window_jobs, admin_client):
+        """Export without period returns the same CSV as last_30_days, not last_14_days or last_60_days."""
         url = reverse("dashboard_reports:report-export")
-        response = admin_client.get(url)
-        assert response.status_code == 400
+        response = admin_client.get(url, {"report_type": "summary"})
+        responses = {
+            period: admin_client.get(url, {"period": period, "report_type": "summary"})
+            for period in ("last_14_days", "last_30_days", "last_60_days")
+        }
+
+        assert response.status_code == 200
+        assert parse_csv(response.content) == parse_csv(responses["last_30_days"].content)
+        assert parse_csv(response.content) != parse_csv(responses["last_14_days"].content)
+        assert parse_csv(response.content) != parse_csv(responses["last_60_days"].content)
 
     def test_export_invalid_period_returns_400(self, admin_client):
+        """Export with an unknown period returns 400."""
         url = reverse("dashboard_reports:report-export")
         response = admin_client.get(url, data={"period": "last_999_days", "tz": "UTC", "report_type": "summary"})
         assert response.status_code == 400
