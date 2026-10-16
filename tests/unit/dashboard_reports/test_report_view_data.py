@@ -190,6 +190,38 @@ def job_data(template_metadata):
     return created_jobs
 
 
+@pytest.fixture
+def period_window_jobs(template_metadata):
+    """
+    Jobs that pin the default report window to exactly last_30_days.
+
+    job_id 5: Template A, finished 20 days ago (inside last_30_days, outside last_14_days)
+    job_id 6: Template A, finished 45 days ago (outside last_30_days, inside last_60_days)
+    """
+    now = get_now()
+    tmpl = template_metadata[0]
+    jobs = [
+        JobData(
+            job_id=job_id,
+            template_name=tmpl.template_name,
+            template_id=tmpl.template_id,
+            project_id=10,
+            project_name="Project A",
+            organization_id=1,
+            status=JobStatusChoices.SUCCESSFUL,
+            started=now - datetime.timedelta(days=days_ago, minutes=10),
+            finished=now - datetime.timedelta(days=days_ago),
+            elapsed=60,
+            num_hosts=1,
+            launched_by_id=1,
+            launched_by_username="test_user",
+            template_metadata=tmpl,
+        )
+        for job_id, days_ago in ((5, 20), (6, 45))
+    ]
+    return JobData.objects.bulk_create(jobs)
+
+
 # =============================================================================
 # Expected data constants for Template A (job_id 1 and 2)
 # =============================================================================
@@ -619,15 +651,39 @@ class TestDashboardReportViewSetEndpoints:
 
     """Unit tests for DashboardReportViewSet list and details endpoints."""
 
-    def test_list_missing_period_returns_400(self, admin_client):
-        response = admin_client.get(reverse("v1:report-list"))
-        assert response.status_code == 400
+    @pytest.mark.parametrize("url_name", ["v1:report-list", "v1:report-details"])
+    def test_missing_period_defaults_to_last_30_days(self, job_data, period_window_jobs, admin_client, url_name):
+        """List and details without period return the same data as last_30_days, not last_14_days or last_60_days."""
+        url = reverse(url_name)
+        response = admin_client.get(url)
+        responses = {
+            period: admin_client.get(url, {"period": period})
+            for period in ("last_14_days", "last_30_days", "last_60_days")
+        }
 
-    def test_details_missing_period_returns_400(self, admin_client):
-        response = admin_client.get(reverse("v1:report-details"))
-        assert response.status_code == 400
+        assert response.status_code == 200
+        assert response.data == responses["last_30_days"].data
+        # The 20-day-old job is excluded by last_14_days and the 45-day-old job is included by last_60_days,
+        # so a match with last_30_days alone pins the default window.
+        assert response.data != responses["last_14_days"].data
+        assert response.data != responses["last_60_days"].data
+
+    def test_empty_period_defaults_to_last_30_days(self, job_data, period_window_jobs, admin_client):
+        """An empty period query param is treated as missing and defaults to last_30_days."""
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, {"period": ""})
+        assert response.status_code == 200
+        assert response.data == admin_client.get(url, {"period": "last_30_days"}).data
+
+    def test_explicit_period_is_not_replaced_by_default(self, job_data, period_window_jobs, admin_client):
+        """An explicit period is used as given instead of the last_30_days default."""
+        url = reverse("v1:report-list")
+        response = admin_client.get(url, {"period": "last_7_days"})
+        assert response.status_code == 200
+        assert response.data != admin_client.get(url).data
 
     def test_details_invalid_period_returns_400(self, admin_client):
+        """Details with an unknown period returns 400."""
         response = admin_client.get(
             reverse("v1:report-details"),
             data={"period": "invalid_period", "tz": "UTC"},

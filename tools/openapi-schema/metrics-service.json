@@ -1467,10 +1467,10 @@
                                 "last_60_days",
                                 "last_7_days",
                                 "last_90_days"
-                            ]
+                            ],
+                            "default": "last_30_days"
                         },
-                        "description": "Filter for report period.",
-                        "required": true
+                        "description": "Filter for report period (default: last_30_days)."
                     },
                     {
                         "in": "query",
@@ -1710,10 +1710,10 @@
                                 "last_60_days",
                                 "last_7_days",
                                 "last_90_days"
-                            ]
+                            ],
+                            "default": "last_30_days"
                         },
-                        "description": "Filter for report period.",
-                        "required": true
+                        "description": "Filter for report period (default: last_30_days)."
                     },
                     {
                         "in": "query",
@@ -1896,10 +1896,10 @@
                                 "last_60_days",
                                 "last_7_days",
                                 "last_90_days"
-                            ]
+                            ],
+                            "default": "last_30_days"
                         },
-                        "description": "Filter for report period.",
-                        "required": true
+                        "description": "Filter for report period (default: last_30_days)."
                     },
                     {
                         "in": "query",
