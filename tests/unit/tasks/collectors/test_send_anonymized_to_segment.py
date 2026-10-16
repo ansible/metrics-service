@@ -57,6 +57,7 @@ class TestSegmentTestMode:
         mock_send_to_segment.assert_called_once()
         _, call_kwargs = mock_send_to_segment.call_args
         assert call_kwargs["event_name"] == "Controller Metrics Daily Rollup_Test"
+        assert call_kwargs["segment_meta"]["version"] == "v1"
         assert results["sent"] == 1
 
     @patch("apps.tasks.collectors.send_anonymized_to_segment.send_to_segment")
