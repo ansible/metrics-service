@@ -14,39 +14,76 @@ _EXCLUDED_API_ROUTE_PREFIXES = ("api/v1/metrics", "api/v1/docs")
 _TRACKED_API_VIEW_NAME_PREFIXES = ("analytics:",)
 
 
-def _endpoint_for_request(request):
-    """Return a stable endpoint label for an API route, excluding infrastructure endpoints."""
-    match = getattr(request, "resolver_match", None)
-    if match is None:
-        path = request.path_info
-        url_prefix = getattr(settings, "URL_PREFIX", None)
-        if url_prefix:
-            api_prefix = url_prefix.rstrip("/")
-            service_prefix = api_prefix[4:] if api_prefix.startswith("/api/") else api_prefix
-            if path == api_prefix or path.startswith(f"{api_prefix}/"):
-                path = "/api" + path[len(api_prefix) :]
-            elif path == service_prefix or path.startswith(f"{service_prefix}/"):
-                path = path[len(service_prefix) :] or "/"
-        else:
-            service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
-            service_prefix = f"/{service_name}"
-            if path == service_prefix or path.startswith(f"{service_prefix}/"):
-                path = path[len(service_prefix) :] or "/"
-        try:
-            match = resolve(path)
-        except Resolver404:
-            return None
+def _path_matches_prefix(path, prefix):
+    """Return whether path is exactly a prefix or one of its child paths."""
+    return path == prefix or path.startswith(f"{prefix}/")
 
+
+def _strip_path_prefix(path, prefix):
+    """Remove a service prefix from a path, preserving the root path."""
+    if _path_matches_prefix(path, prefix):
+        return path[len(prefix) :] or "/"
+    return path
+
+
+def _normalize_prefixed_path(path, api_prefix, service_prefix):
+    """Translate a configured service URL prefix to the canonical API path."""
+    if _path_matches_prefix(path, api_prefix):
+        return "/api" + path[len(api_prefix) :]
+    return _strip_path_prefix(path, service_prefix)
+
+
+def _normalize_request_path(path):
+    """Remove the configured service prefix before resolving a request path."""
+    url_prefix = getattr(settings, "URL_PREFIX", None)
+    if url_prefix:
+        api_prefix = url_prefix.rstrip("/")
+        service_prefix = api_prefix[4:] if api_prefix.startswith("/api/") else api_prefix
+        return _normalize_prefixed_path(path, api_prefix, service_prefix)
+
+    service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
+    return _strip_path_prefix(path, f"/{service_name}")
+
+
+def _resolve_request_match(request):
+    """Return Django's route match, resolving it from the request path if needed."""
+    match = getattr(request, "resolver_match", None)
+    if match is not None:
+        return match
+    try:
+        return resolve(_normalize_request_path(request.path_info))
+    except Resolver404:
+        return None
+
+
+def _is_api_route(route):
+    """Return whether a normalized route belongs to the API URL tree."""
+    return route == "api" or route.startswith("api/")
+
+
+def _is_excluded_api_route(route):
+    """Return whether a route belongs to API infrastructure or documentation."""
+    return any(_path_matches_prefix(route, prefix) for prefix in _EXCLUDED_API_ROUTE_PREFIXES)
+
+
+def _tracked_api_endpoint_name(match):
+    """Return the endpoint name when a resolved match is a tracked analytics API route."""
     route = str(getattr(match, "route", "")).lstrip("^").rstrip("$").strip("/")
-    if (route != "api" and not route.startswith("api/")) or any(
-        route == prefix or route.startswith(f"{prefix}/") for prefix in _EXCLUDED_API_ROUTE_PREFIXES
-    ):
+    if not _is_api_route(route) or _is_excluded_api_route(route):
         return None
 
     endpoint_name = getattr(match, "view_name", None)
     if endpoint_name and endpoint_name.startswith(_TRACKED_API_VIEW_NAME_PREFIXES):
         return endpoint_name
     return None
+
+
+def _endpoint_for_request(request):
+    """Return a stable endpoint label for an API route, excluding infrastructure endpoints."""
+    match = _resolve_request_match(request)
+    if match is None:
+        return None
+    return _tracked_api_endpoint_name(match)
 
 
 def record_api_usage(request, status_code: int) -> None:
