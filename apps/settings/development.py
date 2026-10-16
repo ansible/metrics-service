@@ -25,6 +25,10 @@ class _DevCorsMiddleware:
             from django.http import HttpResponse
 
             response = HttpResponse()
+            # This shortcut bypasses later middleware, so record analytics API preflights here.
+            from apps.analytics.middleware import record_analytics_api_request
+
+            record_analytics_api_request(request, response.status_code)
         else:
             response = self.get_response(request)
 
