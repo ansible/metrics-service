@@ -247,8 +247,8 @@ class TestDailyAnonymizeTelemetry:
         specific_date = date(2024, 8, 15)
         DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()
         APIUsageCounter.record_request(specific_date, "analytics:v1:root", 2)
-        APIUsageCounter.record_request(specific_date, "tasks:v1:task-list", 4)
-        APIUsageCounter.record_request(specific_date, "user-list", 5)
+        APIUsageCounter.record_request(specific_date, "analytics:v1:rows", 4)
+        APIUsageCounter.record_request(specific_date, "analytics:v1:collect", 5)
 
         DailyMetricsSummary.objects.create(
             summary_date=specific_date,
@@ -267,8 +267,8 @@ class TestDailyAnonymizeTelemetry:
         assert telemetry["available"] is True
         assert telemetry["total_requests"] == 3
         assert telemetry["by_endpoint"]["analytics:v1:root"]["2xx"] == 1
-        assert telemetry["by_endpoint"]["tasks:v1:task-list"]["4xx"] == 1
-        assert telemetry["by_endpoint"]["user-list"]["5xx"] == 1
+        assert telemetry["by_endpoint"]["analytics:v1:rows"]["4xx"] == 1
+        assert telemetry["by_endpoint"]["analytics:v1:collect"]["5xx"] == 1
         assert telemetry["by_endpoint"]["analytics:v1:root"]["4xx"] == 0
 
     def test_missing_dashboard_telemetry_defaults_to_empty_list(self):

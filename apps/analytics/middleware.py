@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 _EXCLUDED_API_ROUTE_PREFIXES = ("api/v1/metrics", "api/v1/docs")
+# Keep this PR scoped to BYO-BI analytics routes; add other API namespaces here to expand coverage.
+_TRACKED_API_VIEW_NAME_PREFIXES = ("analytics:",)
 
 
 def _endpoint_for_request(request):
@@ -41,7 +43,10 @@ def _endpoint_for_request(request):
     ):
         return None
 
-    return getattr(match, "view_name", None) or route
+    endpoint_name = getattr(match, "view_name", None)
+    if endpoint_name and endpoint_name.startswith(_TRACKED_API_VIEW_NAME_PREFIXES):
+        return endpoint_name
+    return None
 
 
 def record_api_usage(request, status_code: int) -> None:
