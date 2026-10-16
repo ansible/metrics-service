@@ -23,11 +23,10 @@ CONFIG = "controller.config"
     [
         ("GET", ROOT, 200, "analytics:v1:root"),
         ("GET", ROOT, 401, "analytics:v1:root"),
-        ("GET", "/api/v1/users/", 200, "user-list"),
         ("GET", f"{ROOT}{CONFIG}/", 302, "analytics:v1:rows"),
         ("GET", f"{ROOT}unknown.collector/", 404, "analytics:v1:rows"),
         ("POST", f"{ROOT}{CONFIG}/collect/", 202, "analytics:v1:collect"),
-        ("DELETE", "/api/v1/tasks/", 500, "tasks:v1:task-list"),
+        ("DELETE", f"{ROOT}{CONFIG}/collect/", 500, "analytics:v1:collect"),
     ],
 )
 def test_middleware_counts_resolved_api_requests_by_status_class(method, path, status_code, endpoint_name):
@@ -47,9 +46,10 @@ def test_middleware_counts_resolved_api_requests_by_status_class(method, path, s
     assert counter.request_count == 1
 
 
-def test_middleware_ignores_unrelated_routes():
-    request = RequestFactory().get("/health/")
-    request.resolver_match = resolve("/health/")
+@pytest.mark.parametrize("path", ["/health/", "/api/v1/tasks/", "/api/v1/users/"])
+def test_middleware_ignores_non_analytics_api_routes(path):
+    request = RequestFactory().get(path)
+    request.resolver_match = resolve(path)
     middleware = APIUsageMiddleware(lambda _request: HttpResponse(status=200))
 
     middleware(request)

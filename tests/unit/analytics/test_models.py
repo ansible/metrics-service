@@ -68,15 +68,15 @@ def test_api_usage_counter_increments_and_summarizes_by_endpoint_and_status():
 
     APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
     APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
-    APIUsageCounter.record_request(usage_date, "tasks:v1:task-list", 4)
-    APIUsageCounter.record_request(usage_date.replace(day=18), "user-list", 5)
+    APIUsageCounter.record_request(usage_date, "analytics:v1:rows", 4)
+    APIUsageCounter.record_request(usage_date.replace(day=18), "analytics:v1:collect", 5)
 
     summary = APIUsageCounter.daily_summary(usage_date)
 
     assert summary["available"] is True
     assert summary["total_requests"] == 3
     assert summary["by_endpoint"]["analytics:v1:root"]["2xx"] == 2
-    assert summary["by_endpoint"]["tasks:v1:task-list"]["4xx"] == 1
+    assert summary["by_endpoint"]["analytics:v1:rows"]["4xx"] == 1
     assert APIUsageCounter.objects.filter(usage_date=usage_date).count() == 2
 
 
