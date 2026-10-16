@@ -79,9 +79,10 @@ def test_counter_write_failure_does_not_change_api_response():
     assert response.status_code == 503
 
 
+@pytest.mark.parametrize("path", ["/api/metrics/v1/analytics/", "/metrics/api/v1/analytics/"])
 @override_settings(URL_PREFIX="/api/metrics")
-def test_preflight_request_resolves_endpoint_with_service_url_prefix():
-    request = RequestFactory().options("/api/metrics/v1/analytics/")
+def test_preflight_request_resolves_endpoint_with_service_url_prefix(path):
+    request = RequestFactory().options(path)
     usage_date = timezone.now().date()
 
     record_api_usage(request, 200)
