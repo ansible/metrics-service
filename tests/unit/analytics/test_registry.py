@@ -30,6 +30,7 @@ def test_enabled_collectors_are_all_enabled():
         "controller.main_jobevent",
         "controller.unified_jobs",
     } <= set(enabled)
+    assert all(e.payload_shape in {"object", "array"} for e in enabled.values())
     # Pipeline-only, dashboard-only, AWX in-process, and external Prometheus collectors stay off.
     assert "service.task_executions_service" not in enabled
     assert "dashboard.dashboard_jobs" not in enabled
@@ -38,11 +39,118 @@ def test_enabled_collectors_are_all_enabled():
 
 
 @pytest.mark.unit
+def test_enabled_collectors_have_named_payload_schemas():
+    enabled = registry.enabled_collectors().values()
+
+    assert all(entry.payload_schema.name for entry in enabled)
+    assert all(entry.payload_schema.description for entry in enabled)
+    assert {entry.payload_schema.kind for entry in enabled} == {"array", "object"}
+
+
+@pytest.mark.unit
+def test_payload_schema_types_match_representative_collector_fields():
+    jobs = registry.get_entry("controller.unified_jobs_dashboard").payload_schema
+    assert {field.name: field.type for field in jobs.item_fields}["id"] == "integer"
+    assert {field.name: field.type for field in jobs.item_fields}["finished"] == "datetime"
+    assert {field.name: field.type for field in jobs.item_fields}["failed"] == "boolean"
+
+    counts = registry.get_entry("controller.counts").payload_schema
+    assert counts.kind == "object"
+    assert {field.name: field.type for field in counts.fields}["running_jobs"] == "integer"
+    assert counts.additional_properties is None
+
+    instance_info = registry.get_entry("controller.instance_info").payload_schema
+    assert instance_info.additional_properties.type == "object"
+    assert {field.name: field.type for field in instance_info.additional_properties.fields}["capacity"] == "integer"
+
+
+def _item_types(name):
+    return {field.name: field.type for field in registry.get_entry(name).payload_schema.item_fields}
+
+
+@pytest.mark.unit
+def test_payload_schemas_follow_collector_variants():
+    # The base collector has no modified column; the dashboard variant does.
+    assert "modified" not in _item_types("controller.unified_jobs")
+    assert "modified" in _item_types("controller.unified_jobs_dashboard")
+
+    # JobHostSummary.failed is a boolean flag, unlike the integer task counters.
+    assert _item_types("controller.job_host_summary")["failed"] == "boolean"
+    assert _item_types("controller.job_host_summary")["ansible_host_variable"] == "string"
+    assert "ansible_host_variable" not in _item_types("controller.job_host_summary_service")
+
+    for name in ("controller.events_table", "controller.main_jobevent_service"):
+        assert {"collection_name", "collection_version"} <= set(_item_types(name))
+    assert "main_jobhostsummary_id" in _item_types("controller.main_jobevent")
+
+    audit = _item_types("controller.main_indirectmanagednodeaudit")
+    assert audit["events"] == "array"
+    assert audit["task_runs"] == "integer"
+
+
+@pytest.mark.unit
+def test_config_payload_schema_matches_license_types():
+    config = {field.name: field.type for field in registry.get_entry("controller.config").payload_schema.fields}
+    assert config["date_expired"] == "boolean"
+    assert config["license_date"] == "integer"
+    assert config["usage"] == "string"
+
+
+@pytest.mark.unit
+def test_payload_schemas_are_all_used_by_enabled_collectors():
+    from apps.analytics.payload_schemas import PAYLOAD_SCHEMAS
+
+    enabled = registry.enabled_collectors().values()
+    assert set(PAYLOAD_SCHEMAS) == {entry.mu_function for entry in enabled}
+    assert all(entry.payload_schema is PAYLOAD_SCHEMAS[entry.mu_function] for entry in enabled)
+
+
+@pytest.mark.unit
+def test_payload_metadata_is_derived_from_payload_schema():
+    for entry in registry.enabled_collectors().values():
+        assert entry.payload_shape == entry.payload_schema.kind
+        assert entry.key_field == entry.payload_schema.key_field
+        # Keyed objects say what their keys are; arrays and fixed-key objects don't.
+        assert (entry.key_field is not None) == (entry.payload_schema.additional_properties is not None)
+    disabled = registry.get_entry("dashboard.dashboard_jobs")
+    assert (disabled.payload_shape, disabled.key_field) == (None, None)
+
+
+@pytest.mark.unit
+def test_enabled_collector_requires_payload_schema():
+    with pytest.raises(ValueError, match="payload_schema"):
+        registry.CollectorEntry("controller.example", collector_type="example", mode="hourly", enabled=True)
+
+    disabled = registry.CollectorEntry("controller.example", collector_type="example", mode="", enabled=False)
+    assert disabled.payload_schema is None
+
+
+@pytest.mark.unit
 def test_accepts_since_until_by_mode():
     assert registry.get_entry("controller.unified_jobs_dashboard").accepts_since_until is True  # hourly
     assert registry.get_entry("controller.events_table").accepts_since_until is True  # hourly
     assert registry.get_entry("controller.config").accepts_since_until is False  # snapshot
     assert registry.get_entry("controller.counts").accepts_since_until is False  # snapshot
+
+
+@pytest.mark.unit
+def test_payload_metadata():
+    # Dict collectors; every other enabled collector returns a DataFrame (array of records).
+    objects = {
+        "controller.query_info": None,
+        "controller.config": None,
+        "controller.counts": None,
+        "controller.cred_type_counts": "credential_type_id",
+        "controller.instance_info": "uuid",
+        "controller.inventory_counts": "inventory_id",
+        "controller.org_counts": "organization_id",
+        "controller.projects_by_scm_type": "scm_type",
+    }
+    for name, entry in registry.enabled_collectors().items():
+        if name in objects:
+            assert (entry.payload_shape, entry.key_field) == ("object", objects[name]), name
+        else:
+            assert (entry.payload_shape, entry.key_field) == ("array", None), name
 
 
 @pytest.mark.unit

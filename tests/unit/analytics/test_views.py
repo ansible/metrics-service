@@ -38,8 +38,14 @@ def test_root_lists_enabled_collectors(authenticated_client):
     unified = next(collector for collector in response.json()["collectors"] if collector["name"] == UNIFIED)
     assert unified["description"] == (
         "Job executions, including status and timing, organization, inventory, project, template, "
-        "execution environment, launcher, labels, and host count."
+        "execution environment, launcher, labels, and host count. The nested installed_collections "
+        "object is keyed by collection FQCN."
     )
+    assert unified["payload_shape"] == "array"
+    assert unified["key_field"] is None
+    config = next(collector for collector in response.json()["collectors"] if collector["name"] == CONFIG)
+    assert config["payload_shape"] == "object"
+    assert config["key_field"] is None
     assert "service.task_executions_service" not in names
     assert "dashboard.dashboard_jobs" not in names
     assert all(
@@ -78,7 +84,32 @@ def test_root_browsable_response_links_collector_urls(authenticated_client):
     assert response.status_code == 200
     assert 'href="http://testserver/api/v1/analytics/controller.config/"' in response.text
     assert "accepts_since_until" in response.text
+    assert "payload_shape" in response.text
+    assert "key_field" in response.text
     assert "collect_url" in response.text
+
+
+def test_openapi_associates_every_enabled_collector_with_a_payload_schema():
+    from drf_spectacular.generators import SchemaGenerator
+
+    from apps.analytics.registry import enabled_collectors
+
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    operation = schema["paths"]["/api/v1/analytics/{collector}/"]["get"]
+    response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    components = schema["components"]["schemas"]
+    result_schema = components["AnalyticsPayloadByCollector"]
+
+    assert response_schema["$ref"] == "#/components/schemas/PaginatedAnalyticsPayloadList"
+    assert result_schema["discriminator"]["propertyName"] == "collector"
+    assert set(result_schema["discriminator"]["mapping"]) == set(enabled_collectors())
+    assert all(ref["$ref"].split("/")[-1] in components for ref in result_schema["oneOf"])
+    assert all(
+        entry.payload_schema.name in components
+        for entry in enabled_collectors().values()
+        if entry.payload_schema.kind == "array"
+    )
+    assert {parameter["name"] for parameter in operation["parameters"]} >= {"page", "page_size", "since", "until"}
 
 
 def test_rows_browsable_response_shows_field_description(authenticated_client):
