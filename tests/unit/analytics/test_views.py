@@ -6,7 +6,7 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.analytics.models import AnalyticsAPIUsageCounter, AnalyticsPayload
+from apps.analytics.models import AnalyticsPayload, APIUsageCounter
 from apps.tasks.models import Task
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
@@ -128,12 +128,12 @@ def test_api_requests_are_counted_for_successful_and_failed_responses(authentica
     assert rows_response.status_code == 404
     assert collect_response.status_code == 202
 
-    summary = AnalyticsAPIUsageCounter.daily_summary(usage_date)
+    summary = APIUsageCounter.daily_summary(usage_date)
     assert summary["total_requests"] == 4
-    assert summary["by_operation"]["discovery"]["4xx"] == 1
-    assert summary["by_operation"]["discovery"]["2xx"] == 1
-    assert summary["by_operation"]["rows"]["4xx"] == 1
-    assert summary["by_operation"]["collect"]["2xx"] == 1
+    assert summary["by_endpoint"]["analytics:v1:root"]["4xx"] == 1
+    assert summary["by_endpoint"]["analytics:v1:root"]["2xx"] == 1
+    assert summary["by_endpoint"]["analytics:v1:rows"]["4xx"] == 1
+    assert summary["by_endpoint"]["analytics:v1:collect"]["2xx"] == 1
 
 
 def test_api_preflight_requests_are_counted():
@@ -142,9 +142,9 @@ def test_api_preflight_requests_are_counted():
     response = APIClient().options(ROOT)
 
     assert response.status_code == 200
-    summary = AnalyticsAPIUsageCounter.daily_summary(usage_date)
+    summary = APIUsageCounter.daily_summary(usage_date)
     assert summary["total_requests"] == 1
-    assert summary["by_operation"]["discovery"]["2xx"] == 1
+    assert summary["by_endpoint"]["analytics:v1:root"]["2xx"] == 1
 
 
 def test_rows_return_collection_envelope(authenticated_client):

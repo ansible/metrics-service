@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from apps.analytics.models import AnalyticsAPIUsageCounter, AnalyticsPayload
+from apps.analytics.models import AnalyticsPayload, APIUsageCounter
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 
@@ -63,39 +63,32 @@ def test_analytics_payload_retains_duplicate_window():
     assert AnalyticsPayload.objects.filter(**window).count() == 2
 
 
-def test_analytics_api_usage_counter_increments_and_summarizes_by_operation_and_status():
+def test_api_usage_counter_increments_and_summarizes_by_endpoint_and_status():
     usage_date = datetime(2026, 8, 17, tzinfo=UTC).date()
 
-    AnalyticsAPIUsageCounter.record_request(usage_date, "discovery", 2)
-    AnalyticsAPIUsageCounter.record_request(usage_date, "discovery", 2)
-    AnalyticsAPIUsageCounter.record_request(usage_date, "rows", 4)
-    AnalyticsAPIUsageCounter.record_request(usage_date.replace(day=18), "collect", 5)
+    APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
+    APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
+    APIUsageCounter.record_request(usage_date, "tasks:v1:task-list", 4)
+    APIUsageCounter.record_request(usage_date.replace(day=18), "user-list", 5)
 
-    summary = AnalyticsAPIUsageCounter.daily_summary(usage_date)
+    summary = APIUsageCounter.daily_summary(usage_date)
 
     assert summary["available"] is True
     assert summary["total_requests"] == 3
-    assert summary["by_operation"]["discovery"]["2xx"] == 2
-    assert summary["by_operation"]["rows"]["4xx"] == 1
-    assert summary["by_operation"]["collect"]["5xx"] == 0
-    assert AnalyticsAPIUsageCounter.objects.filter(usage_date=usage_date).count() == 2
+    assert summary["by_endpoint"]["analytics:v1:root"]["2xx"] == 2
+    assert summary["by_endpoint"]["tasks:v1:task-list"]["4xx"] == 1
+    assert APIUsageCounter.objects.filter(usage_date=usage_date).count() == 2
 
 
-def test_analytics_api_usage_counter_returns_zero_filled_summary_when_empty():
-    summary = AnalyticsAPIUsageCounter.daily_summary(datetime(2026, 8, 17, tzinfo=UTC).date())
+def test_api_usage_counter_returns_empty_endpoint_map_when_empty():
+    summary = APIUsageCounter.daily_summary(datetime(2026, 8, 17, tzinfo=UTC).date())
 
     assert summary["available"] is True
     assert summary["total_requests"] == 0
-    assert summary["by_operation"]["discovery"] == {
-        "1xx": 0,
-        "2xx": 0,
-        "3xx": 0,
-        "4xx": 0,
-        "5xx": 0,
-    }
+    assert summary["by_endpoint"] == {}
 
 
-def test_analytics_api_usage_counter_stores_only_aggregate_fields():
-    field_names = {field.name for field in AnalyticsAPIUsageCounter._meta.get_fields()}
+def test_api_usage_counter_stores_only_aggregate_fields():
+    field_names = {field.name for field in APIUsageCounter._meta.get_fields()}
 
-    assert field_names == {"id", "usage_date", "operation", "status_class", "request_count"}
+    assert field_names == {"id", "usage_date", "endpoint_name", "status_class", "request_count"}

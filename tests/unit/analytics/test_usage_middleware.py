@@ -1,7 +1,6 @@
-"""Tests for Analytics API request usage middleware."""
+"""Tests for generic API request usage middleware."""
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -10,8 +9,8 @@ from django.test import RequestFactory, override_settings
 from django.urls import resolve
 from django.utils import timezone
 
-from apps.analytics.middleware import AnalyticsAPIUsageMiddleware, record_analytics_api_request
-from apps.analytics.models import AnalyticsAPIUsageCounter
+from apps.analytics.middleware import APIUsageMiddleware, record_api_usage
+from apps.analytics.models import APIUsageCounter
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 
@@ -20,64 +19,76 @@ CONFIG = "controller.config"
 
 
 @pytest.mark.parametrize(
-    ("method", "path", "status_code", "operation"),
+    ("method", "path", "status_code", "endpoint_name"),
     [
-        ("GET", ROOT, 200, "discovery"),
-        ("GET", ROOT, 401, "discovery"),
-        ("GET", f"{ROOT}{CONFIG}/", 302, "rows"),
-        ("GET", f"{ROOT}unknown.collector/", 404, "rows"),
-        ("POST", f"{ROOT}{CONFIG}/collect/", 202, "collect"),
-        ("DELETE", f"{ROOT}{CONFIG}/collect/", 500, "collect"),
+        ("GET", ROOT, 200, "analytics:v1:root"),
+        ("GET", ROOT, 401, "analytics:v1:root"),
+        ("GET", "/api/v1/users/", 200, "user-list"),
+        ("GET", f"{ROOT}{CONFIG}/", 302, "analytics:v1:rows"),
+        ("GET", f"{ROOT}unknown.collector/", 404, "analytics:v1:rows"),
+        ("POST", f"{ROOT}{CONFIG}/collect/", 202, "analytics:v1:collect"),
+        ("DELETE", "/api/v1/tasks/", 500, "tasks:v1:task-list"),
     ],
 )
-def test_middleware_counts_resolved_analytics_api_requests_by_status_class(method, path, status_code, operation):
+def test_middleware_counts_resolved_api_requests_by_status_class(method, path, status_code, endpoint_name):
     request = RequestFactory().generic(method, path)
     request.resolver_match = resolve(path)
     expected_date = timezone.now().date()
-    middleware = AnalyticsAPIUsageMiddleware(lambda _request: HttpResponse(status=status_code))
+    middleware = APIUsageMiddleware(lambda _request: HttpResponse(status=status_code))
 
     response = middleware(request)
 
     assert response.status_code == status_code
-    counter = AnalyticsAPIUsageCounter.objects.get(
+    counter = APIUsageCounter.objects.get(
         usage_date=expected_date,
-        operation=operation,
+        endpoint_name=endpoint_name,
         status_class=status_code // 100,
     )
     assert counter.request_count == 1
 
 
 def test_middleware_ignores_unrelated_routes():
-    request = RequestFactory().get("/api/v1/tasks/")
-    request.resolver_match = SimpleNamespace(view_name="tasks:v1:task-list")
-    middleware = AnalyticsAPIUsageMiddleware(lambda _request: HttpResponse(status=200))
+    request = RequestFactory().get("/health/")
+    request.resolver_match = resolve("/health/")
+    middleware = APIUsageMiddleware(lambda _request: HttpResponse(status=200))
 
     middleware(request)
 
-    assert not AnalyticsAPIUsageCounter.objects.exists()
+    assert not APIUsageCounter.objects.exists()
+
+
+@pytest.mark.parametrize("path", ["/api/v1/metrics", "/api/v1/metrics/", "/api/v1/docs/schema/"])
+def test_middleware_ignores_infrastructure_and_documentation_routes(path):
+    request = RequestFactory().get(path)
+    request.resolver_match = resolve(path)
+    middleware = APIUsageMiddleware(lambda _request: HttpResponse(status=200))
+
+    middleware(request)
+
+    assert not APIUsageCounter.objects.exists()
 
 
 def test_counter_write_failure_does_not_change_api_response():
     request = RequestFactory().get(ROOT)
     request.resolver_match = resolve(ROOT)
-    middleware = AnalyticsAPIUsageMiddleware(lambda _request: HttpResponse(status=503))
+    middleware = APIUsageMiddleware(lambda _request: HttpResponse(status=503))
 
-    with patch.object(AnalyticsAPIUsageCounter, "record_request", side_effect=RuntimeError("db unavailable")):
+    with patch.object(APIUsageCounter, "record_request", side_effect=RuntimeError("db unavailable")):
         response = middleware(request)
 
     assert response.status_code == 503
 
 
 @override_settings(URL_PREFIX="/api/metrics")
-def test_preflight_request_resolves_operation_with_service_url_prefix():
+def test_preflight_request_resolves_endpoint_with_service_url_prefix():
     request = RequestFactory().options("/api/metrics/v1/analytics/")
     usage_date = timezone.now().date()
 
-    record_analytics_api_request(request, 200)
+    record_api_usage(request, 200)
 
-    counter = AnalyticsAPIUsageCounter.objects.get(
+    counter = APIUsageCounter.objects.get(
         usage_date=usage_date,
-        operation="discovery",
+        endpoint_name="analytics:v1:root",
         status_class=2,
     )
     assert counter.request_count == 1
@@ -87,7 +98,11 @@ def test_counter_increment_uses_atomic_addition_for_repeated_calls():
     usage_date = datetime(2026, 8, 17, tzinfo=UTC).date()
 
     for _ in range(10):
-        AnalyticsAPIUsageCounter.record_request(usage_date, "rows", 2)
+        APIUsageCounter.record_request(usage_date, "analytics:v1:rows", 2)
 
-    counter = AnalyticsAPIUsageCounter.objects.get(usage_date=usage_date, operation="rows", status_class=2)
+    counter = APIUsageCounter.objects.get(
+        usage_date=usage_date,
+        endpoint_name="analytics:v1:rows",
+        status_class=2,
+    )
     assert counter.request_count == 10

@@ -1,4 +1,4 @@
-"""Best-effort database telemetry for customer-facing Analytics API requests."""
+"""Best-effort database telemetry for metrics-service API requests."""
 
 import logging
 
@@ -9,18 +9,13 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
-_ANALYTICS_VIEW_OPERATIONS = {
-    "analytics:v1:root": "discovery",
-    "analytics:v1:rows": "rows",
-    "analytics:v1:collect": "collect",
-}
+_EXCLUDED_API_ROUTE_PREFIXES = ("api/v1/metrics", "api/v1/docs")
 
 
-def _operation_for_request(request):
-    """Resolve the fixed Analytics API operation, including preflight requests."""
+def _endpoint_for_request(request):
+    """Return a stable endpoint label for an API route, excluding infrastructure endpoints."""
     match = getattr(request, "resolver_match", None)
-    view_name = getattr(match, "view_name", None)
-    if view_name is None:
+    if match is None:
         path = request.path_info
         url_prefix = getattr(settings, "URL_PREFIX", None)
         if url_prefix:
@@ -36,38 +31,45 @@ def _operation_for_request(request):
             if path == service_prefix or path.startswith(f"{service_prefix}/"):
                 path = path[len(service_prefix) :] or "/"
         try:
-            view_name = resolve(path).view_name
+            match = resolve(path)
         except Resolver404:
             return None
-    return _ANALYTICS_VIEW_OPERATIONS.get(view_name)
+
+    route = str(getattr(match, "route", "")).lstrip("^").rstrip("$").strip("/")
+    if (route != "api" and not route.startswith("api/")) or any(
+        route == prefix or route.startswith(f"{prefix}/") for prefix in _EXCLUDED_API_ROUTE_PREFIXES
+    ):
+        return None
+
+    return getattr(match, "view_name", None) or route
 
 
-def record_analytics_api_request(request, status_code: int) -> None:
-    """Persist one route/status counter without affecting API responses."""
+def record_api_usage(request, status_code: int) -> None:
+    """Persist one API endpoint/status counter without affecting the response."""
     try:
-        operation = _operation_for_request(request)
-        if operation is None:
+        endpoint_name = _endpoint_for_request(request)
+        if endpoint_name is None:
             return
 
-        from apps.analytics.models import AnalyticsAPIUsageCounter
+        from apps.analytics.models import APIUsageCounter
 
-        AnalyticsAPIUsageCounter.record_request(
+        APIUsageCounter.record_request(
             usage_date=timezone.now().date(),
-            operation=operation,
+            endpoint_name=endpoint_name,
             status_class=status_code // 100,
         )
     except Exception:
         # Telemetry must not change the response returned to the API caller.
-        logger.exception("Failed to record Analytics API usage counter")
+        logger.exception("Failed to record API usage counter")
 
 
-class AnalyticsAPIUsageMiddleware:
-    """Count requests handled by the Analytics API without recording request data."""
+class APIUsageMiddleware:
+    """Count requests handled by metrics-service API endpoints without recording request data."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
-        record_analytics_api_request(request, response.status_code)
+        record_api_usage(request, response.status_code)
         return response
