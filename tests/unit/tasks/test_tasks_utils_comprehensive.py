@@ -373,6 +373,13 @@ class TestGetDbConnection(TestCase):
 class TestRunWithLock(TestCase):
     """Test run_with_lock function."""
 
+    def setUp(self):
+        # These tests exercise the PostgreSQL lock adapter; SQL Server lock
+        # behavior is covered by test_sqlserver_database_support.py.
+        self.vendor_patcher = patch("django.db.connection.vendor", "postgresql")
+        self.vendor_patcher.start()
+        self.addCleanup(self.vendor_patcher.stop)
+
     @patch("metrics_utility.library.lock.lock")
     def test_run_with_lock_acquired(self, mock_lock_cls):
         """Test run_with_lock when lock is acquired."""

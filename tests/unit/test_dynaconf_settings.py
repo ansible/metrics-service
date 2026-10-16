@@ -51,12 +51,12 @@ class TestDynaconfPrecedence:
 
     def test_database_defaults_loaded(self):
         """Test that database defaults from defaults.py are loaded."""
-        from django.conf import settings
+        from apps.settings.defaults import DATABASES as DEFAULT_DATABASES
 
-        # Database settings should be present
-        assert "default" in settings.DATABASES
-        assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
-        assert settings.DATABASES["default"]["NAME"] is not None
+        # Defaults remain PostgreSQL even if settings.local.py selects SQL Server.
+        assert "default" in DEFAULT_DATABASES
+        assert DEFAULT_DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
+        assert DEFAULT_DATABASES["default"]["NAME"] is not None
 
 
 class TestDynaconfValidators:
@@ -216,14 +216,21 @@ class TestDatabaseAuthValidation:
     """Validate all database rules together, including independent AWX credentials."""
 
     @staticmethod
-    def _settings(alias, password, options):
+    def _settings(alias, password, options, engine="django.db.backends.postgresql"):
         from apps.settings.production import validators
 
         databases = {
-            name: {"HOST": "db.example.com", "USER": "metrics", "PASSWORD": "test-only", "OPTIONS": {}}
+            name: {
+                "ENGINE": "django.db.backends.postgresql",
+                "HOST": "db.example.com",
+                "PORT": "5432",
+                "USER": "metrics",
+                "PASSWORD": "test-only",
+                "OPTIONS": {},
+            }
             for name in ("default", "awx")
         }
-        databases[alias].update(PASSWORD=password, OPTIONS=options)
+        databases[alias].update(ENGINE=engine, PASSWORD=password, OPTIONS=options)
         settings = Dynaconf(environments=True, env="production", envvar_prefix="PR428_TEST", DATABASES=databases)
         settings.validators.register(
             *(validator for validator in validators if any(name.startswith("DATABASES") for name in validator.names))
@@ -283,6 +290,61 @@ class TestDatabaseAuthValidation:
         settings.set("DATABASES__awx__PASSWORD", "")
         settings.set("DATABASES__awx__OPTIONS", options)
         settings.validators.validate()
+
+    @pytest.mark.parametrize("alias", ["default", "awx"])
+    def test_mssql_requires_password_and_driver(self, alias):
+        settings = self._settings(alias, "test-only", {"driver": "ODBC Driver 18 for SQL Server"}, engine="mssql")
+        settings.validators.validate()
+
+        passwordless = self._settings(alias, "", {"driver": "ODBC Driver 18 for SQL Server"}, engine="mssql")
+        with pytest.raises(ValidationError, match="PASSWORD must be set"):
+            passwordless.validators.validate()
+
+        missing_driver = self._settings(alias, "test-only", {}, engine="mssql")
+        with pytest.raises(ValidationError, match="OPTIONS__driver is required"):
+            missing_driver.validators.validate()
+
+    @pytest.mark.parametrize("alias", ["default", "awx"])
+    def test_mssql_rejects_postgresql_options(self, alias):
+        settings = self._settings(
+            alias,
+            "test-only",
+            {"driver": "ODBC Driver 18 for SQL Server", "sslmode": "prefer"},
+            engine="mssql",
+        )
+
+        with pytest.raises(ValidationError, match="PostgreSQL options cannot be used with SQL Server"):
+            settings.validators.validate()
+
+    def test_database_backend_defaults_are_selected_per_alias(self):
+        from apps.settings.defaults import normalize_database_connections
+
+        settings = Dynaconf(
+            DATABASES={
+                "default": {"ENGINE": "mssql", "PORT": "", "OPTIONS": {}},
+                "awx": {"ENGINE": "django.db.backends.postgresql", "PORT": "", "OPTIONS": {}},
+            }
+        )
+
+        databases = normalize_database_connections(settings)["DATABASES"]
+        assert databases["default"]["PORT"] == "1433"
+        assert databases["default"]["OPTIONS"] == {"driver": "ODBC Driver 18 for SQL Server"}
+        assert databases["awx"]["PORT"] == "5432"
+        assert databases["awx"]["OPTIONS"] == {"sslmode": "prefer"}
+
+    def test_sql_server_alias_does_not_inherit_postgres_defaults(self):
+        from apps.settings.defaults import normalize_database_connections
+
+        settings = Dynaconf(
+            DATABASES={
+                "default": {"ENGINE": "mssql", "PORT": "", "OPTIONS": {}},
+                "awx": {"ENGINE": "mssql", "PORT": "", "OPTIONS": {}},
+            }
+        )
+
+        databases = normalize_database_connections(settings)["DATABASES"]
+        assert "sslmode" not in databases["default"]["OPTIONS"]
+        assert "sslmode" not in databases["awx"]["OPTIONS"]
 
 
 class TestEnvironmentSwitching:
