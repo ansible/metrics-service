@@ -199,7 +199,7 @@ class TestDailyMetricsRollupTelemetry:
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestDailyAnonymizeTelemetry:
-    """Tests that daily_anonymize_and_prepare forwards dashboard_telemetry to the payload."""
+    """Tests that daily_anonymize_and_prepare forwards telemetry to the payload."""
 
     def test_dashboard_telemetry_included_in_anonymized_data(self):
         """When the DailyMetricsSummary metrics contain dashboard_telemetry,
@@ -240,15 +240,15 @@ class TestDailyAnonymizeTelemetry:
         payload = AnonymizedMetricsPayload.objects.get(summary_date=specific_date)
         assert payload.anonymized_data["dashboard_telemetry"] == telemetry
 
-    def test_analytics_api_telemetry_included_in_anonymized_data(self):
-        from apps.analytics.models import AnalyticsAPIUsageCounter
+    def test_api_usage_telemetry_included_in_anonymized_data(self):
+        from apps.analytics.models import APIUsageCounter
         from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
         specific_date = date(2024, 8, 15)
         DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()
-        AnalyticsAPIUsageCounter.record_request(specific_date, "discovery", 2)
-        AnalyticsAPIUsageCounter.record_request(specific_date, "rows", 4)
-        AnalyticsAPIUsageCounter.record_request(specific_date, "collect", 5)
+        APIUsageCounter.record_request(specific_date, "analytics:v1:root", 2)
+        APIUsageCounter.record_request(specific_date, "tasks:v1:task-list", 4)
+        APIUsageCounter.record_request(specific_date, "user-list", 5)
 
         DailyMetricsSummary.objects.create(
             summary_date=specific_date,
@@ -263,13 +263,13 @@ class TestDailyAnonymizeTelemetry:
 
         assert result["status"] == "success"
         payload = AnonymizedMetricsPayload.objects.get(summary_date=specific_date)
-        telemetry = payload.anonymized_data["analytics_api_telemetry"]
+        telemetry = payload.anonymized_data["api_usage_telemetry"]
         assert telemetry["available"] is True
         assert telemetry["total_requests"] == 3
-        assert telemetry["by_operation"]["discovery"]["2xx"] == 1
-        assert telemetry["by_operation"]["rows"]["4xx"] == 1
-        assert telemetry["by_operation"]["collect"]["5xx"] == 1
-        assert telemetry["by_operation"]["rows"]["2xx"] == 0
+        assert telemetry["by_endpoint"]["analytics:v1:root"]["2xx"] == 1
+        assert telemetry["by_endpoint"]["tasks:v1:task-list"]["4xx"] == 1
+        assert telemetry["by_endpoint"]["user-list"]["5xx"] == 1
+        assert telemetry["by_endpoint"]["analytics:v1:root"]["4xx"] == 0
 
     def test_missing_dashboard_telemetry_defaults_to_empty_list(self):
         """When dashboard_telemetry is absent from the summary metrics,
@@ -295,7 +295,7 @@ class TestDailyAnonymizeTelemetry:
         assert result["status"] == "success"
         payload = AnonymizedMetricsPayload.objects.get(summary_date=specific_date)
         assert payload.anonymized_data["dashboard_telemetry"] == []
-        api_telemetry = payload.anonymized_data["analytics_api_telemetry"]
+        api_telemetry = payload.anonymized_data["api_usage_telemetry"]
         assert api_telemetry["available"] is True
         assert api_telemetry["total_requests"] == 0
 

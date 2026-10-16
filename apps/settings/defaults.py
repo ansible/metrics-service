@@ -177,7 +177,7 @@ INSTALL_TYPE = "containerized"
 MIDDLEWARE = [
     "dynaconf_merge_unique",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "apps.analytics.middleware.AnalyticsAPIUsageMiddleware",
+    "apps.analytics.middleware.APIUsageMiddleware",
 ]
 
 # Template directories for core app
