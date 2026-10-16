@@ -1,6 +1,7 @@
 """Analytics storage models (ANSTRAT-1587 / AAP-87799)."""
 
 from django.db import models
+from django.db.models import F, Sum
 
 # Reuse the same DAB base classes / fallbacks as the tasks app.
 try:
@@ -22,6 +23,8 @@ except ImportError:  # pragma: no cover - simple fallback for setups without DAB
 
 # Default origin for a local install.
 LOCAL_SOURCE = "local"
+ANALYTICS_API_OPERATIONS = ("discovery", "rows", "collect")
+HTTP_STATUS_CLASSES = (1, 2, 3, 4, 5)
 
 
 class AnalyticsPayload(CommonModel, AuditableModel):
@@ -75,3 +78,73 @@ class AnalyticsPayload(CommonModel, AuditableModel):
         """Return a readable representation: collector + window (or 'snapshot')."""
         window = f"{self.since} → {self.until}" if self.since or self.until else "snapshot"
         return f"{self.collector} [{self.source}] ({window})"
+
+
+class AnalyticsAPIUsageCounter(models.Model):
+    """Daily request counts for the customer-facing Analytics API."""
+
+    OPERATIONS = ANALYTICS_API_OPERATIONS
+    STATUS_CLASSES = HTTP_STATUS_CLASSES
+
+    class Meta:
+        app_label = "analytics"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["usage_date", "operation", "status_class"],
+                name="analytics_api_usage_unique",
+            )
+        ]
+        verbose_name = "Analytics API Usage Counter"
+        verbose_name_plural = "Analytics API Usage Counters"
+
+    usage_date = models.DateField(help_text="UTC date on which the API request completed")
+    operation = models.CharField(
+        max_length=16,
+        choices=[("discovery", "Discovery"), ("rows", "Rows"), ("collect", "Collect")],
+    )
+    status_class = models.PositiveSmallIntegerField(
+        choices=[(status_class, f"{status_class}xx") for status_class in HTTP_STATUS_CLASSES],
+    )
+    request_count = models.PositiveBigIntegerField(default=0)
+
+    @classmethod
+    def record_request(cls, usage_date, operation: str, status_class: int) -> None:
+        """Atomically increment one daily operation/status counter."""
+        row, _ = cls.objects.get_or_create(
+            usage_date=usage_date,
+            operation=operation,
+            status_class=status_class,
+            defaults={"request_count": 0},
+        )
+        cls.objects.filter(pk=row.pk).update(
+            request_count=F("request_count") + 1,
+        )
+
+    @classmethod
+    def empty_daily_summary(cls, available: bool = True) -> dict:
+        """Return the stable, zero-filled shape used by the Segment payload."""
+        return {
+            "available": available,
+            "total_requests": 0,
+            "by_operation": {
+                operation: {f"{status_class}xx": 0 for status_class in cls.STATUS_CLASSES}
+                for operation in cls.OPERATIONS
+            },
+        }
+
+    @classmethod
+    def daily_summary(cls, usage_date) -> dict:
+        """Aggregate request counts for one UTC date without exposing request details."""
+        summary = cls.empty_daily_summary()
+        rows = (
+            cls.objects.filter(usage_date=usage_date)
+            .values("operation", "status_class")
+            .annotate(total=Sum("request_count"))
+        )
+        for row in rows:
+            operation = row["operation"]
+            status_key = f"{row['status_class']}xx"
+            count = row["total"] or 0
+            summary["by_operation"][operation][status_key] = count
+            summary["total_requests"] += count
+        return summary

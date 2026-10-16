@@ -64,6 +64,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
     from django.db import transaction
     from metrics_utility.anonymized_rollups import anonymize_rollups
 
+    from apps.analytics.models import AnalyticsAPIUsageCounter
     from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary, Task
 
     # Determine summary date
@@ -109,6 +110,11 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         # Get dashboard telemetry
         anonymized_data["dashboard_telemetry"] = metrics.get("dashboard_telemetry", [])
         anonymized_data["leaderboard_telemetry"] = _collect_leaderboard_telemetry()
+        try:
+            anonymized_data["analytics_api_telemetry"] = AnalyticsAPIUsageCounter.daily_summary(summary_date)
+        except Exception:
+            logger.exception("Failed to collect Analytics API usage telemetry")
+            anonymized_data["analytics_api_telemetry"] = AnalyticsAPIUsageCounter.empty_daily_summary(available=False)
 
         offset_minutes = random_offset()
         send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)
