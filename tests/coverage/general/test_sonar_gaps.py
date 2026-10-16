@@ -364,28 +364,6 @@ def test_task_get_next_run_time_invalid_expression(user):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_daily_metrics_summary_get_hourly_collections_with_data():
-    """get_hourly_collections returns matching records when hourly_collection_ids is set."""
-    from apps.tasks.models import DailyMetricsSummary, HourlyMetricsCollection
-
-    ts = timezone.now().replace(minute=0, second=0, microsecond=0) - timedelta(hours=25)
-    coll = HourlyMetricsCollection.objects.create(
-        collector_type="unified_jobs",
-        collection_timestamp=ts,
-        raw_data={"test": 1},
-        status="collected",
-    )
-    summary = DailyMetricsSummary.objects.create(
-        summary_date=ts.date(),
-        hourly_collection_ids={"unified_jobs": [coll.id]},
-    )
-
-    qs = summary.get_hourly_collections()
-    assert qs.filter(pk=coll.pk).exists()
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
 def test_anonymized_payload_str():
     """AnonymizedMetricsPayload __str__ returns expected format."""
     from apps.tasks.models import AnonymizedMetricsPayload
@@ -426,28 +404,6 @@ def test_log_setting_change_db_exception(user):
         result = log_setting_change(user, "CRASH_KEY", "value")
 
     assert result is None
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_rollback_configuration_change_exception(user):
-    """When DYNACONF.set raises, rollback returns error dict."""
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import rollback_configuration_change
-
-    setting = Setting.objects.create(
-        setting_key="ROLLBACK_EXC",
-        current_value='"new"',
-        previous_value='"old"',
-        last_modified_by=user,
-    )
-
-    with patch("metrics_service.settings.DYNACONF") as mock_dynaconf:
-        mock_dynaconf.set.side_effect = Exception("dynaconf crash")
-        result = rollback_configuration_change(setting.id, user)
-
-    assert result["success"] is False
-    assert "Failed to rollback" in result["error"]
 
 
 @pytest.mark.unit

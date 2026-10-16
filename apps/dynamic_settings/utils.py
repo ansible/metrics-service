@@ -86,68 +86,6 @@ def log_setting_change(user, setting_key: str, new_value, old_value=None):
         return None
 
 
-def _parse_setting_value(value_str):
-    """
-    Helper to parse a setting value from JSON string.
-    Returns the parsed value or the original string if parsing fails.
-    """
-    if not value_str:
-        return None
-    try:
-        return json.loads(value_str)
-    except (json.JSONDecodeError, TypeError):
-        return value_str
-
-
-def rollback_configuration_change(change_id, user):
-    """
-    Undo a settings change by its key id.
-    """
-    from metrics_service.settings import DYNACONF
-
-    try:
-        setting = Setting.objects.get(id=change_id)
-    except Setting.DoesNotExist:
-        logger.error(f"Configuration change with ID {change_id} not found")
-        return {"success": False, "error": f"Configuration change with ID {change_id} not found"}
-
-    # Check if we can actually rollback this setting
-    if setting.previous_value == "***REDACTED***" or setting.current_value == "***REDACTED***":
-        logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
-        return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
-
-    try:
-        # Parse values from JSON
-        previous_value = _parse_setting_value(setting.previous_value)
-        current_value = _parse_setting_value(setting.current_value)
-
-        # Rollback - set it back to the old value!
-        DYNACONF.set(setting.setting_key, previous_value)
-
-        # Write new entry about the rollback to the db
-        log_setting_change(
-            user=user,
-            setting_key=setting.setting_key,
-            new_value=previous_value,
-            old_value=current_value,  # The value before rollback
-        )
-
-        logger.info(
-            f"Rolled back {setting.setting_key} to previous value {setting.previous_value} by {user.username if user else 'System'}"
-        )
-
-        return {
-            "success": True,
-            "setting_key": setting.setting_key,
-            "rolled_back_to": previous_value,
-            "message": f"Successfully rolled back {setting.setting_key}",
-        }
-
-    except Exception as e:
-        logger.exception(f"Failed to rollback configuration change {change_id}: {str(e)}")
-        return {"success": False, "error": f"Failed to rollback: {str(e)}"}
-
-
 # uv run ./manage.py metrics_service remove-default-settings [--all-settings]
 def remove_default_settings(all_settings: bool = False, **_kwargs) -> int:
     """
