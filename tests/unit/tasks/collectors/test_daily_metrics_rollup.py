@@ -227,3 +227,26 @@ def test_raw_only_collections_are_not_attached_to_daily_summary(hourly_collectio
             "status", flat=True
         )
     ) == {"processed"}
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_analytics_usage_snapshot_is_preserved_when_a_later_scrape_fails(hourly_collection_factory):
+    collection = hourly_collection_factory(collector_type="unified_jobs")
+    snapshot = {
+        "observed_at": "2026-10-08T02:00:00+00:00",
+        "metrics": {"controller.config": {"request_count": 5, "duration_ms_total": 60.0}},
+    }
+    args = {
+        "summary_date": date(2026, 10, 8),
+        "daily_rollup": {"unified_jobs": {}},
+        "collections_by_type": {"unified_jobs": [collection]},
+        "config_data": {},
+        "missing_hours": [],
+        "execution_id": None,
+    }
+
+    _save_daily_summary(**args, analytics_usage_snapshot=snapshot)
+    summary, _, _ = _save_daily_summary(**args, analytics_usage_snapshot=None)
+
+    assert summary.analytics_usage_snapshot == snapshot

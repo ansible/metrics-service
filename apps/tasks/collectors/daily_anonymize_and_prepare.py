@@ -110,6 +110,10 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
         anonymized_data["dashboard_telemetry"] = metrics.get("dashboard_telemetry", [])
         anonymized_data["leaderboard_telemetry"] = _collect_leaderboard_telemetry()
 
+        # Usage is a Prometheus aggregate, never raw request or customer data. Keep it in its
+        # own payload boundary rather than mixing it into the anonymized BI rollups.
+        anonymized_data["analytics_usage"] = metrics.get("analytics_usage", {})
+
         offset_minutes = random_offset()
         send_scheduled_time = timezone.now() + timedelta(minutes=offset_minutes)
 

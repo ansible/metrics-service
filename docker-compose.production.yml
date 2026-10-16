@@ -69,7 +69,7 @@ services:
     environment: &common-env # Django Core
       METRICS_SERVICE_MODE: production
       METRICS_SERVICE_SECRET_KEY: ${METRICS_SERVICE_SECRET_KEY:?METRICS_SERVICE_SECRET_KEY is required}
-      METRICS_SERVICE_ALLOWED_HOSTS: ${METRICS_SERVICE_ALLOWED_HOSTS:-localhost,127.0.0.1,metrics-service}
+      METRICS_SERVICE_ALLOWED_HOSTS: ${METRICS_SERVICE_ALLOWED_HOSTS:-localhost,127.0.0.1,metrics-service,web}
 
       # Database - Default (metrics-service own DB)
       METRICS_SERVICE_DATABASES__default__HOST: postgres
@@ -113,7 +113,8 @@ services:
     environment:
       <<: *common-env
       # Gunicorn configuration
-      GUNICORN_BIND: "127.0.0.1:8000"
+      # Keep the backend un-published on the host but reachable to dispatcherd over the private Compose network.
+      GUNICORN_BIND: "0.0.0.0:8000"
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-4}
       GUNICORN_LOG_LEVEL: ${GUNICORN_LOG_LEVEL:-info}
     healthcheck:
@@ -144,6 +145,7 @@ services:
       DISPATCHERD_MAX_TASKS: ${DISPATCHERD_MAX_TASKS:-100}
       DISPATCHERD_WORKERS: ${DISPATCHERD_WORKERS:-4}
       METRICS_SERVICE_TASK_TIMEOUT: ${DISPATCHERD_TIMEOUT:-3600}
+      METRICS_SERVICE_INTERNAL_PROMETHEUS_URL: "${METRICS_SERVICE_INTERNAL_PROMETHEUS_URL:-http://web:8000/api/v1/metrics}"
     healthcheck:
       test: ["CMD-SHELL", "grep -q dispatcherd /proc/1/cmdline"]
       interval: 30s
