@@ -117,7 +117,7 @@ class TestDailyMetricsRollupTelemetry:
     """Tests that daily_metrics_rollup appends dashboard_telemetry to the daily summary."""
 
     def test_rollup_sets_dashboard_telemetry_key(self):
-        """daily_metrics_rollup sets the 'dashboard_telemetry' key on the daily rollup."""
+        """daily_metrics_rollup attaches its daily telemetry sections to the summary."""
         telemetry_rows = [
             {
                 "task_name": "collect_dashboard_reports_initial_data",
@@ -127,11 +127,22 @@ class TestDailyMetricsRollupTelemetry:
                 "cache_hit_rate": None,
             }
         ]
+        analytics_usage = {
+            "controller.config": {
+                "request_count": 3,
+                "duration_ms_total": 120.0,
+                "duration_ms_average": 40.0,
+            }
+        }
         with (
             patch(
                 "apps.tasks.collectors.daily_metrics_rollup._aggregate_dashboard_telemetry",
                 return_value=telemetry_rows,
             ) as mock_aggregate,
+            patch(
+                "apps.tasks.collectors.daily_metrics_rollup.daily_analytics_usage",
+                return_value=analytics_usage,
+            ) as mock_analytics_usage,
             patch(
                 "apps.tasks.collectors.daily_metrics_rollup._collect_and_group_hourly_collections"
             ) as mock_collections,
@@ -153,12 +164,14 @@ class TestDailyMetricsRollupTelemetry:
 
         # _aggregate_dashboard_telemetry should have been called
         mock_aggregate.assert_called_once()
+        mock_analytics_usage.assert_called_once()
 
         # The daily_rollup dict passed to _save_daily_summary should contain dashboard_telemetry
         call_args = mock_save.call_args
         rollup_arg = call_args[0][1]  # second positional arg is the daily_rollup dict
         assert "dashboard_telemetry" in rollup_arg
         assert rollup_arg["dashboard_telemetry"] == telemetry_rows
+        assert rollup_arg["analytics_usage"] == analytics_usage
 
     def test_rollup_uses_summary_date_for_telemetry_query(self):
         """_aggregate_dashboard_telemetry is called with the summary_date being rolled up."""
@@ -218,6 +231,13 @@ class TestDailyAnonymizeTelemetry:
 
         specific_date = date(2024, 5, 20)
         DailyMetricsSummary.objects.filter(summary_date=specific_date).delete()
+        analytics_usage = {
+            "controller.config": {
+                "request_count": 3,
+                "duration_ms_total": 120.0,
+                "duration_ms_average": 40.0,
+            }
+        }
 
         DailyMetricsSummary.objects.create(
             summary_date=specific_date,
@@ -226,6 +246,7 @@ class TestDailyAnonymizeTelemetry:
                 "unified_jobs": {},
                 "job_host_summary_service": {},
                 "dashboard_telemetry": telemetry,
+                "analytics_usage": analytics_usage,
             },
         )
 
@@ -239,6 +260,7 @@ class TestDailyAnonymizeTelemetry:
         assert result["status"] == "success"
         payload = AnonymizedMetricsPayload.objects.get(summary_date=specific_date)
         assert payload.anonymized_data["dashboard_telemetry"] == telemetry
+        assert payload.anonymized_data["analytics_usage"] == analytics_usage
 
     def test_missing_dashboard_telemetry_defaults_to_empty_list(self):
         """When dashboard_telemetry is absent from the summary metrics,

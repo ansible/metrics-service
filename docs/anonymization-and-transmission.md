@@ -47,7 +47,8 @@ still run under `METRICS_COLLECTION`.
 2. Calls `metrics_utility.anonymized_rollups.anonymize_rollups()` on merged collector rollups.
 3. Adds `summary_metadata` (`install_type`, collection counts, missing hours).
 4. Embeds `dashboard_telemetry` from rollup metrics (collection performance, not raw jobs).
-   Adds a current `leaderboard_telemetry` settings observation (see below).
+   Adds the daily `analytics_usage` aggregate and a current `leaderboard_telemetry` settings
+   observation (see below).
 5. Creates `AnonymizedMetricsPayload` with `status="pending"`.
 6. Sets summary `status="anonymized"`.
 7. Creates a **scheduled** `send_anonymized_to_segment` task with random jitter
