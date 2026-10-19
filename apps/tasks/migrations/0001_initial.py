@@ -498,7 +498,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="anonymizedmetricspayload",
             constraint=models.UniqueConstraint(
-                condition=models.Q(("status__in", ["pending", "sending", "sent"])),
+                condition=models.Q(("daily_summary__isnull", False), ("status__in", ["pending", "sending", "sent"])),
                 fields=("daily_summary",),
                 name="unique_active_payload_per_summary",
             ),

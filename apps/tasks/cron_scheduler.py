@@ -350,6 +350,12 @@ class UnifiedTaskScheduler:
 
         from .tasks import TASK_LOCKS
 
+        if getattr(connection, "vendor", None) == "microsoft":
+            # SQL Server application locks are session-owned and are released
+            # when the owning worker connection closes; PostgreSQL catalog
+            # cleanup must not run against this backend.
+            return
+
         try:
             with connection.cursor() as cursor:
                 # Compute our lock IDs the same way lock.py does:

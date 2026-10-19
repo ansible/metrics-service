@@ -223,7 +223,13 @@ class TestLoadConfigWithDispatcherdSettings:
     @patch("builtins.open")
     @patch("yaml.safe_load")
     def test_loads_yaml_and_merges_sql_server_config(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
-        sql_config = {"server": "sql.example.com", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        sql_config = {
+            "server": "sql.example.com",
+            "port": 1433,
+            "database": "dispatcherd",
+            "user": "broker",
+            "password": "secret",
+        }
         mock_yaml_load.return_value = {
             "version": 2,
             "brokers": {
@@ -251,9 +257,17 @@ class TestLoadConfigWithDispatcherdSettings:
     @patch("apps.tasks.dispatcherd_config.logger")
     @patch("builtins.open")
     @patch("yaml.safe_load")
-    def test_creates_broker_and_service_sections_if_missing(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
+    def test_creates_broker_and_service_sections_if_missing(
+        self, mock_yaml_load, mock_open, mock_logger, mock_settings
+    ):
         mock_yaml_load.return_value = {"version": 2}
-        mock_settings.DISPATCHERD_SQLSERVER = {"server": "sql", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        mock_settings.DISPATCHERD_SQLSERVER = {
+            "server": "sql",
+            "port": 1433,
+            "database": "dispatcherd",
+            "user": "broker",
+            "password": "secret",
+        }
         mock_settings.TASK_TIMEOUT = 3600
 
         result = _load_config_with_dispatcherd_settings(Path("/test/config.yaml"))
@@ -268,7 +282,13 @@ class TestLoadConfigWithDispatcherdSettings:
     @patch("yaml.safe_load")
     def test_handles_empty_yaml_file(self, mock_yaml_load, mock_open, mock_logger, mock_settings):
         mock_yaml_load.return_value = None
-        mock_settings.DISPATCHERD_SQLSERVER = {"server": "sql", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        mock_settings.DISPATCHERD_SQLSERVER = {
+            "server": "sql",
+            "port": 1433,
+            "database": "dispatcherd",
+            "user": "broker",
+            "password": "secret",
+        }
         mock_settings.TASK_TIMEOUT = 3600
 
         result = _load_config_with_dispatcherd_settings(Path("/test/config.yaml"))
@@ -309,7 +329,13 @@ class TestBuildConfigFromSettings:
     @patch("django.conf.settings")
     @patch("apps.tasks.dispatcherd_config.logger")
     def test_builds_sql_server_config_and_keeps_postgres_settings_independent(self, mock_logger, mock_settings):
-        sql_config = {"server": "sql.example.com", "port": 1433, "database": "dispatcherd", "user": "broker", "password": "secret"}
+        sql_config = {
+            "server": "sql.example.com",
+            "port": 1433,
+            "database": "dispatcherd",
+            "user": "broker",
+            "password": "secret",
+        }
         mock_settings.DISPATCHERD_SQLSERVER = sql_config
         mock_settings.DATABASES = {"default": {"HOST": "postgres", "NAME": "metrics_pg"}}
         mock_settings.TASK_TIMEOUT = 3600

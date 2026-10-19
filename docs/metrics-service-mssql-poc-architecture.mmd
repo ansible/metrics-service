@@ -1,0 +1,29 @@
+flowchart LR
+    Client["Metrics API client"]
+
+    subgraph MetricsService["metrics-service"]
+        API["API + scheduler"]
+        Worker["dispatcherd worker<br/>executes service task"]
+        DAB["django-ansible-base<br/>RBAC + resource registry"]
+    end
+
+    subgraph Dispatcherd["dispatcherd"]
+        Broker["SQL Server table broker"]
+    end
+
+    Utility["metrics-utility collector<br/>raw SQL → DataFrame"]
+
+    subgraph SQLServer["SQL Server 2022 | separate database roles"]
+        ServiceDB[("metrics_service_poc<br/>service state + results")]
+        BrokerDB[("dispatcherd<br/>dispatcherd_messages")]
+        AWXDB[("metrics_awx_poc<br/>minimal AWX fixture")]
+    end
+
+    Client -->|"schedule collector task"| API
+    API -->|"publish task"| Broker
+    Broker -->|"insert / claim message"| BrokerDB
+    BrokerDB -->|"deliver task"| Worker
+    Worker -->|"persist status + payload"| ServiceDB
+    Worker -->|"invoke collector"| Utility
+    Utility -->|"T-SQL + helper UDFs"| AWXDB
+    DAB -.->|"schema compatibility"| ServiceDB
