@@ -57,6 +57,7 @@ class Command(BaseCommand):
         remove_settings_parser = subparsers.add_parser("remove-default-settings", help="Remove default settings")
         self._add_remove_settings_arguments(remove_settings_parser)
         subparsers.add_parser("init-service-id", help="Initialize ServiceID for ansible-base")
+        subparsers.add_parser("init-managed-roles", help="Create or refresh DAB managed RBAC role definitions")
         init_tasks_parser = subparsers.add_parser("init-system-tasks", help="Initialize system tasks")
         self._add_init_tasks_arguments(init_tasks_parser)
 
@@ -189,6 +190,8 @@ class Command(BaseCommand):
                 self._handle_remove_default_settings_command(options)
             elif command == "init-service-id":
                 self._handle_init_service_id_command()
+            elif command == "init-managed-roles":
+                self._handle_init_managed_roles_command()
             elif command == "init-system-tasks":
                 self._handle_init_system_tasks_command(options)
             elif command == "tasks":
@@ -254,6 +257,31 @@ class Command(BaseCommand):
                 self.output.warning(message)
         except Exception as e:
             raise CommandError(f"Failed to initialize ServiceID: {e}") from e
+
+    def _handle_init_managed_roles_command(self) -> None:
+        """Handle the init-managed-roles command.
+
+        Explicitly creates or refreshes all DAB managed RBAC role definitions (Platform Auditor,
+        Organization Admin, Organization Member, Team Admin, Team Member). Safe to run multiple
+        times — uses get_or_create so existing roles are not duplicated.
+
+        This supplements the post_migrate signal that normally creates these roles, acting as a
+        reliable explicit bootstrap step for operator and containerized deployments where the
+        post_migrate signal chain may not fire correctly.
+        """
+        try:
+            from ansible_base.rbac import permission_registry
+            from django.apps import apps
+
+            results = permission_registry.create_managed_roles(apps, update_perms=True)
+            for rd, created in results:
+                if created:
+                    self.output.success(f"Created managed role definition: {rd.name}")
+                else:
+                    self.output.info(f"Managed role definition already exists: {rd.name}")
+            self.output.success(f"Managed role initialization complete ({len(results)} roles)")
+        except Exception as e:
+            raise CommandError(f"Failed to initialize managed role definitions: {e}") from e
 
     def _handle_init_system_tasks_command(self, options: dict[str, Any]) -> None:
         """Handle the init_system_tasks command."""
