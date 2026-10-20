@@ -13,12 +13,52 @@ class CoreConfig(AppConfig):
 
         from . import signals  # noqa: F401
 
+        # The AAP platform operator restricts ANSIBLE_BASE_MANAGED_ROLE_REGISTRY to
+        # {sys_auditor} for all services via env var. The metrics-service needs all 5
+        # role definitions (Platform Auditor, Organization Admin, Organization Member,
+        # Team Admin, Team Member) so that initial_resource_sync can replicate JWT org
+        # membership claims into local RoleUserAssignment rows via create_local_assignment.
+        # Register the full set here, after AnsibleRBACConfig.ready() has already
+        # populated _managed_roles from the (restricted) env var.
+        self._ensure_managed_roles_registered()
+
         dab_post_migrate.connect(
             self._create_managed_roles,
             dispatch_uid="core.create_managed_roles",
         )
 
         self._restrict_dab_view_permissions()
+
+    @staticmethod
+    def _ensure_managed_roles_registered():
+        """Register all required managed roles regardless of ANSIBLE_BASE_MANAGED_ROLE_REGISTRY.
+
+        Called from ready() after AnsibleRBACConfig.ready() has populated
+        permission_registry._managed_roles from the env var (which the AAP platform
+        operator restricts to {sys_auditor} for all services). This ensures the full
+        set of roles defined in apps.core.settings is always registered, so that
+        create_managed_roles() creates all required RoleDefinition rows on migrate and
+        initial_resource_sync can successfully replicate JWT org-membership claims via
+        create_local_assignment.
+
+        Reads from the apps.core.settings module directly (not django.conf.settings) to
+        bypass any env var override. New roles added to ANSIBLE_BASE_MANAGED_ROLE_REGISTRY
+        in apps/core/settings.py are automatically picked up here without any further change.
+        """
+        from ansible_base.rbac import permission_registry
+        from ansible_base.rbac.managed import get_managed_role_constructors
+
+        if permission_registry.apps is None:
+            return
+
+        from apps.core import settings as _core_settings
+
+        registry = getattr(_core_settings, "ANSIBLE_BASE_MANAGED_ROLE_REGISTRY", {})
+        for shortname, constructor in get_managed_role_constructors(
+            permission_registry.apps, registry
+        ).items():
+            if shortname not in permission_registry._managed_roles:
+                permission_registry._managed_roles[shortname] = constructor
 
     @staticmethod
     def _restrict_dab_view_permissions():
