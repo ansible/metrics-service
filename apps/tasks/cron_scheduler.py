@@ -313,23 +313,27 @@ class UnifiedTaskScheduler:
         from .models import Task, TaskExecution
 
         now = timezone.now()
-        # Select only IDs so large task_data/result_data JSONB columns are never
-        # fetched from the database just to reconcile stuck tasks.
-        ids = list(
-            Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-            ).values_list("id", flat=True)
-        )
-        if ids:
-            error_msg = "Task timed out — worker died before completion"
-            with transaction.atomic():
-                TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                    status="failed", error_message=error_msg, completed_at=now
-                )
-                Task.objects.filter(id__in=ids, status="running").update(
-                    status="failed", error_message=error_msg, completed_at=now
-                )
-            logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+        error_msg = "Task timed out — worker died before completion"
+        with transaction.atomic():
+            # Lock tasks before executions, matching worker completion order so
+            # timeout recovery and a late worker result cannot split their state.
+            # Keep discovery ID-only: task_data/result_data can be multi-MB JSONB.
+            ids = list(
+                Task.objects.select_for_update().filter(
+                    status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
+                ).order_by("pk").values_list("pk", flat=True)
+            )
+            if not ids:
+                return
+
+            Task.objects.filter(id__in=ids, status="running").update(
+                status="failed", error_message=error_msg, completed_at=now, modified=now
+            )
+            TaskExecution.objects.filter(task__id__in=ids, status="running").update(
+                status="failed", error_message=error_msg, completed_at=now, modified=now
+            )
+
+        logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
     def _retry_failed_tasks(self):
         """Schedule retries for failed tasks that still have attempts remaining."""
