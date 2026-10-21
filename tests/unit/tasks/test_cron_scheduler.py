@@ -780,7 +780,7 @@ class TestStuckTaskDetection:
 
     def test_late_worker_cannot_complete_task_after_timeout_and_retry(self, user):
         """A stale worker result cannot complete a newer claimed attempt."""
-        from apps.tasks.models import Task, TaskExecution
+        from apps.tasks.models import Task
         from apps.tasks.tasks_system import _claim_task
         from apps.tasks.utils import update_task_status
 
@@ -788,9 +788,6 @@ class TestStuckTaskDetection:
         first_task, first_execution = _claim_task(task.pk)
         old_started_at = timezone.now() - timedelta(seconds=settings.TASK_TIMEOUT + 1)
         Task.objects.filter(pk=task.pk).update(started_at=old_started_at)
-        TaskExecution.objects.filter(pk=first_execution.pk).update(started_at=old_started_at)
-        first_task.started_at = old_started_at
-        first_execution.started_at = old_started_at
 
         UnifiedTaskScheduler()._fail_stuck_tasks()
 

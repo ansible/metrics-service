@@ -111,8 +111,6 @@ class TestExecuteDbTask(TestCase):
         execution = TaskExecution.objects.filter(task=self.task).first()
         assert execution is not None
         assert execution.status == "completed"
-        self.task.refresh_from_db()
-        assert self.task.started_at == execution.started_at
 
     def test_execute_db_task_no_task_id(self):
         """Test execute_db_task without task_id parameter."""
