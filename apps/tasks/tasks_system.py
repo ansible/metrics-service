@@ -95,13 +95,12 @@ def _claim_task(task_id):
     from .models import Task, TaskExecution
 
     with transaction.atomic():
-        claimed_at = timezone.now()
         claimed = (
             Task.ready_to_run()
             .filter(id=task_id)
             .update(
                 status="running",
-                started_at=claimed_at,
+                started_at=timezone.now(),
                 attempts=models.F("attempts") + 1,
             )
         )
@@ -110,15 +109,13 @@ def _claim_task(task_id):
 
         task = Task.objects.get(id=task_id)
 
+        # This row is the claim identity: finalizers compare-and-set against it
+        # to tell a live attempt from one a timeout or retry has superseded.
         execution = TaskExecution.objects.create(
             task=task,
             status="running",
             worker_id=f"dispatcher-{os.getpid()}",
         )
-        # Use the same timestamp to identify this claim when a late worker result
-        # races a timeout and a subsequent retry.
-        execution.started_at = claimed_at
-        execution.save(update_fields=["started_at"])
 
     return task, execution
 
