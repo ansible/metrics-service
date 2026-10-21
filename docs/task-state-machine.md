@@ -304,3 +304,4 @@ The `/state-machine-review` skill checks these automatically.
 6. **All retry callers go through `task.retry()`** — API, CLI, and periodic scheduler; no manual field setting
 7. **Only `_claim_task` sets `running`** — `update_task_status` raises `ValueError` on `status="running"`; the `pending → running` claim (set `started_at`, increment `attempts`) is owned exclusively by `_claim_task`, atomically
 8. **Status writes are conditional on the current state** — cancellation updates only pending/running tasks; worker completion/failure updates only while its own `TaskExecution` is still running. The first atomic update wins, and a late worker cannot overwrite cancellation or a newer retry. Rejected writes are logged, not raised.
+9. **Every terminal state records `completed_at`** — including `cancel()`, since a worker finishing after cancellation no longer writes to the task and cleanup selects on `completed_at`

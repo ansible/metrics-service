@@ -138,6 +138,16 @@ class TestTaskCancel:
         task.refresh_from_db()
         assert task.status == "cancelled"
 
+    def test_cancel_sets_completed_at(self, user):
+        """Cancellation is terminal, so it records completed_at for duration and cleanup."""
+        task = Task.objects.create(name="Running Task", function_name="hello_world", status="running", created_by=user)
+
+        assert task.cancel() is True
+
+        assert task.completed_at is not None
+        task.refresh_from_db()
+        assert task.completed_at is not None
+
     def test_cancel_does_not_overwrite_concurrent_completion(self, user):
         task = Task.objects.create(name="Running Task", function_name="hello_world", status="running", created_by=user)
         stale_task = Task.objects.get(pk=task.pk)
