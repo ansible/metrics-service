@@ -30,6 +30,7 @@ def test_enabled_collectors_are_all_enabled():
         "controller.main_jobevent",
         "controller.unified_jobs",
     } <= set(enabled)
+    assert all(e.payload_shape in {"object", "array"} for e in enabled.values())
     # Pipeline-only, dashboard-only, AWX in-process, and external Prometheus collectors stay off.
     assert "service.task_executions_service" not in enabled
     assert "dashboard.dashboard_jobs" not in enabled
@@ -105,6 +106,17 @@ def test_payload_schemas_are_all_used_by_enabled_collectors():
 
 
 @pytest.mark.unit
+def test_payload_metadata_is_derived_from_payload_schema():
+    for entry in registry.enabled_collectors().values():
+        assert entry.payload_shape == entry.payload_schema.kind
+        assert entry.key_field == entry.payload_schema.key_field
+        # Keyed objects say what their keys are; arrays and fixed-key objects don't.
+        assert (entry.key_field is not None) == (entry.payload_schema.additional_properties is not None)
+    disabled = registry.get_entry("dashboard.dashboard_jobs")
+    assert (disabled.payload_shape, disabled.key_field) == (None, None)
+
+
+@pytest.mark.unit
 def test_enabled_collector_requires_payload_schema():
     with pytest.raises(ValueError, match="payload_schema"):
         registry.CollectorEntry("controller.example", collector_type="example", mode="hourly", enabled=True)
@@ -119,6 +131,26 @@ def test_accepts_since_until_by_mode():
     assert registry.get_entry("controller.events_table").accepts_since_until is True  # hourly
     assert registry.get_entry("controller.config").accepts_since_until is False  # snapshot
     assert registry.get_entry("controller.counts").accepts_since_until is False  # snapshot
+
+
+@pytest.mark.unit
+def test_payload_metadata():
+    # Dict collectors; every other enabled collector returns a DataFrame (array of records).
+    objects = {
+        "controller.query_info": None,
+        "controller.config": None,
+        "controller.counts": None,
+        "controller.cred_type_counts": "credential_type_id",
+        "controller.instance_info": "uuid",
+        "controller.inventory_counts": "inventory_id",
+        "controller.org_counts": "organization_id",
+        "controller.projects_by_scm_type": "scm_type",
+    }
+    for name, entry in registry.enabled_collectors().items():
+        if name in objects:
+            assert (entry.payload_shape, entry.key_field) == ("object", objects[name]), name
+        else:
+            assert (entry.payload_shape, entry.key_field) == ("array", None), name
 
 
 @pytest.mark.unit
