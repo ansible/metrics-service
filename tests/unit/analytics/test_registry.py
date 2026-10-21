@@ -168,3 +168,17 @@ def test_enabled_collectors_are_wired_to_collection_tasks():
         *(_get_daily_collectors()),
     }
     assert {entry.collector_type for entry in registry.enabled_collectors().values()} <= task_collectors
+
+
+@pytest.mark.unit
+def test_unified_jobs_dashboard_withholds_the_launcher_username():
+    """AAP-96704: collected for the dashboard sync, never exposed by the API."""
+    entry = registry.get_entry("controller.unified_jobs_dashboard")
+    assert entry is not None
+    assert entry.exclude_columns == ("launched_by_username",)
+
+
+@pytest.mark.unit
+def test_collectors_exclude_no_columns_by_default():
+    others = [e for e in registry.COLLECTORS.values() if e.name != "controller.unified_jobs_dashboard"]
+    assert all(not e.exclude_columns for e in others)
