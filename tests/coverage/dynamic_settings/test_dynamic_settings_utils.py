@@ -9,6 +9,58 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
+# _parse_setting_value
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+def test_parse_setting_value_valid_json_string():
+    from apps.dynamic_settings.utils import _parse_setting_value
+
+    assert _parse_setting_value('"hello"') == "hello"
+
+
+@pytest.mark.unit
+def test_parse_setting_value_valid_json_bool_true():
+    from apps.dynamic_settings.utils import _parse_setting_value
+
+    assert _parse_setting_value("true") is True
+
+
+@pytest.mark.unit
+def test_parse_setting_value_valid_json_bool_false():
+    from apps.dynamic_settings.utils import _parse_setting_value
+
+    assert _parse_setting_value("false") is False
+
+
+@pytest.mark.unit
+def test_parse_setting_value_valid_json_number():
+    from apps.dynamic_settings.utils import _parse_setting_value
+
+    assert _parse_setting_value("42") == 42
+
+
+@pytest.mark.unit
+def test_parse_setting_value_invalid_json_returns_string():
+    from apps.dynamic_settings.utils import _parse_setting_value
+
+    assert _parse_setting_value("not-json") == "not-json"
+
+
+@pytest.mark.unit
+def test_parse_setting_value_none_returns_none():
+    from apps.dynamic_settings.utils import _parse_setting_value
+
+    assert _parse_setting_value(None) is None
+
+
+@pytest.mark.unit
+def test_parse_setting_value_empty_string_returns_none():
+    from apps.dynamic_settings.utils import _parse_setting_value
+
+    assert _parse_setting_value("") is None
+
+
+# ---------------------------------------------------------------------------
 # initialize_default_settings
 # ---------------------------------------------------------------------------
 @pytest.mark.unit
@@ -73,6 +125,7 @@ def test_initialize_default_settings_keeps_false_row():
 @pytest.mark.django_db
 def test_initialize_default_settings_cleanup_exception_does_not_propagate():
     """DB errors during cleanup are swallowed and logged — they must not raise."""
+    from unittest.mock import patch
 
     from django.test import override_settings
 
@@ -214,3 +267,54 @@ def test_log_setting_change_redacts_password(user):
     log_setting_change(user, "DATABASE_PASSWORD", "my_password")
     setting = Setting.objects.get(setting_key="DATABASE_PASSWORD")
     assert setting.current_value == "***REDACTED***"
+
+
+# ---------------------------------------------------------------------------
+# rollback_configuration_change
+# ---------------------------------------------------------------------------
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_rollback_configuration_change_success(user):
+    from apps.dynamic_settings.models import Setting
+    from apps.dynamic_settings.utils import rollback_configuration_change
+
+    setting = Setting.objects.create(
+        setting_key="ROLLBACK_FLAG",
+        current_value='"false"',
+        previous_value='"true"',
+        last_modified_by=user,
+    )
+
+    with patch("metrics_service.settings.DYNACONF") as mock_dynaconf:
+        result = rollback_configuration_change(setting.id, user)
+
+    assert result["success"] is True
+    assert result["setting_key"] == "ROLLBACK_FLAG"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_rollback_configuration_change_not_found(user):
+    from apps.dynamic_settings.utils import rollback_configuration_change
+
+    result = rollback_configuration_change(99999, user)
+    assert result["success"] is False
+    assert "not found" in result["error"]
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+def test_rollback_configuration_change_blocked_for_sensitive(user):
+    from apps.dynamic_settings.models import Setting
+    from apps.dynamic_settings.utils import rollback_configuration_change
+
+    setting = Setting.objects.create(
+        setting_key="REDACTED_SETTING",
+        current_value="***REDACTED***",
+        previous_value="***REDACTED***",
+        last_modified_by=user,
+    )
+
+    result = rollback_configuration_change(setting.id, user)
+    assert result["success"] is False
+    assert "sensitive" in result["error"].lower()
