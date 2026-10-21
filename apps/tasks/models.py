@@ -187,15 +187,23 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         return True
 
     def cancel(self) -> bool:
-        """Atomically cancel a pending or running task without overwriting a terminal state."""
+        """
+        Atomically cancel a pending or running task without overwriting a terminal state.
+
+        completed_at is set here because nothing else will: a worker finishing after
+        cancellation no longer writes to the task, and cleanup selects on completed_at.
+        """
+        now = timezone.now()
         updated = Task.objects.filter(pk=self.pk, status__in=("pending", "running")).update(
             status="cancelled",
-            modified=timezone.now(),
+            completed_at=now,
+            modified=now,
         )
         if not updated:
             return False
 
         self.status = "cancelled"
+        self.completed_at = now
         return True
 
     def can_delete(self) -> bool:
