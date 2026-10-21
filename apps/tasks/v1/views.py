@@ -43,7 +43,7 @@ from apps.tasks.api_utils import ErrorResponseSerializer, build_error_response
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.task_groups import get_oneshot_task_ids
 
-from .base_views import BaseViewSet
+from .base_views import BaseViewSet, ReadOnlyBaseViewSet
 from .serializers import (
     TaskCleanupSerializer,
     TaskCreateSerializer,
@@ -265,12 +265,10 @@ class TaskViewSet(BaseViewSet):
         """
         task = self.get_object()
 
-        if task.status in ["completed", "cancelled", "failed"]:
+        if not task.cancel():
+            task.refresh_from_db()
             error_response = build_error_response(f"Cannot cancel task with status: {task.status}", status_code=400)
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
-
-        task.status = "cancelled"
-        task.save(update_fields=["status", "modified"])
 
         return Response({"message": f"Task '{task.name}' cancelled"})
 
@@ -686,25 +684,8 @@ class TaskViewSet(BaseViewSet):
         summary="Get specific task execution by ID.",
         description="Returns a specific task execution by ID.",
     ),
-    create=extend_schema(
-        summary="Create a task execution.",
-        description="Create a new task execution object.",
-        request=TaskExecutionSerializer,
-    ),
-    update=extend_schema(
-        summary="Update a specific task execution by ID.",
-        description="Update a specific task execution by ID.",
-    ),
-    partial_update=extend_schema(
-        summary="Partially update a specific task execution by ID.",
-        description="Partially update a specific task execution by ID.",
-    ),
-    destroy=extend_schema(
-        summary="Delete a specific task execution by ID.",
-        description="Delete a specific task execution record by ID.",
-    ),
 )
-class TaskExecutionViewSet(BaseViewSet):
+class TaskExecutionViewSet(ReadOnlyBaseViewSet):
     """
     ViewSet for TaskExecution model to monitor task execution history.
     """

@@ -335,8 +335,8 @@ class TestGenericCollectMetricsHook:
     @patch("apps.tasks.models.TaskExecution")
     @patch("apps.tasks.models.HourlyMetricsCollection")
     @patch("apps.tasks.utils.log_task_execution")
-    def test_hook_exception_emits_warning_and_creates_task_execution(self, mock_log, mock_hmc, mock_te):
-        """A failing hook emits a logger.warning and persists a failed TaskExecution when an execution is linked."""
+    def test_hook_exception_emits_warning_without_creating_task_execution(self, mock_log, mock_hmc, mock_te):
+        """A hook failure is logged but does not create a synthetic task attempt."""
         from apps.tasks.utils import generic_collect_metrics
 
         mock_hmc.objects.update_or_create.return_value = (MagicMock(), True)
@@ -366,15 +366,12 @@ class TestGenericCollectMetricsHook:
         warning_msg = mock_logger.warning.call_args_list[0][0][0]
         assert "post_collect_hook failed" in warning_msg
         assert "scheduling error" in warning_msg
-        mock_te.objects.create.assert_called_once()
-        create_kwargs = mock_te.objects.create.call_args[1]
-        assert create_kwargs["status"] == "failed"
-        assert "scheduling error" in create_kwargs["error_message"]
+        mock_te.objects.create.assert_not_called()
 
     @patch("apps.tasks.models.HourlyMetricsCollection")
     @patch("apps.tasks.utils.log_task_execution")
     def test_hook_exception_skips_task_execution_when_no_execution_linked(self, mock_log, mock_hmc):
-        """No TaskExecution is created when task_execution_id is not provided (task_execution_instance is None)."""
+        """No TaskExecution is created for hook failures without a claimed attempt."""
         from apps.tasks.utils import generic_collect_metrics
 
         mock_hmc.objects.update_or_create.return_value = (MagicMock(), True)

@@ -306,20 +306,27 @@ class UnifiedTaskScheduler:
         from .models import Task, TaskExecution
 
         now = timezone.now()
-        stuck_to_fail = Task.objects.filter(
-            status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-        )
-        if stuck_to_fail:
-            ids = [t.id for t in stuck_to_fail]
-            error_msg = "Task timed out — worker died before completion"
-            with transaction.atomic():
-                TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                    status="failed", error_message=error_msg, completed_at=now
+        error_msg = "Task timed out — worker died before completion"
+        with transaction.atomic():
+            # Lock tasks before executions, matching worker completion order so
+            # timeout recovery and a late worker result cannot split their state.
+            stuck_tasks = list(
+                Task.objects.select_for_update().filter(
+                    status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
                 )
-                Task.objects.filter(id__in=ids, status="running").update(
-                    status="failed", error_message=error_msg, completed_at=now
-                )
-            logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+            )
+            ids = [task.id for task in stuck_tasks]
+            if not ids:
+                return
+
+            Task.objects.filter(id__in=ids, status="running").update(
+                status="failed", error_message=error_msg, completed_at=now, modified=now
+            )
+            TaskExecution.objects.filter(task__id__in=ids, status="running").update(
+                status="failed", error_message=error_msg, completed_at=now, modified=now
+            )
+
+        logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
     def _retry_failed_tasks(self):
         """Schedule retries for failed tasks that still have attempts remaining."""

@@ -778,6 +778,37 @@ class TestStuckTaskDetection:
         assert execution.status == "failed"
         assert execution.completed_at is not None
 
+    def test_late_worker_cannot_complete_task_after_timeout_and_retry(self, user):
+        """A stale worker result cannot complete a newer claimed attempt."""
+        from apps.tasks.models import Task, TaskExecution
+        from apps.tasks.tasks_system import _claim_task
+        from apps.tasks.utils import update_task_status
+
+        task = Task.objects.create(name="Stuck Task", function_name="hello_world", created_by=user)
+        first_task, first_execution = _claim_task(task.pk)
+        old_started_at = timezone.now() - timedelta(seconds=settings.TASK_TIMEOUT + 1)
+        Task.objects.filter(pk=task.pk).update(started_at=old_started_at)
+        TaskExecution.objects.filter(pk=first_execution.pk).update(started_at=old_started_at)
+        first_task.started_at = old_started_at
+        first_execution.started_at = old_started_at
+
+        UnifiedTaskScheduler()._fail_stuck_tasks()
+
+        retry_task = Task.objects.get(pk=task.pk)
+        assert retry_task.status == "failed"
+        assert retry_task.retry()
+        retry_task, retry_execution = _claim_task(task.pk)
+
+        update_task_status(first_task, first_execution, "completed", result_data={"late": True})
+
+        retry_task.refresh_from_db()
+        first_execution.refresh_from_db()
+        retry_execution.refresh_from_db()
+        assert retry_task.status == "running"
+        assert retry_task.attempts == 2
+        assert first_execution.status == "failed"
+        assert retry_execution.status == "running"
+
 
 @pytest.mark.unit
 @pytest.mark.django_db

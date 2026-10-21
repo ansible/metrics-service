@@ -13,6 +13,7 @@ Tests cover all HTTP methods, error conditions, edge cases, and serializer valid
 """
 
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from django.test import TestCase, override_settings
@@ -353,6 +354,26 @@ class TestTaskViewSet(APITestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Cannot cancel task" in response.data["error"]
+
+    def test_task_cancel_does_not_overwrite_concurrent_completion(self):
+        """Cancellation uses the database status, not a stale object status."""
+        self.client.force_authenticate(user=self.user)
+        task = self._create_task_safely(
+            name="Running Task",
+            function_name="hello_world",
+            created_by=self.user,
+            status="running",
+        )
+        stale_task = Task.objects.get(pk=task.pk)
+        Task.objects.filter(pk=task.pk).update(status="completed")
+
+        url = reverse("tasks:v1:task-cancel", kwargs={"pk": task.pk})
+        with patch.object(TaskViewSet, "get_object", return_value=stale_task):
+            response = self.client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        task.refresh_from_db()
+        assert task.status == "completed"
 
     # Custom Action Tests - Cleanup
     def test_task_cleanup_dry_run(self):
@@ -842,6 +863,29 @@ class TestTaskExecutionViewSet(APITestCase):
         viewset = TaskExecutionViewSet()
         # viewset existence is implicitly tested by successful instantiation
         assert viewset.queryset.model == TaskExecution
+
+    def test_execution_mutation_endpoints_are_not_supported(self):
+        """Execution history can be read, but cannot be created or modified through the API."""
+        self.client.force_authenticate(user=self.user)
+        execution = TaskExecution.objects.create(task=self.task, status="running")
+        list_url = reverse("tasks:v1:taskexecution-list")
+        detail_url = reverse("tasks:v1:taskexecution-detail", kwargs={"pk": execution.pk})
+
+        responses = [
+            self.client.post(list_url, {"task": self.task.pk, "status": "failed"}),
+            self.client.put(detail_url, {"status": "completed"}),
+            self.client.patch(detail_url, {"status": "completed"}),
+            self.client.delete(detail_url),
+        ]
+
+        assert [response.status_code for response in responses] == [
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        ]
+        execution.refresh_from_db()
+        assert execution.status == "running"
 
 
 # =============================================================================

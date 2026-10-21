@@ -186,6 +186,18 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         self.scheduled_time = scheduled_time
         return True
 
+    def cancel(self) -> bool:
+        """Atomically cancel a pending or running task without overwriting a terminal state."""
+        updated = Task.objects.filter(pk=self.pk, status__in=("pending", "running")).update(
+            status="cancelled",
+            modified=timezone.now(),
+        )
+        if not updated:
+            return False
+
+        self.status = "cancelled"
+        return True
+
     def can_delete(self) -> bool:
         """
         Check if task can be deleted.

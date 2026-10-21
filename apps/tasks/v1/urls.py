@@ -18,7 +18,7 @@ app_name = "tasks_v1"
 # Create DRF router for task endpoints
 router = DefaultRouter()
 
-# Task execution monitoring endpoints (register BEFORE task to avoid route conflict)
+# Read-only task execution history (register BEFORE task to avoid route conflict)
 # /api/v1/tasks/executions/ - View task execution history
 # Must be registered first because more specific pattern 'executions' must match before catch-all ''
 router.register(r"executions", TaskExecutionViewSet, basename="taskexecution")

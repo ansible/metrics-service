@@ -95,12 +95,13 @@ def _claim_task(task_id):
     from .models import Task, TaskExecution
 
     with transaction.atomic():
+        claimed_at = timezone.now()
         claimed = (
             Task.ready_to_run()
             .filter(id=task_id)
             .update(
                 status="running",
-                started_at=timezone.now(),
+                started_at=claimed_at,
                 attempts=models.F("attempts") + 1,
             )
         )
@@ -114,6 +115,10 @@ def _claim_task(task_id):
             status="running",
             worker_id=f"dispatcher-{os.getpid()}",
         )
+        # Use the same timestamp to identify this claim when a late worker result
+        # races a timeout and a subsequent retry.
+        execution.started_at = claimed_at
+        execution.save(update_fields=["started_at"])
 
     return task, execution
 
