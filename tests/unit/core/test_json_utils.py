@@ -1,6 +1,6 @@
 """Tests for shared JSON normalization helpers."""
 
-from datetime import date
+from datetime import UTC, date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -62,3 +62,34 @@ def test_to_jsonable_keeps_integer_columns_with_nulls_as_integers():
         {"host_id": None, "ratio": None, "whole_float": 3, "empty": None},
     ]
     assert isinstance(to_jsonable(frame)[0]["host_id"], int)
+
+
+def test_to_jsonable_serializes_date_columns_without_a_time_component():
+    frame = pd.DataFrame(
+        {
+            "date": [date(2026, 10, 1), date(2026, 11, 1), None],
+            "created": [datetime(2026, 10, 1, 12, 30, tzinfo=UTC)] * 3,
+            "empty": [None, None, None],
+        }
+    )
+
+    assert to_jsonable(frame) == [
+        {"date": "2026-10-01", "created": "2026-10-01T12:30:00.000Z", "empty": None},
+        {"date": "2026-11-01", "created": "2026-10-01T12:30:00.000Z", "empty": None},
+        {"date": None, "created": "2026-10-01T12:30:00.000Z", "empty": None},
+    ]
+
+
+def test_to_jsonable_leaves_timestamp_columns_at_midnight_as_timestamps():
+    frame = pd.DataFrame({"started": [datetime(2026, 10, 1, 0, 0, tzinfo=UTC)]})
+
+    assert to_jsonable(frame) == [{"started": "2026-10-01T00:00:00.000Z"}]
+
+
+def test_to_jsonable_does_not_mutate_the_caller_frame():
+    frame = pd.DataFrame({"date": [date(2026, 10, 1), None], "host_id": [31, None]})
+    before = frame.copy(deep=True)
+
+    to_jsonable(frame)
+
+    pd.testing.assert_frame_equal(frame, before)
