@@ -214,3 +214,21 @@ def test_unified_jobs_dashboard_withholds_the_launcher_username():
 def test_collectors_exclude_no_columns_by_default():
     others = [e for e in registry.COLLECTORS.values() if e.name != "controller.unified_jobs_dashboard"]
     assert all(not e.exclude_columns for e in others)
+
+
+def _record_fields(entry) -> tuple[str, ...]:
+    """Names declared for one record of a collector's payload, per payload shape."""
+    schema = entry.payload_schema
+    if schema.kind == "array":
+        return tuple(field.name for field in schema.item_fields)
+    if entry.key_field is not None:
+        return tuple(field.name for field in schema.additional_properties.fields)
+    return tuple(field.name for field in schema.fields)
+
+
+@pytest.mark.unit
+def test_excluded_columns_are_not_declared_by_their_payload_schema():
+    """A withheld column must not be advertised by the OpenAPI schema that documents it."""
+    for entry in registry.enabled_collectors().values():
+        declared = set(_record_fields(entry))
+        assert declared.isdisjoint(entry.exclude_columns), entry.name
