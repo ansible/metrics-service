@@ -13443,11 +13443,6 @@ components:
           nullable: true
           description: User ID that launched the job; null unless launch_type is manual
             or relaunch.
-        launched_by_username:
-          type: string
-          nullable: true
-          description: Username that launched the job; null unless launch_type is
-            manual or relaunch.
         label_ids:
           type: string
           nullable: true
