@@ -462,11 +462,10 @@ class Command(BaseCommand):
         except Task.DoesNotExist as e:
             raise CommandError(f"Task with ID {task_id} not found") from e
 
-        if task.status in ["pending", "running"]:
-            task.status = "cancelled"
-            task.save(update_fields=["status", "modified"])
+        if task.cancel():
             self.output.success(f"✅ Cancelled task: {task.name}")
         else:
+            task.refresh_from_db()
             self.output.warning(f"⚠️ Task {task.name} is in '{task.status}' state and cannot be cancelled")
 
     def _handle_task_retry(self, options: dict[str, Any]) -> None:

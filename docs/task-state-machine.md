@@ -255,6 +255,13 @@ TaskExecution (one per attempt)
 `_claim_task()` creates a new `TaskExecution` per attempt.
 `retry()` only touches the `Task` — old `TaskExecution` records are preserved.
 `_fail_stuck_tasks()` only updates executions with `status="running"`.
+The execution API is read-only; only `_claim_task()` creates attempt records.
+Non-fatal collector-hook failures are logged and do not create synthetic attempts.
+
+The `TaskExecution` row **is** the claim identity. A worker finalizing its
+result guards the `Task` write on `EXISTS (execution still running)`, evaluated
+inside the same `UPDATE`, so no state has to be mirrored between the two models
+and a superseded attempt cannot be mistaken for the live one.
 
 A recurring task adds a second layer: each cron fire creates a new child `Task`
 (not just a `TaskExecution`), and that child owns its own `TaskExecution` rows.
@@ -296,3 +303,5 @@ The `/state-machine-review` skill checks these automatically.
 5. **Terminal states are never overwritten** — `_claim_task` filters `status='pending'`, `_fail_stuck_tasks` filters `status='running'`
 6. **All retry callers go through `task.retry()`** — API, CLI, and periodic scheduler; no manual field setting
 7. **Only `_claim_task` sets `running`** — `update_task_status` raises `ValueError` on `status="running"`; the `pending → running` claim (set `started_at`, increment `attempts`) is owned exclusively by `_claim_task`, atomically
+8. **Status writes are conditional on the current state** — cancellation updates only pending/running tasks; worker completion/failure updates only while its own `TaskExecution` is still running. The first atomic update wins, and a late worker cannot overwrite cancellation or a newer retry. Rejected writes are logged, not raised.
+9. **Every terminal state records `completed_at`** — including `cancel()`, since a worker finishing after cancellation no longer writes to the task and cleanup selects on `completed_at`

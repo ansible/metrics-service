@@ -37,7 +37,9 @@ class TaskUtilsTestCase(TestCase):
 
     def test_handle_task_error_with_instances(self):
         """Test error handling with task and execution instances."""
-        execution = TaskExecution.objects.create(task=self.task, status="running", worker_id="test-worker")
+        from apps.tasks.tasks_system import _claim_task
+
+        self.task, execution = _claim_task(self.task.pk)
 
         result = utils.handle_task_error(
             task_instance=self.task, execution_instance=execution, error_message="Test error"
@@ -53,6 +55,7 @@ class TaskUtilsTestCase(TestCase):
         self.assertEqual(execution.status, "failed")
         self.assertEqual(execution.error_message, "Test error")
         self.assertIsNotNone(execution.completed_at)
+        self.assertIsNotNone(execution.execution_time_seconds)
 
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["error"], "Test error")
@@ -67,7 +70,9 @@ class TaskUtilsTestCase(TestCase):
 
     def test_handle_task_error_with_ids(self):
         """Test error handling with task and execution IDs."""
-        execution = TaskExecution.objects.create(task=self.task, status="running", worker_id="test-worker")
+        from apps.tasks.tasks_system import _claim_task
+
+        self.task, execution = _claim_task(self.task.pk)
 
         utils.handle_task_error(task_id=self.task.id, execution_id=execution.id, error_message="Test error")
 
@@ -86,7 +91,9 @@ class TaskUtilsTestCase(TestCase):
 
     def test_update_task_status_completed(self):
         """Test updating task status to completed."""
-        execution = TaskExecution.objects.create(task=self.task, status="running", worker_id="test-worker")
+        from apps.tasks.tasks_system import _claim_task
+
+        self.task, execution = _claim_task(self.task.pk)
 
         result_data = {"result": "success"}
         utils.update_task_status(self.task, execution, "completed", result_data)
@@ -104,13 +111,96 @@ class TaskUtilsTestCase(TestCase):
 
     def test_update_task_status_failed(self):
         """Test updating task status to failed."""
-        utils.update_task_status(self.task, None, "failed", error_message="Test error")
+        from apps.tasks.tasks_system import _claim_task
+
+        self.task, execution = _claim_task(self.task.pk)
+        utils.update_task_status(self.task, execution, "failed", error_message="Test error")
 
         self.task.refresh_from_db()
 
         self.assertEqual(self.task.status, "failed")
         self.assertEqual(self.task.error_message, "Test error")
         self.assertIsNotNone(self.task.completed_at)
+
+    def test_update_task_status_rejects_running(self):
+        """Claiming a task is owned by _claim_task, so 'running' is not accepted here."""
+        with self.assertRaises(ValueError) as ctx:
+            utils.update_task_status(self.task, None, "running")
+
+        self.assertIn("_claim_task", str(ctx.exception))
+
+    def test_update_task_status_rejects_non_terminal_status(self):
+        """Only the two statuses a worker can produce are accepted."""
+        for status in ("cancelled", "pending", ""):
+            with self.subTest(status=status), self.assertRaises(ValueError):
+                utils.update_task_status(self.task, None, status)
+
+    def test_completion_after_cancel_preserves_task_status(self):
+        """A late worker result updates its execution, not a cancelled task."""
+        from apps.tasks.tasks_system import _claim_task
+
+        self.task, execution = _claim_task(self.task.pk)
+        self.assertTrue(self.task.cancel())
+
+        utils.update_task_status(self.task, execution, "completed", result_data={"result": "success"})
+
+        self.task.refresh_from_db()
+        execution.refresh_from_db()
+        self.assertEqual(self.task.status, "cancelled")
+        self.assertEqual(execution.status, "completed")
+
+    def test_error_after_cancel_preserves_task_status(self):
+        """A late worker error cannot turn a cancelled task into a retryable failure."""
+        from apps.tasks.tasks_system import _claim_task
+
+        self.task, execution = _claim_task(self.task.pk)
+        self.assertTrue(self.task.cancel())
+
+        utils.handle_task_error(self.task, execution, "late error")
+
+        self.task.refresh_from_db()
+        execution.refresh_from_db()
+        self.assertEqual(self.task.status, "cancelled")
+        self.assertEqual(execution.status, "failed")
+
+    def test_late_attempt_cannot_complete_a_retried_task(self):
+        """A timed-out worker cannot overwrite a subsequently claimed retry."""
+        from apps.tasks.tasks_system import _claim_task
+
+        first_task, first_execution = _claim_task(self.task.pk)
+        utils.handle_task_error(first_task, first_execution, "timed out")
+        retry_task = Task.objects.get(pk=self.task.pk)
+        self.assertTrue(retry_task.retry())
+        retry_task, retry_execution = _claim_task(retry_task.pk)
+
+        utils.update_task_status(first_task, first_execution, "completed", result_data={"result": "late"})
+
+        retry_task.refresh_from_db()
+        first_execution.refresh_from_db()
+        retry_execution.refresh_from_db()
+        self.assertEqual(retry_task.status, "running")
+        self.assertEqual(retry_task.attempts, 2)
+        self.assertEqual(first_execution.status, "failed")
+        self.assertEqual(retry_execution.status, "running")
+
+    def test_stale_claim_is_rejected_independently_of_timestamps(self):
+        """The claim guard keys off the execution row, not matching started_at values."""
+        from apps.tasks.tasks_system import _claim_task
+
+        first_task, first_execution = _claim_task(self.task.pk)
+        utils.handle_task_error(first_task, first_execution, "timed out")
+        retry_task = Task.objects.get(pk=self.task.pk)
+        self.assertTrue(retry_task.retry())
+        retry_task, retry_execution = _claim_task(retry_task.pk)
+        # Make the newer claim indistinguishable from the old one by timestamp.
+        Task.objects.filter(pk=retry_task.pk).update(started_at=first_execution.started_at)
+
+        utils.update_task_status(first_task, first_execution, "completed", result_data={"result": "late"})
+
+        retry_task.refresh_from_db()
+        retry_execution.refresh_from_db()
+        self.assertEqual(retry_task.status, "running")
+        self.assertEqual(retry_execution.status, "running")
 
     def test_create_task_result_success(self):
         """Test creating successful task result."""

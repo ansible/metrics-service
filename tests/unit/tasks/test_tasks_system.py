@@ -775,16 +775,9 @@ class TestTaskRetryBehavior(TestCase):
         )
         task.save()
 
-        # Create an execution record
-        execution = TaskExecution.objects.create(task=task, status="pending", worker_id="test-worker")
-
         # Simulate an error that occurs before the task reaches "running" status
         # (e.g., function not found, invalid parameters, etc.)
-        result = handle_task_error(
-            task_instance=task,
-            execution_instance=execution,
-            error_message="Function not found",
-        )
+        result = handle_task_error(task_instance=task, error_message="Function not found")
 
         # Refresh from database
         task.refresh_from_db()
@@ -855,16 +848,10 @@ class TestTaskRetryBehavior(TestCase):
         )
         task.save()
 
-        execution = TaskExecution.objects.create(task=task, status="pending", worker_id="test-worker")
-
         # Simulate multiple early failures (e.g., function not found each time)
         for expected_attempts in range(1, 4):
             # Simulate failure before reaching "running" status
-            handle_task_error(
-                task_instance=task,
-                execution_instance=execution,
-                error_message="Function not found",
-            )
+            handle_task_error(task_instance=task, error_message="Function not found")
 
             task.refresh_from_db()
             assert task.attempts == expected_attempts, f"Attempts should be {expected_attempts}"
@@ -903,9 +890,11 @@ class TestTaskRetryBehavior(TestCase):
         )
         task.save()
 
-        execution = TaskExecution.objects.create(task=task, status="pending", worker_id="test-worker")
+        from apps.tasks.tasks_system import _claim_task
 
-        # Call with IDs instead of instances (as done in execute_db_task line 404)
+        task, execution = _claim_task(task.id)
+
+        # Call with IDs instead of instances as the worker error path does.
         result = handle_task_error(
             task_id=task.id,
             execution_id=execution.id,
@@ -914,8 +903,8 @@ class TestTaskRetryBehavior(TestCase):
 
         task.refresh_from_db()
 
-        # Verify attempts was incremented
-        assert task.attempts == 1, "Attempts should be incremented when called with task_id"
+        # The claim incremented attempts, and error handling must not increment again.
+        assert task.attempts == 1
         assert task.status == "failed"
         assert task.error_message == "Task failed with exception"
         assert result["status"] == "error"

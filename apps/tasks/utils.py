@@ -7,9 +7,88 @@ from datetime import UTC
 from typing import Any
 
 from django.db import transaction
+from django.db.models import Exists, F
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _live_claim(task_pk: int, execution_instance: Any) -> Exists:
+    """
+    Return a filter matching only while execution_instance is still the task's live claim.
+
+    The TaskExecution row *is* the claim identity, so the guard is a subquery
+    evaluated inside the same UPDATE statement. Nothing has to be mirrored
+    between Task and TaskExecution for the compare-and-set to stay correct.
+    """
+    from .models import TaskExecution
+
+    return Exists(TaskExecution.objects.filter(pk=execution_instance.pk, task_id=task_pk, status="running"))
+
+
+def _fail_task_row(task_instance: Any, execution_instance: Any, error_message: str, now: Any) -> int:
+    """
+    Mark the task failed, but only for the claim this error came from.
+
+    A timed-out worker must not overwrite a retry that has already been claimed.
+    Returns the number of rows updated, which is 0 when the write was rejected.
+    """
+    from .models import Task
+
+    task_updates = {"status": "failed", "error_message": error_message, "completed_at": now, "modified": now}
+    task_queryset = Task.objects.filter(pk=task_instance.pk)
+
+    if execution_instance:
+        return task_queryset.filter(_live_claim(task_instance.pk, execution_instance), status="running").update(
+            **task_updates
+        )
+    if task_instance.status == "pending":
+        # Failed before reaching "running", so no claim incremented attempts.
+        task_updates["attempts"] = F("attempts") + 1
+        return task_queryset.filter(status="pending").update(**task_updates)
+    if task_instance.status == "running":
+        return task_queryset.filter(status="running").update(**task_updates)
+    return 0
+
+
+def _fail_execution_row(task_instance: Any, execution_instance: Any, error_message: str, now: Any) -> int:
+    """
+    Record the failure on the attempt, unless something already finalized it.
+
+    Returns the number of rows updated, which is 0 when the write was rejected
+    (for example by stuck-task recovery having already failed this attempt).
+    """
+    from .models import TaskExecution
+
+    execution_updates = {"status": "failed", "error_message": error_message, "completed_at": now, "modified": now}
+    if execution_instance.started_at:
+        execution_updates["execution_time_seconds"] = (now - execution_instance.started_at).total_seconds()
+
+    return TaskExecution.objects.filter(
+        pk=execution_instance.pk,
+        task_id=task_instance.pk if task_instance else execution_instance.task_id,
+        status="running",
+    ).update(**execution_updates)
+
+
+def _log_dropped_writes(
+    status: str,
+    task_instance: Any,
+    task_updated: int,
+    execution_instance: Any,
+    execution_updated: int,
+) -> None:
+    """Record which halves of a worker result were rejected by their compare-and-set guard."""
+    if task_instance is not None and not task_updated:
+        logger.info(
+            f"Dropped stale '{status}' result for task {task_instance.pk}: "
+            f"task is '{task_instance.status}' and is no longer running this attempt"
+        )
+    if execution_instance is not None and not execution_updated:
+        logger.info(
+            f"Dropped stale '{status}' result for execution {execution_instance.pk}: "
+            f"execution is '{execution_instance.status}', not running"
+        )
 
 
 def ensure_django_setup():
@@ -92,39 +171,37 @@ def handle_task_error(
     if not execution_instance and execution_id:
         execution_instance = _fetch_execution_by_id(execution_id)
 
+    task_updated = 0
+    execution_updated = 0
+
     try:
+        # Read the current state before branching on it: a stale in-memory copy
+        # would pick the wrong branch and silently drop the failure.
+        if task_instance:
+            task_instance.refresh_from_db()
+        if execution_instance:
+            execution_instance.refresh_from_db()
+
         with transaction.atomic():
-            # Update task status if we have a task instance
+            now = timezone.now()
+
+            # Task before TaskExecution, matching _claim_task and
+            # _fail_stuck_tasks, so concurrent finalizers serialize on the task
+            # row rather than deadlocking against each other.
             if task_instance:
-                # Refresh from database to get latest state
-                task_instance.refresh_from_db()
-
-                # Store previous status to determine if we need to increment attempts
-                previous_status = task_instance.status
-
-                task_instance.status = "failed"
-                task_instance.error_message = error_message
-                task_instance.completed_at = timezone.now()
-
-                # Increment attempts if the task failed before reaching "running" status
-                # This handles errors that occur during task initialization/validation
-                # If the task reached "running" status, attempts was already incremented
-                if previous_status in ["pending"]:
-                    task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
-
-                task_instance.save(update_fields=["status", "error_message", "completed_at", "attempts", "modified"])
-
-            # Update execution status if provided
+                task_updated = _fail_task_row(task_instance, execution_instance, error_message, now)
             if execution_instance:
-                execution_instance.status = "failed"
-                execution_instance.error_message = error_message
-                execution_instance.completed_at = timezone.now()
-                execution_instance.save(
-                    update_fields=["status", "error_message", "completed_at", "execution_time_seconds", "modified"]
-                )
+                execution_updated = _fail_execution_row(task_instance, execution_instance, error_message, now)
+
+        if task_instance:
+            task_instance.refresh_from_db()
+        if execution_instance:
+            execution_instance.refresh_from_db()
 
     except Exception as save_error:
         logger.exception(f"Failed to update task status after error: {save_error}")
+    else:
+        _log_dropped_writes("failed", task_instance, task_updated, execution_instance, execution_updated)
 
     # Deferred past the transaction so status=="failed" and attempts are incremented before can_retry() is called.
     # Defaults to ERROR when no task context is available.
@@ -162,58 +239,57 @@ def update_task_status(
     Note:
         This does not handle the transition to "running". Claiming a task
         (setting started_at and incrementing attempts) is owned exclusively by
-        _claim_task, which does it atomically. Passing status="running" here
-        would set the status without those side effects, so it is rejected.
+        _claim_task, which does it atomically. Completion and failure updates
+        only apply while execution_instance is still the task's live claim, so
+        cancellation and later retries cannot be overwritten by stale worker
+        results. A rejected write is logged, not raised.
     """
     if status == "running":
         raise ValueError("update_task_status cannot set status='running'; use _claim_task to claim a task")
+    if status not in {"completed", "failed"}:
+        raise ValueError("update_task_status only accepts status='completed' or status='failed'")
 
     with transaction.atomic():
-        # Refresh from database to get latest state
-        task_instance.refresh_from_db()
+        from .models import Task, TaskExecution
 
-        # Update task fields
-        task_instance.status = status
+        now = timezone.now()
+        task_updates = {"status": status, "completed_at": now, "modified": now}
         if result_data is not None:
-            task_instance.result_data = result_data
-        if error_message:
-            task_instance.error_message = error_message
-        elif status == "completed":
-            task_instance.error_message = ""
+            task_updates["result_data"] = result_data
+        if error_message or status == "completed":
+            task_updates["error_message"] = error_message
 
-        if status in ["completed", "failed"]:
-            task_instance.completed_at = timezone.now()
-
-        task_instance.save(
-            update_fields=[
-                "status",
-                "result_data",
-                "error_message",
-                "completed_at",
-                "modified",
-            ]
-        )
-
-        # Update execution instance if provided
+        # Task before TaskExecution, matching _claim_task and _fail_stuck_tasks,
+        # so concurrent finalizers serialize on the task row rather than
+        # deadlocking against each other.
+        task_filter = Task.objects.filter(pk=task_instance.pk, status="running")
         if execution_instance:
-            execution_instance.refresh_from_db()
-            execution_instance.status = status
+            task_filter = task_filter.filter(_live_claim(task_instance.pk, execution_instance))
+        task_updated = task_filter.update(**task_updates)
+
+        # A cancelled task remains cancelled, while its still-running execution
+        # can record the result the worker actually produced. A timed-out or
+        # superseded execution is left untouched.
+        execution_updated = 0
+        if execution_instance:
+            execution_updates = {"status": status, "completed_at": now, "modified": now}
             if result_data is not None:
-                execution_instance.result_data = result_data
-            if error_message:
-                execution_instance.error_message = error_message
-            if status in ["completed", "failed"]:
-                execution_instance.completed_at = timezone.now()
-            execution_instance.save(
-                update_fields=[
-                    "status",
-                    "result_data",
-                    "error_message",
-                    "completed_at",
-                    "execution_time_seconds",
-                    "modified",
-                ]
-            )
+                execution_updates["result_data"] = result_data
+            if error_message or status == "completed":
+                execution_updates["error_message"] = error_message
+            if execution_instance.started_at:
+                execution_updates["execution_time_seconds"] = (now - execution_instance.started_at).total_seconds()
+            execution_updated = TaskExecution.objects.filter(
+                pk=execution_instance.pk,
+                task_id=task_instance.pk,
+                status="running",
+            ).update(**execution_updates)
+
+    task_instance.refresh_from_db()
+    if execution_instance:
+        execution_instance.refresh_from_db()
+
+    _log_dropped_writes(status, task_instance, task_updated, execution_instance, execution_updated)
 
 
 def create_task_result(status: str, data: dict[str, Any] | None = None, error: str = "") -> dict[str, Any]:
@@ -436,29 +512,13 @@ def _serialize_args(kwargs):
     return params
 
 
-def _run_post_collect_hook(hook, raw_data: Any, collector_type: str, task_execution_instance: Any) -> None:
-    """Call hook(raw_data), swallowing exceptions to protect the rollup pipeline.
-
-    On failure logs a warning and writes a failed TaskExecution record so the
-    failure is visible in task monitoring without aborting the anonymisation pipeline.
-    """
+def _run_post_collect_hook(hook, raw_data: Any, collector_type: str) -> None:
+    """Call hook(raw_data), logging failures without aborting the rollup pipeline."""
     try:
         hook(raw_data)
     except Exception as hook_exc:
         error_msg = f"post_collect_hook failed for {collector_type}: {hook_exc}"
         logger.warning(error_msg)
-        if task_execution_instance is not None:
-            try:
-                from apps.tasks.models import TaskExecution
-
-                TaskExecution.objects.create(
-                    task=task_execution_instance.task,
-                    status="failed",
-                    error_message=error_msg,
-                    completed_at=timezone.now(),
-                )
-            except Exception:
-                logger.warning("Failed to persist hook failure as TaskExecution")
 
 
 def _persist_collection(
@@ -579,7 +639,7 @@ def generic_collect_metrics(
         )
 
         if post_collect_hook is not None:
-            _run_post_collect_hook(post_collect_hook, raw_data, collector_type, task_execution_instance)
+            _run_post_collect_hook(post_collect_hook, raw_data, collector_type)
 
         if not config.get("persist_to_hourly", True):
             return create_task_result(

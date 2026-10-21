@@ -10,13 +10,8 @@ from rest_framework.response import Response
 from apps.tasks.utils import log_task_execution
 
 
-class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
-    """
-    Base ViewSet class with common functionality.
-
-    This base class provides common ViewSet functionality that can be
-    inherited by all model ViewSets to reduce code duplication.
-    """
+class _TaskViewSetMixin:
+    """Common permissions, ordering, and exception logging for task viewsets."""
 
     permission_classes = [IsSystemAdminOrAuditor]
 
@@ -42,3 +37,11 @@ class BaseViewSet(AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
         log_task_execution(task_name=self.__class__.__name__, operation="exception", details=str(exc), level="error")
 
         return super().handle_exception(exc)
+
+
+class BaseViewSet(_TaskViewSetMixin, AnsibleBaseDjangoAppApiView, viewsets.ModelViewSet):
+    """Base viewset for task models with CRUD operations."""
+
+
+class ReadOnlyBaseViewSet(_TaskViewSetMixin, AnsibleBaseDjangoAppApiView, viewsets.ReadOnlyModelViewSet):
+    """Base viewset for task resources that only support list and retrieve."""

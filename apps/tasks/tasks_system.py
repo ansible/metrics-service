@@ -109,6 +109,8 @@ def _claim_task(task_id):
 
         task = Task.objects.get(id=task_id)
 
+        # This row is the claim identity: finalizers compare-and-set against it
+        # to tell a live attempt from one a timeout or retry has superseded.
         execution = TaskExecution.objects.create(
             task=task,
             status="running",
