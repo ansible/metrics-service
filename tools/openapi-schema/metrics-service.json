@@ -1550,9 +1550,8 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         },
-                        "description": "A unique integer value identifying this Job Data.",
                         "required": true
                     }
                 ],
@@ -2081,9 +2080,8 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         },
-                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
@@ -2140,9 +2138,8 @@
                         "in": "path",
                         "name": "id",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         },
-                        "description": "A unique integer value identifying this Subscription Cost.",
                         "required": true
                     }
                 ],
