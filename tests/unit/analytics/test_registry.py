@@ -214,18 +214,3 @@ def test_unified_jobs_dashboard_withholds_the_launcher_username():
 def test_collectors_exclude_no_columns_by_default():
     others = [e for e in registry.COLLECTORS.values() if e.name != "controller.unified_jobs_dashboard"]
     assert all(not e.exclude_columns for e in others)
-
-
-# apply_exclusions removes keys at record level, which is only well defined for payloads whose
-# records are the array items or the object itself. Collectors returning an object *keyed by data*
-# (controller.instance_info by uuid, controller.cred_type_counts by credential_type_id, ...) hold
-# their records one level below the top-level keys, so an exclusion there would silently no-op.
-# Telling the two object shapes apart needs the key_field metadata from
-# https://github.com/ansible/metrics-service/pull/460 - until that lands, keep exclusions off them.
-_RECORD_LEVEL_EXCLUSION_COLLECTORS = {"controller.unified_jobs_dashboard"}
-
-
-@pytest.mark.unit
-def test_exclusions_only_on_collectors_whose_records_are_top_level():
-    configured = {e.name for e in registry.COLLECTORS.values() if e.exclude_columns}
-    assert configured <= _RECORD_LEVEL_EXCLUSION_COLLECTORS
