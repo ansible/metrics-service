@@ -20,6 +20,25 @@ data is filtered at the boundaries where it leaves the service:
 
 Deliberately **not** applied to ``post_collect_hook``: the dashboard ``JobData`` sync is
 internal and is the reason the column is collected in the first place.
+
+Supported payload shapes
+------------------------
+Collectors return one of three shapes (see the payload schemas in
+https://github.com/ansible/metrics-service/pull/460):
+
+* **array of records** — every DataFrame collector. Records are the array items, so the
+  exclusion applies to each item's keys. This is the only shape with an exclusion today.
+* **object with fixed keys** — ``controller.config``, ``controller.counts``,
+  ``controller.query_info``. The payload *is* the record, so the exclusion applies to its
+  top-level keys.
+* **object keyed by data** — ``controller.instance_info`` (by ``uuid``),
+  ``controller.cred_type_counts`` (by ``credential_type_id``), and the other
+  ``key_field`` collectors. The records sit one level *below* the top-level keys, so a
+  column exclusion must descend into the values — **not supported here**, because this
+  shape is indistinguishable from a fixed-key object without the ``key_field`` metadata
+  that #460 introduces. Until then a guard test keeps ``exclude_columns`` off those
+  collectors rather than letting the exclusion silently no-op; once #460 lands, branch on
+  ``entry.key_field`` instead and drop the guard.
 """
 
 from __future__ import annotations
@@ -33,8 +52,11 @@ def apply_exclusions(raw_data: Any, exclude_columns: tuple[str, ...]) -> Any:
     """Return ``raw_data`` without ``exclude_columns``.
 
     Never mutates ``raw_data``: the same object is handed to in-service consumers that
-    still need the excluded columns. Shapes other than a DataFrame, a dict or a list of
-    dicts are returned unchanged — collectors only produce those three.
+    still need the excluded columns. Anything other than a DataFrame, a dict or a list is
+    returned unchanged.
+
+    Only removes keys at record level — see the module docstring for which payload shapes
+    that covers, and why objects keyed by data are excluded from it for now.
 
     Args:
         raw_data: a collector's ``gather()`` output.
@@ -54,6 +76,8 @@ def apply_exclusions(raw_data: Any, exclude_columns: tuple[str, ...]) -> Any:
         return raw_data.drop(columns=present) if present else raw_data
 
     if isinstance(raw_data, dict):
+        # Fixed-key object: the payload is itself one record. Objects keyed by data are kept
+        # out of this path by a registry guard test until #460 provides key_field.
         return {key: value for key, value in raw_data.items() if key not in excluded}
 
     if isinstance(raw_data, list):
