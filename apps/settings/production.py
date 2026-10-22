@@ -26,10 +26,11 @@ Usage:
    export METRICS_SERVICE_MODE=production
    export METRICS_SERVICE_SECRET_KEY=your-secret-key
    export METRICS_SERVICE_DATABASES__default__PASSWORD=your-db-password
-   # For either database (default or awx), a password may instead be omitted
-   # when OPTIONS__sslcert and OPTIONS__sslkey are both set and OPTIONS__sslmode
-   # is prefer, require, verify-ca, or verify-full. Use lowercase OPTIONS keys exactly.
-   # Prefer verify-full with OPTIONS__sslrootcert pointing to the server CA.
+   # PostgreSQL client-certificate authentication may omit the password when
+   # OPTIONS__sslcert and OPTIONS__sslkey are both set and OPTIONS__sslmode is
+   # prefer, require, verify-ca, or verify-full. SQL Server always requires a password.
+   # Set DATABASES__<alias>__ENGINE=mssql and OPTIONS__driver=ODBC Driver 18 for SQL Server
+   # to select SQL Server for an alias.
    # ... set all other required environment variables
    python manage.py metrics_service run --workers 4
    # Or set Gunicorn and dispatcher workers separately:
@@ -157,6 +158,16 @@ validators.append(
     ),
 )
 
+DATABASES__default__PORT = ""
+validators.append(
+    Validator(
+        "DATABASES__default__PORT",
+        must_exist=True,
+        ne="",
+        messages={"operations": "DATABASES__default__PORT must be set."},
+    ),
+)
+
 DATABASES__default__USER = ""
 validators.append(
     Validator(
@@ -179,6 +190,16 @@ validators.append(
     ),
 )
 
+DATABASES__awx__PORT = ""
+validators.append(
+    Validator(
+        "DATABASES__awx__PORT",
+        must_exist=True,
+        ne="",
+        messages={"operations": "DATABASES__awx__PORT must be set."},
+    ),
+)
+
 DATABASES__awx__USER = ""
 validators.append(
     Validator(
@@ -193,27 +214,63 @@ DATABASES__awx__PASSWORD = ""
 
 
 def _database_auth_validators(alias: str) -> list[Validator]:
-    """Require a password or a complete TLS client certificate setup per database."""
+    """Validate authentication and backend-specific options for one database alias."""
     prefix = f"DATABASES__{alias}"
+    engine = f"{prefix}__ENGINE"
+    postgresql_engine = Validator(engine, eq="django.db.backends.postgresql")
+    sql_server_engine = Validator(engine, eq="mssql")
     cert = f"{prefix}__OPTIONS__sslcert"
     key = f"{prefix}__OPTIONS__sslkey"
-    missing_certificate = Validator(cert, condition=lambda value: not value) | Validator(
-        key, condition=lambda value: not value
-    )
-    certificate_configured = Validator(cert, must_exist=True, condition=bool) | Validator(
-        key, must_exist=True, condition=bool
-    )
+    missing_certificate = (
+        Validator(cert, condition=lambda value: not value) | Validator(key, condition=lambda value: not value)
+    ) & postgresql_engine
+    certificate_configured = (
+        Validator(cert, must_exist=True, condition=bool) | Validator(key, must_exist=True, condition=bool)
+    ) & postgresql_engine
     pair_message = f"{cert} and {key} must be set together."
     tls_message = (
         f"{prefix}__OPTIONS__sslmode must be prefer, require, verify-ca or verify-full "
         "when client certificate authentication is configured."
     )
+    postgres_options = {"sslmode", "sslcert", "sslkey", "sslrootcert", "sslcrl", "sslpassword"}
+    sql_server_options = {
+        "driver",
+        "extra_params",
+        "connection_timeout",
+        "connection_retries",
+        "connection_retry_backoff_time",
+        "query_timeout",
+    }
     return [
+        Validator(
+            engine,
+            is_in=("django.db.backends.postgresql", "mssql"),
+            messages={"operations": f"{prefix}__ENGINE must be django.db.backends.postgresql or mssql."},
+        ),
         # Dynaconf lookups ignore case, but psycopg receives the literal dict keys.
         Validator(
             f"{prefix}__OPTIONS",
             condition=lambda options: all(name == name.lower() for name in options),
             messages={"condition": f"{prefix}__OPTIONS keys must be lowercase (sslcert, sslkey, sslmode, etc.)."},
+        ),
+        Validator(
+            f"{prefix}__OPTIONS",
+            condition=lambda options: not postgres_options.intersection(options),
+            when=sql_server_engine,
+            messages={"condition": "PostgreSQL options cannot be used with SQL Server."},
+        ),
+        Validator(
+            f"{prefix}__OPTIONS",
+            condition=lambda options: not sql_server_options.intersection(options),
+            when=postgresql_engine,
+            messages={"condition": "SQL Server options cannot be used with PostgreSQL."},
+        ),
+        Validator(
+            f"{prefix}__OPTIONS__driver",
+            must_exist=True,
+            ne="",
+            when=sql_server_engine,
+            messages={"operations": f"{prefix}__OPTIONS__driver must be set for SQL Server."},
         ),
         Validator(
             cert,
@@ -235,6 +292,13 @@ def _database_auth_validators(alias: str) -> list[Validator]:
             must_exist=True,
             ne="",
             when=missing_certificate,
+            messages={"operations": f"{prefix}__PASSWORD must be set."},
+        ),
+        Validator(
+            f"{prefix}__PASSWORD",
+            must_exist=True,
+            ne="",
+            when=sql_server_engine,
             messages={"operations": f"{prefix}__PASSWORD must be set."},
         ),
     ]

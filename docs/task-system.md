@@ -16,7 +16,7 @@ flowchart LR
     Init["init-system-tasks\ncreate_system_tasks()"]
     DB["PostgreSQL\nTask rows"]
     Sched["UnifiedTaskScheduler\nperiodic sync"]
-    Disp["dispatcherd\npg_notify broker"]
+    Disp["dispatcherd\nSQL Server table broker"]
     Worker["execute_db_task\n_claim_task → execute"]
     Fn["TASK_FUNCTIONS\nPython callable"]
 
@@ -154,14 +154,17 @@ scheduled execution (see [apscheduler.md](apscheduler.md)).
 ## Dispatcherd and Queues
 
 Workers use [dispatcherd](https://github.com/ansible/dispatcherd) — a local
-background task runner built around PostgreSQL `pg_notify`. metrics-service
-configures channels and queue routing; see the
-[dispatcherd configuration docs](https://github.com/ansible/dispatcherd/blob/main/docs/config.md)
+background task runner. metrics-service currently uses dispatcherd's SQL Server
+table broker for task messages while task records remain in its PostgreSQL
+application database. See the
+[dispatcherd configuration docs](dispatcherd-sql-server.md)
 for broker and worker pool options.
 
 Workers load configuration from `apps/settings/dispatcherd.yaml`. At runtime
-`dispatcherd_config.py` injects the Django database connection and sets
-`default_timeout` from `TASK_TIMEOUT`.
+`dispatcherd_config.py` injects the independent `DISPATCHERD_SQLSERVER` settings
+and sets `default_timeout` from `TASK_TIMEOUT`. The broker connection does not
+come from Django's `DATABASES` setting, so a later application database
+migration can proceed independently.
 
 `submit_task_to_dispatcher()` publishes to dispatcherd:
 
@@ -177,8 +180,11 @@ Queue routing (`get_queue_for_function`):
 | `dashboard` | Dashboard backfill and sync tasks |
 | `maintenance` | Cleanup, hello_world, resource sync |
 
-Broker channels use PostgreSQL `pg_notify`. Multiple worker processes can
-consume from the same queue.
+The `dispatcherd` SQL Server database stores messages in
+`dbo.dispatcherd_messages`. Consumers atomically claim and remove messages from
+the `metrics`, `dashboard`, and `maintenance` channels. The task scheduler's
+existing database reconciliation resubmits pending work if dispatcherd is
+unavailable before a message is claimed.
 
 ### Execution path
 

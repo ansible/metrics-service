@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.conf import settings
 
 
 class CoreConfig(AppConfig):
@@ -8,7 +9,9 @@ class CoreConfig(AppConfig):
     name = "apps.core"
 
     def ready(self):
-        """Connect signals and RBAC post-migrate hooks on app startup."""
+        """Select migrations, connect signals, and register RBAC post-migrate hooks."""
+        self._select_migration_modules()
+
         from ansible_base.rbac.triggers import dab_post_migrate
 
         from . import signals  # noqa: F401
@@ -19,6 +22,21 @@ class CoreConfig(AppConfig):
         )
 
         self._restrict_dab_view_permissions()
+
+    @staticmethod
+    def _select_migration_modules():
+        """Select project migrations from the backend used by the metrics database."""
+        # MIGRATION_MODULES is process-wide; the awx alias is an ancillary source database.
+        default_database = settings.DATABASES.get("default", {})
+        migration_directory = "ms_migrations" if default_database.get("ENGINE") == "mssql" else "migrations"
+        migration_modules = dict(getattr(settings, "MIGRATION_MODULES", {}) or {})
+        migration_modules.update(
+            {
+                app_label: f"apps.{app_label}.{migration_directory}"
+                for app_label in ("analytics", "core", "dashboard_reports", "dynamic_settings", "tasks")
+            }
+        )
+        settings.MIGRATION_MODULES = migration_modules
 
     @staticmethod
     def _restrict_dab_view_permissions():

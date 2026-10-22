@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from django.db import connections, models
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.db.models.functions import TruncDate
 from drf_spectacular.helpers import forced_singular_serializer
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -273,6 +273,25 @@ def _activity_level(
     }
 
 
+def _latest_usernames_queryset(
+    successful_runs: models.QuerySet[JobData], visible_ids: set[int] | None = None
+) -> models.QuerySet:
+    """Return each user's latest recorded username using portable ORM SQL.
+
+    ``visible_ids`` can limit the query when usernames are only needed for
+    display. Omit it when usernames are also used to rank every user.
+    """
+    latest_username = Subquery(
+        successful_runs.filter(launched_by_id=OuterRef("launched_by_id"))
+        .order_by("-finished", "-id")
+        .values("launched_by_username")[:1]
+    )
+    queryset = successful_runs.filter(launched_by_id__isnull=False)
+    if visible_ids is not None:
+        queryset = queryset.filter(launched_by_id__in=visible_ids)
+    return queryset.order_by().values("launched_by_id").distinct().annotate(latest_username=latest_username)
+
+
 def _streak_series(counts_by_day: dict[date, int], window_dates: list[date]) -> dict[str, Any]:
     """Zero-fill per-day successful-run counts over the window and derive the streak.
 
@@ -449,10 +468,7 @@ def _build_activity_levels(
     # Latest known username per user. Identity is by id; the name only breaks
     # ties, so it is needed for every ranked user, not just the visible top 10.
     usernames_by_id: dict[int, str | None] = dict(
-        successful_runs.filter(launched_by_id__isnull=False)
-        .order_by("launched_by_id", "-finished")
-        .distinct("launched_by_id")
-        .values_list("launched_by_id", "launched_by_username")
+        _latest_usernames_queryset(successful_runs).values_list("launched_by_id", "latest_username")
     )
 
     def _rank_key(row: dict[str, Any], metric: str) -> tuple[int, bool, str, str, int]:

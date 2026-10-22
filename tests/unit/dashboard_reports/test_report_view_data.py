@@ -80,21 +80,22 @@ def build_recent_query(**filters) -> dict:
 @pytest.fixture
 def template_metadata():
     """Create template metadata for Template A and Template B."""
-    templates = [
-        TemplateMetadata(
+    return [
+        TemplateMetadata.objects.create(
+            id=1,
             template_id=1,
             template_name="Template A",
             time_taken_manually_execute_minutes=240,
             time_taken_create_automation_minutes=40,
         ),
-        TemplateMetadata(
+        TemplateMetadata.objects.create(
+            id=2,
             template_id=2,
             template_name="Template B",
             time_taken_manually_execute_minutes=360,
             time_taken_create_automation_minutes=60,
         ),
     ]
-    return TemplateMetadata.objects.bulk_create(templates)
 
 
 @pytest.fixture
@@ -169,7 +170,10 @@ def job_data(template_metadata):
             )
         )
 
-    created_jobs = JobData.objects.bulk_create(jobs)
+    created_jobs = []
+    for job in jobs:
+        job.save(force_insert=True)
+        created_jobs.append(job)
 
     # Labels only for job_id 1 and 2 (first two jobs)
     labels = [

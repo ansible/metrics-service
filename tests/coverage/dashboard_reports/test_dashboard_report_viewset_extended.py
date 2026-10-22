@@ -3,9 +3,9 @@ Extended tests for apps/dashboard_reports/viewsets/dashboard_report.py.
 
 Targets uncovered lines:
 - 74-83:  require_date_range decorator — start_date > end_date invalid range path
-- 356-391: _get_date_range_and_kind(), _filter_raw_jobdata_queryset(), _prepare_chart_querysets()
-- 416-450: get_chart_data(), _format_chart_result(), chart data formatting
-- 464-473: _format_chart_result() items loop
+- 356-391: _get_date_range_and_kind(), _filter_raw_jobdata_queryset()
+- get_chart_data(): backend-neutral bucket generation, grouping, and zero-fill
+- _format_chart_result(): chart item formatting
 - Line 470: details action (via API)
 - 654+: details action (via API call)
 - 735+: export action (via API call)
@@ -284,13 +284,13 @@ def test_get_chart_data_no_dates_returns_empty():
 
 
 # ---------------------------------------------------------------------------
-# _format_chart_result() — items loop (lines 464-473)
+# _format_chart_result() — zero-filled bucket formatting
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 def test_format_chart_result_builds_items():
-    """_format_chart_result should populate job_chart and host_chart items from the queryset rows."""
+    """_format_chart_result should populate chart items for each time bucket."""
     from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
 
     vs = DashboardReportViewSet()
@@ -298,17 +298,7 @@ def test_format_chart_result_builds_items():
     ts1 = datetime(2025, 5, 1, tzinfo=UTC)
     ts2 = datetime(2025, 5, 2, tzinfo=UTC)
 
-    row1 = MagicMock()
-    row1.term = ts1
-    row1.runs = 10
-    row1.hosts = 5
-
-    row2 = MagicMock()
-    row2.term = ts2
-    row2.runs = 0
-    row2.hosts = 0
-
-    result = vs._format_chart_result([row1, row2])
+    result = vs._format_chart_result([ts1, ts2], {ts1: (10, 5)}, "day")
 
     assert result["job_chart"]["items"] == [
         {"label": ts1, "value": 10},
@@ -322,27 +312,25 @@ def test_format_chart_result_builds_items():
 
 @pytest.mark.unit
 def test_format_chart_result_empty_queryset():
-    """Empty date sequence queryset produces empty items lists."""
+    """Empty bucket sequence produces empty items lists."""
     from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
 
     vs = DashboardReportViewSet()
-    result = vs._format_chart_result([])
+    result = vs._format_chart_result([], {}, "day")
     assert result["job_chart"]["items"] == []
     assert result["host_chart"]["items"] == []
 
 
 # ---------------------------------------------------------------------------
-# get_chart_data() — with valid dates (kind set, calls _prepare_chart_querysets)
+# get_chart_data() — with valid dates and grouped chart rows
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 def test_get_chart_data_sets_kind_on_charts():
     """
-    When _get_date_range_and_kind returns valid data, get_chart_data calls
-    _prepare_chart_querysets and _format_chart_result, then attaches the correct 'kind'
-    to both chart dicts.  We mock at the _format_chart_result boundary so we don't need
-    to replicate the full generate_series QuerySet chain.
+    When _get_date_range_and_kind returns valid data, get_chart_data zero-fills
+    the generated buckets and returns the correct chart kind.
     """
     from apps.dashboard_reports.viewsets.dashboard_report import DashboardReportViewSet
 
@@ -353,24 +341,18 @@ def test_get_chart_data_sets_kind_on_charts():
     vs.request = MagicMock()
     vs.filter_backends = []
 
-    # Fake the chart structure that _format_chart_result would produce
-    fake_chart = {
-        "job_chart": {"kind": "", "items": [{"label": start, "value": 3}]},
-        "host_chart": {"kind": "", "items": [{"label": start, "value": 7}]},
-    }
-
     with (
-        patch.object(vs, "_prepare_chart_querysets", return_value=(MagicMock(), MagicMock())) as mock_prepare,
-        patch.object(vs, "_format_chart_result", return_value=fake_chart),
-        patch("apps.dashboard_reports.viewsets.dashboard_report.generate_series", return_value=MagicMock()),
+        patch.object(vs, "_filter_raw_jobdata_queryset", return_value=MagicMock()),
+        patch(
+            "apps.dashboard_reports.viewsets.dashboard_report._chart_bucket_queryset",
+            return_value=[{"term": start, "runs": 3, "hosts": 7}],
+        ),
     ):
         result = vs.get_chart_data()
 
-    mock_prepare.assert_called_once()
-    # get_chart_data must stamp the 'kind' on both sub-dicts after _format_chart_result
     assert result["job_chart"]["kind"] == "day"
     assert result["host_chart"]["kind"] == "day"
-    assert len(result["job_chart"]["items"]) == 1
+    assert len(result["job_chart"]["items"]) > 1
     assert result["job_chart"]["items"][0]["value"] == 3
 
 
@@ -456,11 +438,11 @@ def test_details_valid_period_returns_200_empty_db(user):
     """
     GET /report/details/?period=last_7_days on an empty DB returns 200 with zeroed aggregates.
     This exercises the details action body (lines 657-732) including get_chart_data()
-    but without real JobData rows so no PostgreSQL generate_series is called.
+    but without real JobData rows, so the chart collector remains isolated.
     """
     client = _authenticated_client(user)
 
-    # Patch get_chart_data to avoid hitting PostgreSQL generate_series (docker dependency)
+    # Patch get_chart_data to avoid querying database chart rows.
     with patch(
         "apps.dashboard_reports.viewsets.dashboard_report.DashboardReportViewSet.get_chart_data",
         return_value={

@@ -301,14 +301,33 @@ def parse_datetime_string(date_str: str | None) -> Any:
 _AWX_PROBE_TABLES = ("main_unifiedjob",)
 
 
+def _database_vendor(connection, django_connection=None):
+    """Identify supported Django wrappers and raw psycopg/pyodbc connections."""
+    vendor = getattr(django_connection, "vendor", None)
+    if vendor in {"postgresql", "microsoft"}:
+        return vendor
+
+    driver_module = type(connection).__module__.split(".", maxsplit=1)[0]
+    if driver_module == "pyodbc":
+        return "microsoft"
+    if driver_module in {"psycopg", "psycopg2"}:
+        return "postgresql"
+    return "postgresql"
+
+
 def _check_db_ready(connection, probe_tables):
     """Return True if at least one probe table exists in the database."""
+    vendor = _database_vendor(connection)
+    if vendor == "microsoft":
+        query = (
+            "SELECT CASE WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?) THEN 1 ELSE 0 END"
+        )
+    else:
+        query = "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s)"
+
     with connection.cursor() as cursor:
         for table in probe_tables:
-            cursor.execute(
-                "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s)",
-                [table],
-            )
+            cursor.execute(query, [table])
             if cursor.fetchone()[0]:
                 return True
     return False
@@ -316,17 +335,17 @@ def _check_db_ready(connection, probe_tables):
 
 def get_db_connection(db_name: str = "awx"):
     """
-    Get a raw database connection that supports PostgreSQL COPY commands.
+    Get a raw database connection for metrics-utility collectors.
 
-    Django's CursorDebugWrapper doesn't support the COPY command, so we need
-    to use the raw connection for metrics-utility collectors that use COPY
-    for efficient data extraction.
+    Django's CursorDebugWrapper doesn't support psycopg COPY commands, so
+    PostgreSQL collectors that use COPY need the raw connection. SQL Server
+    collectors use the same raw-connection interface through pyodbc.
 
     Args:
         db_name: Database name from Django settings (default: 'awx')
 
     Returns:
-        Raw database connection object (psycopg3 connection)
+        Raw database connection object (psycopg3 or pyodbc connection)
 
     Note:
         DO NOT CLOSE the returned connection. It is a Django-managed singleton
@@ -334,21 +353,26 @@ def get_db_connection(db_name: str = "awx"):
     """
     from django.db import connections
 
-    # Get the raw connection to bypass Django's cursor wrapper
-    # This is necessary for PostgreSQL COPY commands used by metrics-utility
+    # Get the raw connection to bypass Django's cursor wrapper. This is
+    # necessary for PostgreSQL COPY commands used by metrics-utility.
     # NOTE: Do not call close_old_connections() here as it closes ALL connections
     # including the default connection that may be holding advisory locks in run_with_lock()
     django_connection = connections[db_name]
 
     # Django's ensure_connection() only reconnects when self.connection is None.
-    # A connection dropped by the server is not None — it is a stale psycopg3
+    # A connection dropped by the server is not None — it is a stale driver
     # object. Probe it with SELECT 1 before handing it to the collector:
     #   - catches connections already marked closed (.closed == True)
     #   - catches silent network drops where .closed is still False
     # Five collectors run per hour so the round-trip overhead is negligible.
     if django_connection.connection is not None:
         try:
-            django_connection.connection.execute("SELECT 1")
+            raw_connection = django_connection.connection
+            if _database_vendor(raw_connection, django_connection) == "microsoft":
+                with raw_connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+            else:
+                raw_connection.execute("SELECT 1")
         except Exception:
             logger.warning(f"Database connection '{db_name}' is stale, reconnecting")
             django_connection.close()
@@ -381,7 +405,7 @@ def awx_db_ready() -> bool:
 
 def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):
     """
-    Execute a task function under a PostgreSQL advisory lock.
+    Execute a task function under a backend-specific database lock.
 
     If the lock cannot be acquired (another instance of the same task is running),
     returns an error result which triggers auto-retry.
@@ -393,18 +417,51 @@ def run_with_lock(lock_key: str, task_name: str, fn, **kwargs):
         **kwargs: Arguments to pass to fn
     """
     from django.db import close_old_connections, connection
-    from metrics_utility.library.lock import lock
 
     # Close any stale/unusable connections before acquiring lock
     close_old_connections()
 
+    if connection.vendor == "microsoft":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                DECLARE @lock_result INT;
+                EXEC @lock_result = sp_getapplock
+                    @Resource = %s,
+                    @LockMode = 'Exclusive',
+                    @LockOwner = 'Session',
+                    @LockTimeout = 0;
+                SELECT @lock_result;
+                """,
+                [lock_key],
+            )
+            acquired = cursor.fetchone()[0] >= 0
+
+        if not acquired:
+            return _lock_not_acquired(lock_key, task_name)
+
+        try:
+            return fn(**kwargs)
+        finally:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "EXEC sp_releaseapplock @Resource = %s, @LockOwner = 'Session'",
+                    [lock_key],
+                )
+
+    from metrics_utility.library.lock import lock
+
     with lock(lock_key, wait=False, db=connection) as acquired:
         if not acquired:
-            msg = f"Could not acquire lock '{lock_key}' — another {task_name} instance is running"
-            logger.warning(msg)
-            log_task_execution(task_name, "skipped", msg)
-            return create_task_result("error", error=msg)
+            return _lock_not_acquired(lock_key, task_name)
         return fn(**kwargs)
+
+
+def _lock_not_acquired(lock_key: str, task_name: str):
+    msg = f"Could not acquire lock '{lock_key}' — another {task_name} instance is running"
+    logger.warning(msg)
+    log_task_execution(task_name, "skipped", msg)
+    return create_task_result("error", error=msg)
 
 
 def generate_salt() -> str:

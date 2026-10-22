@@ -12,9 +12,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VIRTUAL_ENV="/app/.venv" \
     PATH="/app/.venv/bin:$PATH"
 
-# Minimal runtime deps only (psycopg needs libpq at runtime). No gcc/rust/-devel.
+# Minimal runtime deps plus PostgreSQL and SQL Server client libraries.
 USER root
-RUN dnf install -y postgresql-libs && \
+RUN dnf install -y postgresql-libs curl unixODBC unixODBC-devel && \
+    curl --fail --silent --show-error --location \
+        https://packages.microsoft.com/config/rhel/9.0/prod.repo \
+        --output /etc/yum.repos.d/mssql-release.repo && \
+    ACCEPT_EULA=Y dnf install -y msodbcsql18 && \
     dnf clean all && \
     rm -rf /var/cache/dnf && \
     mkdir -p /app && \
