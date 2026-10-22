@@ -16,6 +16,7 @@ from apps.dashboard_reports.filters import (
     _safe_int,
     apply_or_filters,
     get_filter_options,
+    get_job_type_filter,
     get_or_filter_options,
 )
 from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
@@ -640,6 +641,7 @@ class TestCustomReportFilter:
         """Create a mock queryset with chainable filter methods."""
         mock_qs = MagicMock()
         # Make all filter methods return the same mock for chaining
+        mock_qs.filter.return_value = mock_qs
         mock_qs.after_date.return_value = mock_qs
         mock_qs.before_date.return_value = mock_qs
         mock_qs.organizations.return_value = mock_qs
@@ -676,6 +678,7 @@ class TestCustomReportFilter:
 
         mock_queryset.after_date.assert_called_once_with(None)
         mock_queryset.before_date.assert_called_once_with(None)
+        mock_queryset.filter.assert_called_once_with(models.Q(job_type__in=["job"]))
         mock_queryset.organizations.assert_called_once_with(None)
         mock_queryset.projects.assert_called_once_with(None)
         mock_queryset.templates.assert_called_once_with(None)
@@ -805,6 +808,7 @@ class TestCustomReportFilterCustomPeriod:
     @pytest.fixture
     def mock_queryset(self):
         mock_qs = MagicMock()
+        mock_qs.filter.return_value = mock_qs
         mock_qs.after_date.return_value = mock_qs
         mock_qs.before_date.return_value = mock_qs
         mock_qs.organizations.return_value = mock_qs
@@ -921,3 +925,18 @@ class TestCustomReportFilterCustomPeriod:
             filter_backend.filter_queryset(request, mock_queryset, mock_view)
 
         assert "must be before or equal to" in str(exc_info.value.detail)
+
+
+@pytest.mark.unit
+class TestGetJobTypeFilter:
+    def test_defaults_to_job_model(self):
+        request = MagicMock()
+        request.query_params = QueryDict("")
+
+        assert get_job_type_filter(request) == models.Q(job_type__in=["job"])
+
+    def test_returns_all_requested_types(self):
+        request = MagicMock()
+        request.query_params = QueryDict("job_type=system_job&job_type=workflow_job")
+
+        assert get_job_type_filter(request) == models.Q(job_type__in=["system_job", "workflow_job"])

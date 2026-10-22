@@ -265,6 +265,17 @@ DETAIL_QUERY_PARAMETERS = [
         description="Filter by project ID (multiple allowed)",
     ),
     OpenApiParameter(
+        name="job_type",
+        type=OpenApiTypes.STR,
+        location=OpenApiParameter.QUERY,
+        required=False,
+        many=True,
+        description=(
+            "Filter by Controller unified-job model name (multiple allowed). Defaults to job; "
+            "specifying one or more values replaces that default."
+        ),
+    ),
+    OpenApiParameter(
         name="or__organization",
         type=OpenApiTypes.INT,
         location=OpenApiParameter.QUERY,
@@ -346,6 +357,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         template (int): Filter by job template ID (multiple allowed)
         label (int): Filter by label ID (multiple allowed)
         project (int): Filter by project ID (multiple allowed)
+        job_type (string): Filter by Controller model name (multiple allowed; defaults to job)
         ordering (str): Field to order by (e.g. "template_metadata__template_name", "successful_runs", "savings", "time_savings", etc.)
             `order_by` is accepted as an alias for this parameter; if both are given, `ordering` takes precedence.
         report_type (string): Type of report to export. Options: 'summary', 'roi', 'trends' (default: 'summary', used for export endpoint)

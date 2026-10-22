@@ -20,6 +20,7 @@ from apps.dashboard_reports.tasks import (
     _process_batches,
     _resolve_collection_params,
     _sync_jobs_atomically,
+    backfill_dashboard_job_types,
     backfill_dashboard_organization_names,
     cleanup_dashboard_reports_old_data,
     collect_dashboard_reports_data,
@@ -323,11 +324,12 @@ class TestSyncDashboardJobRecords:
         with patch("apps.dashboard_reports.tasks._save_telemetry_details"):
             yield
 
-    def _raw_job(self, job_id=1, num_hosts=5, label_ids=None):
+    def _raw_job(self, job_id=1, num_hosts=5, label_ids=None, model="job"):
         """Return a minimal raw job dict suitable for passing as raw_jobs input."""
         return {
             "id": job_id,
             "name": "Test Job",
+            "model": model,
             "unified_job_template_id": 10,
             "organization_id": 1,
             "organization_name": "Org",
@@ -356,6 +358,28 @@ class TestSyncDashboardJobRecords:
         args, kwargs = mock_result.call_args
         assert args[0] == "success"
         assert kwargs["data"]["job_count"] == 2
+
+    @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[])
+    @patch("apps.dashboard_reports.tasks.log_task_execution")
+    @patch("apps.dashboard_reports.tasks.create_task_result")
+    def test_job_type_is_mapped(self, mock_result, mock_log, mock_sync):
+        raw_jobs = [self._raw_job(model="system_job")]
+
+        sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
+
+        assembled = mock_sync.call_args[0][0]
+        assert assembled[0]["job_type"] == "system_job"
+
+    @pytest.mark.django_db
+    def test_job_type_is_persisted(self):
+        result = sync_dashboard_job_records(
+            raw_jobs=[self._raw_job(job_id=44, model="system_job")],
+            hour_timestamp="2024-01-01T00:00:00",
+        )
+
+        assert result["status"] == "success"
+        job = JobData.objects.get(job_id=44)
+        assert job.job_type == "system_job"
 
     @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[1])
     @patch("apps.dashboard_reports.tasks.log_task_execution")
@@ -1486,3 +1510,85 @@ class TestBackfillDashboardOrganizationNames:
         assert "boom" in result["error"]
         assert mock_log.call_args.kwargs["operation"] == "failed"
         assert JobData.objects.get(job_id=1).organization_name is None
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestBackfillDashboardJobTypes:
+    def _job(self, job_id: int, job_type: str | None = None) -> JobData:
+        return JobData.objects.create(
+            job_id=job_id,
+            template_name=f"Job {job_id}",
+            elapsed=1,
+            job_type=job_type,
+        )
+
+    @patch("apps.dashboard_reports.tasks._save_telemetry_details")
+    @patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids")
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_updates_existing_rows_in_batches(self, mock_connection, mock_fetch, mock_telemetry):
+        self._job(100)
+        self._job(101)
+        self._job(102, job_type="job")
+        mock_fetch.side_effect = [{100: "job"}, {101: "system_job"}]
+
+        result = backfill_dashboard_job_types(batch_size=1)
+
+        assert result["status"] == "success"
+        assert result["updated_records"] == 2
+        assert result["unresolved_records"] == 0
+        assert JobData.objects.get(job_id=100).job_type == "job"
+        assert JobData.objects.get(job_id=101).job_type == "system_job"
+        mock_connection.assert_called_once_with("awx")
+        assert mock_fetch.call_args_list[0].args[1] == [100]
+        assert mock_fetch.call_args_list[1].args[1] == [101]
+
+    @patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids", return_value={})
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_missing_controller_ids_are_retained_unclassified(self, mock_connection, mock_fetch):
+        self._job(100)
+
+        result = backfill_dashboard_job_types()
+
+        assert result["status"] == "success"
+        assert result["updated_records"] == 0
+        assert result["unresolved_records"] == 1
+        assert JobData.objects.get(job_id=100).job_type is None
+
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_no_unclassified_rows_skips_controller_connection(self, mock_connection):
+        self._job(100, job_type="job")
+
+        result = backfill_dashboard_job_types()
+
+        assert result["status"] == "success"
+        assert result["updated_records"] == 0
+        mock_connection.assert_not_called()
+
+    @patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids", side_effect=RuntimeError("Controller unavailable"))
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_controller_failure_leaves_rows_for_retry(self, mock_connection, mock_fetch):
+        self._job(100)
+
+        result = backfill_dashboard_job_types()
+
+        assert result["status"] == "error"
+        assert "Controller unavailable" in result["error"]
+        assert JobData.objects.get(job_id=100).job_type is None
+
+    @patch("apps.dashboard_reports.tasks.get_db_connection")
+    def test_invalid_batch_size_returns_error(self, mock_connection):
+        self._job(100)
+
+        result = backfill_dashboard_job_types(batch_size=0)
+
+        assert result["status"] == "error"
+        assert "batch_size" in result["error"]
+        mock_connection.assert_not_called()
+
+    @patch("apps.dashboard_reports.tasks.JobData.create_or_update_from_awx")
+    def test_initial_backfill_defaults_to_job_model(self, mock_create):
+        from apps.dashboard_reports.tasks import _sync_jobs_atomically
+
+        assert _sync_jobs_atomically([{"id": 42}], default_job_type="job") == []
+        mock_create.assert_called_once_with({"id": 42, "job_type": "job"})

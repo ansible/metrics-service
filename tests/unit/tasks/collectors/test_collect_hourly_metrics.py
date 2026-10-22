@@ -145,6 +145,24 @@ class TestBuildDashboardSyncHook:
         raw_jobs = task_data["raw_jobs"]
         assert raw_jobs[0]["started"] == started.isoformat()
 
+    def test_hook_preserves_controller_model(self):
+        df = _make_df(
+            [
+                {
+                    "status": "successful",
+                    "launch_type": "scheduled",
+                    "model": "system_job",
+                }
+            ]
+        )
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        raw_job = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"][0]
+        assert raw_job["model"] == "system_job"
+
     def test_hook_converts_num_hosts_to_int(self):
         """num_hosts is cast to int if not None."""
         df = _make_df([{"status": "successful", "launch_type": "manual", "num_hosts": 7.0}])

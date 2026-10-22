@@ -562,6 +562,14 @@ class JobData(CommonModel):
         default=0, help_text="Number of hosts involved in the job (calculated from AWX job host summaries)"
     )
 
+    job_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Controller unified-job model name (for example, job or system_job)",
+    )
+
     launched_by_id = models.IntegerField(
         null=True,
         blank=True,
@@ -642,26 +650,32 @@ class JobData(CommonModel):
         labels = awx_job.get("labels")
         host_summaries = awx_job.get("host_summaries", [])
 
+        defaults = {
+            "template_name": awx_job["name"],
+            "template_id": awx_job["unified_job_template_id"],
+            "project_id": awx_job["project_id"],
+            "project_name": awx_job["project_name"],
+            "organization_id": awx_job["organization_id"],
+            "organization_name": awx_job.get("organization_name"),
+            "status": awx_job["status"],
+            "started": awx_job["started"],
+            "finished": awx_job["finished"],
+            "elapsed": awx_job["elapsed"],
+            "launched_by_id": awx_job["launched_by_id"],
+            "launched_by_username": awx_job["launched_by_username"],
+            "template_metadata": template_metadata,
+            "awx_created": awx_job["created"],
+            "awx_modified": awx_job["modified"],
+            "num_hosts": awx_job["num_hosts"],
+        }
+        # Missing optional fields mean the collector cannot provide them; preserve an existing
+        # value. Explicit None means the collector returned a null value and should clear it.
+        if "job_type" in awx_job:
+            defaults["job_type"] = awx_job["job_type"]
+
         job_data, created = cls.objects.update_or_create(
             job_id=awx_job["id"],
-            defaults={
-                "template_name": awx_job["name"],
-                "template_id": awx_job["unified_job_template_id"],
-                "project_id": awx_job["project_id"],
-                "project_name": awx_job["project_name"],
-                "organization_id": awx_job["organization_id"],
-                "organization_name": awx_job.get("organization_name"),
-                "status": awx_job["status"],
-                "started": awx_job["started"],
-                "finished": awx_job["finished"],
-                "elapsed": awx_job["elapsed"],
-                "launched_by_id": awx_job["launched_by_id"],
-                "launched_by_username": awx_job["launched_by_username"],
-                "template_metadata": template_metadata,
-                "awx_created": awx_job["created"],
-                "awx_modified": awx_job["modified"],
-                "num_hosts": awx_job["num_hosts"],
-            },
+            defaults=defaults,
         )
         logger.info(f"{'Created' if created else 'Updated'} JobData {job_data}")
 

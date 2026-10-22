@@ -184,6 +184,7 @@ _HOST_SUMMARY_COLUMNS = ("id", "host_name", "host_remote_id", "job_remote_id")
 _DASHBOARD_COLUMNS = [
     "id",
     "name",
+    "model",
     "unified_job_template_id",
     "organization_id",
     "organization_name",
@@ -203,7 +204,15 @@ _DASHBOARD_COLUMNS = [
 
 
 _INT_FIELDS = ("id", "organization_id", "unified_job_template_id", "launched_by_id", "project_id", "num_hosts")
-_STRING_FIELDS = ("name", "organization_name", "status", "launched_by_username", "project_name", "label_ids")
+_STRING_FIELDS = (
+    "name",
+    "model",
+    "organization_name",
+    "status",
+    "launched_by_username",
+    "project_name",
+    "label_ids",
+)
 
 
 def _is_nan(value: Any) -> bool:

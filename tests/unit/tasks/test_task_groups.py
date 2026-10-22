@@ -341,6 +341,7 @@ class TestTaskGroupFunctions(TestCase):
         oneshot_ids = get_oneshot_task_ids()
 
         assert "initial_dashboard_collection" in oneshot_ids
+        assert "backfill_dashboard_job_types" in oneshot_ids
         assert "initial_resource_sync" in oneshot_ids
         assert "hourly_health_check" not in oneshot_ids
         assert "daily_task_cleanup" not in oneshot_ids

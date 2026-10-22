@@ -2,8 +2,8 @@
 Filter utilities for dashboard reports.
 
 Provides date range filtering via DateFilter enum, AND/OR filter helpers for
-organization, template, project and label query parameters, and the
-CustomReportFilter backend used by DashboardReportViewSet.
+organization, template, project and label query parameters, job-type filtering,
+and the CustomReportFilter backend used by DashboardReportViewSet.
 """
 
 import datetime
@@ -147,6 +147,14 @@ def get_or_filter_options(request: Request) -> dict[str, list[int]]:
     }
 
 
+def get_job_type_filter(request: Request) -> models.Q:
+    """Return the job-type filter; default to playbook Job records."""
+    job_types = request.query_params.getlist("job_type")
+    if not job_types:
+        job_types = ["job"]
+    return models.Q(job_type__in=job_types)
+
+
 def apply_or_filters(request: Request, queryset: QuerySet[JobData]) -> QuerySet[JobData]:
     """Apply OR-combined filter conditions from or__<field> query params to the queryset."""
     or_options = get_or_filter_options(request=request)
@@ -205,6 +213,7 @@ class CustomReportFilter(filters.BaseFilterBackend):
 
         queryset = queryset.after_date(start_date)
         queryset = queryset.before_date(end_date)
+        queryset = queryset.filter(get_job_type_filter(request))
 
         # AND filters
         filter_options = get_filter_options(request)

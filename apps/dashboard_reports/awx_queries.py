@@ -23,12 +23,11 @@ class AWXQuery(enum.Enum):
         "FROM main_unifiedjobtemplate ujt "
         "JOIN main_jobtemplate jt on jt.unifiedjobtemplate_ptr_id = ujt.id"
     )
-    # Subset of the given ids that are job templates.
-    JOB_TEMPLATE_IDS = (
-        "SELECT ujt.id "
-        "FROM main_unifiedjobtemplate ujt "
-        "JOIN main_jobtemplate jt on jt.unifiedjobtemplate_ptr_id = ujt.id "
-        "WHERE ujt.id = ANY(%s)"
+    JOB_TYPES_FOR_IDS = (
+        "SELECT uj.id, dct.model "
+        "FROM main_unifiedjob uj "
+        "JOIN django_content_type dct ON dct.id = uj.polymorphic_ctype_id "
+        "WHERE uj.id = ANY(%s)"
     )
     PROJECTS = (
         "SELECT ujt.id, ujt.name "
@@ -182,16 +181,16 @@ def fetch_templates(**kwargs) -> tuple[list[dict[str, Any]], int]:
     )
 
 
-def fetch_job_template_ids(db_connection, template_ids: list[int]) -> set[int]:
-    """Return the ids from ``template_ids`` that are AWX job templates; empty input skips the query."""
-    if not template_ids:
-        return set()
+def fetch_job_types_for_ids(db_connection, job_ids: list[int]) -> dict[int, str]:
+    """Return the Controller model name for each requested unified-job ID."""
+    if not job_ids:
+        return {}
     try:
         with db_connection.cursor() as cursor:
-            cursor.execute(AWXQuery.JOB_TEMPLATE_IDS.value, [template_ids])
-            return {row[0] for row in cursor.fetchall()}
+            cursor.execute(AWXQuery.JOB_TYPES_FOR_IDS.value, [job_ids])
+            return {job_id: model for job_id, model in cursor.fetchall() if model}
     except Exception:
-        logger.exception("Error fetching job template ids from AWX database")
+        logger.exception("Error fetching job types from AWX database")
         raise
 
 

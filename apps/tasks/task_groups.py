@@ -352,6 +352,14 @@ DASHBOARD_COLLECTION_GROUP = TaskGroup(
             "description": "One-time fix of JobData organization_name left NULL by earlier initial collections",
         },
         {
+            "task_id": "backfill_dashboard_job_types",
+            "function": "backfill_dashboard_job_types",
+            "cron": None,  # No schedule, run once after install/upgrade
+            "args": {},
+            "enabled": True,
+            "description": "Reconcile Controller model names for existing dashboard JobData rows",
+        },
+        {
             "task_id": "cleanup_dashboard_reports_old_data",
             "function": "cleanup_dashboard_reports_old_data",
             "cron": "30 5 * * *",  # Daily at 5:30 AM

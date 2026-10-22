@@ -247,12 +247,9 @@ class TestAWXQueries:
 
 
 @pytest.mark.unit
-class TestFetchJobTemplateIds:
-    """Unit tests for fetch_job_template_ids."""
-
+class TestFetchJobTypesForIds:
     @staticmethod
     def _connection(rows):
-        """Return a mock AWX connection and cursor whose query yields ``rows``."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
@@ -261,36 +258,23 @@ class TestFetchJobTemplateIds:
         mock_conn.cursor.return_value = mock_cursor
         return mock_conn, mock_cursor
 
-    def test_returns_ids_that_are_job_templates(self):
-        """Only ids returned by AWX are kept; the ids are passed as one list parameter."""
-        mock_conn, mock_cursor = self._connection([(1,), (3,)])
+    def test_returns_model_names_for_requested_ids(self):
+        mock_conn, mock_cursor = self._connection([(11, "job"), (12, "system_job")])
 
-        result = awx_queries.fetch_job_template_ids(mock_conn, [1, 2, 3])
+        result = awx_queries.fetch_job_types_for_ids(mock_conn, [11, 12])
 
-        assert result == {1, 3}
-        mock_cursor.execute.assert_called_once_with(AWXQuery.JOB_TEMPLATE_IDS.value, [[1, 2, 3]])
+        assert result == {11: "job", 12: "system_job"}
+        mock_cursor.execute.assert_called_once_with(AWXQuery.JOB_TYPES_FOR_IDS.value, [[11, 12]])
 
     def test_empty_ids_skip_the_query(self):
-        """No ids means no AWX query."""
         mock_conn, _ = self._connection([])
 
-        assert awx_queries.fetch_job_template_ids(mock_conn, []) == set()
+        assert awx_queries.fetch_job_types_for_ids(mock_conn, []) == {}
         mock_conn.cursor.assert_not_called()
 
-    def test_error_is_logged_and_reraised(self):
-        """The traceback is logged here; the leaderboard view only warns."""
-        mock_conn, mock_cursor = self._connection([])
-        mock_cursor.execute.side_effect = RuntimeError("AWX database unavailable")
-
-        with patch.object(awx_queries.logger, "exception") as log_exception, pytest.raises(RuntimeError):
-            awx_queries.fetch_job_template_ids(mock_conn, [1])
-        log_exception.assert_called_once()
-
-    def test_query_reads_only_job_template_ids(self):
-        """Same FROM/JOIN as TEMPLATES, selecting only ids filtered by a list parameter."""
-        query = AWXQuery.JOB_TEMPLATE_IDS.value
-        templates_from_join = AWXQuery.TEMPLATES.value.split(" FROM ", 1)[1]
-        select, from_join_where = query.split(" FROM ", 1)
-        assert select == "SELECT ujt.id"
-        assert from_join_where.startswith(templates_from_join)
-        assert from_join_where.removeprefix(templates_from_join) == " WHERE ujt.id = ANY(%s)"
+    def test_query_joins_content_type_for_unified_jobs(self):
+        query = AWXQuery.JOB_TYPES_FOR_IDS.value
+        assert "FROM main_unifiedjob uj" in query
+        assert "JOIN django_content_type dct" in query
+        assert "uj.polymorphic_ctype_id" in query
+        assert "WHERE uj.id = ANY(%s)" in query

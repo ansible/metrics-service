@@ -24,7 +24,7 @@ from metrics_utility.library.collectors.dashboard import (
     dashboard_jobs,
 )
 
-from apps.dashboard_reports.awx_queries import fetch_organizations, fetch_retention_settings
+from apps.dashboard_reports.awx_queries import fetch_job_types_for_ids, fetch_organizations, fetch_retention_settings
 from apps.dashboard_reports.models import DashboardTelemetry, JobData, JobHostSummary
 from apps.tasks.retention import (
     DEFAULT_AWX_DB_NAME,
@@ -35,6 +35,7 @@ from apps.tasks.retention import (
 from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
 
 ORG_NAME_BACKFILL_BATCH_SIZE = 5_000
+JOB_TYPE_BACKFILL_BATCH_SIZE = 2_000
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ def _get_job_id_range(db_connection, since: datetime, until: datetime) -> tuple:
     return row[0], row[1]
 
 
-def _sync_jobs_atomically(job_results: list) -> list:
+def _sync_jobs_atomically(job_results: list, default_job_type: str | None = None) -> list:
     """
     Persist all jobs in a single atomic transaction.
 
@@ -152,7 +153,10 @@ def _sync_jobs_atomically(job_results: list) -> list:
         with transaction.atomic():
             for job in job_results:
                 try:
-                    JobData.create_or_update_from_awx(job)
+                    job_data = job
+                    if default_job_type is not None and "job_type" not in job:
+                        job_data = {**job, "job_type": default_job_type}
+                    JobData.create_or_update_from_awx(job_data)
                 except Exception as e:
                     logger.exception(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
                     failed_jobs.append(job["id"])
@@ -216,7 +220,8 @@ def _process_batches(
         if not batch["results"]:
             break
 
-        failed_jobs = _sync_jobs_atomically(batch["results"])
+        # The dashboard_jobs collector joins main_job, so its rows are Controller model "job".
+        failed_jobs = _sync_jobs_atomically(batch["results"], default_job_type="job")
         if failed_jobs:
             return total_synced, f"Failed to sync {len(failed_jobs)} job(s): {failed_jobs}"
 
@@ -472,6 +477,121 @@ def backfill_dashboard_organization_names(**kwargs: Any) -> dict[str, Any]:
     return create_task_result("success", data={"task_type": task_name, **stats})
 
 
+def _job_type_backfill_batch_size(kwargs: dict[str, Any]) -> int:
+    """Return a validated batch_size kwarg for the job-type reconciliation."""
+    raw = kwargs.get("batch_size", JOB_TYPE_BACKFILL_BATCH_SIZE)
+    if isinstance(raw, bool) or not isinstance(raw, int | str):
+        raise ValueError(f"batch_size must be a positive integer, got {raw!r}")
+    try:
+        batch_size = int(raw)
+    except ValueError as e:
+        raise ValueError(f"batch_size must be a positive integer, got {raw!r}") from e
+    if batch_size <= 0:
+        raise ValueError(f"batch_size must be > 0, got {batch_size!r}")
+    return batch_size
+
+
+def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
+    """Populate job_type on existing JobData rows without deleting any records.
+
+    Controller lookups are limited to the current batch of stored job IDs. Each batch
+    commits independently, so a failed run can be retried safely; already classified
+    rows are skipped. IDs no longer present in Controller remain unclassified.
+    """
+    task_name = "backfill_dashboard_job_types"
+    started_at = time.monotonic()
+    updated_records = 0
+    unresolved_records = 0
+    try:
+        batch_size = _job_type_backfill_batch_size(kwargs)
+        db_name = _get_renamed_kwarg(kwargs, "awx_database", "database", task_name)
+        db_name = DEFAULT_AWX_DB_NAME if db_name is _MISSING else db_name
+
+        if not JobData.objects.filter(job_type__isnull=True).exists():
+            log_task_execution(
+                task_name=task_name, operation="completed", details="No JobData rows need classification"
+            )
+            return create_task_result(
+                "success",
+                data={
+                    "task_type": task_name,
+                    "updated_records": 0,
+                    "unresolved_records": 0,
+                },
+            )
+
+        db_connection = get_db_connection(db_name)
+        last_job_id: int | None = None
+        while True:
+            missing = JobData.objects.filter(job_type__isnull=True)
+            if last_job_id is not None:
+                missing = missing.filter(job_id__gt=last_job_id)
+            job_ids = list(missing.order_by("job_id").values_list("job_id", flat=True)[:batch_size])
+            if not job_ids:
+                break
+            last_job_id = job_ids[-1]
+
+            job_types = fetch_job_types_for_ids(db_connection, job_ids)
+            unresolved_records += len(job_ids) - len(job_types)
+            if job_types:
+                updated = JobData.objects.filter(
+                    job_id__in=job_types,
+                    job_type__isnull=True,
+                ).update(
+                    job_type=Case(
+                        *[When(job_id=job_id, then=Value(job_type)) for job_id, job_type in job_types.items()],
+                        output_field=CharField(),
+                    )
+                )
+                updated_records += updated
+
+            log_task_execution(
+                task_name=task_name,
+                operation="processing",
+                details=(
+                    f"Processed {len(job_ids)} stored job IDs "
+                    f"(updated: {updated_records}, unresolved: {unresolved_records})"
+                ),
+            )
+
+        duration_ms = (time.monotonic() - started_at) * 1000
+        log_task_execution(
+            task_name=task_name,
+            operation="completed",
+            details=f"Classified {updated_records} JobData rows; {unresolved_records} IDs were not found in Controller",
+        )
+        _save_telemetry_details(
+            task_name=task_name,
+            success=True,
+            collection_duration_ms=duration_ms,
+            number_of_records_processed=updated_records,
+            database_query_time_ms=None,
+            cache_hit_rate=None,
+        )
+        return create_task_result(
+            "success",
+            data={
+                "task_type": task_name,
+                "updated_records": updated_records,
+                "unresolved_records": unresolved_records,
+            },
+        )
+    except Exception as e:
+        duration_ms = (time.monotonic() - started_at) * 1000
+        logger.exception("%s: failed", task_name)
+        msg = f"Job type reconciliation failed: {e}"
+        log_task_execution(task_name=task_name, operation="failed", details=msg)
+        _save_telemetry_details(
+            task_name=task_name,
+            success=False,
+            collection_duration_ms=duration_ms,
+            number_of_records_processed=updated_records,
+            database_query_time_ms=None,
+            cache_hit_rate=None,
+        )
+        return create_task_result("error", error=msg)
+
+
 def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
     """
     Incrementally collect AWX job data since the last known JobData timestamp.
@@ -528,30 +648,31 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
                 labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]
             else:
                 labels = [int(label_ids_raw)]
-        assembled.append(
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "unified_job_template_id": row.get("unified_job_template_id"),
-                "organization_id": row.get("organization_id"),
-                "organization_name": row.get("organization_name"),
-                "started": _parse_dt(row.get("started")),
-                "finished": _parse_dt(row.get("finished")),
-                "status": row["status"],
-                "elapsed": row["elapsed"],
-                "launched_by_id": row.get("launched_by_id"),
-                "launched_by_username": row.get("launched_by_username"),
-                "project_id": row.get("project_id"),
-                "project_name": row.get("project_name"),
-                "created": _parse_dt(row.get("created")),
-                "modified": _parse_dt(row.get("modified")),
-                "labels": labels,
-                # host_summaries=None signals create_or_update_from_awx to leave
-                # existing JobHostSummary records intact (created by initial backfill).
-                "host_summaries": None,
-                "num_hosts": row.get("num_hosts") or 0,
-            }
-        )
+        awx_job = {
+            "id": row["id"],
+            "name": row["name"],
+            "unified_job_template_id": row.get("unified_job_template_id"),
+            "organization_id": row.get("organization_id"),
+            "organization_name": row.get("organization_name"),
+            "started": _parse_dt(row.get("started")),
+            "finished": _parse_dt(row.get("finished")),
+            "status": row["status"],
+            "elapsed": row["elapsed"],
+            "launched_by_id": row.get("launched_by_id"),
+            "launched_by_username": row.get("launched_by_username"),
+            "project_id": row.get("project_id"),
+            "project_name": row.get("project_name"),
+            "created": _parse_dt(row.get("created")),
+            "modified": _parse_dt(row.get("modified")),
+            "labels": labels,
+            # host_summaries=None signals create_or_update_from_awx to leave
+            # existing JobHostSummary records intact (created by initial backfill).
+            "host_summaries": None,
+            "num_hosts": row.get("num_hosts") or 0,
+        }
+        if "model" in row:
+            awx_job["job_type"] = row["model"]
+        assembled.append(awx_job)
 
     failed_jobs = _sync_jobs_atomically(assembled)
 
