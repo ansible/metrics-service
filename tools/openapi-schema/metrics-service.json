@@ -1172,6 +1172,19 @@
                 "operationId": "dashboard_reports_leaderboard_list",
                 "description": "Aggregated engagement metrics over the last 30 UTC calendar days: overall counts, featured template, enterprise/org automation streaks, the organization leaderboard, per-user activity levels (volume/breadth/consistency) and earned achievements.",
                 "summary": "Dashboard leaderboards, streaks and achievements (trailing 30 days)",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "job_type",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "description": "Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
+                    }
+                ],
                 "tags": [
                     "dashboard_reports"
                 ],
@@ -1199,16 +1212,6 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DashboardLeaderboardDisabledResponse"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "503": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DashboardLeaderboardAwxUnavailableResponse"
                                 }
                             }
                         },
@@ -1414,6 +1417,17 @@
                             "format": "date"
                         },
                         "description": "End date in 'YYYY-MM-DD' format. Required when period is 'custom'."
+                    },
+                    {
+                        "in": "query",
+                        "name": "job_type",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
                     },
                     {
                         "in": "query",
@@ -1660,6 +1674,17 @@
                     },
                     {
                         "in": "query",
+                        "name": "job_type",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
+                    },
+                    {
+                        "in": "query",
                         "name": "label",
                         "schema": {
                             "type": "array",
@@ -1863,6 +1888,17 @@
                             "default": "csv"
                         },
                         "description": "Export file format. Options: 'csv'."
+                    },
+                    {
+                        "in": "query",
+                        "name": "job_type",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
                     },
                     {
                         "in": "query",
@@ -14378,17 +14414,6 @@
                 },
                 "required": [
                     "show_leaderboard"
-                ]
-            },
-            "DashboardLeaderboardAwxUnavailableResponse": {
-                "type": "object",
-                "properties": {
-                    "detail": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "detail"
                 ]
             },
             "DashboardLeaderboardDisabledResponse": {
