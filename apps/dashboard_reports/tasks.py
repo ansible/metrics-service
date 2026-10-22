@@ -619,13 +619,46 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     """
     Write unified_jobs raw data collected during the hourly rollup to the dashboard JobData table.
 
-    Scheduled automatically by the hourly_unified_jobs collection hook so no extra Controller
-    DB queries are needed — the raw data is passed in task_data.
+    New hourly tasks carry Controller model names in task_data and avoid a Controller lookup.
+    Pre-upgrade queued tasks may lack those names, so their IDs are batch-resolved from Controller
+    before validation and persistence.
     """
     task_name = "sync_dashboard_job_records"
     hour_timestamp = kwargs.get("hour_timestamp", "unknown")
     raw_jobs = kwargs.get("raw_jobs", [])
     start_time = time.monotonic()
+
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"Syncing {len(raw_jobs)} dashboard job records for {hour_timestamp}",
+    )
+
+    jobs_missing_model = [
+        row
+        for row in raw_jobs
+        if isinstance(row, dict) and (not isinstance(row.get("model"), str) or not row["model"].strip())
+    ]
+    job_ids = list(
+        dict.fromkeys(
+            row["id"]
+            for row in jobs_missing_model
+            if isinstance(row.get("id"), int) and not isinstance(row["id"], bool)
+        )
+    )
+    if job_ids:
+        try:
+            controller_models = fetch_job_types_for_ids(get_db_connection(DEFAULT_AWX_DB_NAME), job_ids)
+        except Exception:
+            logger.exception("Unable to recover Controller models for queued dashboard job records")
+            error = f"Unable to recover Controller models for {len(job_ids)} queued dashboard job record(s)"
+            log_task_execution(task_name=task_name, operation="error", details=error)
+            return create_task_result("error", error=error)
+
+        for row in jobs_missing_model:
+            model = controller_models.get(row.get("id"))
+            if isinstance(model, str) and model.strip():
+                row["model"] = model
 
     invalid_model_count = sum(
         not isinstance(row, dict) or not isinstance(row.get("model"), str) or not row["model"].strip()
@@ -637,12 +670,6 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
         )
         log_task_execution(task_name=task_name, operation="error", details=error)
         return create_task_result("error", error=error)
-
-    log_task_execution(
-        task_name=task_name,
-        operation="processing",
-        details=f"Syncing {len(raw_jobs)} dashboard job records for {hour_timestamp}",
-    )
 
     assembled = []
     for row in raw_jobs:
