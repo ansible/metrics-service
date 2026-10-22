@@ -128,9 +128,14 @@ UNIFIED_JOBS_DASHBOARD = PayloadSchema(
         _field(
             "launched_by_id", "integer", "User ID that launched the job; null unless launch_type is manual or relaunch."
         ),
-        # The collector also returns launched_by_username, which is deliberately undeclared: it is
-        # collected only for the in-service dashboard sync and withheld from everything leaving the
-        # service (ANSTRAT-1587 requirement #8, AAP-96704, ansible/metrics-service#495).
+        # Withheld from the API by CollectorEntry.exclude_columns, so it is declared here (the
+        # collector does return it, for the in-service dashboard sync) but filtered out of the
+        # generated component. See apps/analytics/exclusions.py.
+        _field(
+            "launched_by_username",
+            "string",
+            "Username that launched the job; null unless launch_type is manual or relaunch.",
+        ),
         _field("label_ids", "string", "Comma-separated label IDs."),
         _field("num_hosts", "integer", "Number of job host summaries recorded for the job."),
     ),
