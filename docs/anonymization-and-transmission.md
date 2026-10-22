@@ -46,8 +46,9 @@ still run under `METRICS_COLLECTION`.
 1. Loads `DailyMetricsSummary` for yesterday with `status="aggregated"`.
 2. Calls `metrics_utility.anonymized_rollups.anonymize_rollups()` on merged collector rollups.
 3. Adds `summary_metadata` (`install_type`, collection counts, missing hours).
-4. Embeds `dashboard_telemetry` from rollup metrics (collection performance, not raw jobs).
-   Adds a current `leaderboard_telemetry` settings observation (see below).
+4. Embeds `dashboard_telemetry` from rollup metrics (collection performance, not raw jobs),
+   `api_usage_telemetry` from daily API counters (see below), and a current
+   `leaderboard_telemetry` settings observation (see below).
 5. Creates `AnonymizedMetricsPayload` with `status="pending"`.
 6. Sets summary `status="anonymized"`.
 7. Creates a **scheduled** `send_anonymized_to_segment` task with random jitter
@@ -103,14 +104,57 @@ user ID; it does not establish a stable deployment identity for adoption
 counts. Deployment identity, supported-version eligibility, and reporting
 definitions remain follow-up work for AAP-88680.
 
+### API usage telemetry
+
+The anonymized payload includes daily request counts from `APIUsageCounter`.
+The endpoint names are resolved analytics API view names, not collector names
+or requested URLs. Counts are grouped by HTTP response class; request paths,
+parameters, bodies, durations, and user details are not included.
+
+```json
+{
+  "api_usage_telemetry": {
+    "available": true,
+    "total_requests": 5,
+    "by_endpoint": {
+      "analytics:v1:root": {
+        "1xx": 0,
+        "2xx": 3,
+        "3xx": 0,
+        "4xx": 1,
+        "5xx": 0
+      },
+      "analytics:v1:rows": {
+        "1xx": 0,
+        "2xx": 1,
+        "3xx": 0,
+        "4xx": 0,
+        "5xx": 0
+      }
+    }
+  }
+}
+```
+
+The section is sent under Segment's `properties.data` in the existing
+`Controller Metrics Daily Rollup` event. No recorded requests produces
+`available: true`, `total_requests: 0`, and an empty `by_endpoint` map. If
+reading the counters fails, the same zero-valued shape is sent with
+`available: false`. A manual summary for a date whose counters have expired
+under retention also appears as zero usage because no rows remain to distinguish
+it from a date with no requests; the scheduled prior-day summary is retained by
+the exclusive cleanup cutoff.
+
 ### What is anonymized
 
 Rollup JSON from collectors (jobs, credentials, event modules, execution
 environments, controller version, table metadata, **platform** `feature_flags_service`
-snapshot, task executions observability, indirect nodes if collected).
+snapshot, task executions observability, indirect nodes if collected), plus the
+aggregate-only `api_usage_telemetry` section.
 
 **Not included:** raw `JobData` rows, user-identifiable AWX job detail used by
-the dashboard API. See [dashboard-reports-api.md](dashboard-reports-api.md).
+the dashboard API, or per-request API details. See
+[dashboard-reports-api.md](dashboard-reports-api.md).
 
 ## send_anonymized_to_segment
 
