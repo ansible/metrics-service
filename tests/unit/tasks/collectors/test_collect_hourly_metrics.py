@@ -22,6 +22,7 @@ def _make_df(rows: list[dict]) -> pd.DataFrame:
     defaults = {
         "id": 1,
         "name": "job",
+        "model": "job",
         "unified_job_template_id": 10,
         "organization_id": 1,
         "organization_name": "Org",
@@ -146,6 +147,7 @@ class TestBuildDashboardSyncHook:
         assert raw_jobs[0]["started"] == started.isoformat()
 
     def test_hook_preserves_controller_model(self):
+        """Keeps the Controller model in the task payload for downstream persistence."""
         df = _make_df(
             [
                 {
@@ -162,6 +164,34 @@ class TestBuildDashboardSyncHook:
 
         raw_job = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"][0]
         assert raw_job["model"] == "system_job"
+
+    def test_hook_rejects_batch_when_model_column_is_missing(self):
+        """Aborts task creation when the required model column is absent."""
+        df = _make_df([{"status": "successful", "launch_type": "manual"}]).drop(columns=["model"])
+        hook = self._enabled_hook()
+
+        with patch(TASK_MODEL_PATH) as mock_task, pytest.raises(ValueError, match="missing required 'model'"):
+            hook(df)
+
+        mock_task.objects.update_or_create.assert_not_called()
+        mock_task.objects.filter.assert_not_called()
+
+    @pytest.mark.parametrize("model", [None, float("nan"), ""])
+    def test_hook_rejects_entire_batch_when_any_model_is_unusable(self, model):
+        """Rejects all records when any eligible job has a null or empty model."""
+        df = _make_df(
+            [
+                {"id": 1, "status": "successful", "launch_type": "manual", "model": "job"},
+                {"id": 2, "status": "failed", "launch_type": "manual", "model": model},
+            ]
+        )
+        hook = self._enabled_hook()
+
+        with patch(TASK_MODEL_PATH) as mock_task, pytest.raises(ValueError, match="without a usable model"):
+            hook(df)
+
+        mock_task.objects.update_or_create.assert_not_called()
+        mock_task.objects.filter.assert_not_called()
 
     def test_hook_converts_num_hosts_to_int(self):
         """num_hosts is cast to int if not None."""

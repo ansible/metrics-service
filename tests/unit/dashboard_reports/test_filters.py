@@ -807,6 +807,7 @@ class TestCustomReportFilterCustomPeriod:
 
     @pytest.fixture
     def mock_queryset(self):
+        """Return a chainable queryset mock for custom report filter tests."""
         mock_qs = MagicMock()
         mock_qs.filter.return_value = mock_qs
         mock_qs.after_date.return_value = mock_qs
@@ -930,12 +931,14 @@ class TestCustomReportFilterCustomPeriod:
 @pytest.mark.unit
 class TestGetJobTypeFilter:
     def test_defaults_to_job_model(self):
+        """Filters to ordinary Controller jobs when no job_type parameter is supplied."""
         request = MagicMock()
         request.query_params = QueryDict("")
 
         assert get_job_type_filter(request) == models.Q(job_type__in=["job"])
 
     def test_returns_all_requested_types(self):
+        """Includes every repeated job_type query parameter in the filter."""
         request = MagicMock()
         request.query_params = QueryDict("job_type=system_job&job_type=workflow_job")
 

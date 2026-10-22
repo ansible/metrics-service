@@ -363,6 +363,7 @@ class TestSyncDashboardJobRecords:
     @patch("apps.dashboard_reports.tasks.log_task_execution")
     @patch("apps.dashboard_reports.tasks.create_task_result")
     def test_job_type_is_mapped(self, mock_result, mock_log, mock_sync):
+        """Maps the incoming Controller model to the JobData job_type field."""
         raw_jobs = [self._raw_job(model="system_job")]
 
         sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
@@ -370,8 +371,52 @@ class TestSyncDashboardJobRecords:
         assembled = mock_sync.call_args[0][0]
         assert assembled[0]["job_type"] == "system_job"
 
+    @pytest.mark.parametrize("model", [None, float("nan"), ""])
+    def test_invalid_model_rejects_entire_batch(self, model):
+        """Rejects the whole batch when any row has a null or empty Controller model."""
+        raw_jobs = [self._raw_job(job_id=1), self._raw_job(job_id=2, model=model)]
+
+        with (
+            patch("apps.dashboard_reports.tasks._sync_jobs_atomically") as mock_sync,
+            patch("apps.dashboard_reports.tasks.log_task_execution") as mock_log,
+            patch("apps.dashboard_reports.tasks.create_task_result", return_value={"status": "error"}) as mock_result,
+        ):
+            result = sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
+
+        assert result["status"] == "error"
+        mock_sync.assert_not_called()
+        mock_log.assert_called_once_with(
+            task_name="sync_dashboard_job_records",
+            operation="error",
+            details="Cannot sync dashboard jobs: 1 record(s) have a missing or unusable Controller model",
+        )
+        mock_result.assert_called_once_with(
+            "error",
+            error="Cannot sync dashboard jobs: 1 record(s) have a missing or unusable Controller model",
+        )
+
+    def test_missing_model_rejects_entire_batch(self):
+        """Rejects the whole batch when any row lacks its Controller model field."""
+        valid_job = self._raw_job(job_id=1)
+        invalid_job = self._raw_job(job_id=2)
+        del invalid_job["model"]
+
+        with (
+            patch("apps.dashboard_reports.tasks._sync_jobs_atomically") as mock_sync,
+            patch("apps.dashboard_reports.tasks.create_task_result", return_value={"status": "error"}) as mock_result,
+        ):
+            result = sync_dashboard_job_records(raw_jobs=[valid_job, invalid_job], hour_timestamp="2024-01-01T00:00:00")
+
+        assert result["status"] == "error"
+        mock_sync.assert_not_called()
+        mock_result.assert_called_once_with(
+            "error",
+            error="Cannot sync dashboard jobs: 1 record(s) have a missing or unusable Controller model",
+        )
+
     @pytest.mark.django_db
     def test_job_type_is_persisted(self):
+        """Persists the collected Controller model name on the JobData row."""
         result = sync_dashboard_job_records(
             raw_jobs=[self._raw_job(job_id=44, model="system_job")],
             hour_timestamp="2024-01-01T00:00:00",
@@ -1516,6 +1561,7 @@ class TestBackfillDashboardOrganizationNames:
 @pytest.mark.django_db
 class TestBackfillDashboardJobTypes:
     def _job(self, job_id: int, job_type: str | None = None) -> JobData:
+        """Create a minimal dashboard job row for backfill tests."""
         return JobData.objects.create(
             job_id=job_id,
             template_name=f"Job {job_id}",
@@ -1527,6 +1573,7 @@ class TestBackfillDashboardJobTypes:
     @patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids")
     @patch("apps.dashboard_reports.tasks.get_db_connection")
     def test_updates_existing_rows_in_batches(self, mock_connection, mock_fetch, mock_telemetry):
+        """Updates unclassified JobData rows in bounded Controller lookup batches."""
         self._job(100)
         self._job(101)
         self._job(102, job_type="job")
@@ -1546,6 +1593,7 @@ class TestBackfillDashboardJobTypes:
     @patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids", return_value={})
     @patch("apps.dashboard_reports.tasks.get_db_connection")
     def test_missing_controller_ids_are_retained_unclassified(self, mock_connection, mock_fetch):
+        """Leaves stored jobs unclassified when Controller no longer has their IDs."""
         self._job(100)
 
         result = backfill_dashboard_job_types()
@@ -1557,6 +1605,7 @@ class TestBackfillDashboardJobTypes:
 
     @patch("apps.dashboard_reports.tasks.get_db_connection")
     def test_no_unclassified_rows_skips_controller_connection(self, mock_connection):
+        """Skips the Controller connection when every stored job is already classified."""
         self._job(100, job_type="job")
 
         result = backfill_dashboard_job_types()
@@ -1568,6 +1617,7 @@ class TestBackfillDashboardJobTypes:
     @patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids", side_effect=RuntimeError("Controller unavailable"))
     @patch("apps.dashboard_reports.tasks.get_db_connection")
     def test_controller_failure_leaves_rows_for_retry(self, mock_connection, mock_fetch):
+        """Leaves unclassified rows untouched when Controller lookups fail."""
         self._job(100)
 
         result = backfill_dashboard_job_types()
@@ -1578,6 +1628,7 @@ class TestBackfillDashboardJobTypes:
 
     @patch("apps.dashboard_reports.tasks.get_db_connection")
     def test_invalid_batch_size_returns_error(self, mock_connection):
+        """Returns an error before connecting when the requested batch size is invalid."""
         self._job(100)
 
         result = backfill_dashboard_job_types(batch_size=0)
@@ -1588,6 +1639,7 @@ class TestBackfillDashboardJobTypes:
 
     @patch("apps.dashboard_reports.tasks.JobData.create_or_update_from_awx")
     def test_initial_backfill_defaults_to_job_model(self, mock_create):
+        """Assigns the ordinary job model to rows returned by the main_job backfill."""
         from apps.dashboard_reports.tasks import _sync_jobs_atomically
 
         assert _sync_jobs_atomically([{"id": 42}], default_job_type="job") == []

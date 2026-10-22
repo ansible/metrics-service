@@ -413,6 +413,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
         return None
 
     def hook(raw_data):
+        """Validate model values and queue eligible dashboard job records for syncing."""
         if raw_data is None or raw_data.empty:
             return
 
@@ -420,6 +421,15 @@ def _build_dashboard_sync_hook(hour_timestamp):
         filtered = raw_data[mask]
         if filtered.empty:
             return
+
+        if "model" not in filtered.columns:
+            raise ValueError("unified_jobs_dashboard is missing required 'model' column; dashboard sync aborted")
+        invalid_models = filtered["model"].map(lambda value: not isinstance(value, str) or not value.strip())
+        if invalid_models.any():
+            raise ValueError(
+                f"unified_jobs_dashboard returned {int(invalid_models.sum())} dashboard job(s) without a usable model; "
+                "dashboard sync aborted"
+            )
 
         # unified_jobs_dashboard guarantees these columns; guard with available
         # in case a future schema change temporarily drops one.

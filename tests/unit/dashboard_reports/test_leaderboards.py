@@ -187,6 +187,7 @@ class TestCounts:
         assert get(authenticated_client)["featured_template"] is None
 
     def test_featured_template_ignores_runs_with_no_template(self, authenticated_client):
+        """Selects a featured template from eligible runs when other runs lack templates."""
         for _ in range(5):
             make_job(day(1), template_id=None, template_name="", job_type="ad_hoc_command")
         make_job(day(2), template_id=7, template_name="Deploy")
@@ -895,6 +896,7 @@ class TestJobTypeFilter:
     """Leaderboard data is filtered by stored Controller model names."""
 
     def test_default_excludes_non_job_types(self, authenticated_client):
+        """Counts ordinary jobs by default while excluding stored management jobs."""
         make_job(day(1), job_type="job")
         make_job(day(2), job_type="system_job", template_name="Cleanup Activity Stream")
         make_job(day(3), job_type="project_update")
@@ -902,6 +904,7 @@ class TestJobTypeFilter:
         assert get(authenticated_client)["job_runs"] == 1
 
     def test_explicit_job_type_includes_hidden_records(self, authenticated_client):
+        """Includes a stored non-default job type when it is explicitly selected."""
         make_job(day(1), job_type="job")
         make_job(day(2), job_type="system_job", template_name="Cleanup Activity Stream")
 
@@ -910,6 +913,7 @@ class TestJobTypeFilter:
         assert data["featured_template"]["name"] == "Cleanup Activity Stream"
 
     def test_multiple_job_types_can_be_selected(self, authenticated_client):
+        """Combines repeated job_type parameters in the leaderboard filter."""
         make_job(day(1), job_type="job")
         make_job(day(2), job_type="workflow_job")
         make_job(day(3), job_type="system_job")

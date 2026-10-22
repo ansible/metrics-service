@@ -210,6 +210,7 @@ class TestExportEndpointGeneral:
         assert response.status_code == 200
 
     def test_export_job_type_filter_can_include_stored_management_jobs(self, job_data, admin_client):
+        """Allows CSV exports to include stored management jobs when explicitly requested."""
         management_template = TemplateMetadata.objects.create(
             template_id=900,
             template_name="Cleanup Activity Stream",

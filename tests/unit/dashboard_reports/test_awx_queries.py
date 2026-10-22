@@ -259,6 +259,7 @@ class TestFetchJobTypesForIds:
         return mock_conn, mock_cursor
 
     def test_returns_model_names_for_requested_ids(self):
+        """Returns the Controller model mapped to each requested unified-job ID."""
         mock_conn, mock_cursor = self._connection([(11, "job"), (12, "system_job")])
 
         result = awx_queries.fetch_job_types_for_ids(mock_conn, [11, 12])
@@ -267,12 +268,14 @@ class TestFetchJobTypesForIds:
         mock_cursor.execute.assert_called_once_with(AWXQuery.JOB_TYPES_FOR_IDS.value, [[11, 12]])
 
     def test_empty_ids_skip_the_query(self):
+        """Avoids a Controller database query when no job IDs are requested."""
         mock_conn, _ = self._connection([])
 
         assert awx_queries.fetch_job_types_for_ids(mock_conn, []) == {}
         mock_conn.cursor.assert_not_called()
 
     def test_query_joins_content_type_for_unified_jobs(self):
+        """Uses Django content types to resolve Controller unified-job model names."""
         query = AWXQuery.JOB_TYPES_FOR_IDS.value
         assert "FROM main_unifiedjob uj" in query
         assert "JOIN django_content_type dct" in query

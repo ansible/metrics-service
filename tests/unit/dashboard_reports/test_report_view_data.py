@@ -530,6 +530,7 @@ class TestReportViewData:
                 )
 
     def test_job_type_defaults_to_job_and_can_select_other_types(self, job_data, template_metadata, admin_client):
+        """Uses ordinary jobs by default and returns other types when explicitly requested."""
         now = get_now()
         management_template = TemplateMetadata.objects.create(
             template_id=900,

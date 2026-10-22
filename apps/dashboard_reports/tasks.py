@@ -627,6 +627,17 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     raw_jobs = kwargs.get("raw_jobs", [])
     start_time = time.monotonic()
 
+    invalid_model_count = sum(
+        not isinstance(row, dict) or not isinstance(row.get("model"), str) or not row["model"].strip()
+        for row in raw_jobs
+    )
+    if invalid_model_count:
+        error = (
+            f"Cannot sync dashboard jobs: {invalid_model_count} record(s) have a missing or unusable Controller model"
+        )
+        log_task_execution(task_name=task_name, operation="error", details=error)
+        return create_task_result("error", error=error)
+
     log_task_execution(
         task_name=task_name,
         operation="processing",
