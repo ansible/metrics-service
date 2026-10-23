@@ -64,7 +64,7 @@ def persist_analytics_payload(
     source: str = LOCAL_SOURCE,
     raise_on_error: bool = False,
     db_connection: Any = None,
-) -> None:
+) -> AnalyticsPayload | None:
     """Persist raw ``gather()`` output for an enabled collector, keyed by public name.
 
     No-op for collectors that aren't enabled in the analytics registry. The entry's
@@ -72,7 +72,8 @@ def persist_analytics_payload(
     ``AnalyticsPayload`` through any caller (see :mod:`apps.analytics.exclusions`). By default,
     persistence is best-effort: errors are logged and swallowed so the caller's rollup path is
     unaffected. Callers that require storage can set ``raise_on_error``. Stores the public ``name``
-    (``group.function``) in ``collector``. Every successful collection is appended.
+    (``group.function``) in ``collector``. Every successful collection is appended; the created
+    row is returned so callers can report its id.
 
     Args:
         collector_type: metrics-service collector key (mapped to the public name via the registry).
@@ -86,7 +87,7 @@ def persist_analytics_payload(
     """
     entry = get_entry_by_type(collector_type)
     if entry is None or not entry.enabled:
-        return
+        return None
 
     try:
         filtered = apply_exclusions(raw_data, entry.exclude_columns, entry.key_field)
@@ -94,7 +95,7 @@ def persist_analytics_payload(
         cluster_id = _get_cluster_id(db_connection)
         # collector_type is the internal task key (for example, ``main_host``)
         # entry.name is the full whitelist/API/storage name (for example, ``controller.main_host``)
-        AnalyticsPayload.objects.create(
+        return AnalyticsPayload.objects.create(
             collector=entry.name,
             source=source,
             cluster_id=cluster_id,

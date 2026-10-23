@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.analytics.models import AnalyticsPayload, APIUsageCounter
-from apps.tasks.models import Task
+from apps.tasks.models import Task, TaskExecution
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 
@@ -356,3 +356,150 @@ def test_collect_rejects_configured_source(authenticated_client):
     )
 
     assert response.status_code == 400
+
+
+def _collect(client, collector, body=None):
+    return client.post(f"{ROOT}{collector}/collect/", body or {}, format="json")
+
+
+def test_collect_repeated_snapshot_returns_same_task(authenticated_client):
+    first = _collect(authenticated_client, CONFIG)
+    second = _collect(authenticated_client, CONFIG)
+
+    assert first.status_code == 202
+    assert first.json()["disposition"] == "created"
+    assert second.status_code == 200
+    assert second.json()["disposition"] == "reused"
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_repeated_default_window_returns_same_task(authenticated_client):
+    first = _collect(authenticated_client, UNIFIED)
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 200
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_repeated_explicit_window_returns_same_task(authenticated_client):
+    body = {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"}
+    first = _collect(authenticated_client, UNIFIED, body)
+    second = _collect(authenticated_client, UNIFIED, body)
+
+    assert second.status_code == 200
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_equivalent_timestamp_offsets_are_the_same_window(authenticated_client):
+    first = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+    second = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T12:00:00+02:00", "until": "2026-08-17T13:00:00+02:00"},
+    )
+
+    assert second.status_code == 200
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert second.json()["task_data"]["since"] == "2026-08-17T10:00:00+00:00"
+
+
+def test_collect_reuses_completed_task(authenticated_client):
+    first = _collect(authenticated_client, UNIFIED)
+    Task.objects.filter(pk=first.json()["task_id"]).update(status="completed")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 200
+    assert second.json()["task_status"] == "completed"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_unbounded_window_does_not_match_a_bounded_task(authenticated_client):
+    bounded = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+    Task.objects.filter(pk=bounded.json()["task_id"]).update(status="completed")
+
+    unbounded = _collect(authenticated_client, UNIFIED, {"since": None, "until": None})
+
+    assert unbounded.status_code == 202
+    assert unbounded.json()["disposition"] == "created"
+    assert unbounded.json()["task_id"] != bounded.json()["task_id"]
+
+
+def test_collect_requeues_failed_task(authenticated_client):
+    first = _collect(authenticated_client, UNIFIED)
+    task = Task.objects.get(pk=first.json()["task_id"])
+    Task.objects.filter(pk=task.pk).update(status="failed", error_message="boom")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 202
+    assert second.json()["disposition"] == "requeued"
+    assert second.json()["task_id"] == task.pk
+    task.refresh_from_db()
+    assert task.status == "pending"
+    assert task.error_message == ""
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_recovers_stale_running_task(authenticated_client):
+    first = _collect(authenticated_client, UNIFIED)
+    task = Task.objects.get(pk=first.json()["task_id"])
+    Task.objects.filter(pk=task.pk).update(status="running", started_at=timezone.now() - timedelta(hours=2))
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 202
+    assert second.json()["disposition"] == "requeued"
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == "pending"
+    assert execution.status == "failed"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_conflicts_with_a_different_window_in_flight(authenticated_client):
+    first = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+
+    second = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T11:00:00Z", "until": "2026-08-17T12:00:00Z"},
+    )
+
+    assert second.status_code == 409
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_recreates_a_cancelled_task(authenticated_client):
+    first = _collect(authenticated_client, UNIFIED)
+    Task.objects.filter(pk=first.json()["task_id"]).update(status="cancelled")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 202
+    assert second.json()["disposition"] == "created"
+    assert second.json()["task_id"] != first.json()["task_id"]
+
+
+def test_collect_disabled_collector_returns_410(authenticated_client):
+    response = _collect(authenticated_client, "service.task_executions_service")
+
+    assert response.status_code == 410
+    assert not Task.objects.filter(function_name="collect_analytics_on_demand").exists()

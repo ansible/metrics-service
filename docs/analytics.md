@@ -191,15 +191,22 @@ Examples:
 | `(-infinity, 11:00)` | `[11:00, 12:00)` | no match |
 | `[null, null]` | any valid query | match |
 
-Every successful collection is retained. Repeated windows and repeated snapshots
-are not upserts.
+Every successful collection is retained. Storage appends and never upserts; the
+trigger above is what prevents duplicate tasks for one window.
 
 ### Triggering Collection
 
 The collector trigger creates a normal pending `Task`. It does not execute the
-collector in the web request, create a payload row, claim a window, or coordinate
-with another request. The scheduler discovers and dispatches the task through the
-normal task machinery.
+collector in the web request or create a payload row. The scheduler discovers and
+dispatches the task through the normal task machinery.
+
+The trigger is idempotent per resolved `(collector, since, until)` window:
+concurrent or repeated requests share one task instead of queueing duplicate
+work. Bounds are normalised to UTC before comparison, so the same instant
+expressed with different offsets is one window. Snapshot collectors have no
+bounds, so their triggers are idempotent. Default windows are the completed
+hour/day bucket, so requests share a task until the window advances at the
+bucket boundary.
 
 ```http
 POST /api/v1/analytics/controller.config/collect/
@@ -211,9 +218,18 @@ For a snapshot, an empty JSON body uses the collector defaults:
 {}
 ```
 
-The response is `202 Accepted` and includes `task_id`, `task_url`, `collector`,
-and the resolved `task_data`. Each request creates a separate task, even when
-the collector and bounds are identical.
+The response includes `task_id`, `task_url`, `collector`, `task_data`,
+`task_status`, and `disposition`:
+
+| Status | `disposition` | Meaning |
+| --- | --- | --- |
+| `202` | `created` | A new task was queued. |
+| `200` | `reused` | A task for this window already exists and is pending, running, or completed. Use its `task_id`; a completed task is not re-collected. |
+| `202` | `requeued` | The existing task for this window was failed or stuck; it was reset to pending. |
+| `409` | — | A different pending or running window is already in flight for this collector. The body identifies that task. |
+
+Unknown collectors return `404`, disabled collectors return `410`, and invalid
+timestamps or reversed ranges return `400`.
 
 Window-capable collectors accept no bound, one bound, or both bounds. A missing
 key receives the normal hourly or daily default; an explicit JSON `null` leaves
@@ -316,5 +332,6 @@ For a specific collection window, pass ISO timestamps in `task_data`:
 
 The trigger POST maps directly to the same task data: a snapshot POST with no
 body creates the name-only task, while a request body containing `since` and
-`until` creates the custom-window task. Claims, overlap coordination, and
-re-collection decisions are intentionally not part of this contract.
+`until` creates the custom-window task. Creating tasks through the task API
+bypasses the trigger's per-window coordination; the collector trigger is the
+supported way to request on-demand collection.
