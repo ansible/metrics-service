@@ -7,7 +7,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.analytics.models import AnalyticsPayload, APIUsageCounter
-from apps.tasks.models import Task
+from apps.analytics.v1.views import _fail_stale
+from apps.tasks.models import Task, TaskExecution
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
 
@@ -271,6 +272,7 @@ def test_collect_snapshot_creates_pending_task_without_collecting(authenticated_
     assert body["task_url"].endswith(f"/api/v1/tasks/{task.pk}/")
     assert body["task_data"] == {"collector": CONFIG}
     assert task.status == "pending"
+    assert task.max_attempts == 1
     assert not AnalyticsPayload.objects.exists()
 
 
@@ -356,3 +358,237 @@ def test_collect_rejects_configured_source(authenticated_client):
     )
 
     assert response.status_code == 400
+
+
+def _collect(client, collector, body=None):
+    """POST a collection request for one collector."""
+    return client.post(f"{ROOT}{collector}/collect/", body or {}, format="json")
+
+
+@pytest.mark.parametrize(
+    ("collector", "body"),
+    [
+        (CONFIG, {}),
+        (UNIFIED, {}),
+        (UNIFIED, {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"}),
+    ],
+)
+def test_collect_repeated_request_returns_same_task(authenticated_client, collector, body):
+    """Repeats of one resolved window share a task, for snapshots and windows."""
+    first = _collect(authenticated_client, collector, body)
+    second = _collect(authenticated_client, collector, body)
+
+    assert first.status_code == 202
+    assert first.json()["disposition"] == "created"
+    assert second.status_code == 200
+    assert second.json()["disposition"] == "reused"
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_equivalent_timestamp_offsets_are_the_same_window(authenticated_client):
+    """The same instant in different UTC offsets is one idempotency key."""
+    first = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+    second = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T12:00:00+02:00", "until": "2026-08-17T13:00:00+02:00"},
+    )
+
+    assert second.status_code == 200
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert second.json()["task_data"]["since"] == "2026-08-17T10:00:00+00:00"
+
+
+def test_collect_reuses_completed_task(authenticated_client):
+    """A completed window is reused instead of re-collected."""
+    first = _collect(authenticated_client, UNIFIED)
+    Task.objects.filter(pk=first.json()["task_id"]).update(status="completed")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 200
+    assert second.json()["task_status"] == "completed"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_unbounded_window_does_not_match_a_bounded_task(authenticated_client):
+    """Exact task_data matching, not JSON containment, selects the window."""
+    bounded = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+    Task.objects.filter(pk=bounded.json()["task_id"]).update(status="completed")
+
+    unbounded = _collect(authenticated_client, UNIFIED, {"since": None, "until": None})
+
+    assert unbounded.status_code == 202
+    assert unbounded.json()["disposition"] == "created"
+    assert unbounded.json()["task_id"] != bounded.json()["task_id"]
+
+
+def test_collect_requeues_failed_task(authenticated_client):
+    """A failed task for the same window is requeued in place."""
+    first = _collect(authenticated_client, UNIFIED)
+    task = Task.objects.get(pk=first.json()["task_id"])
+    Task.objects.filter(pk=task.pk).update(status="failed", error_message="boom")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 202
+    assert second.json()["disposition"] == "requeued"
+    assert second.json()["task_id"] == task.pk
+    task.refresh_from_db()
+    assert task.status == "pending"
+    assert task.error_message == ""
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_recovers_stale_running_task(authenticated_client):
+    """A stuck task and its execution are failed, then requeued."""
+    first = _collect(authenticated_client, UNIFIED)
+    task = Task.objects.get(pk=first.json()["task_id"])
+    Task.objects.filter(pk=task.pk).update(status="running", started_at=timezone.now() - timedelta(hours=2))
+    execution = TaskExecution.objects.create(task=task, status="running")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 202
+    assert second.json()["disposition"] == "requeued"
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == "pending"
+    assert execution.status == "failed"
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_fail_stale_requires_a_running_overdue_task():
+    """Recovery rechecks status and age under the task lock."""
+    now = timezone.now()
+    overdue = Task.objects.create(
+        name="overdue-collect",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": UNIFIED},
+        status="running",
+        started_at=now - timedelta(hours=2),
+    )
+    execution = TaskExecution.objects.create(task=overdue, status="running")
+    completed = Task.objects.create(
+        name="completed-collect",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": UNIFIED},
+        status="completed",
+        started_at=now - timedelta(hours=2),
+    )
+    fresh = Task.objects.create(
+        name="fresh-collect",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": UNIFIED},
+        status="running",
+        started_at=now,
+    )
+
+    assert _fail_stale(overdue, now) is True
+    assert _fail_stale(completed, now) is False
+    assert _fail_stale(fresh, now) is False
+
+    overdue.refresh_from_db()
+    execution.refresh_from_db()
+    assert overdue.status == "pending"
+    assert execution.status == "failed"
+
+
+def test_collect_conflicts_with_a_different_window_in_flight(authenticated_client):
+    """A second window is rejected while one is pending or running."""
+    first = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+
+    second = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T11:00:00Z", "until": "2026-08-17T12:00:00Z"},
+    )
+
+    assert second.status_code == 409
+    assert second.json()["task_id"] == first.json()["task_id"]
+    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_collect_does_not_requeue_a_failed_window_while_another_is_in_flight(authenticated_client):
+    """Requeueing a failed window must not overlap a live collection."""
+    failed = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+    Task.objects.filter(pk=failed.json()["task_id"]).update(status="failed")
+    live = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T11:00:00Z", "until": "2026-08-17T12:00:00Z"},
+    )
+    assert live.status_code == 202
+
+    retry = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+
+    assert retry.status_code == 409
+    assert retry.json()["task_id"] == live.json()["task_id"]
+    assert Task.objects.get(pk=failed.json()["task_id"]).status == "failed"
+
+
+def test_collect_reuses_completed_window_while_another_is_in_flight(authenticated_client):
+    """Reuse starts no work, so a live sibling window does not conflict."""
+    completed = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+    Task.objects.filter(pk=completed.json()["task_id"]).update(status="completed")
+    other = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T11:00:00Z", "until": "2026-08-17T12:00:00Z"},
+    )
+    assert other.status_code == 202
+
+    repeat = _collect(
+        authenticated_client,
+        UNIFIED,
+        {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"},
+    )
+
+    assert repeat.status_code == 200
+    assert repeat.json()["disposition"] == "reused"
+    assert repeat.json()["task_id"] == completed.json()["task_id"]
+
+
+def test_collect_recreates_a_cancelled_task(authenticated_client):
+    """Cancelled work cannot be revived, so a new task is created."""
+    first = _collect(authenticated_client, UNIFIED)
+    Task.objects.filter(pk=first.json()["task_id"]).update(status="cancelled")
+
+    second = _collect(authenticated_client, UNIFIED)
+
+    assert second.status_code == 202
+    assert second.json()["disposition"] == "created"
+    assert second.json()["task_id"] != first.json()["task_id"]
+
+
+def test_collect_disabled_collector_returns_410(authenticated_client):
+    """Known but disabled collectors are not collectable."""
+    response = _collect(authenticated_client, "service.task_executions_service")
+
+    assert response.status_code == 410
+    assert not Task.objects.filter(function_name="collect_analytics_on_demand").exists()

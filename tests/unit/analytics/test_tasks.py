@@ -73,6 +73,7 @@ def test_on_demand_happy_path_persists(_mock_db):
         )
     assert result["status"] == "success"
     row = AnalyticsPayload.objects.get(collector=UNIFIED)
+    assert result["collection_id"] == row.id
     assert row.payload == [{"id": 1}]
     assert row.cluster_id == "2aebf27a-42ee-4e15-93d0-8bd5f9b52219"
     # since/until are threaded through to the collector.
