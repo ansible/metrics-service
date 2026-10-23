@@ -619,13 +619,13 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     """
     Write unified_jobs raw data collected during the hourly rollup to the dashboard JobData table.
 
-    New hourly tasks carry Controller model names in task_data and avoid a Controller lookup.
-    Pre-upgrade queued tasks may lack those names, so their IDs are batch-resolved from Controller
-    before validation and persistence.
+    New hourly tasks carry Controller model names in task_data. Missing model names are resolved
+    from Controller in one batch when possible; unresolved rows are stored unclassified so the
+    default report filter can retain them and a later backfill can retry classification.
     """
     task_name = "sync_dashboard_job_records"
     hour_timestamp = kwargs.get("hour_timestamp", "unknown")
-    raw_jobs = kwargs.get("raw_jobs", [])
+    raw_jobs = [row.copy() if isinstance(row, dict) else row for row in kwargs.get("raw_jobs", [])]
     start_time = time.monotonic()
 
     log_task_execution(
@@ -660,16 +660,16 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
             if isinstance(model, str) and model.strip():
                 row["model"] = model
 
-    invalid_model_count = sum(
+    unclassified_count = sum(
         not isinstance(row, dict) or not isinstance(row.get("model"), str) or not row["model"].strip()
         for row in raw_jobs
     )
-    if invalid_model_count:
-        error = (
-            f"Cannot sync dashboard jobs: {invalid_model_count} record(s) have a missing or unusable Controller model"
+    if unclassified_count:
+        logger.warning(
+            "Syncing %s dashboard job record(s) without a Controller model for %s; they remain unclassified",
+            unclassified_count,
+            hour_timestamp,
         )
-        log_task_execution(task_name=task_name, operation="error", details=error)
-        return create_task_result("error", error=error)
 
     assembled = []
     for row in raw_jobs:
@@ -708,8 +708,9 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
             "host_summaries": None,
             "num_hosts": row.get("num_hosts") or 0,
         }
-        if "model" in row:
-            awx_job["job_type"] = row["model"]
+        model = row.get("model")
+        if isinstance(model, str) and model.strip():
+            awx_job["job_type"] = model
         assembled.append(awx_job)
 
     failed_jobs = _sync_jobs_atomically(assembled)

@@ -566,7 +566,6 @@ class JobData(CommonModel):
         max_length=50,
         null=True,
         blank=True,
-        db_index=True,
         help_text="Controller unified-job model name (for example, job or system_job)",
     )
 
@@ -607,6 +606,7 @@ class JobData(CommonModel):
             models.Index(fields=["template_id"], name="dashboard_jd_template_idx"),
             models.Index(fields=["project_id"], name="dashboard_jd_project_idx"),
             models.Index(fields=["organization_id"], name="dashboard_jd_organization_idx"),
+            models.Index(fields=["job_type", "finished"], name="dashboard_jd_type_finished_idx"),
         ]
 
     objects = JobDataManager()

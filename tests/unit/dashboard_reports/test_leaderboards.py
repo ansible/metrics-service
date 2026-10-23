@@ -895,6 +895,12 @@ class TestResponseShape:
 class TestJobTypeFilter:
     """Leaderboard data is filtered by stored Controller model names."""
 
+    def test_default_includes_unclassified_legacy_rows(self, authenticated_client):
+        """Keeps historical rows visible while their Controller model is unresolved."""
+        make_job(day(1), job_type=None)
+
+        assert get(authenticated_client)["job_runs"] == 1
+
     def test_default_excludes_non_job_types(self, authenticated_client):
         """Counts ordinary jobs by default while excluding stored management jobs."""
         make_job(day(1), job_type="job")

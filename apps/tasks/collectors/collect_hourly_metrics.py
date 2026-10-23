@@ -422,14 +422,15 @@ def _build_dashboard_sync_hook(hour_timestamp):
         if filtered.empty:
             return
 
-        if "model" not in filtered.columns:
-            raise ValueError("unified_jobs_dashboard is missing required 'model' column; dashboard sync aborted")
-        invalid_models = filtered["model"].map(lambda value: not isinstance(value, str) or not value.strip())
-        if invalid_models.any():
-            raise ValueError(
-                f"unified_jobs_dashboard returned {int(invalid_models.sum())} dashboard job(s) without a usable model; "
-                "dashboard sync aborted"
-            )
+        # The consumer resolves missing models in one Controller lookup. If some IDs have
+        # expired from Controller, it stores those rows with a NULL type for legacy reporting.
+        if "model" in filtered.columns:
+            invalid_models = filtered["model"].map(lambda value: not isinstance(value, str) or not value.strip())
+            if invalid_models.any():
+                logger.warning(
+                    "unified_jobs_dashboard returned %s rows without a usable model; the sync task will resolve them",
+                    int(invalid_models.sum()),
+                )
 
         # unified_jobs_dashboard guarantees these columns; guard with available
         # in case a future schema change temporarily drops one.

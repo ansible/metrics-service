@@ -165,20 +165,22 @@ class TestBuildDashboardSyncHook:
         raw_job = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"][0]
         assert raw_job["model"] == "system_job"
 
-    def test_hook_rejects_batch_when_model_column_is_missing(self):
-        """Aborts task creation when the required model column is absent."""
+    def test_hook_schedules_batch_when_model_column_is_missing(self):
+        """Schedules rows without model so the sync task can resolve them by ID."""
         df = _make_df([{"status": "successful", "launch_type": "manual"}]).drop(columns=["model"])
         hook = self._enabled_hook()
 
-        with patch(TASK_MODEL_PATH) as mock_task, pytest.raises(ValueError, match="missing required 'model'"):
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
             hook(df)
 
-        mock_task.objects.update_or_create.assert_not_called()
-        mock_task.objects.filter.assert_not_called()
+        mock_task.objects.update_or_create.assert_called_once()
+        raw_job = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"][0]
+        assert "model" not in raw_job
 
     @pytest.mark.parametrize("model", [None, float("nan"), ""])
-    def test_hook_rejects_entire_batch_when_any_model_is_unusable(self, model):
-        """Rejects all records when any eligible job has a null or empty model."""
+    def test_hook_schedules_entire_batch_when_any_model_is_unusable(self, model):
+        """Schedules rows with missing model values for batch recovery in the sync task."""
         df = _make_df(
             [
                 {"id": 1, "status": "successful", "launch_type": "manual", "model": "job"},
@@ -187,11 +189,14 @@ class TestBuildDashboardSyncHook:
         )
         hook = self._enabled_hook()
 
-        with patch(TASK_MODEL_PATH) as mock_task, pytest.raises(ValueError, match="without a usable model"):
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
             hook(df)
 
-        mock_task.objects.update_or_create.assert_not_called()
-        mock_task.objects.filter.assert_not_called()
+        mock_task.objects.update_or_create.assert_called_once()
+        raw_jobs = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"]
+        assert [row["id"] for row in raw_jobs] == [1, 2]
+        assert raw_jobs[0]["model"] == "job"
 
     def test_hook_converts_num_hosts_to_int(self):
         """num_hosts is cast to int if not None."""

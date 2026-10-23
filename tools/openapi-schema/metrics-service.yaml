@@ -903,7 +903,7 @@ paths:
           items:
             type: string
         description: Controller unified-job model name (multiple allowed). Defaults
-          to job; specifying one or more values replaces that default.
+          to job and includes unclassified legacy rows; blank values are ignored.
       tags:
       - dashboard_reports
       security:
@@ -1055,7 +1055,8 @@ paths:
           items:
             type: string
         description: Filter by Controller unified-job model name (multiple allowed).
-          Defaults to job; specifying one or more values replaces that default.
+          Defaults to job and includes unclassified legacy rows; blank values are
+          ignored.
       - in: query
         name: label
         schema:
@@ -1222,7 +1223,8 @@ paths:
           items:
             type: string
         description: Filter by Controller unified-job model name (multiple allowed).
-          Defaults to job; specifying one or more values replaces that default.
+          Defaults to job and includes unclassified legacy rows; blank values are
+          ignored.
       - in: query
         name: label
         schema:
@@ -1367,7 +1369,8 @@ paths:
           items:
             type: string
         description: Filter by Controller unified-job model name (multiple allowed).
-          Defaults to job; specifying one or more values replaces that default.
+          Defaults to job and includes unclassified legacy rows; blank values are
+          ignored.
       - in: query
         name: label
         schema:
@@ -1742,8 +1745,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Job Data.
+          type: string
         required: true
       tags:
       - dashboard_reports

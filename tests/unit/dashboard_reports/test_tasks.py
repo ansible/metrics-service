@@ -375,59 +375,54 @@ class TestSyncDashboardJobRecords:
         assert assembled[0]["job_type"] == "system_job"
 
     @pytest.mark.parametrize("model", [None, float("nan"), ""])
-    def test_invalid_model_rejects_entire_batch(self, model):
-        """Rejects the batch when Controller cannot resolve a null or empty model."""
+    def test_invalid_model_is_persisted_unclassified_when_controller_cannot_resolve(self, model):
+        """Persists unresolved records with NULL job_type instead of discarding the batch."""
         raw_jobs = [self._raw_job(job_id=1), self._raw_job(job_id=2, model=model)]
 
         with (
-            patch("apps.dashboard_reports.tasks._sync_jobs_atomically") as mock_sync,
-            patch("apps.dashboard_reports.tasks.log_task_execution") as mock_log,
-            patch("apps.dashboard_reports.tasks.create_task_result", return_value={"status": "error"}) as mock_result,
+            patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[]) as mock_sync,
+            patch("apps.dashboard_reports.tasks.create_task_result", return_value={"status": "success"}) as mock_result,
             patch("apps.dashboard_reports.tasks.get_db_connection") as mock_connection,
             patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids", return_value={}) as mock_fetch,
         ):
             result = sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
 
-        assert result["status"] == "error"
-        mock_sync.assert_not_called()
+        assert result["status"] == "success"
+        mock_sync.assert_called_once()
         mock_connection.assert_called_once_with("awx")
         mock_fetch.assert_called_once_with(mock_connection.return_value, [2])
-        mock_log.assert_any_call(
-            task_name="sync_dashboard_job_records",
-            operation="processing",
-            details="Syncing 2 dashboard job records for 2024-01-01T00:00:00",
-        )
-        mock_log.assert_called_with(
-            task_name="sync_dashboard_job_records",
-            operation="error",
-            details="Cannot sync dashboard jobs: 1 record(s) have a missing or unusable Controller model",
-        )
+        assembled = mock_sync.call_args.args[0]
+        assert assembled[0]["job_type"] == "job"
+        assert "job_type" not in assembled[1]
         mock_result.assert_called_once_with(
-            "error",
-            error="Cannot sync dashboard jobs: 1 record(s) have a missing or unusable Controller model",
+            "success",
+            data={"task_type": "sync_dashboard_job_records", "job_count": 2, "hour_timestamp": "2024-01-01T00:00:00"},
         )
 
-    def test_missing_model_rejects_entire_batch(self):
-        """Rejects a legacy batch when Controller cannot resolve its missing model."""
+    def test_missing_model_is_persisted_unclassified_when_controller_cannot_resolve(self):
+        """Persists a legacy row with NULL job_type when Controller no longer has its ID."""
         valid_job = self._raw_job(job_id=1)
         invalid_job = self._raw_job(job_id=2)
         del invalid_job["model"]
 
         with (
-            patch("apps.dashboard_reports.tasks._sync_jobs_atomically") as mock_sync,
-            patch("apps.dashboard_reports.tasks.create_task_result", return_value={"status": "error"}) as mock_result,
+            patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[]) as mock_sync,
+            patch("apps.dashboard_reports.tasks.create_task_result", return_value={"status": "success"}) as mock_result,
             patch("apps.dashboard_reports.tasks.get_db_connection") as mock_connection,
             patch("apps.dashboard_reports.tasks.fetch_job_types_for_ids", return_value={}) as mock_fetch,
         ):
             result = sync_dashboard_job_records(raw_jobs=[valid_job, invalid_job], hour_timestamp="2024-01-01T00:00:00")
 
-        assert result["status"] == "error"
-        mock_sync.assert_not_called()
+        assert result["status"] == "success"
+        mock_sync.assert_called_once()
         mock_connection.assert_called_once_with("awx")
         mock_fetch.assert_called_once_with(mock_connection.return_value, [2])
+        assembled = mock_sync.call_args.args[0]
+        assert assembled[0]["job_type"] == "job"
+        assert "job_type" not in assembled[1]
         mock_result.assert_called_once_with(
-            "error",
-            error="Cannot sync dashboard jobs: 1 record(s) have a missing or unusable Controller model",
+            "success",
+            data={"task_type": "sync_dashboard_job_records", "job_count": 2, "hour_timestamp": "2024-01-01T00:00:00"},
         )
 
     def test_legacy_batch_is_enriched_from_controller_in_one_lookup(self):
@@ -450,6 +445,8 @@ class TestSyncDashboardJobRecords:
         mock_fetch.assert_called_once_with(mock_connection.return_value, [1, 2])
         assembled = mock_sync.call_args[0][0]
         assert [job["job_type"] for job in assembled] == ["job", "system_job"]
+        assert "model" not in raw_jobs[0]
+        assert raw_jobs[1]["model"] == ""
 
     def test_legacy_model_lookup_failure_does_not_persist_batch(self):
         """Leaves a legacy batch unpersisted so task retries can repeat a failed lookup."""

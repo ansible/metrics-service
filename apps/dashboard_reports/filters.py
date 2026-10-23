@@ -148,11 +148,14 @@ def get_or_filter_options(request: Request) -> dict[str, list[int]]:
 
 
 def get_job_type_filter(request: Request) -> models.Q:
-    """Return the job-type filter; default to playbook Job records."""
-    job_types = request.query_params.getlist("job_type")
+    """Filter by requested Controller models, treating unclassified legacy rows as jobs."""
+    job_types = [value.strip() for value in request.query_params.getlist("job_type") if value.strip()]
     if not job_types:
         job_types = ["job"]
-    return models.Q(job_type__in=job_types)
+    job_type_filter = models.Q(job_type__in=job_types)
+    if "job" in job_types:
+        job_type_filter |= models.Q(job_type__isnull=True)
+    return job_type_filter
 
 
 def apply_or_filters(request: Request, queryset: QuerySet[JobData]) -> QuerySet[JobData]:

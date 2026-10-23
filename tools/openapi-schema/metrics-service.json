@@ -1182,7 +1182,7 @@
                                 "type": "string"
                             }
                         },
-                        "description": "Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
+                        "description": "Controller unified-job model name (multiple allowed). Defaults to job and includes unclassified legacy rows; blank values are ignored."
                     }
                 ],
                 "tags": [
@@ -1427,7 +1427,7 @@
                                 "type": "string"
                             }
                         },
-                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
+                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job and includes unclassified legacy rows; blank values are ignored."
                     },
                     {
                         "in": "query",
@@ -1681,7 +1681,7 @@
                                 "type": "string"
                             }
                         },
-                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
+                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job and includes unclassified legacy rows; blank values are ignored."
                     },
                     {
                         "in": "query",
@@ -1898,7 +1898,7 @@
                                 "type": "string"
                             }
                         },
-                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job; specifying one or more values replaces that default."
+                        "description": "Filter by Controller unified-job model name (multiple allowed). Defaults to job and includes unclassified legacy rows; blank values are ignored."
                     },
                     {
                         "in": "query",

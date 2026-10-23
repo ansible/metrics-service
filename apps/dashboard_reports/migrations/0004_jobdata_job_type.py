@@ -12,10 +12,14 @@ class Migration(migrations.Migration):
             name="job_type",
             field=models.CharField(
                 blank=True,
-                db_index=True,
+                db_index=False,
                 help_text="Controller unified-job model name (for example, job or system_job)",
                 max_length=50,
                 null=True,
             ),
+        ),
+        migrations.AddIndex(
+            model_name="jobdata",
+            index=models.Index(fields=["job_type", "finished"], name="dashboard_jd_type_finished_idx"),
         ),
     ]
