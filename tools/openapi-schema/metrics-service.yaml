@@ -1119,8 +1119,8 @@ paths:
           - last_60_days
           - last_7_days
           - last_90_days
-        description: Filter for report period.
-        required: true
+          default: last_30_days
+        description: 'Filter for report period (default: last_30_days).'
       - in: query
         name: project
         schema:
@@ -1278,8 +1278,8 @@ paths:
           - last_60_days
           - last_7_days
           - last_90_days
-        description: Filter for report period.
-        required: true
+          default: last_30_days
+        description: 'Filter for report period (default: last_30_days).'
       - in: query
         name: project
         schema:
@@ -1401,8 +1401,8 @@ paths:
           - last_60_days
           - last_7_days
           - last_90_days
-        description: Filter for report period.
-        required: true
+          default: last_30_days
+        description: 'Filter for report period (default: last_30_days).'
       - in: query
         name: project
         schema:

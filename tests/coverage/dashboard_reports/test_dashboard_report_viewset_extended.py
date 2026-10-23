@@ -59,6 +59,7 @@ def test_dashboard_report_pagination_page_size_matches_rest_framework_setting():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_list_endpoint_schema_documents_pagination_and_order_by_alias():
+    """List endpoint schema documents page_size, count_disabled and the order_by alias."""
     from drf_spectacular.generators import SchemaGenerator
 
     schema = SchemaGenerator().get_schema(request=None, public=True)
@@ -68,6 +69,27 @@ def test_list_endpoint_schema_documents_pagination_and_order_by_alias():
     assert params_by_name["page_size"]["schema"]["default"] == 25
     assert "count_disabled" in params_by_name
     assert "order_by" in params_by_name["ordering"]["description"]
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/dashboard_reports/report/",
+        "/api/v1/dashboard_reports/report/details/",
+        "/api/v1/dashboard_reports/report/export/",
+    ],
+)
+def test_report_schema_documents_period_as_optional_with_default(path):
+    """period is optional on all report endpoints and documents last_30_days as its default."""
+    from drf_spectacular.generators import SchemaGenerator
+
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    params_by_name = {p["name"]: p for p in schema["paths"][path]["get"]["parameters"]}
+
+    assert not params_by_name["period"].get("required", False)
+    assert params_by_name["period"]["schema"]["default"] == "last_30_days"
 
 
 # ---------------------------------------------------------------------------
@@ -381,11 +403,11 @@ def test_get_chart_data_sets_kind_on_charts():
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_list_requires_period_param(user):
-    """GET /report/ without ?period= should return 400."""
+def test_list_without_period_defaults_to_last_30_days(user):
+    """GET /report/ without ?period= should default to last_30_days."""
     client = _authenticated_client(user)
     response = client.get(BASE_URL)
-    assert response.status_code == 400
+    assert response.status_code == 200
 
 
 @pytest.mark.unit
@@ -434,11 +456,11 @@ DETAILS_URL = f"{BASE_URL}details/"
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_details_no_period_returns_400(user):
-    """GET /report/details/ without period returns 400."""
+def test_details_no_period_defaults_to_last_30_days(user):
+    """GET /report/details/ without period defaults to last_30_days."""
     client = _authenticated_client(user)
     response = client.get(DETAILS_URL)
-    assert response.status_code == 400
+    assert response.status_code == 200
 
 
 @pytest.mark.unit
@@ -497,11 +519,11 @@ EXPORT_URL = f"{BASE_URL}export/"
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_export_no_period_returns_400(user):
-    """GET /report/export/ without period returns 400."""
+def test_export_no_period_defaults_to_last_30_days(user):
+    """GET /report/export/ without period defaults to last_30_days."""
     client = _authenticated_client(user)
     response = client.get(EXPORT_URL)
-    assert response.status_code == 400
+    assert response.status_code == 200
 
 
 @pytest.mark.unit
@@ -643,34 +665,33 @@ def test_get_serializer_class_for_details_action():
 
 
 # ---------------------------------------------------------------------------
-# require_date_range — missing period path (lines 105-107)
+# require_date_range — missing period defaults to last_30_days
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
-def test_require_date_range_missing_period_returns_400():
-    """require_date_range must return 400 when period query param is absent."""
+def test_require_date_range_missing_period_defaults_to_last_30_days():
+    """require_date_range must default to last_30_days when period query param is absent."""
     from apps.dashboard_reports.viewsets.dashboard_report import require_date_range
 
     called = []
 
     @require_date_range
     def fake_view(view, *args, **kwargs):
+        """Record that the decorator delegated to the wrapped view."""
         called.append(True)
-        return "should not reach"
+        return "reached"
 
     view = MagicMock()
-    # period is None → parse_period_param will return (None, None, error_msg)
-    view.request.GET.get = lambda key, default=None: None
+    view.request.GET.get = lambda key, default=None: default
     view.kwargs = {}
 
     result = fake_view(view)
 
-    assert not called
-    from rest_framework.response import Response
-
-    assert isinstance(result, Response)
-    assert result.status_code == 400
+    assert called
+    assert result == "reached"
+    assert view.kwargs["period"] == "last_30_days"
+    assert view.kwargs["start_date"] < view.kwargs["end_date"]
 
 
 # ---------------------------------------------------------------------------

@@ -166,7 +166,7 @@ def require_date_range(view_func):
     def wrapper(view, *args, **kwargs) -> Response:
         """Validate date range and delegate to the wrapped view function."""
         # Use request.GET for query parameters (works for DRF and Django)
-        period = view.request.GET.get("period", None)
+        period = view.request.GET.get("period") or DateFilter.LAST_30_DAYS.value
         timezone_str = view.request.GET.get("tz", "UTC") or "UTC"
         start_date_str = view.request.GET.get("start_date", None)
         end_date_str = view.request.GET.get("end_date", None)
@@ -206,9 +206,10 @@ DETAIL_QUERY_PARAMETERS = [
         name="period",
         type=OpenApiTypes.STR,
         location=OpenApiParameter.QUERY,
-        required=True,
+        required=False,
         enum=DateFilter.to_list(),
-        description="Filter for report period.",
+        default=DateFilter.LAST_30_DAYS.value,
+        description="Filter for report period (default: last_30_days).",
     ),
     OpenApiParameter(
         name="tz",
@@ -340,7 +341,7 @@ class DashboardReportViewSet(ReadOnlyModelViewSet):
         page (int): Page number (default: 1)
         page_size (int): Results per page (default: 25)
         count_disabled (bool): If present (any value), omits `count`/`next`/`previous` from the response.
-        period (string): Filter for report start date. Options: 'last_7_days', 'last_14_days', 'last_30_days', 'last_60_days', 'last_90_days' (required)
+        period (string): Filter for report start date. Options: 'last_7_days', 'last_14_days', 'last_30_days', 'last_60_days', 'last_90_days', 'custom' (default: 'last_30_days')
         tz (string): Timezone string (default: UTC)
         organization (int): Filter by organization ID (multiple allowed)
         template (int): Filter by job template ID (multiple allowed)
