@@ -206,7 +206,9 @@ work. Bounds are normalised to UTC before comparison, so the same instant
 expressed with different offsets is one window. Snapshot collectors have no
 bounds, so their triggers are idempotent. Default windows are the completed
 hour/day bucket, so requests share a task until the window advances at the
-bucket boundary.
+bucket boundary. Idempotency is bounded by task history: `cleanup_old_tasks`
+removes completed and failed tasks after five days by default, so the same
+window requested after that is collected again.
 
 ```http
 POST /api/v1/analytics/controller.config/collect/

@@ -133,14 +133,20 @@ _COLLECT_RESPONSE = inline_serializer(name="AnalyticsCollectResponse", fields=_C
 
 def _fail_stale(task, now):
     """Fail a stuck running task the way the scheduler does, then requeue it."""
+    timeout = timedelta(seconds=settings.TASK_TIMEOUT)
     with transaction.atomic():
+        # Lock Task first: normal completion updates Task before TaskExecution, so taking the
+        # locks in the same order avoids a deadlock with a worker finishing this task.
+        locked = Task.objects.select_for_update().filter(pk=task.pk, status="running").first()
+        if locked is None or locked.started_at is None or locked.started_at >= now - timeout:
+            return False
         TaskExecution.objects.filter(task=task, status="running").update(
             status="failed", error_message=_STALE_ERROR, completed_at=now
         )
         Task.objects.filter(pk=task.pk, status="running").update(
             status="failed", error_message=_STALE_ERROR, completed_at=now
         )
-    return task.retry(force=True)
+        return task.retry(force=True)
 
 
 def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:
@@ -520,6 +526,9 @@ class CollectorCollectView(APIView):
                 task_data=task_data,
                 is_system_task=False,
                 status="pending",
+                # On-demand retries are driven by the trigger (requeue), not the scheduler: an
+                # automatic retry could overlap a newer window for the same collector.
+                max_attempts=1,
                 scheduled_time=None,
                 created_by=request.user if request.user.is_authenticated else None,
             )

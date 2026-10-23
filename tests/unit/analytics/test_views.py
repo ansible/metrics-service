@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.analytics.models import AnalyticsPayload, APIUsageCounter
+from apps.analytics.v1.views import _fail_stale
 from apps.tasks.models import Task, TaskExecution
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
@@ -271,6 +272,7 @@ def test_collect_snapshot_creates_pending_task_without_collecting(authenticated_
     assert body["task_url"].endswith(f"/api/v1/tasks/{task.pk}/")
     assert body["task_data"] == {"collector": CONFIG}
     assert task.status == "pending"
+    assert task.max_attempts == 1
     assert not AnalyticsPayload.objects.exists()
 
 
@@ -463,6 +465,42 @@ def test_collect_recovers_stale_running_task(authenticated_client):
     assert task.status == "pending"
     assert execution.status == "failed"
     assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
+
+
+def test_fail_stale_requires_a_running_overdue_task():
+    """Recovery rechecks status and age under the task lock."""
+    now = timezone.now()
+    overdue = Task.objects.create(
+        name="overdue-collect",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": UNIFIED},
+        status="running",
+        started_at=now - timedelta(hours=2),
+    )
+    execution = TaskExecution.objects.create(task=overdue, status="running")
+    completed = Task.objects.create(
+        name="completed-collect",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": UNIFIED},
+        status="completed",
+        started_at=now - timedelta(hours=2),
+    )
+    fresh = Task.objects.create(
+        name="fresh-collect",
+        function_name="collect_analytics_on_demand",
+        task_data={"collector": UNIFIED},
+        status="running",
+        started_at=now,
+    )
+
+    assert _fail_stale(overdue, now) is True
+    assert _fail_stale(completed, now) is False
+    assert _fail_stale(fresh, now) is False
+
+    overdue.refresh_from_db()
+    execution.refresh_from_db()
+    assert overdue.status == "pending"
+    assert execution.status == "failed"
 
 
 def test_collect_conflicts_with_a_different_window_in_flight(authenticated_client):
