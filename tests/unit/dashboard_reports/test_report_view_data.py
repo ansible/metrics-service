@@ -545,7 +545,7 @@ class TestReportViewData:
             project_id=10,
             project_name="Project A",
             organization_id=1,
-            job_type="system_job",
+            job_type="systemjob",
             status=JobStatusChoices.SUCCESSFUL,
             started=now - datetime.timedelta(minutes=2),
             finished=now - datetime.timedelta(minutes=1),
@@ -561,7 +561,7 @@ class TestReportViewData:
         default_template = next(row for row in default_response.data["results"] if row["template_name"] == "Template A")
         assert default_template["runs"] == 2
 
-        system_response = admin_client.get(url, data={**query, "job_type": "system_job"})
+        system_response = admin_client.get(url, data={**query, "job_type": "systemjob"})
         assert system_response.status_code == 200
         assert len(system_response.data["results"]) == 1
         assert system_response.data["results"][0]["runs"] == 1
@@ -569,7 +569,7 @@ class TestReportViewData:
 
         details_response = admin_client.get(
             reverse("v1:report-details"),
-            data={**query, "job_type": "system_job"},
+            data={**query, "job_type": "systemjob"},
         )
         assert details_response.status_code == 200
         assert sum(item["value"] for item in details_response.data["job_chart"]["items"]) == 1

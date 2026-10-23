@@ -947,9 +947,9 @@ class TestGetJobTypeFilter:
     def test_returns_all_requested_types(self):
         """Includes every repeated job_type query parameter in the filter."""
         request = MagicMock()
-        request.query_params = QueryDict("job_type=system_job&job_type=workflow_job")
+        request.query_params = QueryDict("job_type=systemjob&job_type=workflowjob")
 
-        assert get_job_type_filter(request) == models.Q(job_type__in=["system_job", "workflow_job"])
+        assert get_job_type_filter(request) == models.Q(job_type__in=["systemjob", "workflowjob"])
 
     def test_explicit_job_type_includes_unclassified_rows(self):
         """Includes NULL legacy rows when callers explicitly request ordinary jobs."""

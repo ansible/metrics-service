@@ -222,7 +222,7 @@ class TestExportEndpointGeneral:
             job_id=900,
             template_id=management_template.template_id,
             template_name=management_template.template_name,
-            job_type="system_job",
+            job_type="systemjob",
             status=JobStatusChoices.SUCCESSFUL,
             started=now - datetime.timedelta(hours=2),
             finished=now - datetime.timedelta(hours=1),
@@ -238,7 +238,7 @@ class TestExportEndpointGeneral:
 
         system_response = admin_client.get(
             url,
-            data=build_export_query("summary", job_type="system_job"),
+            data=build_export_query("summary", job_type="systemjob"),
         )
         assert system_response.status_code == 200
         assert b"Cleanup Activity Stream" in system_response.content

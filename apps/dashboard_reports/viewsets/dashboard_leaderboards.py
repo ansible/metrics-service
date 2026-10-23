@@ -451,8 +451,8 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
                 required=False,
                 many=True,
                 description=(
-                    "Controller unified-job model name (multiple allowed). Defaults to job and includes "
-                    "unclassified legacy rows; blank values are ignored."
+                    "Controller unified-job model name (for example, job, systemjob, or workflowjob; multiple allowed). "
+                    "Defaults to job and includes unclassified legacy rows; blank values are ignored."
                 ),
             )
         ],

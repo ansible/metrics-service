@@ -147,16 +147,17 @@ def _sync_jobs_atomically(job_results: list, default_job_type: str | None = None
     mechanism (default: 3 attempts). When this function signals failure the calling task
     returns create_task_result("error"), which marks the Task as failed and allows the
     scheduler to retry it automatically up to max_attempts times via Task.can_retry().
+    A default job type is used only when creating a row or filling a stored NULL value.
     """
     failed_jobs: list = []
     try:
         with transaction.atomic():
             for job in job_results:
                 try:
-                    job_data = job
                     if default_job_type is not None and "job_type" not in job:
-                        job_data = {**job, "job_type": default_job_type}
-                    JobData.create_or_update_from_awx(job_data)
+                        JobData.create_or_update_from_awx(job, default_job_type=default_job_type)
+                    else:
+                        JobData.create_or_update_from_awx(job)
                 except Exception as e:
                     logger.exception(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
                     failed_jobs.append(job["id"])
@@ -496,7 +497,8 @@ def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
 
     Controller lookups are limited to the current batch of stored job IDs. Each batch
     commits independently, so a failed run can be retried safely; already classified
-    rows are skipped. IDs no longer present in Controller remain unclassified.
+    rows are skipped. IDs no longer present in Controller remain NULL and are included
+    in default job views as legacy/unclassified rows; explicit non-job filters exclude them.
     """
     task_name = "backfill_dashboard_job_types"
     started_at = time.monotonic()
@@ -558,7 +560,10 @@ def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
         log_task_execution(
             task_name=task_name,
             operation="completed",
-            details=f"Classified {updated_records} JobData rows; {unresolved_records} IDs were not found in Controller",
+            details=(
+                f"Classified {updated_records} JobData rows; {unresolved_records} IDs were not found in Controller "
+                "and remain NULL for the default legacy job filter"
+            ),
         )
         _save_telemetry_details(
             task_name=task_name,

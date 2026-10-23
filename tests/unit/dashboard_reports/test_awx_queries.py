@@ -260,11 +260,11 @@ class TestFetchJobTypesForIds:
 
     def test_returns_model_names_for_requested_ids(self):
         """Returns the Controller model mapped to each requested unified-job ID."""
-        mock_conn, mock_cursor = self._connection([(11, "job"), (12, "system_job")])
+        mock_conn, mock_cursor = self._connection([(11, "job"), (12, "systemjob")])
 
         result = awx_queries.fetch_job_types_for_ids(mock_conn, [11, 12])
 
-        assert result == {11: "job", 12: "system_job"}
+        assert result == {11: "job", 12: "systemjob"}
         mock_cursor.execute.assert_called_once_with(AWXQuery.JOB_TYPES_FOR_IDS.value, [[11, 12]])
 
     def test_empty_ids_skip_the_query(self):

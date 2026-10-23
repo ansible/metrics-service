@@ -399,9 +399,9 @@ def _build_dashboard_sync_hook(hour_timestamp):
     """
     Return a post_collect_hook that schedules a sync_dashboard_job_records task.
 
-    The hook serialises the filtered raw unified_jobs DataFrame into task_data so the
-    follow-up task can write to JobData without re-querying the Controller DB.
-    Only schedules the task when the DASHBOARD_COLLECTION feature flag is enabled.
+    The hook serialises filtered raw unified_jobs rows into task_data. The consumer
+    resolves missing models in one Controller lookup and keeps unresolved rows with a
+    NULL type. The hook runs only when DASHBOARD_COLLECTION is enabled.
     """
     # Lazy import: circular dependency (collect_hourly_metrics → task_groups → tasks → collect_hourly_metrics).
     from apps.tasks.task_groups import get_feature_enabled_from_db
@@ -413,7 +413,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
         return None
 
     def hook(raw_data):
-        """Validate model values and queue eligible dashboard job records for syncing."""
+        """Log model gaps and queue eligible dashboard job records for syncing."""
         if raw_data is None or raw_data.empty:
             return
 
@@ -441,6 +441,8 @@ def _build_dashboard_sync_hook(hour_timestamp):
                 "unified_jobs_dashboard is missing expected columns: %s",
                 sorted(missing),
             )
+            if "model" in missing:
+                logger.warning("Dashboard job types will be resolved from Controller by job ID where possible")
         subset = filtered[available]
         records = subset.where(subset.notna(), other=None).to_dict("records")
         for row in records:

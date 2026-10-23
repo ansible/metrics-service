@@ -566,7 +566,7 @@ class JobData(CommonModel):
         max_length=50,
         null=True,
         blank=True,
-        help_text="Controller unified-job model name (for example, job or system_job)",
+        help_text="Controller unified-job model name (for example, job or systemjob)",
     )
 
     launched_by_id = models.IntegerField(
@@ -637,10 +637,13 @@ class JobData(CommonModel):
 
     @classmethod
     @transaction.atomic
-    def create_or_update_from_awx(cls, awx_job: AWXJobType):
+    def create_or_update_from_awx(cls, awx_job: AWXJobType, default_job_type: str | None = None):
         """
         Creates or updates a JobData instance from AWX job, label, and host summary data.
         Updates related JobLabel and JobHostSummary records atomically.
+
+        ``default_job_type`` only fills an unclassified existing row or a newly created row;
+        it never replaces an explicit Controller model already stored on the row.
         """
         template_metadata = TemplateMetadata.get_by_awx_id_or_name(
             name=awx_job["name"], awx_id=awx_job["unified_job_template_id"], elapsed=awx_job["elapsed"]
@@ -673,10 +676,19 @@ class JobData(CommonModel):
         if "job_type" in awx_job:
             defaults["job_type"] = awx_job["job_type"]
 
-        job_data, created = cls.objects.update_or_create(
-            job_id=awx_job["id"],
-            defaults=defaults,
-        )
+        if default_job_type is not None and "job_type" not in awx_job:
+            job_data, created = cls.objects.update_or_create(
+                job_id=awx_job["id"],
+                defaults=defaults,
+                create_defaults={**defaults, "job_type": default_job_type},
+            )
+            if not created and job_data.job_type is None:
+                cls.objects.filter(pk=job_data.pk, job_type__isnull=True).update(job_type=default_job_type)
+        else:
+            job_data, created = cls.objects.update_or_create(
+                job_id=awx_job["id"],
+                defaults=defaults,
+            )
         logger.info(f"{'Created' if created else 'Updated'} JobData {job_data}")
 
         if labels is not None:

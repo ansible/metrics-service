@@ -153,7 +153,7 @@ class TestBuildDashboardSyncHook:
                 {
                     "status": "successful",
                     "launch_type": "scheduled",
-                    "model": "system_job",
+                    "model": "systemjob",
                 }
             ]
         )
@@ -163,7 +163,7 @@ class TestBuildDashboardSyncHook:
             hook(df)
 
         raw_job = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"][0]
-        assert raw_job["model"] == "system_job"
+        assert raw_job["model"] == "systemjob"
 
     def test_hook_schedules_batch_when_model_column_is_missing(self):
         """Schedules rows without model so the sync task can resolve them by ID."""

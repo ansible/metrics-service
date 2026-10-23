@@ -364,7 +364,7 @@ class TestSyncDashboardJobRecords:
     @patch("apps.dashboard_reports.tasks.create_task_result")
     def test_job_type_is_mapped(self, mock_result, mock_log, mock_sync):
         """Maps the incoming Controller model to the JobData job_type field."""
-        raw_jobs = [self._raw_job(model="system_job")]
+        raw_jobs = [self._raw_job(model="systemjob")]
 
         with patch("apps.dashboard_reports.tasks.get_db_connection") as mock_connection:
             sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
@@ -372,7 +372,7 @@ class TestSyncDashboardJobRecords:
         mock_connection.assert_not_called()
 
         assembled = mock_sync.call_args[0][0]
-        assert assembled[0]["job_type"] == "system_job"
+        assert assembled[0]["job_type"] == "systemjob"
 
     @pytest.mark.parametrize("model", [None, float("nan"), ""])
     def test_invalid_model_is_persisted_unclassified_when_controller_cannot_resolve(self, model):
@@ -435,7 +435,7 @@ class TestSyncDashboardJobRecords:
             patch("apps.dashboard_reports.tasks.get_db_connection") as mock_connection,
             patch(
                 "apps.dashboard_reports.tasks.fetch_job_types_for_ids",
-                return_value={1: "job", 2: "system_job"},
+                return_value={1: "job", 2: "systemjob"},
             ) as mock_fetch,
         ):
             result = sync_dashboard_job_records(raw_jobs=raw_jobs, hour_timestamp="2024-01-01T00:00:00")
@@ -444,7 +444,7 @@ class TestSyncDashboardJobRecords:
         mock_connection.assert_called_once_with("awx")
         mock_fetch.assert_called_once_with(mock_connection.return_value, [1, 2])
         assembled = mock_sync.call_args[0][0]
-        assert [job["job_type"] for job in assembled] == ["job", "system_job"]
+        assert [job["job_type"] for job in assembled] == ["job", "systemjob"]
         assert "model" not in raw_jobs[0]
         assert raw_jobs[1]["model"] == ""
 
@@ -475,13 +475,13 @@ class TestSyncDashboardJobRecords:
     def test_job_type_is_persisted(self):
         """Persists the collected Controller model name on the JobData row."""
         result = sync_dashboard_job_records(
-            raw_jobs=[self._raw_job(job_id=44, model="system_job")],
+            raw_jobs=[self._raw_job(job_id=44, model="systemjob")],
             hour_timestamp="2024-01-01T00:00:00",
         )
 
         assert result["status"] == "success"
         job = JobData.objects.get(job_id=44)
-        assert job.job_type == "system_job"
+        assert job.job_type == "systemjob"
 
     @patch("apps.dashboard_reports.tasks._sync_jobs_atomically", return_value=[1])
     @patch("apps.dashboard_reports.tasks.log_task_execution")
@@ -1634,7 +1634,7 @@ class TestBackfillDashboardJobTypes:
         self._job(100)
         self._job(101)
         self._job(102, job_type="job")
-        mock_fetch.side_effect = [{100: "job"}, {101: "system_job"}]
+        mock_fetch.side_effect = [{100: "job"}, {101: "systemjob"}]
 
         result = backfill_dashboard_job_types(batch_size=1)
 
@@ -1642,7 +1642,7 @@ class TestBackfillDashboardJobTypes:
         assert result["updated_records"] == 2
         assert result["unresolved_records"] == 0
         assert JobData.objects.get(job_id=100).job_type == "job"
-        assert JobData.objects.get(job_id=101).job_type == "system_job"
+        assert JobData.objects.get(job_id=101).job_type == "systemjob"
         mock_connection.assert_called_once_with("awx")
         assert mock_fetch.call_args_list[0].args[1] == [100]
         assert mock_fetch.call_args_list[1].args[1] == [101]
@@ -1700,4 +1700,4 @@ class TestBackfillDashboardJobTypes:
         from apps.dashboard_reports.tasks import _sync_jobs_atomically
 
         assert _sync_jobs_atomically([{"id": 42}], default_job_type="job") == []
-        mock_create.assert_called_once_with({"id": 42, "job_type": "job"})
+        mock_create.assert_called_once_with({"id": 42}, default_job_type="job")

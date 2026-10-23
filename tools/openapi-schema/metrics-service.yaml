@@ -902,8 +902,9 @@ paths:
           type: array
           items:
             type: string
-        description: Controller unified-job model name (multiple allowed). Defaults
-          to job and includes unclassified legacy rows; blank values are ignored.
+        description: Controller unified-job model name (for example, job, systemjob,
+          or workflowjob; multiple allowed). Defaults to job and includes unclassified
+          legacy rows; blank values are ignored.
       tags:
       - dashboard_reports
       security:
@@ -1054,9 +1055,9 @@ paths:
           type: array
           items:
             type: string
-        description: Filter by Controller unified-job model name (multiple allowed).
-          Defaults to job and includes unclassified legacy rows; blank values are
-          ignored.
+        description: Filter by Controller unified-job model name (for example, job,
+          systemjob, or workflowjob; multiple allowed). Defaults to job and includes
+          unclassified legacy rows; blank values are ignored.
       - in: query
         name: label
         schema:
@@ -1222,9 +1223,9 @@ paths:
           type: array
           items:
             type: string
-        description: Filter by Controller unified-job model name (multiple allowed).
-          Defaults to job and includes unclassified legacy rows; blank values are
-          ignored.
+        description: Filter by Controller unified-job model name (for example, job,
+          systemjob, or workflowjob; multiple allowed). Defaults to job and includes
+          unclassified legacy rows; blank values are ignored.
       - in: query
         name: label
         schema:
@@ -1368,9 +1369,9 @@ paths:
           type: array
           items:
             type: string
-        description: Filter by Controller unified-job model name (multiple allowed).
-          Defaults to job and includes unclassified legacy rows; blank values are
-          ignored.
+        description: Filter by Controller unified-job model name (for example, job,
+          systemjob, or workflowjob; multiple allowed). Defaults to job and includes
+          unclassified legacy rows; blank values are ignored.
       - in: query
         name: label
         schema:
@@ -13446,7 +13447,8 @@ components:
         model:
           type: string
           nullable: true
-          description: Concrete job type, for example job, project_update, or workflow_job.
+          description: Controller content type model name, for example job, projectupdate,
+            or workflowjob.
         organization_id:
           type: integer
           nullable: true
@@ -13574,7 +13576,8 @@ components:
         model:
           type: string
           nullable: true
-          description: Concrete job type, for example job, project_update, or workflow_job.
+          description: Controller content type model name, for example job, projectupdate,
+            or workflowjob.
         organization_id:
           type: integer
           nullable: true

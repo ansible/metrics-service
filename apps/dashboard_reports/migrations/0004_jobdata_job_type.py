@@ -12,8 +12,7 @@ class Migration(migrations.Migration):
             name="job_type",
             field=models.CharField(
                 blank=True,
-                db_index=False,
-                help_text="Controller unified-job model name (for example, job or system_job)",
+                help_text="Controller unified-job model name (for example, job or systemjob)",
                 max_length=50,
                 null=True,
             ),
