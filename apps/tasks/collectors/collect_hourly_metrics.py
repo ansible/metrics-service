@@ -184,6 +184,7 @@ _HOST_SUMMARY_COLUMNS = ("id", "host_name", "host_remote_id", "job_remote_id")
 _DASHBOARD_COLUMNS = [
     "id",
     "name",
+    "model",
     "unified_job_template_id",
     "organization_id",
     "organization_name",
@@ -203,7 +204,15 @@ _DASHBOARD_COLUMNS = [
 
 
 _INT_FIELDS = ("id", "organization_id", "unified_job_template_id", "launched_by_id", "project_id", "num_hosts")
-_STRING_FIELDS = ("name", "organization_name", "status", "launched_by_username", "project_name", "label_ids")
+_STRING_FIELDS = (
+    "name",
+    "model",
+    "organization_name",
+    "status",
+    "launched_by_username",
+    "project_name",
+    "label_ids",
+)
 
 
 def _is_nan(value: Any) -> bool:
@@ -390,9 +399,9 @@ def _build_dashboard_sync_hook(hour_timestamp):
     """
     Return a post_collect_hook that schedules a sync_dashboard_job_records task.
 
-    The hook serialises the filtered raw unified_jobs DataFrame into task_data so the
-    follow-up task can write to JobData without re-querying the Controller DB.
-    Only schedules the task when the DASHBOARD_COLLECTION feature flag is enabled.
+    The hook serialises filtered raw unified_jobs rows into task_data. The consumer
+    resolves missing models in one Controller lookup and keeps unresolved rows with a
+    NULL type. The hook runs only when DASHBOARD_COLLECTION is enabled.
     """
     # Lazy import: circular dependency (collect_hourly_metrics → task_groups → tasks → collect_hourly_metrics).
     from apps.tasks.task_groups import get_feature_enabled_from_db
@@ -404,6 +413,7 @@ def _build_dashboard_sync_hook(hour_timestamp):
         return None
 
     def hook(raw_data):
+        """Log model gaps and queue eligible dashboard job records for syncing."""
         if raw_data is None or raw_data.empty:
             return
 
@@ -411,6 +421,16 @@ def _build_dashboard_sync_hook(hour_timestamp):
         filtered = raw_data[mask]
         if filtered.empty:
             return
+
+        # The consumer resolves missing models in one Controller lookup. If some IDs have
+        # expired from Controller, it stores those rows with a NULL type for legacy reporting.
+        if "model" in filtered.columns:
+            invalid_models = filtered["model"].map(lambda value: not isinstance(value, str) or not value.strip())
+            if invalid_models.any():
+                logger.warning(
+                    "unified_jobs_dashboard returned %s rows without a usable model; the sync task will resolve them",
+                    int(invalid_models.sum()),
+                )
 
         # unified_jobs_dashboard guarantees these columns; guard with available
         # in case a future schema change temporarily drops one.
@@ -421,6 +441,8 @@ def _build_dashboard_sync_hook(hour_timestamp):
                 "unified_jobs_dashboard is missing expected columns: %s",
                 sorted(missing),
             )
+            if "model" in missing:
+                logger.warning("Dashboard job types will be resolved from Controller by job ID where possible")
         subset = filtered[available]
         records = subset.where(subset.notna(), other=None).to_dict("records")
         for row in records:

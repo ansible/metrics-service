@@ -158,6 +158,7 @@ def job_data(template_metadata):
                 project_id=proj_id,
                 project_name=proj_name,
                 organization_id=org_id,
+                job_type="job",
                 status=status,
                 started=now - offset - datetime.timedelta(minutes=10),
                 finished=now - offset,
@@ -528,6 +529,51 @@ class TestReportViewData:
                     f"Expected {key}='{value}' in result {i}, got '{data['results'][i][key]}'"
                 )
 
+    def test_job_type_defaults_to_job_and_can_select_other_types(self, job_data, template_metadata, admin_client):
+        """Uses ordinary jobs by default and returns other types when explicitly requested."""
+        now = get_now()
+        management_template = TemplateMetadata.objects.create(
+            template_id=900,
+            template_name="Cleanup Activity Stream",
+            time_taken_manually_execute_minutes=240,
+            time_taken_create_automation_minutes=40,
+        )
+        JobData.objects.create(
+            job_id=500,
+            template_name=management_template.template_name,
+            template_id=management_template.template_id,
+            project_id=10,
+            project_name="Project A",
+            organization_id=1,
+            job_type="systemjob",
+            status=JobStatusChoices.SUCCESSFUL,
+            started=now - datetime.timedelta(minutes=2),
+            finished=now - datetime.timedelta(minutes=1),
+            elapsed=60,
+            num_hosts=1,
+            template_metadata=management_template,
+        )
+        url = reverse("v1:report-list")
+        query = build_recent_query()
+
+        default_response = admin_client.get(url, data=query)
+        assert default_response.status_code == 200
+        default_template = next(row for row in default_response.data["results"] if row["template_name"] == "Template A")
+        assert default_template["runs"] == 2
+
+        system_response = admin_client.get(url, data={**query, "job_type": "systemjob"})
+        assert system_response.status_code == 200
+        assert len(system_response.data["results"]) == 1
+        assert system_response.data["results"][0]["runs"] == 1
+        assert system_response.data["results"][0]["template_name"] == "Cleanup Activity Stream"
+
+        details_response = admin_client.get(
+            reverse("v1:report-details"),
+            data={**query, "job_type": "systemjob"},
+        )
+        assert details_response.status_code == 200
+        assert sum(item["value"] for item in details_response.data["job_chart"]["items"]) == 1
+
     @pytest.mark.parametrize("query, expected_data", TEST_REPORT_VIEW_DETAIL_CASES)
     def test_report_view_details(self, job_data, query, expected_data, admin_client):
         """Test report details endpoint with various filters."""
@@ -854,6 +900,7 @@ class TestDashboardReportViewSetEndpoints:
                     project_id=10,
                     project_name="Project A",
                     organization_id=1,
+                    job_type="job",
                     status=JobStatusChoices.SUCCESSFUL,
                     started=now - datetime.timedelta(minutes=15),
                     finished=now - datetime.timedelta(minutes=10),
@@ -870,6 +917,7 @@ class TestDashboardReportViewSetEndpoints:
                     project_id=10,
                     project_name="Project A",
                     organization_id=1,
+                    job_type="job",
                     status=JobStatusChoices.SUCCESSFUL,
                     started=now - datetime.timedelta(minutes=5),
                     finished=now,
@@ -969,6 +1017,7 @@ class TestDashboardReportViewSetEndpoints:
             template_name="orphan-template",
             template_id=None,
             organization_id=1,
+            job_type="job",
             status=JobStatusChoices.SUCCESSFUL,
             started=now - datetime.timedelta(minutes=15),
             finished=now - datetime.timedelta(minutes=10),
@@ -1217,6 +1266,7 @@ class TestReportViewLabelIds:
             template_name="Template A",
             template_id=template_metadata[0].template_id,
             organization_id=1,
+            job_type="job",
             status=JobStatusChoices.SUCCESSFUL,
             started=now - datetime.timedelta(days=30, minutes=10),
             finished=now - datetime.timedelta(days=30),

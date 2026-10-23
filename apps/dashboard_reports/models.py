@@ -562,6 +562,13 @@ class JobData(CommonModel):
         default=0, help_text="Number of hosts involved in the job (calculated from AWX job host summaries)"
     )
 
+    job_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Controller unified-job model name (for example, job or systemjob)",
+    )
+
     launched_by_id = models.IntegerField(
         null=True,
         blank=True,
@@ -599,6 +606,7 @@ class JobData(CommonModel):
             models.Index(fields=["template_id"], name="dashboard_jd_template_idx"),
             models.Index(fields=["project_id"], name="dashboard_jd_project_idx"),
             models.Index(fields=["organization_id"], name="dashboard_jd_organization_idx"),
+            models.Index(fields=["job_type", "finished"], name="dashboard_jd_type_finished_idx"),
         ]
 
     objects = JobDataManager()
@@ -629,10 +637,13 @@ class JobData(CommonModel):
 
     @classmethod
     @transaction.atomic
-    def create_or_update_from_awx(cls, awx_job: AWXJobType):
+    def create_or_update_from_awx(cls, awx_job: AWXJobType, default_job_type: str | None = None):
         """
         Creates or updates a JobData instance from AWX job, label, and host summary data.
         Updates related JobLabel and JobHostSummary records atomically.
+
+        ``default_job_type`` only fills an unclassified existing row or a newly created row;
+        it never replaces an explicit Controller model already stored on the row.
         """
         template_metadata = TemplateMetadata.get_by_awx_id_or_name(
             name=awx_job["name"], awx_id=awx_job["unified_job_template_id"], elapsed=awx_job["elapsed"]
@@ -642,27 +653,42 @@ class JobData(CommonModel):
         labels = awx_job.get("labels")
         host_summaries = awx_job.get("host_summaries", [])
 
-        job_data, created = cls.objects.update_or_create(
-            job_id=awx_job["id"],
-            defaults={
-                "template_name": awx_job["name"],
-                "template_id": awx_job["unified_job_template_id"],
-                "project_id": awx_job["project_id"],
-                "project_name": awx_job["project_name"],
-                "organization_id": awx_job["organization_id"],
-                "organization_name": awx_job.get("organization_name"),
-                "status": awx_job["status"],
-                "started": awx_job["started"],
-                "finished": awx_job["finished"],
-                "elapsed": awx_job["elapsed"],
-                "launched_by_id": awx_job["launched_by_id"],
-                "launched_by_username": awx_job["launched_by_username"],
-                "template_metadata": template_metadata,
-                "awx_created": awx_job["created"],
-                "awx_modified": awx_job["modified"],
-                "num_hosts": awx_job["num_hosts"],
-            },
-        )
+        defaults = {
+            "template_name": awx_job["name"],
+            "template_id": awx_job["unified_job_template_id"],
+            "project_id": awx_job["project_id"],
+            "project_name": awx_job["project_name"],
+            "organization_id": awx_job["organization_id"],
+            "organization_name": awx_job.get("organization_name"),
+            "status": awx_job["status"],
+            "started": awx_job["started"],
+            "finished": awx_job["finished"],
+            "elapsed": awx_job["elapsed"],
+            "launched_by_id": awx_job["launched_by_id"],
+            "launched_by_username": awx_job["launched_by_username"],
+            "template_metadata": template_metadata,
+            "awx_created": awx_job["created"],
+            "awx_modified": awx_job["modified"],
+            "num_hosts": awx_job["num_hosts"],
+        }
+        # Missing optional fields mean the collector cannot provide them; preserve an existing
+        # value. Explicit None means the collector returned a null value and should clear it.
+        if "job_type" in awx_job:
+            defaults["job_type"] = awx_job["job_type"]
+
+        if default_job_type is not None and "job_type" not in awx_job:
+            job_data, created = cls.objects.update_or_create(
+                job_id=awx_job["id"],
+                defaults=defaults,
+                create_defaults={**defaults, "job_type": default_job_type},
+            )
+            if not created and job_data.job_type is None:
+                cls.objects.filter(pk=job_data.pk, job_type__isnull=True).update(job_type=default_job_type)
+        else:
+            job_data, created = cls.objects.update_or_create(
+                job_id=awx_job["id"],
+                defaults=defaults,
+            )
         logger.info(f"{'Created' if created else 'Updated'} JobData {job_data}")
 
         if labels is not None:

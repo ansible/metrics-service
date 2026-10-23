@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterator
-from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from django.db import connections, models
+from django.db import models
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from drf_spectacular.helpers import forced_singular_serializer
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -19,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from apps.core.models import User
-from apps.dashboard_reports.awx_queries import fetch_job_template_ids
+from apps.dashboard_reports.filters import get_job_type_filter
 from apps.dashboard_reports.models import JobData, JobStatusChoices
 from apps.dashboard_reports.serializers import DashboardLeaderboardsSerializer
 from apps.tasks.task_groups import get_feature_enabled_from_db
@@ -45,18 +44,15 @@ def _user_achievements(
     today: date,
     window_start: date,
     now_utc: datetime,
-    template_filter: Q,
+    job_type_filter: Q,
 ) -> list[str]:
     """Return the achievement ids the current user has earned in the window.
 
     Counts and distinct tallies are aggregated in the database rather than
     materializing the user's (potentially large) run history in Python. The
     "reliable" streak is the one exception - it needs run order, so it scans the
-    ordered, single-column status list of the user's finished runs (see
-    ``_longest_successful_run_streak``). ``successful_runs`` is already bounded to
-    the shared ``window_start``...now window (the leaderboard only ever considers
-    successful runs) and has no ad-hoc runs. ``template_filter`` (see
-    ``_job_template_filter``) is passed on to the streak query.
+    ordered, single-column status list of the user's finished runs.
+    successful_runs is already bounded to the shared window and selected job types.
     """
     if current_user_id is None:
         return []
@@ -76,7 +72,7 @@ def _user_achievements(
     )
     distinct_templates = user_runs.values("template_id").distinct().count()
     first_half = user_runs.filter(finished__lt=midpoint).count()
-    longest_streak = _longest_successful_run_streak(current_user_id, window_start_dt, now_utc, template_filter)
+    longest_streak = _longest_successful_run_streak(current_user_id, window_start_dt, now_utc, job_type_filter)
 
     earned = {
         "ignition": True,
@@ -136,7 +132,7 @@ _OUTCOME_STATUSES: tuple[str, ...] = (
 _RELIABLE_STREAK = 20
 
 
-def _longest_successful_run_streak(current_user_id: int, since: datetime, until: datetime, template_filter: Q) -> int:
+def _longest_successful_run_streak(current_user_id: int, since: datetime, until: datetime, job_type_filter: Q) -> int:
     """Length of the longest unbroken run of successful jobs for the user.
 
     Consecutiveness is judged over the user's finished runs in the window ordered
@@ -144,11 +140,11 @@ def _longest_successful_run_streak(current_user_id: int, since: datetime, until:
     between two successes resets the count, so 10 successes, a failure, then 10
     successes is a streak of 10, not 20. Only the ordered status column is
     fetched - one short row per finished run for this single user - and the tally
-    is one linear pass. ``template_filter`` limits runs to AWX job templates.
+    is one linear pass. job_type_filter keeps the streak within the selected models.
     """
     statuses = (
         JobData.objects.filter(
-            template_filter,
+            job_type_filter,
             launched_by_id=current_user_id,
             finished__gte=since,
             finished__lte=until,
@@ -162,59 +158,6 @@ def _longest_successful_run_streak(current_user_id: int, since: datetime, until:
         current = current + 1 if run_status == JobStatusChoices.SUCCESSFUL else 0
         longest = max(longest, current)
     return longest
-
-
-def _window_template_ids(since: datetime, until: datetime) -> list[int]:
-    """Return ids of templates with a finished run in the window.
-
-    All outcome statuses count, as the "reliable" streak needs failed runs too.
-    """
-    return list(
-        JobData.objects.filter(
-            finished__gte=since,
-            finished__lte=until,
-            status__in=_OUTCOME_STATUSES,
-            template_id__isnull=False,
-        )
-        .order_by("template_id")
-        .values_list("template_id", flat=True)
-        .distinct()
-    )
-
-
-# Bounds for the leaderboard's own AWX connection.
-_AWX_CONNECT_TIMEOUT_S = 5
-_AWX_STATEMENT_TIMEOUT_MS = 5000
-
-
-@contextmanager
-def _awx_connection() -> Iterator[Any]:
-    """Open a short-lived AWX connection with connect and statement timeouts.
-
-    Parameters (host, sslmode, certificates, ...) come from the ``awx`` settings;
-    the shared ``awx`` connection used by collectors is not touched.
-    """
-    awx = connections["awx"]
-    params = awx.get_connection_params()
-    params["connect_timeout"] = _AWX_CONNECT_TIMEOUT_S
-    params["options"] = f"{params.get('options', '')} -c statement_timeout={_AWX_STATEMENT_TIMEOUT_MS}".strip()
-    connection = awx.Database.connect(**params)
-    try:
-        yield connection
-    finally:
-        connection.close()
-
-
-def _job_template_filter(template_ids: list[int]) -> Q:
-    """Return a ``Q`` limiting runs to AWX job templates (drops system, deleted and ad-hoc runs).
-
-    Only ``template_ids`` are looked up; with none, AWX is not queried.
-    """
-    if not template_ids:
-        return Q(template_id__in=[])
-    with _awx_connection() as connection:
-        job_template_ids = fetch_job_template_ids(connection, template_ids)
-    return Q(template_id__in=job_template_ids)
 
 
 def _max_consecutive_days(days: set[date]) -> int:
@@ -293,7 +236,7 @@ def _streak_series(counts_by_day: dict[date, int], window_dates: list[date]) -> 
 
 def _featured_template_stats(successful_runs: models.QuerySet[JobData]) -> dict[str, Any] | None:
     """Return the most-used successful template and its latest display name."""
-    # successful_runs has no ad-hoc runs (see _job_template_filter).
+    # successful_runs is already scoped to the selected Controller job types.
     # Group only by template_id so renames stay one row.
     # Break ties by id for a deterministic pick. Keep this query separate from
     # the day/organization rollup: grouping that by template would multiply rows.
@@ -488,7 +431,7 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
     serializer_class = DashboardLeaderboardsSerializer
     # Never used (list/retrieve are overridden) — satisfies schema tooling only.
     queryset = JobData.objects.none()
-    # list() is fully overridden and ignores query params; drop the default
+    # list() handles the job_type query parameter directly; drop the default
     # (DAB) filter/ordering/search backends so schema generation does not expose
     # unsupported JobData filter parameters on this endpoint.
     filter_backends = []
@@ -500,14 +443,23 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
             "featured template, enterprise/org automation streaks, the organization leaderboard, "
             "per-user activity levels (volume/breadth/consistency) and earned achievements."
         ),
+        parameters=[
+            OpenApiParameter(
+                name="job_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                many=True,
+                description=(
+                    "Controller unified-job model name (for example, job, systemjob, or workflowjob; multiple allowed). "
+                    "Defaults to job and includes unclassified legacy rows; blank values are ignored."
+                ),
+            )
+        ],
         responses={
             200: forced_singular_serializer(DashboardLeaderboardsSerializer),
             404: inline_serializer(
                 name="DashboardLeaderboardDisabledResponse",
-                fields={"detail": serializers.CharField()},
-            ),
-            503: inline_serializer(
-                name="DashboardLeaderboardAwxUnavailableResponse",
                 fields={"detail": serializers.CharField()},
             ),
         },
@@ -535,17 +487,9 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
         since = datetime.combine(window_start, datetime.min.time(), tzinfo=UTC)
         window_dates = [window_start + timedelta(days=offset) for offset in range((today - window_start).days + 1)]
 
-        template_ids = _window_template_ids(since, now_utc)
-        try:
-            template_filter = _job_template_filter(template_ids)
-        except Exception as exc:
-            logger.warning("Leaderboards: failed to fetch job templates from AWX database: %r", exc)
-            return Response(
-                data={"detail": "Failed to fetch job templates from AWX database"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        job_type_filter = get_job_type_filter(request)
         successful_runs = JobData.objects.filter(
-            template_filter,
+            job_type_filter,
             status=JobStatusChoices.SUCCESSFUL,
             finished__gte=since,
             finished__lte=now_utc,
@@ -609,7 +553,7 @@ class DashboardLeaderboardsViewSet(ReadOnlyModelViewSet):
         stats["activity_levels"] = _build_activity_levels(successful_runs, current_user_id)
 
         stats["user_achievements"] = _user_achievements(
-            successful_runs, current_user_id, today, window_start, now_utc, template_filter
+            successful_runs, current_user_id, today, window_start, now_utc, job_type_filter
         )
         return Response(self.get_serializer(stats).data)
 

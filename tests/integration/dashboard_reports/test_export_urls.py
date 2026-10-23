@@ -28,6 +28,7 @@ def _seed_job_data() -> None:
         project_id=1,
         project_name="Integration Project",
         status=JobStatusChoices.SUCCESSFUL,
+        job_type="job",
         started=now - datetime.timedelta(hours=2),
         finished=now - datetime.timedelta(hours=1),
         elapsed=120,

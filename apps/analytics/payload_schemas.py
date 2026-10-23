@@ -80,7 +80,7 @@ _INSTALLED_COLLECTIONS = _object(
 _JOB_FIELDS = (
     _field("id", "integer", "Unified job identifier", nullable=False),
     _field("polymorphic_ctype_id", "integer", "Django content type ID of the concrete job type."),
-    _field("model", "string", "Concrete job type, for example job, project_update, or workflow_job."),
+    _field("model", "string", "Controller content type model name, for example job, projectupdate, or workflowjob."),
     _field("organization_id", "integer"),
     _field("organization_name", "string"),
     _field("execution_environment_image", "string"),

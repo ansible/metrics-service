@@ -895,6 +895,16 @@ paths:
         organization leaderboard, per-user activity levels (volume/breadth/consistency)
         and earned achievements.'
       summary: Dashboard leaderboards, streaks and achievements (trailing 30 days)
+      parameters:
+      - in: query
+        name: job_type
+        schema:
+          type: array
+          items:
+            type: string
+        description: Controller unified-job model name (for example, job, systemjob,
+          or workflowjob; multiple allowed). Defaults to job and includes unclassified
+          legacy rows; blank values are ignored.
       tags:
       - dashboard_reports
       security:
@@ -912,12 +922,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardLeaderboardDisabledResponse'
-          description: ''
-        '503':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DashboardLeaderboardAwxUnavailableResponse'
           description: ''
       x-ai-description: List all dashboard reports leaderboard
   /api/v1/dashboard_reports/organizations/:
@@ -1045,6 +1049,15 @@ paths:
           type: string
           format: date
         description: End date in 'YYYY-MM-DD' format. Required when period is 'custom'.
+      - in: query
+        name: job_type
+        schema:
+          type: array
+          items:
+            type: string
+        description: Filter by Controller unified-job model name (for example, job,
+          systemjob, or workflowjob; multiple allowed). Defaults to job and includes
+          unclassified legacy rows; blank values are ignored.
       - in: query
         name: label
         schema:
@@ -1205,6 +1218,15 @@ paths:
           format: date
         description: End date in 'YYYY-MM-DD' format. Required when period is 'custom'.
       - in: query
+        name: job_type
+        schema:
+          type: array
+          items:
+            type: string
+        description: Filter by Controller unified-job model name (for example, job,
+          systemjob, or workflowjob; multiple allowed). Defaults to job and includes
+          unclassified legacy rows; blank values are ignored.
+      - in: query
         name: label
         schema:
           type: array
@@ -1341,6 +1363,15 @@ paths:
           - csv
           default: csv
         description: 'Export file format. Options: ''csv''.'
+      - in: query
+        name: job_type
+        schema:
+          type: array
+          items:
+            type: string
+        description: Filter by Controller unified-job model name (for example, job,
+          systemjob, or workflowjob; multiple allowed). Defaults to job and includes
+          unclassified legacy rows; blank values are ignored.
       - in: query
         name: label
         schema:
@@ -9625,13 +9656,6 @@ components:
           type: boolean
       required:
       - show_leaderboard
-    DashboardLeaderboardAwxUnavailableResponse:
-      type: object
-      properties:
-        detail:
-          type: string
-      required:
-      - detail
     DashboardLeaderboardDisabledResponse:
       type: object
       properties:
@@ -13423,7 +13447,8 @@ components:
         model:
           type: string
           nullable: true
-          description: Concrete job type, for example job, project_update, or workflow_job.
+          description: Controller content type model name, for example job, projectupdate,
+            or workflowjob.
         organization_id:
           type: integer
           nullable: true
@@ -13551,7 +13576,8 @@ components:
         model:
           type: string
           nullable: true
-          description: Concrete job type, for example job, project_update, or workflow_job.
+          description: Controller content type model name, for example job, projectupdate,
+            or workflowjob.
         organization_id:
           type: integer
           nullable: true
