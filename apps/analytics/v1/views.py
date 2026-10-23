@@ -131,16 +131,6 @@ _COLLECT_RESPONSE_FIELDS = {
 _COLLECT_RESPONSE = inline_serializer(name="AnalyticsCollectResponse", fields=_COLLECT_RESPONSE_FIELDS)
 
 
-def _task_key(collector, since, until):
-    """Return the canonical task_data that identifies one collection request."""
-    key = {"collector": collector}
-    if since is not None:
-        key["since"] = since.isoformat()
-    if until is not None:
-        key["until"] = until.isoformat()
-    return key
-
-
 def _fail_stale(task, now):
     """Fail a stuck running task the way the scheduler does, then requeue it."""
     with transaction.atomic():
@@ -488,7 +478,13 @@ class CollectorCollectView(APIView):
             window, error = self._resolve_window(entry, request, now)
             if error is not None:
                 return error
-            task_data = _task_key(collector, *window)
+            since, until = window
+            # One canonical key per resolved window: repeated or concurrent requests match it.
+            task_data = {"collector": collector}
+            if since is not None:
+                task_data["since"] = since.isoformat()
+            if until is not None:
+                task_data["until"] = until.isoformat()
 
             task = self._exact_task(task_data)
             if task is not None and task.status != "cancelled":

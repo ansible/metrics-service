@@ -362,33 +362,22 @@ def _collect(client, collector, body=None):
     return client.post(f"{ROOT}{collector}/collect/", body or {}, format="json")
 
 
-def test_collect_repeated_snapshot_returns_same_task(authenticated_client):
-    first = _collect(authenticated_client, CONFIG)
-    second = _collect(authenticated_client, CONFIG)
+@pytest.mark.parametrize(
+    ("collector", "body"),
+    [
+        (CONFIG, {}),
+        (UNIFIED, {}),
+        (UNIFIED, {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"}),
+    ],
+)
+def test_collect_repeated_request_returns_same_task(authenticated_client, collector, body):
+    first = _collect(authenticated_client, collector, body)
+    second = _collect(authenticated_client, collector, body)
 
     assert first.status_code == 202
     assert first.json()["disposition"] == "created"
     assert second.status_code == 200
     assert second.json()["disposition"] == "reused"
-    assert second.json()["task_id"] == first.json()["task_id"]
-    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
-
-
-def test_collect_repeated_default_window_returns_same_task(authenticated_client):
-    first = _collect(authenticated_client, UNIFIED)
-    second = _collect(authenticated_client, UNIFIED)
-
-    assert second.status_code == 200
-    assert second.json()["task_id"] == first.json()["task_id"]
-    assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
-
-
-def test_collect_repeated_explicit_window_returns_same_task(authenticated_client):
-    body = {"since": "2026-08-17T10:00:00Z", "until": "2026-08-17T11:00:00Z"}
-    first = _collect(authenticated_client, UNIFIED, body)
-    second = _collect(authenticated_client, UNIFIED, body)
-
-    assert second.status_code == 200
     assert second.json()["task_id"] == first.json()["task_id"]
     assert Task.objects.filter(function_name="collect_analytics_on_demand").count() == 1
 
