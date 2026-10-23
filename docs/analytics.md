@@ -226,7 +226,7 @@ The response includes `task_id`, `task_url`, `collector`, `task_data`,
 | `202` | `created` | A new task was queued. |
 | `200` | `reused` | A task for this window already exists and is pending, running, or completed. Use its `task_id`; a completed task is not re-collected. |
 | `202` | `requeued` | The existing task for this window was failed or stuck; it was reset to pending. |
-| `409` | — | A different pending or running window is already in flight for this collector. The body identifies that task. |
+| `409` | — | A different pending or running window is already in flight, so creating a task or requeueing a failed one would overlap it. The body identifies the live task. Reusing a completed window starts no work and is unaffected. |
 
 Unknown collectors return `404`, disabled collectors return `410`, and invalid
 timestamps or reversed ranges return `400`.
