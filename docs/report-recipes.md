@@ -16,8 +16,7 @@ matching; an ordinary "remove duplicate rows" operation is not equivalent.
 Start with [prepare the inputs](#prepare-the-inputs-in-your-bi-workflow), then
 follow [renewal guidance](#renewal-guidance) or [CCSP / CCSPv2](#ccsp--ccspv2).
 The worked data shows intermediate results and expected report values without
-running code. [SQL illustrations](#optional-sql-illustrations) are an optional
-translation of some operations, not a prerequisite for the recipes.
+running code or requiring SQL support in the BI tool.
 
 Use [analytics.md](analytics.md) for discovery, window filters, pagination,
 and collection tasks; [analytics-retention.md](analytics-retention.md) for
@@ -139,16 +138,21 @@ All names in this table are public API collector names. They are available
 directly through the analytics API; customers do not install SQL helper
 functions or query the Controller database to use these recipes.
 
-| Feed | Report role | Source window / organization |
-| --- | --- | --- |
-| `controller.main_hostmetric` | Renewal lifecycle and dedup inputs | Daily-capable; `last_automation` **or** `last_deleted` in the requested window. No native organization field. |
-| `controller.job_host_summary` | CCSP/CCSPv2 direct usage | Summary `modified` in `[since, until)`; includes `organization_remote_id/name`, connection variables, and job/template/inventory/project context. |
-| `controller.main_indirectmanagednodeaudit` | Indirect-node usage, facts, and content attribution | Related job `finished` in `[since, until)`; includes `organization_remote_id/name` from the job. |
-| `controller.main_host` | Inventory-scope snapshot and optional hardware dedup | Current enabled inventory hosts; `organization_remote_id/name` from inventory. |
-| `controller.main_host_daily` | Incremental inventory-scope observations | Enabled hosts created **or** modified in `[since, until)`; same fields/org path as `main_host`. |
-| `controller.main_jobevent` | Existing reports' optional collection/role/module usage | Runner events selected through job-host summaries whose `modified` is in the window. No native organization field. |
-| `controller.unified_jobs_dashboard` or `controller.unified_jobs` | Job context for BI-side event/org joins | Job `finished` in `[since, until)`; `organization_id/name`. Not required for CCSP direct usage, whose summary feed already has context. |
-| `controller.config` | Configuration / installation context | Fixed-key snapshot object, not an array; installation identity, not per-org data. |
+"Core" below means needed for the report's base Usage Reporting quantities.
+Configurable sheets may still be enabled by the CLI's defaults: optional does
+not mean disabled by default. Sheet flags are shown explicitly so you can
+select feeds for the views you actually want.
+
+| Feed | Report type | Core use | Optional-sheet / conditional use | Source window / organization |
+| --- | --- | --- | --- | --- |
+| `controller.main_hostmetric` | Renewal guidance | Lifecycle inputs for Usage Reporting and the selected renewal dedup mode. | `managed_nodes` details: active, deleted and ephemeral views all reuse this same feed. | `last_automation` **or** `last_deleted` in the requested window; no native org field. |
+| `controller.job_host_summary` | CCSP and CCSPv2 | Direct managed-node quantities in Usage Reporting. | Both: `managed_nodes` and event hostname normalization. CCSPv2: `jobs`, `usage_by_organizations`, `managed_nodes_by_organizations`. | Summary `modified` in `[since, until)`; `organization_remote_id/name` and job/template/inventory/project context. |
+| `controller.main_indirectmanagednodeaudit` | CCSP and CCSPv2 | Not needed for direct billing quantities. | Both: `indirectly_managed_nodes`, conditional indirect `usage_by_collections`. CCSPv2: `infrastructure_summary`, and available indirect contributions to `jobs`, `usage_by_organizations`, per-org node tabs. | Related job `finished` in `[since, until)`; executing-job `organization_remote_id/name`. |
+| `controller.main_host` | CCSP and CCSPv2; optional renewal context | Needed for hardware mapping **only when** `ccsp-experimental` is selected; not for default `ccsp` quantities. | `inventory_scope`; experimental direct-node facts. Renewal: optional current inventory/org attribution, not lifecycle counting or dedup input. | Current enabled-host snapshot; `organization_remote_id/name` from inventory. |
+| `controller.main_host_daily` | CCSP and CCSPv2 | Conditional accumulated hardware observations for `ccsp-experimental`, not default quantities. | Incremental `inventory_scope` and experimental fact history alongside the chosen snapshot. | Enabled hosts created **or** modified in `[since, until)`; same inventory/org fields as `main_host`. |
+| `controller.main_jobevent` | CCSP and CCSPv2 | Not needed for billing quantities. | `usage_by_collections`, `usage_by_roles`, `usage_by_modules`. | Runner events selected through summaries whose `modified` is in the window; no native org field. |
+| `controller.unified_jobs_dashboard` or `controller.unified_jobs` | Supporting enrichment for CCSP/CCSPv2 analytics | Not a separate core input; summaries already contain job context. | Event-to-job org joins and optional collection-version lookup; not required merely to render `jobs`. | Job `finished` in `[since, until)`; `organization_id/name`. |
+| `controller.config` | Optional context for all three | No separate count input: envelope `cluster_id` already supplies installation identity. | Configuration context only; not an org-specific sheet or a source for company/SKU/price parameters. | Fixed-key snapshot object, not an array; not per-org data. |
 
 `controller.job_host_summary_service` is useful for job-finish-aligned
 analytics, but lacks `ansible_host_variable` and `ansible_connection_variable`.
@@ -799,91 +803,3 @@ the CLI's CSV status rows. API envelope bounds can support your own coverage
 check, but do not claim it is that sheet. XLSX styling is also outside the
 raw data contract; the recipes reproduce values and groupings, not identical
 spreadsheet formatting.
-
-## Optional SQL illustrations
-
-The procedures above do not require SQL. These PostgreSQL examples illustrate
-some of the same operations for readers who already stage feeds in a SQL
-engine. Table names are local BI staging tables, **not** Controller tables or
-SQL endpoints offered by metrics-service. The examples assume the revision,
-installation and source-window selection described above has already happened.
-
-### Context joins
-
-```sql
--- Event organization from its job, not from the current host's inventory.
-SELECT e.*, j.organization_id, j.organization_name
-FROM events AS e
-LEFT JOIN jobs AS j
-  ON j.source = e.source AND j.cluster_id = e.cluster_id
- AND j.id = e.job_remote_id;
-
--- Current inventory organization for each lifecycle row's host_id.
--- A metric can have several host_id rows; this is not historical automation attribution.
-SELECT m.id AS host_metric_id, m.hostname, h.organization_remote_id,
-       h.organization_name, h.inventory_remote_id
-FROM host_metrics AS m
-LEFT JOIN hosts AS h
-  ON h.source = m.source AND h.cluster_id = m.cluster_id
- AND h.host_id = m.host_id;
-
--- Report hostname for an event, before any experimental hardware mapping.
-SELECT e.id, COALESCE(s.ansible_host_variable, e.host_name) AS report_host_name
-FROM events AS e
-LEFT JOIN summaries AS s
-  ON s.source = e.source AND s.cluster_id = e.cluster_id
- AND s.job_remote_id = e.job_remote_id AND s.host_name = e.host_name;
-```
-
-### Default direct-usage views
-
-```sql
-CREATE TEMP VIEW ccsp_direct AS
-SELECT source, cluster_id,
-       COALESCE(organization_name, 'No organization name') AS organization_name,
-       job_template_name, job_remote_id, host_name AS original_host_name,
-       COALESCE(ansible_host_variable, host_name) AS report_host_name,
-       COUNT(*) AS host_runs,
-       SUM(dark + failures + ok + skipped + ignored + rescued) AS task_runs,
-       MIN(created) AS first_automation, MAX(created) AS last_automation,
-       MAX(job_created) AS job_created
-FROM summaries
-WHERE failures + ok + skipped + ignored + rescued > 0
-GROUP BY source, cluster_id, COALESCE(organization_name, 'No organization name'),
-         job_template_name, job_remote_id, host_name,
-         COALESCE(ansible_host_variable, host_name);
-
--- CCSP Usage Reporting: quantity per organization name.
-SELECT organization_name, COUNT(DISTINCT report_host_name) AS quantity_consumed
-FROM ccsp_direct
-GROUP BY organization_name;
-
--- CCSPv2 Usage Reporting: one overall direct managed-node quantity.
-SELECT COUNT(DISTINCT report_host_name) AS quantity_consumed FROM ccsp_direct;
-
--- Managed nodes: count prepared rows as Job runs at this stage.
-SELECT report_host_name, COUNT(DISTINCT organization_name) AS organizations,
-       COUNT(*) AS job_runs, SUM(task_runs) AS task_runs,
-       MIN(first_automation) AS first_automation,
-       MAX(last_automation) AS last_automation
-FROM ccsp_direct
-GROUP BY report_host_name;
-
--- Per-org node view: filter/group usage within each organization.
-SELECT organization_name, report_host_name, COUNT(*) AS job_runs,
-       SUM(task_runs) AS task_runs, MIN(first_automation) AS first_automation,
-       MAX(last_automation) AS last_automation
-FROM ccsp_direct
-GROUP BY organization_name, report_host_name;
-```
-
-### Inventory membership
-
-```sql
-SELECT cluster_id, COALESCE(ansible_host_variable, host_name) AS report_host_name,
-       ARRAY_AGG(DISTINCT COALESCE(organization_name, 'No organization name')) AS organizations,
-       ARRAY_AGG(DISTINCT inventory_name) AS inventories,
-       MAX(last_automation) AS last_automation
-FROM hosts
-GROUP BY cluster_id, COALESCE(ansible_host_variable, host_name);
-```
