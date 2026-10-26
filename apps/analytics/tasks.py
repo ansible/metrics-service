@@ -102,7 +102,7 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
 
     # An on-demand task is only successful if its payload is stored.
     try:
-        persist_analytics_payload(
+        collection = persist_analytics_payload(
             entry.collector_type,
             raw_data,
             since=since,
@@ -115,4 +115,11 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
     except Exception as e:
         logger.exception("On-demand analytics persistence failed for %s", collector)
         return create_task_result("error", {"collector": collector}, error=f"Persistence failed: {e}")
-    return create_task_result("success", {"collector": collector, "message": f"Collected {collector}"})
+    return create_task_result(
+        "success",
+        {
+            "collector": collector,
+            "collection_id": collection.pk if collection else None,
+            "message": f"Collected {collector}",
+        },
+    )

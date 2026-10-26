@@ -612,7 +612,8 @@
         "/api/v1/analytics/{collector}/collect/": {
             "post": {
                 "operationId": "analytics_collect_create",
-                "description": "Create a pending task and return its details without claiming a payload row.",
+                "description": "Create one task for the collector and resolved window, or reuse the task already covering that window. An identical repeat returns the same `task_id` with `disposition=reused` (202 while pending/running, 200 once completed); a failed or stale task is requeued (202, `requeued`). A different pending or running window for the same collector returns 409.",
+                "summary": "Trigger an on-demand collection.",
                 "parameters": [
                     {
                         "in": "path",
@@ -654,11 +655,31 @@
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AnalyticsCollectResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
                     "202": {
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/AnalyticsCollectResponse"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AnalyticsCollectConflict"
                                 }
                             }
                         },
@@ -11970,6 +11991,35 @@
                     "username"
                 ]
             },
+            "AnalyticsCollectConflict": {
+                "type": "object",
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "task_id": {
+                        "type": "integer"
+                    },
+                    "task_url": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "task_status": {
+                        "type": "string"
+                    },
+                    "task_data": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "required": [
+                    "detail",
+                    "task_data",
+                    "task_id",
+                    "task_status",
+                    "task_url"
+                ]
+            },
             "AnalyticsCollectRequestRequest": {
                 "type": "object",
                 "properties": {
@@ -12003,12 +12053,27 @@
                     "task_data": {
                         "type": "object",
                         "additionalProperties": {}
+                    },
+                    "task_status": {
+                        "type": "string",
+                        "description": "Current Task status."
+                    },
+                    "disposition": {
+                        "enum": [
+                            "created",
+                            "reused",
+                            "requeued"
+                        ],
+                        "type": "string",
+                        "description": "Whether this request created a task, reused an existing one, or requeued a failed/stale one.\n\n* `created` - created\n* `reused` - reused\n* `requeued` - requeued"
                     }
                 },
                 "required": [
                     "collector",
+                    "disposition",
                     "task_data",
                     "task_id",
+                    "task_status",
                     "task_url"
                 ]
             },

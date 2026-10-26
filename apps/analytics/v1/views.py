@@ -9,6 +9,7 @@ from uuid import uuid4
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
 from django.conf import settings
+from django.db import connection, transaction
 from django.db.models import Max, Q
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -28,6 +29,7 @@ from apps.analytics.v1.serializers import (
     analytics_payload_page_serializer,
 )
 from apps.core.url_prefix import replace_api_root
+from apps.tasks.models import Task, TaskExecution
 
 _ANALYTICS_ROW_FIELDS_DESCRIPTION = """The linked collector row endpoints return paginated collection envelopes. Each row contains:
 
@@ -108,6 +110,47 @@ def _default_window(mode, now):
         midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return midnight - timedelta(days=1), midnight
     return None, None
+
+
+COLLECT_FUNCTION = "collect_analytics_on_demand"
+_STALE_ERROR = "Task timed out — worker died before completion"
+
+_COLLECT_RESPONSE_FIELDS = {
+    "task_id": drf_serializers.IntegerField(),
+    "task_url": drf_serializers.URLField(),
+    "collector": drf_serializers.CharField(),
+    "task_data": drf_serializers.DictField(),
+    "task_status": drf_serializers.CharField(help_text="Current Task status."),
+    "disposition": drf_serializers.ChoiceField(
+        choices=("created", "reused", "requeued"),
+        help_text="Whether this request created a task, reused an existing one, or requeued a failed/stale one.",
+    ),
+}
+
+
+_COLLECT_RESPONSE = inline_serializer(name="AnalyticsCollectResponse", fields=_COLLECT_RESPONSE_FIELDS)
+
+
+def _fail_stale(task, now):
+    """Fail a stuck running task the way the scheduler does, then requeue it."""
+    timeout = timedelta(seconds=settings.TASK_TIMEOUT)
+    cutoff = now - timeout
+    with transaction.atomic():
+        # Match scheduler recovery lock order (TaskExecution -> Task) to avoid deadlocks when
+        # both paths recover the same overdue task concurrently.
+        TaskExecution.objects.filter(
+            task=task,
+            status="running",
+            task__status="running",
+            task__started_at__lt=cutoff,
+        ).update(status="failed", error_message=_STALE_ERROR, completed_at=now)
+
+        updated = Task.objects.filter(pk=task.pk, status="running", started_at__lt=cutoff).update(
+            status="failed", error_message=_STALE_ERROR, completed_at=now
+        )
+        if updated == 0:
+            return False
+        return task.retry(force=True)
 
 
 def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:
@@ -282,14 +325,14 @@ class CollectorRowsView(generics.GenericAPIView):
 
 
 class CollectorCollectView(APIView):
-    """Create one claimless on-demand collection task for an enabled collector."""
+    """Create or reuse one on-demand collection task for an enabled collector."""
 
     # Collection triggers are intentionally admin-only for now; auditor-trigger support will be
     # addressed separately, potentially through a future read-style trigger endpoint.
     permission_classes = [IsSystemAdminOrAuditor]
 
-    def _resolve_window(self, entry, request):
-        """Parse request bounds, apply mode defaults, and return a task window or an error."""
+    def _resolve_window(self, entry, request, now):
+        """Parse request bounds, apply mode defaults, and return a UTC task window or an error."""
         raw_since = request.data.get("since")
         raw_until = request.data.get("until")
         since = _parse_dt(raw_since)
@@ -302,6 +345,11 @@ class CollectorCollectView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        # Canonical UTC bounds make the task_data idempotency key independent of the offset the
+        # caller used to express the same instant.
+        since = since.astimezone(UTC) if since else None
+        until = until.astimezone(UTC) if until else None
+
         if not entry.accepts_since_until:
             if since is not None or until is not None:
                 return None, Response(
@@ -310,7 +358,7 @@ class CollectorCollectView(APIView):
                 )
             return (None, None), None
 
-        default_since, default_until = _default_window(entry.mode, timezone.now())
+        default_since, default_until = _default_window(entry.mode, now)
         if "since" not in request.data:
             since = default_since
         if "until" not in request.data:
@@ -322,7 +370,94 @@ class CollectorCollectView(APIView):
             )
         return (since, until), None
 
+    def _response(self, request, task, disposition):
+        """Build the shared task envelope; in-flight work answers 202, terminal reuse answers 200."""
+        task_url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk}, request=request)
+        is_in_flight = task.status in {"pending", "running"}
+        is_async_creation = disposition in {"created", "requeued"}
+        response = Response(
+            {
+                "task_id": task.pk,
+                "task_url": task_url,
+                "collector": task.task_data["collector"],
+                "task_data": task.task_data,
+                "task_status": task.status,
+                "disposition": disposition,
+            },
+            status=status.HTTP_202_ACCEPTED if (is_async_creation or is_in_flight) else status.HTTP_200_OK,
+        )
+        response["Location"] = task_url
+        return response
+
+    def _exact_task(self, key):
+        """Return the newest task whose task_data is exactly this collector and window."""
+        return Task.objects.filter(function_name=COLLECT_FUNCTION, task_data=key).order_by("-id").first()
+
+    def _blocking_task(self, collector, exclude_pk=None):
+        """Return a live task for a different window of the same collector."""
+        tasks = Task.objects.filter(
+            function_name=COLLECT_FUNCTION,
+            task_data__contains={"collector": collector},
+            status__in=("pending", "running"),
+        )
+        if exclude_pk is not None:
+            tasks = tasks.exclude(pk=exclude_pk)
+        return tasks.order_by("-id").first()
+
+    def _conflict(self, request, collector, blocking):
+        """Return the 409 body identifying the task already in flight. This should just re-queue the request"""
+        task_url = reverse("tasks:v1:task-detail", kwargs={"pk": blocking.pk}, request=request)
+        return Response(
+            {
+                "detail": f"A {blocking.status} collection for {collector} is already in flight",
+                "task_id": blocking.pk,
+                "task_url": task_url,
+                "task_status": blocking.status,
+                "task_data": blocking.task_data,
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    def _settle(self, request, task, now, collector):
+        """Reuse an existing task, recovering it first when it is failed or stuck."""
+        stale = (
+            task.status == "running"
+            and task.started_at
+            and task.started_at < now - timedelta(seconds=settings.TASK_TIMEOUT)
+        )
+        if task.status == "failed" or stale:
+            # Requeueing starts work, so it must not overlap another live collection.
+            blocking = self._blocking_task(collector, exclude_pk=task.pk)
+            if blocking is not None:
+                return self._conflict(request, collector, blocking)
+        if stale:
+            if _fail_stale(task, now):
+                return self._response(request, task, "requeued")
+            task.refresh_from_db()
+        if task.status == "failed":
+            if task.retry(force=True):
+                return self._response(request, task, "requeued")
+            task.refresh_from_db()
+        return self._response(request, task, "reused")
+
+    def _entry(self, collector):
+        """Return the registry entry, or an error response for an unknown or disabled collector."""
+        entry = get_entry(collector)
+        if entry is None:
+            return None, Response({"detail": f"Unknown collector: {collector}"}, status=status.HTTP_404_NOT_FOUND)
+        if not entry.enabled:
+            return None, Response({"detail": f"Collector is disabled: {collector}"}, status=status.HTTP_410_GONE)
+        return entry, None
+
     @extend_schema(
+        summary="Trigger an on-demand collection.",
+        description=(
+            "Create one task for the collector and resolved window, or reuse the task already "
+            "covering that window. An identical repeat returns the same `task_id` with "
+            "`disposition=reused` (202 while pending/running, 200 once completed); a failed "
+            "or stale task is requeued (202, `requeued`). "
+            "A different pending or running window for the same collector returns 409."
+        ),
         request=inline_serializer(
             name="AnalyticsCollectRequest",
             fields={
@@ -339,26 +474,26 @@ class CollectorCollectView(APIView):
             },
         ),
         responses={
-            202: inline_serializer(
-                name="AnalyticsCollectResponse",
+            200: _COLLECT_RESPONSE,
+            202: _COLLECT_RESPONSE,
+            409: inline_serializer(
+                name="AnalyticsCollectConflict",
                 fields={
+                    "detail": drf_serializers.CharField(),
                     "task_id": drf_serializers.IntegerField(),
                     "task_url": drf_serializers.URLField(),
-                    "collector": drf_serializers.CharField(),
+                    "task_status": drf_serializers.CharField(),
                     "task_data": drf_serializers.DictField(),
                 },
             ),
         },
     )
     def post(self, request, *args, **kwargs):
-        """Create a pending task and return its details without claiming a payload row."""
+        """Create, reuse, or requeue the task for this collector and window."""
         collector = self.kwargs["collector"]
-        entry = get_entry(collector)
-        if entry is None or not entry.enabled:
-            return Response(
-                {"detail": f"Unknown or disabled collector: {collector}"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        entry, error = self._entry(collector)
+        if error is not None:
+            return error
 
         if "source" in request.data:
             return Response(
@@ -366,38 +501,42 @@ class CollectorCollectView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        window, error = self._resolve_window(entry, request)
-        if error is not None:
-            return error
-        since, until = window
+        with transaction.atomic():
+            # Serialise read-then-create per collector; released automatically on commit/rollback.
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s)::bigint)", [f"analytics:collect:{collector}"])
 
-        task_data = {"collector": collector}
-        if since is not None:
-            task_data["since"] = since.isoformat()
-        if until is not None:
-            task_data["until"] = until.isoformat()
+            now = timezone.now()
+            window, error = self._resolve_window(entry, request, now)
+            if error is not None:
+                return error
+            since, until = window
+            # One canonical key per resolved window: repeated or concurrent requests match it.
+            task_data = {"collector": collector}
+            if since is not None:
+                task_data["since"] = since.isoformat()
+            if until is not None:
+                task_data["until"] = until.isoformat()
 
-        from apps.tasks.models import Task
+            task = self._exact_task(task_data)
+            if task is not None and task.status != "cancelled":
+                return self._settle(request, task, now, collector)
 
-        task = Task.objects.create(
-            name=f"ondemand_analytics_{collector}_{uuid4().hex}",
-            description=f"On-demand analytics collection for {collector}",
-            function_name="collect_analytics_on_demand",
-            task_data=task_data,
-            is_system_task=False,
-            status="pending",
-            scheduled_time=None,
-            created_by=request.user if request.user.is_authenticated else None,
-        )
-        task_url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk}, request=request)
-        response = Response(
-            {
-                "task_id": task.pk,
-                "task_url": task_url,
-                "collector": collector,
-                "task_data": task_data,
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
-        response["Location"] = task_url
-        return response
+            blocking = self._blocking_task(collector)
+            if blocking is not None:
+                return self._conflict(request, collector, blocking)
+
+            task = Task.objects.create(
+                name=f"ondemand_analytics_{collector}_{uuid4().hex}",
+                description=f"On-demand analytics collection for {collector}",
+                function_name=COLLECT_FUNCTION,
+                task_data=task_data,
+                is_system_task=False,
+                status="pending",
+                # On-demand retries are driven by the trigger (requeue), not the scheduler: an
+                # automatic retry could overlap a newer window for the same collector.
+                max_attempts=1,
+                scheduled_time=None,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+            return self._response(request, task, "created")
