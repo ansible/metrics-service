@@ -142,6 +142,28 @@ Registry: `_get_snapshot_collectors()` in `collect_snapshot_metrics.py`.
 Snapshots are stored with a timestamp of yesterday 23:00 so
 `daily_metrics_rollup` includes them in the daily window.
 
+## Analytics-only Organization Collectors
+
+Five organization-aware collectors are registered in the hourly or snapshot
+collector registries but intentionally have no recurring cron task. They are
+enabled in the analytics registry and can be triggered on demand through the
+analytics API; `generic_collect_metrics()` persists their raw payloads without
+adding an `HourlyMetricsCollection` rollup.
+
+| `collector_type` | Source | Mode | Output |
+|------------------|--------|------|--------|
+| `unified_jobs_org` | `unified_jobs_org` | hourly | Job counts and elapsed-time summaries by organization, job type, and status |
+| `credentials_service_org` | `credentials_service_org` | hourly | Managed credential types used by jobs, grouped by job organization |
+| `cred_type_counts_org` | `cred_type_counts_org` | snapshot | Credential counts by owning organization and credential type |
+| `inventory_counts_org` | `inventory_counts_org` | snapshot | Inventory, host, and source counts by organization and inventory kind |
+| `projects_by_scm_type_org` | `projects_by_scm_type_org` | snapshot | Project counts by organization and source-control type |
+
+The payload schemas and public analytics names are maintained together in
+`apps/analytics/payload_schemas.py` and `apps/analytics/registry.py`. These
+entries depend on the corresponding collectors in metrics-utility; update the
+metrics-utility dependency and `uv.lock` only after the utility change has
+merged and released the new collector functions.
+
 ## Daily Time-Range Collectors
 
 Registry: `_get_daily_collectors()` in `collect_daily_metrics.py`.
