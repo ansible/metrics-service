@@ -547,9 +547,9 @@ paths:
       operationId: analytics_collect_create
       description: Create one task for the collector and resolved window, or reuse
         the task already covering that window. An identical repeat returns the same
-        `task_id` with `disposition=reused` (200); a failed or stale task is requeued
-        (202, `requeued`). A different pending or running window for the same collector
-        returns 409.
+        `task_id` with `disposition=reused` (202 while pending/running, 200 once completed);
+        a failed or stale task is requeued (202, `requeued`). A different pending
+        or running window for the same collector returns 409.
       summary: Trigger an on-demand collection.
       parameters:
       - in: path

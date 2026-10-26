@@ -131,26 +131,26 @@ _COLLECT_RESPONSE_FIELDS = {
 _COLLECT_RESPONSE = inline_serializer(name="AnalyticsCollectResponse", fields=_COLLECT_RESPONSE_FIELDS)
 
 
-def _task_key(collector, since, until):
-    """Return the canonical task_data that identifies one collection request."""
-    key = {"collector": collector}
-    if since is not None:
-        key["since"] = since.isoformat()
-    if until is not None:
-        key["until"] = until.isoformat()
-    return key
-
-
 def _fail_stale(task, now):
     """Fail a stuck running task the way the scheduler does, then requeue it."""
+    timeout = timedelta(seconds=settings.TASK_TIMEOUT)
+    cutoff = now - timeout
     with transaction.atomic():
-        TaskExecution.objects.filter(task=task, status="running").update(
+        # Match scheduler recovery lock order (TaskExecution -> Task) to avoid deadlocks when
+        # both paths recover the same overdue task concurrently.
+        TaskExecution.objects.filter(
+            task=task,
+            status="running",
+            task__status="running",
+            task__started_at__lt=cutoff,
+        ).update(status="failed", error_message=_STALE_ERROR, completed_at=now)
+
+        updated = Task.objects.filter(pk=task.pk, status="running", started_at__lt=cutoff).update(
             status="failed", error_message=_STALE_ERROR, completed_at=now
         )
-        Task.objects.filter(pk=task.pk, status="running").update(
-            status="failed", error_message=_STALE_ERROR, completed_at=now
-        )
-    return task.retry(force=True)
+        if updated == 0:
+            return False
+        return task.retry(force=True)
 
 
 def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:
@@ -371,8 +371,10 @@ class CollectorCollectView(APIView):
         return (since, until), None
 
     def _response(self, request, task, disposition):
-        """Build the shared task envelope; reused work answers 200, anything else 202."""
+        """Build the shared task envelope; in-flight work answers 202, terminal reuse answers 200."""
         task_url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk}, request=request)
+        is_in_flight = task.status in {"pending", "running"}
+        is_async_creation = disposition in {"created", "requeued"}
         response = Response(
             {
                 "task_id": task.pk,
@@ -382,7 +384,7 @@ class CollectorCollectView(APIView):
                 "task_status": task.status,
                 "disposition": disposition,
             },
-            status=status.HTTP_200_OK if disposition == "reused" else status.HTTP_202_ACCEPTED,
+            status=status.HTTP_202_ACCEPTED if (is_async_creation or is_in_flight) else status.HTTP_200_OK,
         )
         response["Location"] = task_url
         return response
@@ -391,25 +393,44 @@ class CollectorCollectView(APIView):
         """Return the newest task whose task_data is exactly this collector and window."""
         return Task.objects.filter(function_name=COLLECT_FUNCTION, task_data=key).order_by("-id").first()
 
-    def _blocking_task(self, collector):
+    def _blocking_task(self, collector, exclude_pk=None):
         """Return a live task for a different window of the same collector."""
-        return (
-            Task.objects.filter(
-                function_name=COLLECT_FUNCTION,
-                task_data__contains={"collector": collector},
-                status__in=("pending", "running"),
-            )
-            .order_by("-id")
-            .first()
+        tasks = Task.objects.filter(
+            function_name=COLLECT_FUNCTION,
+            task_data__contains={"collector": collector},
+            status__in=("pending", "running"),
+        )
+        if exclude_pk is not None:
+            tasks = tasks.exclude(pk=exclude_pk)
+        return tasks.order_by("-id").first()
+
+    def _conflict(self, request, collector, blocking):
+        """Return the 409 body identifying the task already in flight. This should just re-queue the request"""
+        task_url = reverse("tasks:v1:task-detail", kwargs={"pk": blocking.pk}, request=request)
+        return Response(
+            {
+                "detail": f"A {blocking.status} collection for {collector} is already in flight",
+                "task_id": blocking.pk,
+                "task_url": task_url,
+                "task_status": blocking.status,
+                "task_data": blocking.task_data,
+            },
+            status=status.HTTP_409_CONFLICT,
         )
 
-    def _settle(self, request, task, now):
+    def _settle(self, request, task, now, collector):
         """Reuse an existing task, recovering it first when it is failed or stuck."""
-        if (
+        stale = (
             task.status == "running"
             and task.started_at
             and task.started_at < now - timedelta(seconds=settings.TASK_TIMEOUT)
-        ):
+        )
+        if task.status == "failed" or stale:
+            # Requeueing starts work, so it must not overlap another live collection.
+            blocking = self._blocking_task(collector, exclude_pk=task.pk)
+            if blocking is not None:
+                return self._conflict(request, collector, blocking)
+        if stale:
             if _fail_stale(task, now):
                 return self._response(request, task, "requeued")
             task.refresh_from_db()
@@ -433,7 +454,8 @@ class CollectorCollectView(APIView):
         description=(
             "Create one task for the collector and resolved window, or reuse the task already "
             "covering that window. An identical repeat returns the same `task_id` with "
-            "`disposition=reused` (200); a failed or stale task is requeued (202, `requeued`). "
+            "`disposition=reused` (202 while pending/running, 200 once completed); a failed "
+            "or stale task is requeued (202, `requeued`). "
             "A different pending or running window for the same collector returns 409."
         ),
         request=inline_serializer(
@@ -488,25 +510,21 @@ class CollectorCollectView(APIView):
             window, error = self._resolve_window(entry, request, now)
             if error is not None:
                 return error
-            task_data = _task_key(collector, *window)
+            since, until = window
+            # One canonical key per resolved window: repeated or concurrent requests match it.
+            task_data = {"collector": collector}
+            if since is not None:
+                task_data["since"] = since.isoformat()
+            if until is not None:
+                task_data["until"] = until.isoformat()
 
             task = self._exact_task(task_data)
             if task is not None and task.status != "cancelled":
-                return self._settle(request, task, now)
+                return self._settle(request, task, now, collector)
 
             blocking = self._blocking_task(collector)
             if blocking is not None:
-                task_url = reverse("tasks:v1:task-detail", kwargs={"pk": blocking.pk}, request=request)
-                return Response(
-                    {
-                        "detail": f"A {blocking.status} collection for {collector} is already in flight",
-                        "task_id": blocking.pk,
-                        "task_url": task_url,
-                        "task_status": blocking.status,
-                        "task_data": blocking.task_data,
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
+                return self._conflict(request, collector, blocking)
 
             task = Task.objects.create(
                 name=f"ondemand_analytics_{collector}_{uuid4().hex}",
@@ -515,6 +533,9 @@ class CollectorCollectView(APIView):
                 task_data=task_data,
                 is_system_task=False,
                 status="pending",
+                # On-demand retries are driven by the trigger (requeue), not the scheduler: an
+                # automatic retry could overlap a newer window for the same collector.
+                max_attempts=1,
                 scheduled_time=None,
                 created_by=request.user if request.user.is_authenticated else None,
             )
