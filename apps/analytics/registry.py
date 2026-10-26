@@ -133,6 +133,14 @@ _ENABLED: list[CollectorEntry] = [
         description="Unified job records with status, timing, organization, inventory, execution environment, template, project SCM type, and job details. The nested installed_collections object is keyed by collection FQCN.",
     ),
     CollectorEntry(
+        "controller.unified_jobs_org",
+        collector_type="unified_jobs_org",
+        mode="hourly",
+        enabled=True,
+        payload_schema=PAYLOAD_SCHEMAS["unified_jobs_org"],
+        description="Unified job counts and elapsed-time summaries grouped by organization, job type, and status.",
+    ),
+    CollectorEntry(
         "controller.job_host_summary_service",
         collector_type="job_host_summary_service",
         mode="hourly",
@@ -156,6 +164,14 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_schema=PAYLOAD_SCHEMAS["credentials_service"],
         description="Distinct managed credential types used by jobs completed in the collection window.",
+    ),
+    CollectorEntry(
+        "controller.credentials_service_org",
+        collector_type="credentials_service_org",
+        mode="hourly",
+        enabled=True,
+        payload_schema=PAYLOAD_SCHEMAS["credentials_service_org"],
+        description="Distinct managed credential types used by jobs, grouped by job organization.",
     ),
     CollectorEntry(
         "controller.main_jobevent_service",
@@ -256,6 +272,14 @@ _ENABLED: list[CollectorEntry] = [
         description="Credential counts grouped by credential type, including type name and whether the type is managed.",
     ),
     CollectorEntry(
+        "controller.cred_type_counts_org",
+        collector_type="cred_type_counts_org",
+        mode="snapshot",
+        enabled=True,
+        payload_schema=PAYLOAD_SCHEMAS["cred_type_counts_org"],
+        description="Credential counts grouped by owning organization and credential type.",
+    ),
+    CollectorEntry(
         "controller.host_metric_summary_monthly_table",
         collector_type="host_metric_summary_monthly_table",
         mode="snapshot",
@@ -280,6 +304,14 @@ _ENABLED: list[CollectorEntry] = [
         description="Inventory names and kinds with host and source counts, source details, and smart inventory entries.",
     ),
     CollectorEntry(
+        "controller.inventory_counts_org",
+        collector_type="inventory_counts_org",
+        mode="snapshot",
+        enabled=True,
+        payload_schema=PAYLOAD_SCHEMAS["inventory_counts_org"],
+        description="Inventory, host, and source counts grouped by organization and inventory kind.",
+    ),
+    CollectorEntry(
         "controller.org_counts",
         collector_type="org_counts",
         mode="snapshot",
@@ -294,6 +326,14 @@ _ENABLED: list[CollectorEntry] = [
         enabled=True,
         payload_schema=PAYLOAD_SCHEMAS["projects_by_scm_type"],
         description="Project counts grouped by source-control type, with empty types reported as manual.",
+    ),
+    CollectorEntry(
+        "controller.projects_by_scm_type_org",
+        collector_type="projects_by_scm_type_org",
+        mode="snapshot",
+        enabled=True,
+        payload_schema=PAYLOAD_SCHEMAS["projects_by_scm_type_org"],
+        description="Project counts grouped by organization and source-control type.",
     ),
     CollectorEntry(
         "controller.unified_job_template_table",

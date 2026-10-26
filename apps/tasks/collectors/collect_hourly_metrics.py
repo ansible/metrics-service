@@ -33,6 +33,7 @@ def _get_hourly_collectors():
     )
     from metrics_utility.library.collectors.controller import (
         credentials_service,
+        credentials_service_org,
         events_table,
         job_host_summary,
         job_host_summary_service,
@@ -41,6 +42,7 @@ def _get_hourly_collectors():
         query_info,
         unified_jobs,
         unified_jobs_dashboard,
+        unified_jobs_org,
         workflow_job_node_table,
     )
 
@@ -73,10 +75,22 @@ def _get_hourly_collectors():
             "persist_to_hourly": False,
             "description": "Base unified job records",
         },
+        "unified_jobs_org": {
+            "collector_func": unified_jobs_org,
+            "rollup_processor": None,
+            "persist_to_hourly": False,
+            "description": "Organization-level unified job summaries",
+        },
         "credentials_service": {
             "collector_func": credentials_service,
             "rollup_processor": CredentialsAnonymizedRollup,
             "description": "Credentials usage metrics",
+        },
+        "credentials_service_org": {
+            "collector_func": credentials_service_org,
+            "rollup_processor": None,
+            "persist_to_hourly": False,
+            "description": "Organization-level credentials usage records",
         },
         "main_jobevent_service": {
             "collector_func": main_jobevent_service,

@@ -29,6 +29,11 @@ def test_enabled_collectors_are_all_enabled():
         "controller.job_host_summary",
         "controller.main_jobevent",
         "controller.unified_jobs",
+        "controller.unified_jobs_org",
+        "controller.credentials_service_org",
+        "controller.cred_type_counts_org",
+        "controller.inventory_counts_org",
+        "controller.projects_by_scm_type_org",
     } <= set(enabled)
     assert all(e.payload_shape in {"object", "array"} for e in enabled.values())
     # Pipeline-only, dashboard-only, AWX in-process, and external Prometheus collectors stay off.
@@ -88,6 +93,27 @@ def test_payload_schemas_follow_collector_variants():
     audit = _item_types("controller.main_indirectmanagednodeaudit")
     assert audit["events"] == "array"
     assert audit["task_runs"] == "integer"
+
+
+@pytest.mark.unit
+def test_org_collector_payloads_have_expected_fields_and_modes():
+    expected = {
+        "controller.unified_jobs_org": ("hourly", {"organization_id", "job_type", "job_count", "elapsed_average"}),
+        "controller.credentials_service_org": ("hourly", {"organization_id", "credential_type"}),
+        "controller.cred_type_counts_org": ("snapshot", {"organization_id", "credential_type_id", "credential_count"}),
+        "controller.inventory_counts_org": (
+            "snapshot",
+            {"organization_id", "inventory_kind", "host_count", "source_count"},
+        ),
+        "controller.projects_by_scm_type_org": ("snapshot", {"organization_id", "scm_type", "project_count"}),
+    }
+
+    for name, (mode, fields) in expected.items():
+        entry = registry.get_entry(name)
+        assert entry is not None
+        assert entry.enabled is True
+        assert entry.mode == mode
+        assert fields <= set(_item_types(name))
 
 
 @pytest.mark.unit
