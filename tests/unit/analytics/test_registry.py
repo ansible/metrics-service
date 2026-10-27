@@ -174,14 +174,17 @@ def test_indirect_managed_node_audit_is_enabled():
 
 
 @pytest.mark.unit
-def test_registry_covers_metrics_utility_collectors():
-    expected = {
+def test_registered_collectors_are_available_in_metrics_utility():
+    available = {
         *(f"controller.{name}" for name in controller_collectors),
         *(f"service.{name}" for name in service_collectors),
         *(f"others.{name}" for name in other_collectors),
         "dashboard.dashboard_jobs",
     }
-    assert set(registry.COLLECTORS) == expected
+    # metrics-utility can add library collectors before metrics-service exposes them.
+    # The compatibility contract is the other direction: the service must never
+    # register a collector that is unavailable in its utility dependency.
+    assert set(registry.COLLECTORS) <= available
     assert len(registry.COLLECTORS) == len(registry._ALL)
 
 
