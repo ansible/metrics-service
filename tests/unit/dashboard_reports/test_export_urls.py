@@ -122,6 +122,7 @@ def job_data(template_metadata):
                 project_id=proj_id,
                 project_name=proj_name,
                 organization_id=org_id,
+                job_type="job",
                 status=status,
                 started=now - offset - datetime.timedelta(minutes=10),
                 finished=now - offset,
@@ -207,6 +208,40 @@ class TestExportEndpointGeneral:
         url = reverse("dashboard_reports:report-export")
         response = admin_client.get(url, data=build_export_query("summary"))
         assert response.status_code == 200
+
+    def test_export_job_type_filter_can_include_stored_management_jobs(self, job_data, admin_client):
+        """Allows CSV exports to include stored management jobs when explicitly requested."""
+        management_template = TemplateMetadata.objects.create(
+            template_id=900,
+            template_name="Cleanup Activity Stream",
+            time_taken_manually_execute_minutes=30,
+            time_taken_create_automation_minutes=10,
+        )
+        now = get_now()
+        JobData.objects.create(
+            job_id=900,
+            template_id=management_template.template_id,
+            template_name=management_template.template_name,
+            job_type="systemjob",
+            status=JobStatusChoices.SUCCESSFUL,
+            started=now - datetime.timedelta(hours=2),
+            finished=now - datetime.timedelta(hours=1),
+            elapsed=120,
+            num_hosts=0,
+            template_metadata=management_template,
+        )
+        url = reverse("dashboard_reports:report-export")
+
+        default_response = admin_client.get(url, data=build_export_query("summary"))
+        assert default_response.status_code == 200
+        assert b"Cleanup Activity Stream" not in default_response.content
+
+        system_response = admin_client.get(
+            url,
+            data=build_export_query("summary", job_type="systemjob"),
+        )
+        assert system_response.status_code == 200
+        assert b"Cleanup Activity Stream" in system_response.content
 
     def test_export_content_type_is_csv(self, job_data, admin_client):
         url = reverse("dashboard_reports:report-export")

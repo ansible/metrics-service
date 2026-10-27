@@ -106,17 +106,21 @@ op_id_fixes = {
     "dashboard_reports_subscription_costs_partial_update": "A unique integer value identifying this Subscription Cost.",
 }
 for op_id, desc in op_id_fixes.items():
-    # Find the operationId, then patch the type: integer block after it
+    # Find the operation block and keep the search inside its path so an identical
+    # parameter block on a later endpoint cannot be patched accidentally.
     idx = content.find(f"operationId: {op_id}")
     if idx == -1:
         continue
+    end = content.find("\n  /api/", idx)
+    if end == -1:
+        end = len(content)
     old_block = (
         "        schema:\n          type: integer\n"
         f"        description: {desc}\n"
         "        required: true"
     )
     new_block = "        schema:\n          type: string\n        required: true"
-    patch_idx = content.find(old_block, idx)
+    patch_idx = content.find(old_block, idx, end)
     if patch_idx != -1:
         content = content[:patch_idx] + new_block + content[patch_idx + len(old_block):]
         print(f"  [YAML] fixed path param type: {op_id}")

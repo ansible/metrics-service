@@ -19,7 +19,9 @@ from ..analytics.tasks import collect_analytics_on_demand
 
 # Dashboard reports tasks
 from ..dashboard_reports.tasks import (
+    JOB_TYPE_BACKFILL_BATCH_SIZE,
     ORG_NAME_BACKFILL_BATCH_SIZE,
+    backfill_dashboard_job_types,
     backfill_dashboard_organization_names,
     cleanup_dashboard_reports_old_data,
     cleanup_dashboard_telemetry,
@@ -70,6 +72,7 @@ TASK_FUNCTIONS = {
     "collect_dashboard_reports_data": collect_dashboard_reports_data,
     "collect_dashboard_reports_initial_data": collect_dashboard_reports_initial_data,
     "backfill_dashboard_organization_names": backfill_dashboard_organization_names,
+    "backfill_dashboard_job_types": backfill_dashboard_job_types,
     "cleanup_dashboard_reports_old_data": cleanup_dashboard_reports_old_data,
     "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
     "sync_dashboard_job_records": sync_dashboard_job_records,
@@ -88,6 +91,7 @@ TASK_LOCKS = {
     "send_anonymized_to_segment",
     "collect_dashboard_reports_initial_data",
     "backfill_dashboard_organization_names",
+    "backfill_dashboard_job_types",
     "cleanup_dashboard_reports_old_data",
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
@@ -492,6 +496,28 @@ TASK_METADATA = {
         },
         "examples": [{"name": "Default", "data": {}}, {"name": "Smaller batches", "data": {"batch_size": 1000}}],
     },
+    "backfill_dashboard_job_types": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "One-time reconciliation: store Controller model names on existing dashboard JobData rows without deleting data",
+        "parameters": {
+            "awx_database": {
+                "type": "string",
+                "default": "awx",
+                "description": "Configured database alias for the Controller database",
+            },
+            "batch_size": {
+                "type": "integer",
+                "default": JOB_TYPE_BACKFILL_BATCH_SIZE,
+                "description": "Number of stored job IDs queried per Controller lookup",
+                "min": 1,
+            },
+        },
+        "examples": [
+            {"name": "Default", "data": {}},
+            {"name": "Smaller batches", "data": {"batch_size": 500}},
+        ],
+    },
     "sync_dashboard_job_records": {
         "queue": "dashboard",
         "category": _DASHBOARD_REPORTS_CATEGORY,
@@ -632,6 +658,7 @@ __all__ = [
     "collect_dashboard_reports_data",
     "collect_dashboard_reports_initial_data",
     "backfill_dashboard_organization_names",
+    "backfill_dashboard_job_types",
     "cleanup_dashboard_reports_old_data",
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",

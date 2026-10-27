@@ -22,6 +22,7 @@ def _make_df(rows: list[dict]) -> pd.DataFrame:
     defaults = {
         "id": 1,
         "name": "job",
+        "model": "job",
         "unified_job_template_id": 10,
         "organization_id": 1,
         "organization_name": "Org",
@@ -144,6 +145,58 @@ class TestBuildDashboardSyncHook:
         task_data = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]
         raw_jobs = task_data["raw_jobs"]
         assert raw_jobs[0]["started"] == started.isoformat()
+
+    def test_hook_preserves_controller_model(self):
+        """Keeps the Controller model in the task payload for downstream persistence."""
+        df = _make_df(
+            [
+                {
+                    "status": "successful",
+                    "launch_type": "scheduled",
+                    "model": "systemjob",
+                }
+            ]
+        )
+        hook = self._enabled_hook()
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        raw_job = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"][0]
+        assert raw_job["model"] == "systemjob"
+
+    def test_hook_schedules_batch_when_model_column_is_missing(self):
+        """Schedules rows without model so the sync task can resolve them by ID."""
+        df = _make_df([{"status": "successful", "launch_type": "manual"}]).drop(columns=["model"])
+        hook = self._enabled_hook()
+
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        mock_task.objects.update_or_create.assert_called_once()
+        raw_job = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"][0]
+        assert "model" not in raw_job
+
+    @pytest.mark.parametrize("model", [None, float("nan"), ""])
+    def test_hook_schedules_entire_batch_when_any_model_is_unusable(self, model):
+        """Schedules rows with missing model values for batch recovery in the sync task."""
+        df = _make_df(
+            [
+                {"id": 1, "status": "successful", "launch_type": "manual", "model": "job"},
+                {"id": 2, "status": "failed", "launch_type": "manual", "model": model},
+            ]
+        )
+        hook = self._enabled_hook()
+
+        with patch(TASK_MODEL_PATH) as mock_task:
+            mock_task.objects.update_or_create.return_value = (MagicMock(), True)
+            hook(df)
+
+        mock_task.objects.update_or_create.assert_called_once()
+        raw_jobs = mock_task.objects.update_or_create.call_args[1]["defaults"]["task_data"]["raw_jobs"]
+        assert [row["id"] for row in raw_jobs] == [1, 2]
+        assert raw_jobs[0]["model"] == "job"
 
     def test_hook_converts_num_hosts_to_int(self):
         """num_hosts is cast to int if not None."""
