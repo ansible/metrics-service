@@ -208,6 +208,34 @@ Examples:
 Every successful collection is retained. Storage appends and never upserts; the
 trigger above is what prevents duplicate tasks for one window.
 
+### API usage telemetry
+
+`APIUsageMiddleware` records the response status class for requests handled by
+the analytics API. It uses the resolved Django view name as the endpoint label:
+`analytics:v1:root`, `analytics:v1:rows`, or `analytics:v1:collect`. Collector
+names are URL parameters, so requests for different collectors share the same
+`rows` or `collect` counter. The recorded date is the UTC date when the response
+completes. Requests to the Prometheus and API documentation routes are excluded;
+other API namespaces are not currently tracked.
+
+`APIUsageCounter` stores one aggregate row per date, endpoint, and HTTP status
+class (`1xx` through `5xx`) in the Metrics Service database. The middleware
+increments the counter after the response; it does not store individual request
+records, full paths, query parameters, request bodies, user details, or response
+durations. Counter-write failures are logged and do not change the API response.
+All response classes are counted, including client and server errors.
+
+Daily anonymization adds `api_usage_telemetry` to the payload. It contains
+`available`, `total_requests`, and `by_endpoint`, with a zero-filled count for
+each status class under every endpoint that had traffic. A date with no recorded
+requests returns `available: true`, a total of zero, and an empty endpoint map.
+This also means a manual summary for a date whose counters have expired under
+retention can look like zero usage; row absence cannot distinguish those cases.
+The scheduled prior-day summary is retained by the exclusive cleanup cutoff. If
+reading the counters fails, the payload marks the summary unavailable. See
+[anonymization-and-transmission.md](anonymization-and-transmission.md#api-usage-telemetry)
+for the Segment payload shape.
+
 ### Triggering Collection
 
 The collector trigger creates a normal pending `Task`. It does not execute the
