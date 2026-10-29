@@ -1,13 +1,14 @@
 """Tests for the read-only analytics API."""
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.analytics.models import AnalyticsPayload, APIUsageCounter
-from apps.analytics.v1.views import _fail_stale
+from apps.analytics.v1.views import _fail_stale, _last_collect_by_collector, _parse_dt
 from apps.tasks.models import Task, TaskExecution
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
@@ -84,6 +85,16 @@ def test_root_reports_latest_finished_collection_per_collector(authenticated_cli
     collectors = {collector["name"]: collector for collector in response.json()["collectors"]}
     assert collectors[CONFIG]["last_collect"] == "2026-08-17T10:03:00Z"
     assert collectors[UNIFIED]["last_collect"] == "2026-08-17T10:00:01Z"
+
+
+def test_last_collect_lookup_is_one_query_regardless_of_collector_count(django_assert_num_queries):
+    _row(UNIFIED, datetime(2026, 8, 17, 10, tzinfo=UTC), datetime(2026, 8, 17, 11, tzinfo=UTC))
+
+    with django_assert_num_queries(1):
+        last_collect = _last_collect_by_collector([UNIFIED, CONFIG])
+
+    assert last_collect[UNIFIED] is not None
+    assert last_collect[CONFIG] is None
 
 
 def test_root_browsable_response_links_collector_urls(authenticated_client):
@@ -218,6 +229,17 @@ def test_rows_retain_duplicate_collections(authenticated_client):
 
     assert response.status_code == 200
     assert response.json()["count"] == 2
+
+
+def test_rows_parses_the_window_once_per_request(authenticated_client):
+    _row(UNIFIED, datetime(2026, 8, 17, 10, tzinfo=UTC), datetime(2026, 8, 17, 11, tzinfo=UTC))
+
+    with patch("apps.analytics.v1.views._parse_dt", wraps=_parse_dt) as parse_dt:
+        response = authenticated_client.get(f"{ROOT}{UNIFIED}/?since=2026-08-17T09:00:00Z&until=2026-08-17T12:00:00Z")
+
+    # Validation in list() and the overlap filter in get_queryset() share one parse each.
+    assert response.status_code == 200
+    assert parse_dt.call_count == 2
 
 
 def test_rows_window_overlap_until_exclusive(authenticated_client):

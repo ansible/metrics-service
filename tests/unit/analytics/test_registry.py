@@ -20,6 +20,12 @@ def test_public_name_is_group_dot_function():
 
 
 @pytest.mark.unit
+def test_enabled_collectors_mapping_is_built_once():
+    # The discovery endpoint and OpenAPI generation call this per request; it must not
+    # rebuild the mapping each time.
+    assert registry.enabled_collectors() is registry.enabled_collectors()
+
+
 def test_enabled_collectors_are_all_enabled():
     enabled = registry.enabled_collectors()
     assert enabled, "expected at least one enabled collector"

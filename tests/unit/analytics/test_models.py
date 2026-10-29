@@ -80,6 +80,18 @@ def test_api_usage_counter_increments_and_summarizes_by_endpoint_and_status():
     assert APIUsageCounter.objects.filter(usage_date=usage_date).count() == 2
 
 
+def test_api_usage_counter_records_each_request_in_one_query(django_assert_num_queries):
+    usage_date = datetime(2026, 8, 17, tzinfo=UTC).date()
+
+    with django_assert_num_queries(1):
+        APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
+    with django_assert_num_queries(1):
+        APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
+
+    counter = APIUsageCounter.objects.get(usage_date=usage_date, endpoint_name="analytics:v1:root", status_class=2)
+    assert counter.request_count == 2
+
+
 def test_api_usage_counter_returns_empty_endpoint_map_when_empty():
     summary = APIUsageCounter.daily_summary(datetime(2026, 8, 17, tzinfo=UTC).date())
 

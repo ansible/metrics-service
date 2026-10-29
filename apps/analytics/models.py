@@ -1,6 +1,6 @@
 """Analytics storage models (ANSTRAT-1587 / AAP-87799)."""
 
-from django.db import models
+from django.db import IntegrityError, connection, models
 from django.db.models import F, Sum
 
 # Reuse the same DAB base classes / fallbacks as the tasks app.
@@ -41,7 +41,15 @@ class AnalyticsPayload(CommonModel, AuditableModel):
             models.Index(fields=["created"]),
             models.Index(fields=["collector", "since"]),
             models.Index(fields=["collector", "until"]),
-            models.Index(fields=["collector", "started_at"]),
+            # Covers the rows endpoint's ``ORDER BY started_at DESC, id DESC`` so ties on
+            # ``started_at`` no longer need an extra sort.
+            models.Index(fields=["collector", "started_at", "id"]),
+            # Answers the discovery endpoint's ``MAX(finished_at)`` per collector without
+            # falling back to a heap fetch of every stored row.
+            models.Index(fields=["collector", "finished_at"]),
+            # Keeps source-scoped reads (and their pagination counts) index-seekable when
+            # collectors from different sources share a name.
+            models.Index(fields=["collector", "source", "started_at"]),
         ]
         verbose_name = "Analytics Payload"
         verbose_name_plural = "Analytics Payloads"
@@ -107,16 +115,33 @@ class APIUsageCounter(models.Model):
 
     @classmethod
     def record_request(cls, usage_date, endpoint_name: str, status_class: int) -> None:
-        """Atomically increment one daily endpoint/status counter."""
-        row, _ = cls.objects.get_or_create(
-            usage_date=usage_date,
-            endpoint_name=endpoint_name,
-            status_class=status_class,
-            defaults={"request_count": 0},
-        )
-        cls.objects.filter(pk=row.pk).update(
-            request_count=F("request_count") + 1,
-        )
+        """Atomically increment one daily endpoint/status counter.
+
+        A single upsert keeps the telemetry to one round trip per request, and concurrent
+        requests for the same counter add to it instead of racing through a read-then-write.
+        """
+        if connection.vendor == "postgresql":
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO analytics_apiusagecounter (usage_date, endpoint_name, status_class, request_count)
+                    VALUES (%s, %s, %s, 1)
+                    ON CONFLICT (usage_date, endpoint_name, status_class)
+                    DO UPDATE SET request_count = analytics_apiusagecounter.request_count + 1
+                    """,
+                    [usage_date, endpoint_name, status_class],
+                )
+            return
+
+        # Portable fallback: UPDATE first, INSERT on miss, then retry the UPDATE if another
+        # request inserted the same counter in between.
+        key = {"usage_date": usage_date, "endpoint_name": endpoint_name, "status_class": status_class}
+        if cls.objects.filter(**key).update(request_count=F("request_count") + 1):
+            return
+        try:
+            cls.objects.create(**key, request_count=1)
+        except IntegrityError:
+            cls.objects.filter(**key).update(request_count=F("request_count") + 1)
 
     @classmethod
     def empty_daily_summary(cls, available: bool = True) -> dict:

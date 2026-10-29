@@ -2,11 +2,13 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
 import pandas as pd
 import pytest
 
+from apps.analytics import persist as persist_module
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.persist import persist_analytics_payload
 
@@ -27,6 +29,33 @@ def test_persist_dataframe_stores_records():
 
     row = AnalyticsPayload.objects.get(collector="controller.unified_jobs_dashboard")
     assert row.payload == [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+
+
+def test_persist_dataframe_sends_preencoded_json_text():
+    started, finished = _times()
+    df = pd.DataFrame([{"id": 1, "name": "a"}])
+
+    with patch.object(persist_module, "_insert_json_text", wraps=persist_module._insert_json_text) as insert_json:
+        row = persist_analytics_payload(
+            "unified_jobs", df, since=None, until=None, started_at=started, finished_at=finished
+        )
+
+    assert insert_json.call_count == 1
+    assert row.pk is not None
+    assert AnalyticsPayload.objects.get(pk=row.pk).payload == [{"id": 1, "name": "a"}]
+
+
+def test_persist_dataframe_falls_back_to_the_orm_without_postgres(monkeypatch):
+    started, finished = _times()
+    df = pd.DataFrame([{"id": 1, "name": "a"}])
+    monkeypatch.setattr(persist_module, "connection", SimpleNamespace(vendor="sqlite"))
+
+    row = persist_analytics_payload(
+        "unified_jobs", df, since=None, until=None, started_at=started, finished_at=finished
+    )
+
+    assert row.pk is not None
+    assert AnalyticsPayload.objects.get(pk=row.pk).payload == [{"id": 1, "name": "a"}]
 
 
 def test_persist_dict_payload():

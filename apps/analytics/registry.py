@@ -391,9 +391,14 @@ COLLECTORS: dict[str, CollectorEntry] = {e.name: e for e in _ALL}
 _BY_TYPE: dict[str, CollectorEntry] = {e.collector_type: e for e in _ALL}
 
 
+# Built once at import: the registry is immutable at runtime, and the discovery endpoint and
+# OpenAPI generation call this on every request. Callers must treat the result as read-only.
+_ENABLED: dict[str, CollectorEntry] = {name: entry for name, entry in COLLECTORS.items() if entry.enabled}
+
+
 def enabled_collectors() -> dict[str, CollectorEntry]:
     """Return the collectors that are persisted and exposed by the API, keyed by public name."""
-    return {name: e for name, e in COLLECTORS.items() if e.enabled}
+    return _ENABLED
 
 
 def get_entry(name: str) -> CollectorEntry | None:

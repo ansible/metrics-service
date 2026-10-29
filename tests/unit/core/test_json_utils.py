@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from apps.core.json_utils import json_size_bytes, to_jsonable
+from apps.core.json_utils import json_size_bytes, to_jsonable, to_jsonable_with_source
 
 pytestmark = pytest.mark.unit
 
@@ -45,6 +45,24 @@ def test_to_jsonable_uses_django_encodings_for_dates_and_uuids():
 
 def test_json_size_bytes_normalizes_before_encoding():
     assert json_size_bytes({"value": Decimal("1.0")}) == len(b'{"value": "1.0"}')
+
+
+def test_json_size_bytes_skips_normalization_for_converted_payloads():
+    assert json_size_bytes({"value": "1.0"}, converted=True) == len(b'{"value": "1.0"}')
+
+
+def test_to_jsonable_with_source_returns_the_encoded_frame_text():
+    payload, text = to_jsonable_with_source(pd.DataFrame({"id": [1], "name": ["a"]}))
+
+    assert payload == [{"id": 1, "name": "a"}]
+    assert text == '[{"id":1,"name":"a"}]'
+
+
+def test_to_jsonable_with_source_has_no_text_for_non_frames():
+    payload, text = to_jsonable_with_source({"version": "1.2.3"})
+
+    assert payload == {"version": "1.2.3"}
+    assert text is None
 
 
 def test_to_jsonable_keeps_integer_columns_with_nulls_as_integers():
@@ -84,6 +102,15 @@ def test_to_jsonable_leaves_timestamp_columns_at_midnight_as_timestamps():
     frame = pd.DataFrame({"started": [datetime(2026, 10, 1, 0, 0, tzinfo=UTC)]})
 
     assert to_jsonable(frame) == [{"started": "2026-10-01T00:00:00.000Z"}]
+
+
+def test_to_jsonable_does_not_truncate_mixed_date_and_datetime_columns():
+    frame = pd.DataFrame({"when": [date(2026, 10, 1), datetime(2026, 10, 1, 12, 30, tzinfo=UTC)]})
+
+    assert to_jsonable(frame) == [
+        {"when": "2026-10-01T00:00:00.000"},
+        {"when": "2026-10-01T12:30:00.000Z"},
+    ]
 
 
 def test_to_jsonable_does_not_mutate_the_caller_frame():

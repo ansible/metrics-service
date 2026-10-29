@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -10,8 +10,9 @@ from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
 from ansible_base.rest_pagination import DefaultPaginator
 from django.conf import settings
 from django.db import connection, transaction
-from django.db.models import Max, Q
+from django.db.models import Q
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import generics, status
@@ -88,7 +89,6 @@ def _parse_dt(value):
     """
     if not value:
         return None
-    from django.utils.dateparse import parse_datetime
 
     try:
         parsed = parse_datetime(value)
@@ -110,6 +110,28 @@ def _default_window(mode, now):
         midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return midnight - timedelta(days=1), midnight
     return None, None
+
+
+_LAST_COLLECT_SQL_PART = (
+    "SELECT %s AS collector, ("
+    "SELECT finished_at FROM analytics_analyticspayload "
+    "WHERE collector = %s ORDER BY finished_at DESC LIMIT 1)"
+)
+
+
+def _last_collect_by_collector(names: list[str]) -> dict[str, datetime | None]:
+    """Return the newest ``finished_at`` per collector.
+
+    One index-only probe per collector beats a grouped aggregate over the whole append-only
+    table: discovery stays flat as stored collections accumulate instead of scanning them.
+    """
+    if not names:
+        return {}
+    sql = " UNION ALL ".join([_LAST_COLLECT_SQL_PART] * len(names))
+    params = [value for name in names for value in (name, name)]
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        return {collector: finished for collector, finished in cursor.fetchall()}
 
 
 COLLECT_FUNCTION = "collect_analytics_on_demand"
@@ -216,12 +238,7 @@ class AnalyticsRootView(APIView):
     def get(self, request, *args, **kwargs):
         """Return the enabled collectors, descriptions, and their rows URLs."""
         entries = list(enabled_collectors().values())
-        last_collect_by_collector = dict(
-            AnalyticsPayload.objects.filter(collector__in=[entry.name for entry in entries])
-            .values("collector")
-            .annotate(last_collect=Max("finished_at"))
-            .values_list("collector", "last_collect")
-        )
+        last_collect_by_collector = _last_collect_by_collector([entry.name for entry in entries])
         collectors = [
             SimpleNamespace(
                 name=entry.name,
@@ -276,6 +293,20 @@ class CollectorRowsView(generics.GenericAPIView):
         """Return paginated payloads for the requested collector."""
         return self.list(request, *args, **kwargs)
 
+    def window(self) -> tuple:
+        """Return the parsed ``since``/``until`` bounds, parsing them once per request.
+
+        The same values drive validation in ``list()`` and the overlap filter in
+        ``get_queryset()``, so each query parameter is parsed a single time.
+        """
+        if not hasattr(self, "_parsed_window"):
+            params = self.request.query_params
+            self._parsed_window = (
+                _parse_dt(params.get("since")),
+                _parse_dt(params.get("until")),
+            )
+        return self._parsed_window
+
     def get_queryset(self):
         """Filter stored payloads for the collector by since/until *window overlap*.
 
@@ -285,8 +316,7 @@ class CollectorRowsView(generics.GenericAPIView):
         collector = self.kwargs["collector"]
         qs = AnalyticsPayload.objects.filter(collector=collector)
 
-        parsed_since = _parse_dt(self.request.query_params.get("since"))
-        parsed_until = _parse_dt(self.request.query_params.get("until"))
+        parsed_since, parsed_until = self.window()
         # Overlap: row.until > q_since AND row.since < q_until (null bounds = open-ended = match).
         if parsed_since:
             qs = qs.filter(Q(until__isnull=True) | Q(until__gt=parsed_since))
@@ -302,8 +332,7 @@ class CollectorRowsView(generics.GenericAPIView):
                 {"detail": f"Unknown or disabled collector: {self.kwargs['collector']}"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        since = _parse_dt(request.query_params.get("since"))
-        until = _parse_dt(request.query_params.get("until"))
+        since, until = self.window()
         for param, value in (("since", since), ("until", until)):
             if value is False:
                 return Response(

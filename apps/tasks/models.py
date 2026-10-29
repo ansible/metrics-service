@@ -62,6 +62,11 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         app_label = "tasks"
         ordering = ["id"]
         permissions = [("can_execute_task", "Can execute task")]
+        indexes = [
+            # Analytics on-demand collection looks tasks up by function name + status and
+            # orders by id; without this the lookup is a sequential scan of the task table.
+            models.Index(fields=["function_name", "status", "id"]),
+        ]
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -410,7 +415,7 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
             None
         """
         self.raw_data = to_jsonable(self.raw_data)
-        self.data_size_bytes = json_size_bytes(self.raw_data)
+        self.data_size_bytes = json_size_bytes(self.raw_data, converted=True)
         super().save(*args, **kwargs)
 
 
@@ -599,5 +604,5 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
             None
         """
         self.anonymized_data = to_jsonable(self.anonymized_data)
-        self.payload_size_bytes = json_size_bytes(self.anonymized_data)
+        self.payload_size_bytes = json_size_bytes(self.anonymized_data, converted=True)
         super().save(*args, **kwargs)

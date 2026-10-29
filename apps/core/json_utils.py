@@ -9,6 +9,7 @@ from datetime import date, datetime
 from typing import Any
 
 from django.core.serializers.json import DjangoJSONEncoder
+from pandas.api.types import infer_dtype
 
 
 def _json_key(value: Any) -> str:
@@ -61,7 +62,12 @@ def _format_date_columns(frame: Any) -> Any:
         if series.dtype.kind != "O":
             continue
         values = series.dropna()
-        if values.empty or not all(isinstance(item, date) and not isinstance(item, datetime) for item in values):
+        # ``infer_dtype`` is implemented in C, so non-date object columns are rejected without
+        # iterating them one Python object at a time. Datetimes are a subclass of ``date`` and
+        # sampling can report a mixed column as "date", so confirm before rewriting the values.
+        if values.empty or infer_dtype(values, skipna=True) != "date":
+            continue
+        if not all(isinstance(item, date) and not isinstance(item, datetime) for item in values):
             continue
         conversions[column] = series.map(date.isoformat, na_action="ignore")
     return frame.assign(**conversions) if conversions else frame
@@ -106,6 +112,24 @@ def to_jsonable(value: Any) -> Any:
     return _to_jsonable_complex(value)
 
 
-def json_size_bytes(value: Any) -> int:
-    """Return the UTF-8 JSON size after normalizing a value."""
-    return len(json.dumps(to_jsonable(value)).encode("utf-8"))
+def to_jsonable_with_source(value: Any) -> tuple[Any, str | None]:
+    """Return the normalized value and, for a DataFrame, the JSON text it was parsed from.
+
+    DataFrame payloads are normalized by rendering the frame to JSON and parsing it back, so
+    the caller can hand that text straight to the database instead of serializing every parsed
+    row a second time. Non-DataFrame values return ``None`` as the text.
+    """
+    if callable(getattr(value, "to_json", None)) and hasattr(value, "columns"):
+        frame = _format_date_columns(_restore_integer_columns(value))
+        text = frame.to_json(orient="records", date_format="iso")
+        return json.loads(text), text
+    return to_jsonable(value), None
+
+
+def json_size_bytes(value: Any, *, converted: bool = False) -> int:
+    """Return the UTF-8 JSON size after normalizing a value.
+
+    Set ``converted=True`` when ``value`` already came back from :func:`to_jsonable` to skip a
+    second full recursive traversal of a payload that can contain every collected row.
+    """
+    return len(json.dumps(value if converted else to_jsonable(value)).encode("utf-8"))

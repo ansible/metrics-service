@@ -16,12 +16,25 @@ import json
 import logging
 from typing import Any
 
+from django.db import connection
+
 from apps.analytics.exclusions import apply_exclusions
 from apps.analytics.models import LOCAL_SOURCE, AnalyticsPayload
 from apps.analytics.registry import get_entry_by_type
-from apps.core.json_utils import to_jsonable
+from apps.core.json_utils import to_jsonable_with_source
 
 logger = logging.getLogger(__name__)
+
+# PostgreSQL-only fast path: the collector payload is already rendered as JSON text, so send
+# it as-is instead of letting the JSONField encode the parsed rows a second time.
+# Keep the column list in sync with ``AnalyticsPayload``: ``created_by_id`` / ``modified_by_id``
+# are nullable and left unset, and the audit timestamps are set by the database.
+_INSERT_JSON_TEXT = """
+INSERT INTO analytics_analyticspayload
+    (modified, created, collector, source, cluster_id, since, until, started_at, finished_at, payload)
+VALUES (now(), now(), %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+RETURNING id
+"""
 
 
 def _get_cluster_id(db_connection: Any) -> str | None:
@@ -51,6 +64,42 @@ def _get_cluster_id(db_connection: Any) -> str | None:
     except Exception:  # noqa: BLE001 - metadata lookup must not block collection persistence
         logger.warning("Failed to read Controller INSTALL_UUID from AWX database", exc_info=True)
         return None
+
+
+def _insert_json_text(
+    *,
+    name: str,
+    source: str,
+    cluster_id: str | None,
+    since: datetime.datetime | None,
+    until: datetime.datetime | None,
+    started_at: datetime.datetime,
+    finished_at: datetime.datetime,
+    payload: Any,
+    json_text: str,
+) -> AnalyticsPayload:
+    """Insert one payload from pre-encoded JSON text and return its in-memory instance.
+
+    The returned row carries the database-assigned id and the values that were written; only
+    the audit columns set server-side (``created`` / ``modified``) are not populated.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            _INSERT_JSON_TEXT,
+            [name, source, cluster_id, since, until, started_at, finished_at, json_text],
+        )
+        row_id = cursor.fetchone()[0]
+    return AnalyticsPayload(
+        id=row_id,
+        collector=name,
+        source=source,
+        cluster_id=cluster_id,
+        since=since,
+        until=until,
+        started_at=started_at,
+        finished_at=finished_at,
+        payload=payload,
+    )
 
 
 def persist_analytics_payload(
@@ -91,8 +140,23 @@ def persist_analytics_payload(
 
     try:
         filtered = apply_exclusions(raw_data, entry.exclude_columns, entry.key_field)
-        payload = {} if raw_data is None else to_jsonable(filtered)
+        if raw_data is None:
+            payload, json_text = {}, None
+        else:
+            payload, json_text = to_jsonable_with_source(filtered)
         cluster_id = _get_cluster_id(db_connection)
+        if json_text is not None and connection.vendor == "postgresql":
+            return _insert_json_text(
+                name=entry.name,
+                source=source,
+                cluster_id=cluster_id,
+                since=since,
+                until=until,
+                started_at=started_at,
+                finished_at=finished_at,
+                payload=payload,
+                json_text=json_text,
+            )
         # collector_type is the internal task key (for example, ``main_host``)
         # entry.name is the full whitelist/API/storage name (for example, ``controller.main_host``)
         return AnalyticsPayload.objects.create(
