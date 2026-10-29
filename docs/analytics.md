@@ -85,6 +85,17 @@ read from the Controller (`awx`) database.
 | `controller.main_host_daily` | `main_host_daily` | daily | yes | Enabled hosts created or modified in the window, with the same inventory, organization, automation, connection, and selected fact data as `main_host`. |
 | `controller.main_hostmetric` | `main_hostmetric` | daily | yes | Host automation and deletion metrics, counters, inventory usage, and selected host identity and connection facts. |
 | `controller.main_indirectmanagednodeaudit` | `indirect_managed_nodes` | daily | yes | Audit records for indirect managed nodes, including their organization and collection data. |
+| `controller.unified_jobs_org` | `unified_jobs_org` | hourly | yes | Job counts and elapsed-time summaries grouped by organization, job type, and status. |
+| `controller.credentials_service_org` | `credentials_service_org` | hourly | yes | Distinct managed credential types used by jobs, grouped by job organization. |
+| `controller.cred_type_counts_org` | `cred_type_counts_org` | snapshot | no | Credential counts grouped by owning organization and credential type. |
+| `controller.inventory_counts_org` | `inventory_counts_org` | snapshot | no | Inventory, host, and source counts grouped by organization and inventory kind. |
+| `controller.projects_by_scm_type_org` | `projects_by_scm_type_org` | snapshot | no | Project counts grouped by organization and source-control type. |
+
+The organization-aware entries are enabled analytics payloads but do not have recurring cron
+tasks in `METRICS_COLLECTION_GROUP`. They are wired into the hourly or snapshot collector
+registries for on-demand collection through the analytics API. Their raw payloads are persisted
+without an anonymized rollup; the organization and measure fields are documented by the matching
+schemas in `apps/analytics/payload_schemas.py`.
 
 ## Not-enabled Collectors
 

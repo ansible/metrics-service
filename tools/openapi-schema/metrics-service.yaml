@@ -208,6 +208,16 @@ paths:
                       last_collect: null
                       rows_url: https://metrics.example.com/api/v1/analytics/controller.unified_jobs/
                       collect_url: https://metrics.example.com/api/v1/analytics/controller.unified_jobs/collect/
+                    - name: controller.unified_jobs_org
+                      description: Unified job counts and elapsed-time summaries grouped
+                        by organization, job type, and status.
+                      payload_shape: array
+                      key_field: null
+                      mode: hourly
+                      accepts_since_until: true
+                      last_collect: null
+                      rows_url: https://metrics.example.com/api/v1/analytics/controller.unified_jobs_org/
+                      collect_url: https://metrics.example.com/api/v1/analytics/controller.unified_jobs_org/collect/
                     - name: controller.job_host_summary_service
                       description: Per-job host results and counts, with host, job,
                         template, inventory, organization, and project context.
@@ -238,6 +248,16 @@ paths:
                       last_collect: null
                       rows_url: https://metrics.example.com/api/v1/analytics/controller.credentials_service/
                       collect_url: https://metrics.example.com/api/v1/analytics/controller.credentials_service/collect/
+                    - name: controller.credentials_service_org
+                      description: Distinct managed credential types used by jobs,
+                        grouped by job organization.
+                      payload_shape: array
+                      key_field: null
+                      mode: hourly
+                      accepts_since_until: true
+                      last_collect: null
+                      rows_url: https://metrics.example.com/api/v1/analytics/controller.credentials_service_org/
+                      collect_url: https://metrics.example.com/api/v1/analytics/controller.credentials_service_org/collect/
                     - name: controller.main_jobevent_service
                       description: Selected job events for jobs completed in the window,
                         including event actions, task/play/role, host, result flags,
@@ -365,6 +385,16 @@ paths:
                       last_collect: null
                       rows_url: https://metrics.example.com/api/v1/analytics/controller.cred_type_counts/
                       collect_url: https://metrics.example.com/api/v1/analytics/controller.cred_type_counts/collect/
+                    - name: controller.cred_type_counts_org
+                      description: Credential counts grouped by owning organization
+                        and credential type.
+                      payload_shape: array
+                      key_field: null
+                      mode: snapshot
+                      accepts_since_until: false
+                      last_collect: null
+                      rows_url: https://metrics.example.com/api/v1/analytics/controller.cred_type_counts_org/
+                      collect_url: https://metrics.example.com/api/v1/analytics/controller.cred_type_counts_org/collect/
                     - name: controller.host_metric_summary_monthly_table
                       description: Monthly host capacity and usage summaries, including
                         hosts added, deleted, and indirectly managed.
@@ -396,6 +426,16 @@ paths:
                       last_collect: null
                       rows_url: https://metrics.example.com/api/v1/analytics/controller.inventory_counts/
                       collect_url: https://metrics.example.com/api/v1/analytics/controller.inventory_counts/collect/
+                    - name: controller.inventory_counts_org
+                      description: Inventory, host, and source counts grouped by organization
+                        and inventory kind.
+                      payload_shape: array
+                      key_field: null
+                      mode: snapshot
+                      accepts_since_until: false
+                      last_collect: null
+                      rows_url: https://metrics.example.com/api/v1/analytics/controller.inventory_counts_org/
+                      collect_url: https://metrics.example.com/api/v1/analytics/controller.inventory_counts_org/collect/
                     - name: controller.org_counts
                       description: Organization names with distinct user and team
                         counts.
@@ -416,6 +456,16 @@ paths:
                       last_collect: null
                       rows_url: https://metrics.example.com/api/v1/analytics/controller.projects_by_scm_type/
                       collect_url: https://metrics.example.com/api/v1/analytics/controller.projects_by_scm_type/collect/
+                    - name: controller.projects_by_scm_type_org
+                      description: Project counts grouped by organization and source-control
+                        type.
+                      payload_shape: array
+                      key_field: null
+                      mode: snapshot
+                      accepts_since_until: false
+                      last_collect: null
+                      rows_url: https://metrics.example.com/api/v1/analytics/controller.projects_by_scm_type_org/
+                      collect_url: https://metrics.example.com/api/v1/analytics/controller.projects_by_scm_type_org/collect/
                     - name: controller.unified_job_template_table
                       description: Unified job template identity, type, execution
                         environment, ownership, last/current/next job references,
@@ -7967,9 +8017,11 @@ components:
       oneOf:
       - $ref: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobsDashboard'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobs'
+      - $ref: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobsOrg'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerJobHostSummaryService'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerJobHostSummary'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerCredentialsService'
+      - $ref: '#/components/schemas/AnalyticsPayloadControllerCredentialsServiceOrg'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerMainJobeventService'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerMainJobevent'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerEventsTable'
@@ -7982,11 +8034,14 @@ components:
       - $ref: '#/components/schemas/AnalyticsPayloadControllerFeatureFlagsService'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerCounts'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerCredTypeCounts'
+      - $ref: '#/components/schemas/AnalyticsPayloadControllerCredTypeCountsOrg'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerHostMetricSummaryMonthlyTable'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerInstanceInfo'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerInventoryCounts'
+      - $ref: '#/components/schemas/AnalyticsPayloadControllerInventoryCountsOrg'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerOrgCounts'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerProjectsByScmType'
+      - $ref: '#/components/schemas/AnalyticsPayloadControllerProjectsByScmTypeOrg'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobTemplateTable'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerWorkflowJobTemplateNodeTable'
       - $ref: '#/components/schemas/AnalyticsPayloadControllerMainHost'
@@ -7998,9 +8053,11 @@ components:
         mapping:
           controller.unified_jobs_dashboard: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobsDashboard'
           controller.unified_jobs: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobs'
+          controller.unified_jobs_org: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobsOrg'
           controller.job_host_summary_service: '#/components/schemas/AnalyticsPayloadControllerJobHostSummaryService'
           controller.job_host_summary: '#/components/schemas/AnalyticsPayloadControllerJobHostSummary'
           controller.credentials_service: '#/components/schemas/AnalyticsPayloadControllerCredentialsService'
+          controller.credentials_service_org: '#/components/schemas/AnalyticsPayloadControllerCredentialsServiceOrg'
           controller.main_jobevent_service: '#/components/schemas/AnalyticsPayloadControllerMainJobeventService'
           controller.main_jobevent: '#/components/schemas/AnalyticsPayloadControllerMainJobevent'
           controller.events_table: '#/components/schemas/AnalyticsPayloadControllerEventsTable'
@@ -8013,11 +8070,14 @@ components:
           controller.feature_flags_service: '#/components/schemas/AnalyticsPayloadControllerFeatureFlagsService'
           controller.counts: '#/components/schemas/AnalyticsPayloadControllerCounts'
           controller.cred_type_counts: '#/components/schemas/AnalyticsPayloadControllerCredTypeCounts'
+          controller.cred_type_counts_org: '#/components/schemas/AnalyticsPayloadControllerCredTypeCountsOrg'
           controller.host_metric_summary_monthly_table: '#/components/schemas/AnalyticsPayloadControllerHostMetricSummaryMonthlyTable'
           controller.instance_info: '#/components/schemas/AnalyticsPayloadControllerInstanceInfo'
           controller.inventory_counts: '#/components/schemas/AnalyticsPayloadControllerInventoryCounts'
+          controller.inventory_counts_org: '#/components/schemas/AnalyticsPayloadControllerInventoryCountsOrg'
           controller.org_counts: '#/components/schemas/AnalyticsPayloadControllerOrgCounts'
           controller.projects_by_scm_type: '#/components/schemas/AnalyticsPayloadControllerProjectsByScmType'
+          controller.projects_by_scm_type_org: '#/components/schemas/AnalyticsPayloadControllerProjectsByScmTypeOrg'
           controller.unified_job_template_table: '#/components/schemas/AnalyticsPayloadControllerUnifiedJobTemplateTable'
           controller.workflow_job_template_node_table: '#/components/schemas/AnalyticsPayloadControllerWorkflowJobTemplateNodeTable'
           controller.main_host: '#/components/schemas/AnalyticsPayloadControllerMainHost'
@@ -8205,6 +8265,52 @@ components:
             values.
       required:
       - payload
+    AnalyticsPayloadControllerCredTypeCountsOrg:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        collector:
+          enum:
+          - controller.cred_type_counts_org
+          type: string
+          description: '* `controller.cred_type_counts_org` - controller.cred_type_counts_org'
+          default: controller.cred_type_counts_org
+        source:
+          type: string
+          readOnly: true
+        cluster_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Controller installation UUID (INSTALL_UUID), or null if unavailable.
+        since:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        until:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+        payload:
+          type: array
+          items:
+            $ref: '#/components/schemas/CredTypeCountsOrgPayload'
+          description: Credential counts grouped by owning organization and credential
+            type.
+      required:
+      - payload
     AnalyticsPayloadControllerCredentialsService:
       type: object
       properties:
@@ -8248,6 +8354,51 @@ components:
           items:
             $ref: '#/components/schemas/CredentialsServicePayload'
           description: Managed credential types used by jobs in the collection window.
+      required:
+      - payload
+    AnalyticsPayloadControllerCredentialsServiceOrg:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        collector:
+          enum:
+          - controller.credentials_service_org
+          type: string
+          description: '* `controller.credentials_service_org` - controller.credentials_service_org'
+          default: controller.credentials_service_org
+        source:
+          type: string
+          readOnly: true
+        cluster_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Controller installation UUID (INSTALL_UUID), or null if unavailable.
+        since:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        until:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+        payload:
+          type: array
+          items:
+            $ref: '#/components/schemas/CredentialsServiceOrgPayload'
+          description: Managed credential types used by jobs, grouped by job organization.
       required:
       - payload
     AnalyticsPayloadControllerEventsTable:
@@ -8524,6 +8675,52 @@ components:
             nullable: true
           description: Inventory details keyed by inventory ID. Keys are inventory_id
             values.
+      required:
+      - payload
+    AnalyticsPayloadControllerInventoryCountsOrg:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        collector:
+          enum:
+          - controller.inventory_counts_org
+          type: string
+          description: '* `controller.inventory_counts_org` - controller.inventory_counts_org'
+          default: controller.inventory_counts_org
+        source:
+          type: string
+          readOnly: true
+        cluster_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Controller installation UUID (INSTALL_UUID), or null if unavailable.
+        since:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        until:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+        payload:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryCountsOrgPayload'
+          description: Inventory, host, and source counts grouped by organization
+            and inventory kind.
       required:
       - payload
     AnalyticsPayloadControllerJobHostSummary:
@@ -8986,6 +9183,51 @@ components:
             projects without one. Keys are scm_type values.
       required:
       - payload
+    AnalyticsPayloadControllerProjectsByScmTypeOrg:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        collector:
+          enum:
+          - controller.projects_by_scm_type_org
+          type: string
+          description: '* `controller.projects_by_scm_type_org` - controller.projects_by_scm_type_org'
+          default: controller.projects_by_scm_type_org
+        source:
+          type: string
+          readOnly: true
+        cluster_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Controller installation UUID (INSTALL_UUID), or null if unavailable.
+        since:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        until:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+        payload:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectsByScmTypeOrgPayload'
+          description: Project counts grouped by organization and source-control type.
+      required:
+      - payload
     AnalyticsPayloadControllerQueryInfo:
       type: object
       properties:
@@ -9211,6 +9453,52 @@ components:
             $ref: '#/components/schemas/UnifiedJobsDashboardPayload'
           description: Job execution records returned by unified_jobs_dashboard, filtered
             by job finish time.
+      required:
+      - payload
+    AnalyticsPayloadControllerUnifiedJobsOrg:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        collector:
+          enum:
+          - controller.unified_jobs_org
+          type: string
+          description: '* `controller.unified_jobs_org` - controller.unified_jobs_org'
+          default: controller.unified_jobs_org
+        source:
+          type: string
+          readOnly: true
+        cluster_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Controller installation UUID (INSTALL_UUID), or null if unavailable.
+        since:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        until:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+        payload:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnifiedJobsOrgPayload'
+          description: Unified job summaries grouped by organization, job type, and
+            status.
       required:
       - payload
     AnalyticsPayloadControllerWorkflowJobNodeTable:
@@ -9617,6 +9905,24 @@ components:
         database_connections:
           type: integer
           nullable: true
+    CredTypeCountsOrgPayload:
+      type: object
+      properties:
+        organization_id:
+          type: integer
+          nullable: true
+        organization_name:
+          type: string
+          nullable: true
+        credential_type_id:
+          type: integer
+        credential_type:
+          type: string
+        managed:
+          type: boolean
+        credential_count:
+          type: integer
+          nullable: true
     CredentialTypeCountPayload:
       type: object
       properties:
@@ -9629,6 +9935,18 @@ components:
         managed:
           type: boolean
           nullable: true
+    CredentialsServiceOrgPayload:
+      type: object
+      properties:
+        organization_id:
+          type: integer
+          nullable: true
+        organization_name:
+          type: string
+          nullable: true
+        credential_type:
+          type: string
+          description: Managed credential type name.
     CredentialsServicePayload:
       type: object
       properties:
@@ -10486,6 +10804,26 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SourcePayload'
+          nullable: true
+    InventoryCountsOrgPayload:
+      type: object
+      properties:
+        organization_id:
+          type: integer
+          nullable: true
+        organization_name:
+          type: string
+          nullable: true
+        inventory_kind:
+          type: string
+        inventory_count:
+          type: integer
+          nullable: true
+        host_count:
+          type: integer
+          nullable: true
+        source_count:
+          type: integer
           nullable: true
     JobHostSummaryPayload:
       type: object
@@ -11940,6 +12278,20 @@ components:
           type: string
           nullable: true
           description: 'Install type: openshift, k8s, or traditional.'
+    ProjectsByScmTypeOrgPayload:
+      type: object
+      properties:
+        organization_id:
+          type: integer
+          nullable: true
+        organization_name:
+          type: string
+          nullable: true
+        scm_type:
+          type: string
+        project_count:
+          type: integer
+          nullable: true
     QueryInfoPayload:
       type: object
       properties:
@@ -13670,6 +14022,35 @@ components:
           type: integer
           nullable: true
           description: Number of job host summaries recorded for the job.
+    UnifiedJobsOrgPayload:
+      type: object
+      properties:
+        organization_id:
+          type: integer
+          nullable: true
+        organization_name:
+          type: string
+          nullable: true
+        job_type:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        job_count:
+          type: integer
+          nullable: true
+        failure_count:
+          type: integer
+          nullable: true
+        elapsed_total:
+          type: number
+          format: double
+          nullable: true
+        elapsed_average:
+          type: number
+          format: double
+          nullable: true
     UnifiedJobsPayload:
       type: object
       properties:

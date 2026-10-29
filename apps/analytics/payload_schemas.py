@@ -117,6 +117,22 @@ UNIFIED_JOBS = PayloadSchema(
     item_fields=tuple(field for field in _JOB_FIELDS if field.name != "modified"),
 )
 
+UNIFIED_JOBS_ORG = PayloadSchema(
+    name="UnifiedJobsOrgPayload",
+    kind="array",
+    description="Unified job summaries grouped by organization, job type, and status.",
+    item_fields=(
+        _field("organization_id", "integer"),
+        _field("organization_name", "string"),
+        _field("job_type", "string"),
+        _field("status", "string"),
+        _field("job_count", "integer"),
+        _field("failure_count", "integer"),
+        _field("elapsed_total", "number"),
+        _field("elapsed_average", "number"),
+    ),
+)
+
 UNIFIED_JOBS_DASHBOARD = PayloadSchema(
     name="UnifiedJobsDashboardPayload",
     kind="array",
@@ -244,6 +260,17 @@ CREDENTIALS = PayloadSchema(
     kind="array",
     description="Managed credential types used by jobs in the collection window.",
     item_fields=(_field("credential_type", "string", "Managed credential type name.", nullable=False),),
+)
+
+CREDENTIALS_SERVICE_ORG = PayloadSchema(
+    name="CredentialsServiceOrgPayload",
+    kind="array",
+    description="Managed credential types used by jobs, grouped by job organization.",
+    item_fields=(
+        _field("organization_id", "integer"),
+        _field("organization_name", "string"),
+        _field("credential_type", "string", "Managed credential type name.", nullable=False),
+    ),
 )
 
 _DEPRECATION = _object(
@@ -601,6 +628,20 @@ CRED_TYPE_COUNTS = PayloadSchema(
     ),
 )
 
+CRED_TYPE_COUNTS_ORG = PayloadSchema(
+    name="CredTypeCountsOrgPayload",
+    kind="array",
+    description="Credential counts grouped by owning organization and credential type.",
+    item_fields=(
+        _field("organization_id", "integer"),
+        _field("organization_name", "string"),
+        _field("credential_type_id", "integer", nullable=False),
+        _field("credential_type", "string", nullable=False),
+        _field("managed", "boolean", nullable=False),
+        _field("credential_count", "integer"),
+    ),
+)
+
 HOST_METRIC_SUMMARY_MONTHLY = PayloadSchema(
     name="HostMetricSummaryMonthlyTablePayload",
     kind="array",
@@ -667,6 +708,20 @@ INVENTORY_COUNTS = PayloadSchema(
     ),
 )
 
+INVENTORY_COUNTS_ORG = PayloadSchema(
+    name="InventoryCountsOrgPayload",
+    kind="array",
+    description="Inventory, host, and source counts grouped by organization and inventory kind.",
+    item_fields=(
+        _field("organization_id", "integer"),
+        _field("organization_name", "string"),
+        _field("inventory_kind", "string", nullable=False),
+        _field("inventory_count", "integer"),
+        _field("host_count", "integer"),
+        _field("source_count", "integer"),
+    ),
+)
+
 ORG_COUNTS = PayloadSchema(
     name="OrgCountsPayload",
     kind="object",
@@ -685,6 +740,18 @@ PROJECTS_BY_SCM_TYPE = PayloadSchema(
     description="Project counts keyed by source-control type, with manual for projects without one.",
     key_field="scm_type",
     additional_properties=_map_value("ProjectScmTypeCount", "integer"),
+)
+
+PROJECTS_BY_SCM_TYPE_ORG = PayloadSchema(
+    name="ProjectsByScmTypeOrgPayload",
+    kind="array",
+    description="Project counts grouped by organization and source-control type.",
+    item_fields=(
+        _field("organization_id", "integer"),
+        _field("organization_name", "string"),
+        _field("scm_type", "string", nullable=False),
+        _field("project_count", "integer"),
+    ),
 )
 
 UNIFIED_JOB_TEMPLATE = PayloadSchema(
@@ -825,9 +892,11 @@ INDIRECT_MANAGED_NODES = PayloadSchema(
 PAYLOAD_SCHEMAS = {
     "unified_jobs_dashboard": UNIFIED_JOBS_DASHBOARD,
     "unified_jobs": UNIFIED_JOBS,
+    "unified_jobs_org": UNIFIED_JOBS_ORG,
     "job_host_summary_service": JOB_HOST_SUMMARY_SERVICE,
     "job_host_summary": JOB_HOST_SUMMARY,
     "credentials_service": CREDENTIALS,
+    "credentials_service_org": CREDENTIALS_SERVICE_ORG,
     "main_jobevent_service": MAIN_JOBEVENT_SERVICE,
     "main_jobevent": MAIN_JOBEVENT,
     "events_table": EVENTS_TABLE,
@@ -840,11 +909,14 @@ PAYLOAD_SCHEMAS = {
     "feature_flags_service": FEATURE_FLAGS,
     "counts": COUNTS,
     "cred_type_counts": CRED_TYPE_COUNTS,
+    "cred_type_counts_org": CRED_TYPE_COUNTS_ORG,
     "host_metric_summary_monthly_table": HOST_METRIC_SUMMARY_MONTHLY,
     "instance_info": INSTANCE_INFO,
     "inventory_counts": INVENTORY_COUNTS,
+    "inventory_counts_org": INVENTORY_COUNTS_ORG,
     "org_counts": ORG_COUNTS,
     "projects_by_scm_type": PROJECTS_BY_SCM_TYPE,
+    "projects_by_scm_type_org": PROJECTS_BY_SCM_TYPE_ORG,
     "unified_job_template_table": UNIFIED_JOB_TEMPLATE,
     "workflow_job_template_node_table": WORKFLOW_JOB_TEMPLATE_NODE,
     "main_host": MAIN_HOST,
