@@ -117,8 +117,9 @@ def _merge_hourly_rollups(collections_by_type: dict[str, list]) -> tuple[dict, l
         "main_jobevent_service": EventModulesAnonymizedRollup(),
         "unified_jobs": JobsAnonymizedRollup(),
     }
-    # events_table, workflow_job_node_table, and query_info are raw analytics collectors.
-    # They intentionally have no entry here because they do not produce anonymized rollup data.
+    # job_host_summary, unified_jobs_base, main_jobevent_legacy, events_table,
+    # workflow_job_node_table, and query_info are raw analytics collectors. They intentionally
+    # have no entry here because they do not produce anonymized rollup data.
 
     # Daily collectors expect 1 collection per day.
     # Includes both snapshot collectors and daily time-range collectors.
