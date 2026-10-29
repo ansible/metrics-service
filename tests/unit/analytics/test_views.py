@@ -120,6 +120,26 @@ def test_openapi_associates_every_enabled_collector_with_a_payload_schema():
     assert {parameter["name"] for parameter in operation["parameters"]} >= {"page", "page_size", "since", "until"}
 
 
+def test_openapi_omits_withheld_columns_from_collector_components():
+    """A column the API withholds must not be advertised by the component documenting it."""
+    from drf_spectacular.generators import SchemaGenerator
+
+    from apps.analytics.registry import enabled_collectors
+
+    components = SchemaGenerator().get_schema(request=None, public=True)["components"]["schemas"]
+    withholding = [entry for entry in enabled_collectors().values() if entry.exclude_columns]
+    assert withholding, "no collector withholds a column; this test would pass vacuously"
+
+    for entry in withholding:
+        # Only array payloads withhold anything today, and the other shapes name their record
+        # component differently - revisit this lookup if that changes.
+        assert entry.payload_shape == "array", entry.name
+        declared = set(components[entry.payload_schema.name]["properties"])
+        assert declared.isdisjoint(entry.exclude_columns), entry.name
+        # The schema still describes the collector's real output; only the component hides it.
+        assert set(entry.exclude_columns) <= {field.name for field in entry.payload_schema.item_fields}
+
+
 def test_rows_browsable_response_shows_field_description(authenticated_client):
     response = authenticated_client.get(f"{ROOT}{CONFIG}/", HTTP_ACCEPT="text/html")
 
