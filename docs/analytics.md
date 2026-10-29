@@ -5,6 +5,9 @@ in `AnalyticsPayload`. The stored row is a collection envelope: collector name,
 source, Controller installation UUID, collection bounds, collection timestamps,
 and the raw JSON payload.
 
+For BI-agnostic report steps, organization joins, deduplication, and worked
+input/output examples, see [report recipes](report-recipes.md).
+
 The read and trigger APIs are available under `/api/v1/analytics/` and are
 restricted to users with the System Administrator or Platform Auditor role.
 
