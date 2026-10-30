@@ -23,10 +23,10 @@ version = "1.0.0"
 
 dependencies = [
     "django~=5.2.17",
-    "djangorestframework>=3.15",
+    "djangorestframework>=3.18.2",
     # >=2025.12.12 accepts both PyPI releases and the git override (2025.12.16.0.dev4 in uv.lock).
     # Use `uv sync` so [tool.uv.sources] applies; plain `pip install .` will use latest from PyPI.
-    "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]>=2026.1.26",
+    "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]>=2026.10.26",
     "psycopg[binary]>=3.1", # Binary wheel; use [c] only if C build tools available
     "psycopg2-binary>=2.9.0", # Binary wheel for dispatcherd PostgreSQL LISTEN/NOTIFY (no C compiler in Docker)
     "dynaconf>=3.1.0",
@@ -319,4 +319,4 @@ with open('.copier-answers.yml') as f:
 
 [tool.uv.sources]
 # Use resolved commit (not branch "devel") so uv pip compile sees a single ref and does not conflict with requirements-pinned.txt. After uv lock, update this to match the commit in uv.lock for django-ansible-base.
-django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "07acd7180e2b517ff2e731fdc4666e1daaf3847e" } # 2026.6.2
+django-ansible-base = { git = "https://github.com/ansible/django-ansible-base", rev = "62a1a424db58ea859321d4ae49de2dc9d681ec63" } # 2026.10.26
