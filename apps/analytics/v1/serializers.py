@@ -1,5 +1,6 @@
 """Serializers for the analytics API and its collector-specific OpenAPI shapes."""
 
+from dataclasses import replace
 from functools import cache
 
 from drf_spectacular.utils import PolymorphicProxySerializer, inline_serializer
@@ -96,19 +97,36 @@ def _field_to_serializer(field: PayloadField):
     raise ValueError(f"Unsupported analytics payload field type: {field.type}")
 
 
+def _without_columns(fields: tuple[PayloadField, ...], excluded: frozenset[str]) -> tuple[PayloadField, ...]:
+    """Drop withheld columns from one record's field list."""
+    return tuple(field for field in fields if field.name not in excluded) if excluded else fields
+
+
 @cache
-def _payload_field(schema: PayloadSchema):
-    """Build the DRF field representing one collector's complete payload."""
+def _payload_field(schema: PayloadSchema, exclude_columns: tuple[str, ...] = ()):
+    """Build the DRF field representing one collector's complete payload.
+
+    ``exclude_columns`` are removed at record level, the same level
+    :func:`~apps.analytics.exclusions.apply_exclusions` strips them from the data, so the
+    documented component matches what the API actually returns.
+    """
+    excluded = frozenset(exclude_columns)
     if schema.kind == "array":
-        item_serializer = _serializer_for_fields(schema.name, schema.item_fields)
+        item_serializer = _serializer_for_fields(schema.name, _without_columns(schema.item_fields, excluded))
         return serializers.ListField(child=item_serializer(), help_text=schema.description)
     if schema.kind == "object":
         if schema.additional_properties:
+            # Keyed by data: the record is the value, so that is where the exclusion applies.
+            record = schema.additional_properties
+            if excluded:
+                record = replace(record, fields=_without_columns(record.fields, excluded))
             return serializers.DictField(
-                child=_field_to_serializer(schema.additional_properties),
+                child=_field_to_serializer(record),
                 help_text=f"{schema.description} Keys are {schema.key_field} values.",
             )
-        return _serializer_for_fields(schema.name, schema.fields)(help_text=schema.description)
+        return _serializer_for_fields(schema.name, _without_columns(schema.fields, excluded))(
+            help_text=schema.description
+        )
     raise ValueError(f"Unsupported analytics payload schema kind: {schema.kind}")
 
 
@@ -129,7 +147,7 @@ def collector_payload_serializer(entry: CollectorEntry) -> type[serializers.Seri
         "until": serializers.DateTimeField(read_only=True, allow_null=True),
         "started_at": serializers.DateTimeField(read_only=True),
         "finished_at": serializers.DateTimeField(read_only=True),
-        "payload": _payload_field(entry.payload_schema),
+        "payload": _payload_field(entry.payload_schema, entry.exclude_columns),
     }
     return type(f"AnalyticsPayload{_serializer_name(entry.name)}", (serializers.Serializer,), attrs)
 
