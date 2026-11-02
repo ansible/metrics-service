@@ -6,7 +6,6 @@ from typing import Any
 
 from .utils import get_db_connection
 
-DEFAULT_AWX_DB_NAME = "awx"
 DEFAULT_RETENTION_DAYS = 90
 
 RETENTION_SETTINGS_QUERY = """
@@ -95,10 +94,10 @@ def _fetch_retention_settings(db_connection) -> list[dict[str, Any]]:
         return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
 
-def get_controller_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
+def get_controller_retention_days() -> int:
     """Return Controller retention, logging and falling back to 90 days when necessary."""
     try:
-        retention_data = _fetch_retention_settings(get_db_connection(db_name))
+        retention_data = _fetch_retention_settings(get_db_connection("awx"))
     except Exception:
         logger.exception("Unable to read Controller retention; using 90-day fallback")
         return DEFAULT_RETENTION_DAYS

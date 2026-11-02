@@ -26,12 +26,7 @@ from metrics_utility.library.collectors.dashboard import (
 
 from apps.dashboard_reports.awx_queries import fetch_job_types_for_ids, fetch_organizations, fetch_retention_settings
 from apps.dashboard_reports.models import DashboardTelemetry, JobData, JobHostSummary
-from apps.tasks.retention import (
-    DEFAULT_AWX_DB_NAME,
-    DEFAULT_RETENTION_DAYS,
-    _parse_dt,
-    resolve_retention_days,
-)
+from apps.tasks.retention import DEFAULT_RETENTION_DAYS, _parse_dt, resolve_retention_days
 from apps.tasks.utils import create_task_result, get_db_connection, ignore_database_override, log_task_execution
 
 ORG_NAME_BACKFILL_BATCH_SIZE = 5_000
@@ -69,7 +64,7 @@ def _use_controller_retention() -> bool:
     return bool(dashboard_cfg.get("USE_CONTROLLER_RETENTION", True))
 
 
-def get_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
+def get_retention_days() -> int:
     """
     Return the effective retention period in days derived from active AWX cleanup schedules.
 
@@ -90,7 +85,7 @@ def get_retention_days(db_name: str = DEFAULT_AWX_DB_NAME) -> int:
     a different resource (activity stream entries) and must not drive ``JobData`` retention.
     """
     try:
-        db_connection = get_db_connection(db_name)
+        db_connection = get_db_connection("awx")
         retention_data, _ = fetch_retention_settings(db_connection=db_connection)
     except Exception:
         logger.exception(f"Error fetching retention settings; using default {DEFAULT_RETENTION_DAYS} days")
@@ -178,7 +173,7 @@ def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datet
     """
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
     ignore_database_override(task_name, kwargs)
-    db_name = DEFAULT_AWX_DB_NAME
+    db_name = "awx"
     until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
     # Use MAX(finished) as the watermark because all collection queries use date_field='finished'.
     # This aligns the watermark with the query filter so the Controller DB finished index is
@@ -186,7 +181,7 @@ def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datet
     since = _parse_dt(kwargs.get("since")) or JobData.last_finished_timestamp()
     if since is None:
         if _use_controller_retention():
-            retention_days = get_retention_days(db_name)
+            retention_days = get_retention_days()
             if retention_days <= 0:
                 raise ValueError(f"Retention days must be > 0, got {retention_days!r}")
         else:
@@ -416,9 +411,7 @@ def _update_organization_names(
     return updated
 
 
-def fill_missing_organization_names(
-    task_name: str, db_name: str = DEFAULT_AWX_DB_NAME, batch_size: int = ORG_NAME_BACKFILL_BATCH_SIZE
-) -> dict[str, Any]:
+def fill_missing_organization_names(task_name: str, batch_size: int = ORG_NAME_BACKFILL_BATCH_SIZE) -> dict[str, Any]:
     """
     Set organization_name on JobData rows that have ``organization_id`` set but no name.
 
@@ -437,7 +430,7 @@ def fill_missing_organization_names(
         )
         return {"updated_records": 0, "unresolved_records": 0, "unresolved_ids": []}
 
-    organizations, _ = fetch_organizations(db_connection=get_db_connection(db_name))
+    organizations, _ = fetch_organizations(db_connection=get_db_connection("awx"))
     names_by_id = {org["id"]: org["name"] for org in organizations if org["id"] in org_ids}
     updated = _update_organization_names(missing_qs, names_by_id, batch_size, task_name)
 
@@ -468,7 +461,7 @@ def backfill_dashboard_organization_names(**kwargs: Any) -> dict[str, Any]:
     try:
         ignore_database_override(task_name, kwargs)
         batch_size = _org_name_backfill_batch_size(kwargs)
-        stats = fill_missing_organization_names(task_name, db_name=DEFAULT_AWX_DB_NAME, batch_size=batch_size)
+        stats = fill_missing_organization_names(task_name, batch_size=batch_size)
     except Exception as e:
         logger.exception(f"{task_name}: failed")
         msg = f"Filling organization names failed: {str(e)}"
@@ -506,7 +499,7 @@ def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
     try:
         ignore_database_override(task_name, kwargs)
         batch_size = _job_type_backfill_batch_size(kwargs)
-        db_name = DEFAULT_AWX_DB_NAME
+        db_name = "awx"
 
         if not JobData.objects.filter(job_type__isnull=True).exists():
             log_task_execution(
@@ -652,7 +645,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     )
     if job_ids:
         try:
-            controller_models = fetch_job_types_for_ids(get_db_connection(DEFAULT_AWX_DB_NAME), job_ids)
+            controller_models = fetch_job_types_for_ids(get_db_connection("awx"), job_ids)
         except Exception:
             logger.exception("Unable to recover Controller models for queued dashboard job records")
             error = f"Unable to recover Controller models for {len(job_ids)} queued dashboard job record(s)"
@@ -861,10 +854,9 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     """
     task_name = "cleanup_dashboard_reports_old_data"
     ignore_database_override(task_name, kwargs)
-    db_name = DEFAULT_AWX_DB_NAME
     retention_days = _get_renamed_kwarg(kwargs, "retention_days", "retention_period_days", task_name)
     if retention_days is _MISSING:
-        retention_days = get_retention_days(db_name) if _use_controller_retention() else DEFAULT_RETENTION_DAYS
+        retention_days = get_retention_days() if _use_controller_retention() else DEFAULT_RETENTION_DAYS
     retention_days, error_result = _normalize_retention_days(task_name, retention_days)
     if error_result is not None:
         return error_result

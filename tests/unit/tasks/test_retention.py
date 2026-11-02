@@ -69,11 +69,11 @@ class TestGetControllerRetentionDays:
         mock_logger.exception.assert_called_once_with("Unable to read Controller retention; using 90-day fallback")
 
     @patch("apps.tasks.retention._fetch_retention_settings")
-    def test_uses_custom_database_alias(self, mock_fetch):
+    def test_uses_fixed_awx_database_alias(self, mock_fetch):
         mock_fetch.return_value = [_row(days=45)]
         with patch("apps.tasks.retention.get_db_connection") as mock_connection:
-            assert get_controller_retention_days("controller") == 45
-        mock_connection.assert_called_once_with("controller")
+            assert get_controller_retention_days() == 45
+        mock_connection.assert_called_once_with("awx")
 
 
 @pytest.mark.unit
