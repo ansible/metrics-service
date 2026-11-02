@@ -262,6 +262,8 @@ TASK_METADATA = {
             {"name": "Raw job host summary records", "data": {"collector_type": "job_host_summary"}},
             {"name": "Base unified job records", "data": {"collector_type": "unified_jobs_base"}},
             {"name": "Legacy job events", "data": {"collector_type": "main_jobevent_legacy"}},
+            {"name": "Organization unified jobs", "data": {"collector_type": "unified_jobs_org"}},
+            {"name": "Organization credentials", "data": {"collector_type": "credentials_service_org"}},
             {
                 "name": "Specific hour",
                 "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
@@ -326,13 +328,22 @@ TASK_METADATA = {
             {"name": "Controller counts", "data": {"collector_type": "counts"}},
             {"name": "Credential type counts", "data": {"collector_type": "cred_type_counts"}},
             {
+                "name": "Organization credential type counts",
+                "data": {"collector_type": "cred_type_counts_org"},
+            },
+            {
                 "name": "Monthly host metric summary",
                 "data": {"collector_type": "host_metric_summary_monthly_table"},
             },
             {"name": "Controller instance information", "data": {"collector_type": "instance_info"}},
             {"name": "Inventory counts", "data": {"collector_type": "inventory_counts"}},
+            {"name": "Organization inventory counts", "data": {"collector_type": "inventory_counts_org"}},
             {"name": "Organization counts", "data": {"collector_type": "org_counts"}},
             {"name": "Projects by SCM type", "data": {"collector_type": "projects_by_scm_type"}},
+            {
+                "name": "Organization projects by SCM type",
+                "data": {"collector_type": "projects_by_scm_type_org"},
+            },
             {"name": "Unified job templates", "data": {"collector_type": "unified_job_template_table"}},
             {
                 "name": "Workflow job template nodes",
@@ -516,6 +527,7 @@ TASK_METADATA = {
         "examples": [
             {"name": "Default", "data": {}},
             {"name": "Smaller batches", "data": {"batch_size": 500}},
+            {"name": "Custom Controller database", "data": {"awx_database": "controller"}},
         ],
     },
     "sync_dashboard_job_records": {
