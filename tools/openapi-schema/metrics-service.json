@@ -12136,21 +12136,26 @@
                 "type": "object",
                 "properties": {
                     "detail": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Reason the requested collection conflicts."
                     },
                     "task_id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Identifier of the blocking task."
                     },
                     "task_url": {
                         "type": "string",
-                        "format": "uri"
+                        "format": "uri",
+                        "description": "URL of the blocking task."
                     },
                     "task_status": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Current status of the blocking task."
                     },
                     "task_data": {
                         "type": "object",
-                        "additionalProperties": {}
+                        "additionalProperties": {},
+                        "description": "Collector and collection-window task data."
                     }
                 },
                 "required": [
@@ -12182,18 +12187,22 @@
                 "type": "object",
                 "properties": {
                     "task_id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Identifier of the collection task."
                     },
                     "task_url": {
                         "type": "string",
-                        "format": "uri"
+                        "format": "uri",
+                        "description": "URL of the collection task."
                     },
                     "collector": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Public group.function collector name."
                     },
                     "task_data": {
                         "type": "object",
-                        "additionalProperties": {}
+                        "additionalProperties": {},
+                        "description": "Resolved collector and collection-window task data."
                     },
                     "task_status": {
                         "type": "string",
@@ -12364,19 +12373,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.config"
                         ],
                         "type": "string",
-                        "description": "* `controller.config` - controller.config",
-                        "default": "controller.config"
+                        "default": "controller.config",
+                        "description": "Public group.function collector name.\n\n* `controller.config` - controller.config"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12388,23 +12399,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "allOf": [
@@ -12424,19 +12439,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.controller_version_service"
                         ],
                         "type": "string",
-                        "description": "* `controller.controller_version_service` - controller.controller_version_service",
-                        "default": "controller.controller_version_service"
+                        "default": "controller.controller_version_service",
+                        "description": "Public group.function collector name.\n\n* `controller.controller_version_service` - controller.controller_version_service"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12448,23 +12465,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -12483,19 +12504,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.counts"
                         ],
                         "type": "string",
-                        "description": "* `controller.counts` - controller.counts",
-                        "default": "controller.counts"
+                        "default": "controller.counts",
+                        "description": "Public group.function collector name.\n\n* `controller.counts` - controller.counts"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12507,23 +12530,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "allOf": [
@@ -12543,19 +12570,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.cred_type_counts"
                         ],
                         "type": "string",
-                        "description": "* `controller.cred_type_counts` - controller.cred_type_counts",
-                        "default": "controller.cred_type_counts"
+                        "default": "controller.cred_type_counts",
+                        "description": "Public group.function collector name.\n\n* `controller.cred_type_counts` - controller.cred_type_counts"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12567,23 +12596,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "object",
@@ -12593,7 +12626,8 @@
                                     "$ref": "#/components/schemas/CredentialTypeCountPayload"
                                 }
                             ],
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Credentialtypecount value."
                         },
                         "description": "Credential counts keyed by credential type ID. Keys are credential_type_id values."
                     }
@@ -12607,19 +12641,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.cred_type_counts_org"
                         ],
                         "type": "string",
-                        "description": "* `controller.cred_type_counts_org` - controller.cred_type_counts_org",
-                        "default": "controller.cred_type_counts_org"
+                        "default": "controller.cred_type_counts_org",
+                        "description": "Public group.function collector name.\n\n* `controller.cred_type_counts_org` - controller.cred_type_counts_org"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12631,23 +12667,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -12666,19 +12706,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.credentials_service"
                         ],
                         "type": "string",
-                        "description": "* `controller.credentials_service` - controller.credentials_service",
-                        "default": "controller.credentials_service"
+                        "default": "controller.credentials_service",
+                        "description": "Public group.function collector name.\n\n* `controller.credentials_service` - controller.credentials_service"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12690,23 +12732,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -12725,19 +12771,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.credentials_service_org"
                         ],
                         "type": "string",
-                        "description": "* `controller.credentials_service_org` - controller.credentials_service_org",
-                        "default": "controller.credentials_service_org"
+                        "default": "controller.credentials_service_org",
+                        "description": "Public group.function collector name.\n\n* `controller.credentials_service_org` - controller.credentials_service_org"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12749,23 +12797,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -12784,19 +12836,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.events_table"
                         ],
                         "type": "string",
-                        "description": "* `controller.events_table` - controller.events_table",
-                        "default": "controller.events_table"
+                        "default": "controller.events_table",
+                        "description": "Public group.function collector name.\n\n* `controller.events_table` - controller.events_table"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12808,23 +12862,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -12843,19 +12901,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.execution_environments"
                         ],
                         "type": "string",
-                        "description": "* `controller.execution_environments` - controller.execution_environments",
-                        "default": "controller.execution_environments"
+                        "default": "controller.execution_environments",
+                        "description": "Public group.function collector name.\n\n* `controller.execution_environments` - controller.execution_environments"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12867,23 +12927,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -12902,19 +12966,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.feature_flags_service"
                         ],
                         "type": "string",
-                        "description": "* `controller.feature_flags_service` - controller.feature_flags_service",
-                        "default": "controller.feature_flags_service"
+                        "default": "controller.feature_flags_service",
+                        "description": "Public group.function collector name.\n\n* `controller.feature_flags_service` - controller.feature_flags_service"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12926,23 +12992,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -12961,19 +13031,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.host_metric_summary_monthly_table"
                         ],
                         "type": "string",
-                        "description": "* `controller.host_metric_summary_monthly_table` - controller.host_metric_summary_monthly_table",
-                        "default": "controller.host_metric_summary_monthly_table"
+                        "default": "controller.host_metric_summary_monthly_table",
+                        "description": "Public group.function collector name.\n\n* `controller.host_metric_summary_monthly_table` - controller.host_metric_summary_monthly_table"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -12985,23 +13057,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13020,19 +13096,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.instance_info"
                         ],
                         "type": "string",
-                        "description": "* `controller.instance_info` - controller.instance_info",
-                        "default": "controller.instance_info"
+                        "default": "controller.instance_info",
+                        "description": "Public group.function collector name.\n\n* `controller.instance_info` - controller.instance_info"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13044,23 +13122,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "object",
@@ -13070,7 +13152,8 @@
                                     "$ref": "#/components/schemas/InstanceInfoRecordPayload"
                                 }
                             ],
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Instanceinforecord value."
                         },
                         "description": "Controller instance topology and consumed capacity keyed by UUID. Keys are uuid values."
                     }
@@ -13084,19 +13167,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.inventory_counts"
                         ],
                         "type": "string",
-                        "description": "* `controller.inventory_counts` - controller.inventory_counts",
-                        "default": "controller.inventory_counts"
+                        "default": "controller.inventory_counts",
+                        "description": "Public group.function collector name.\n\n* `controller.inventory_counts` - controller.inventory_counts"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13108,23 +13193,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "object",
@@ -13134,7 +13223,8 @@
                                     "$ref": "#/components/schemas/InventoryCountPayload"
                                 }
                             ],
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Inventorycount value."
                         },
                         "description": "Inventory details keyed by inventory ID. Keys are inventory_id values."
                     }
@@ -13148,19 +13238,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.inventory_counts_org"
                         ],
                         "type": "string",
-                        "description": "* `controller.inventory_counts_org` - controller.inventory_counts_org",
-                        "default": "controller.inventory_counts_org"
+                        "default": "controller.inventory_counts_org",
+                        "description": "Public group.function collector name.\n\n* `controller.inventory_counts_org` - controller.inventory_counts_org"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13172,23 +13264,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13207,19 +13303,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.job_host_summary"
                         ],
                         "type": "string",
-                        "description": "* `controller.job_host_summary` - controller.job_host_summary",
-                        "default": "controller.job_host_summary"
+                        "default": "controller.job_host_summary",
+                        "description": "Public group.function collector name.\n\n* `controller.job_host_summary` - controller.job_host_summary"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13231,23 +13329,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13266,19 +13368,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.job_host_summary_service"
                         ],
                         "type": "string",
-                        "description": "* `controller.job_host_summary_service` - controller.job_host_summary_service",
-                        "default": "controller.job_host_summary_service"
+                        "default": "controller.job_host_summary_service",
+                        "description": "Public group.function collector name.\n\n* `controller.job_host_summary_service` - controller.job_host_summary_service"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13290,23 +13394,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13325,19 +13433,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.main_host"
                         ],
                         "type": "string",
-                        "description": "* `controller.main_host` - controller.main_host",
-                        "default": "controller.main_host"
+                        "default": "controller.main_host",
+                        "description": "Public group.function collector name.\n\n* `controller.main_host` - controller.main_host"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13349,23 +13459,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13391,19 +13505,21 @@
                     },
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.main_host_daily"
                         ],
                         "type": "string",
-                        "description": "* `controller.main_host_daily` - controller.main_host_daily",
-                        "default": "controller.main_host_daily"
+                        "default": "controller.main_host_daily",
+                        "description": "Public group.function collector name.\n\n* `controller.main_host_daily` - controller.main_host_daily"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13415,23 +13531,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     }
                 },
                 "required": [
@@ -13443,19 +13563,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.main_hostmetric"
                         ],
                         "type": "string",
-                        "description": "* `controller.main_hostmetric` - controller.main_hostmetric",
-                        "default": "controller.main_hostmetric"
+                        "default": "controller.main_hostmetric",
+                        "description": "Public group.function collector name.\n\n* `controller.main_hostmetric` - controller.main_hostmetric"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13467,23 +13589,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13502,19 +13628,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.main_indirectmanagednodeaudit"
                         ],
                         "type": "string",
-                        "description": "* `controller.main_indirectmanagednodeaudit` - controller.main_indirectmanagednodeaudit",
-                        "default": "controller.main_indirectmanagednodeaudit"
+                        "default": "controller.main_indirectmanagednodeaudit",
+                        "description": "Public group.function collector name.\n\n* `controller.main_indirectmanagednodeaudit` - controller.main_indirectmanagednodeaudit"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13526,23 +13654,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13561,19 +13693,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.main_jobevent"
                         ],
                         "type": "string",
-                        "description": "* `controller.main_jobevent` - controller.main_jobevent",
-                        "default": "controller.main_jobevent"
+                        "default": "controller.main_jobevent",
+                        "description": "Public group.function collector name.\n\n* `controller.main_jobevent` - controller.main_jobevent"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13585,23 +13719,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13620,19 +13758,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.main_jobevent_service"
                         ],
                         "type": "string",
-                        "description": "* `controller.main_jobevent_service` - controller.main_jobevent_service",
-                        "default": "controller.main_jobevent_service"
+                        "default": "controller.main_jobevent_service",
+                        "description": "Public group.function collector name.\n\n* `controller.main_jobevent_service` - controller.main_jobevent_service"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13644,23 +13784,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13679,19 +13823,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.org_counts"
                         ],
                         "type": "string",
-                        "description": "* `controller.org_counts` - controller.org_counts",
-                        "default": "controller.org_counts"
+                        "default": "controller.org_counts",
+                        "description": "Public group.function collector name.\n\n* `controller.org_counts` - controller.org_counts"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13703,23 +13849,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "object",
@@ -13729,7 +13879,8 @@
                                     "$ref": "#/components/schemas/OrganizationCountPayload"
                                 }
                             ],
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Organizationcount value."
                         },
                         "description": "Organization user and team counts keyed by organization ID. Keys are organization_id values."
                     }
@@ -13743,19 +13894,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.projects_by_scm_type"
                         ],
                         "type": "string",
-                        "description": "* `controller.projects_by_scm_type` - controller.projects_by_scm_type",
-                        "default": "controller.projects_by_scm_type"
+                        "default": "controller.projects_by_scm_type",
+                        "description": "Public group.function collector name.\n\n* `controller.projects_by_scm_type` - controller.projects_by_scm_type"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13767,29 +13920,34 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "object",
                         "additionalProperties": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Projectscmtypecount value."
                         },
                         "description": "Project counts keyed by source-control type, with manual for projects without one. Keys are scm_type values."
                     }
@@ -13803,19 +13961,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.projects_by_scm_type_org"
                         ],
                         "type": "string",
-                        "description": "* `controller.projects_by_scm_type_org` - controller.projects_by_scm_type_org",
-                        "default": "controller.projects_by_scm_type_org"
+                        "default": "controller.projects_by_scm_type_org",
+                        "description": "Public group.function collector name.\n\n* `controller.projects_by_scm_type_org` - controller.projects_by_scm_type_org"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13827,23 +13987,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13862,19 +14026,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.query_info"
                         ],
                         "type": "string",
-                        "description": "* `controller.query_info` - controller.query_info",
-                        "default": "controller.query_info"
+                        "default": "controller.query_info",
+                        "description": "Public group.function collector name.\n\n* `controller.query_info` - controller.query_info"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13886,23 +14052,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "allOf": [
@@ -13922,19 +14092,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.table_metadata"
                         ],
                         "type": "string",
-                        "description": "* `controller.table_metadata` - controller.table_metadata",
-                        "default": "controller.table_metadata"
+                        "default": "controller.table_metadata",
+                        "description": "Public group.function collector name.\n\n* `controller.table_metadata` - controller.table_metadata"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -13946,23 +14118,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -13981,19 +14157,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.unified_job_template_table"
                         ],
                         "type": "string",
-                        "description": "* `controller.unified_job_template_table` - controller.unified_job_template_table",
-                        "default": "controller.unified_job_template_table"
+                        "default": "controller.unified_job_template_table",
+                        "description": "Public group.function collector name.\n\n* `controller.unified_job_template_table` - controller.unified_job_template_table"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -14005,23 +14183,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -14040,19 +14222,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.unified_jobs"
                         ],
                         "type": "string",
-                        "description": "* `controller.unified_jobs` - controller.unified_jobs",
-                        "default": "controller.unified_jobs"
+                        "default": "controller.unified_jobs",
+                        "description": "Public group.function collector name.\n\n* `controller.unified_jobs` - controller.unified_jobs"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -14064,23 +14248,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -14099,19 +14287,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.unified_jobs_dashboard"
                         ],
                         "type": "string",
-                        "description": "* `controller.unified_jobs_dashboard` - controller.unified_jobs_dashboard",
-                        "default": "controller.unified_jobs_dashboard"
+                        "default": "controller.unified_jobs_dashboard",
+                        "description": "Public group.function collector name.\n\n* `controller.unified_jobs_dashboard` - controller.unified_jobs_dashboard"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -14123,23 +14313,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -14158,19 +14352,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.unified_jobs_org"
                         ],
                         "type": "string",
-                        "description": "* `controller.unified_jobs_org` - controller.unified_jobs_org",
-                        "default": "controller.unified_jobs_org"
+                        "default": "controller.unified_jobs_org",
+                        "description": "Public group.function collector name.\n\n* `controller.unified_jobs_org` - controller.unified_jobs_org"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -14182,23 +14378,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -14217,19 +14417,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.workflow_job_node_table"
                         ],
                         "type": "string",
-                        "description": "* `controller.workflow_job_node_table` - controller.workflow_job_node_table",
-                        "default": "controller.workflow_job_node_table"
+                        "default": "controller.workflow_job_node_table",
+                        "description": "Public group.function collector name.\n\n* `controller.workflow_job_node_table` - controller.workflow_job_node_table"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -14241,23 +14443,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -14276,19 +14482,21 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Unique stored collection envelope identifier."
                     },
                     "collector": {
                         "enum": [
                             "controller.workflow_job_template_node_table"
                         ],
                         "type": "string",
-                        "description": "* `controller.workflow_job_template_node_table` - controller.workflow_job_template_node_table",
-                        "default": "controller.workflow_job_template_node_table"
+                        "default": "controller.workflow_job_template_node_table",
+                        "description": "Public group.function collector name.\n\n* `controller.workflow_job_template_node_table` - controller.workflow_job_template_node_table"
                     },
                     "source": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Originating platform component, normally local."
                     },
                     "cluster_id": {
                         "type": "string",
@@ -14300,23 +14508,27 @@
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inclusive start bound, or null for an open bound or snapshot."
                     },
                     "until": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Exclusive end bound, or null for an open bound or snapshot."
                     },
                     "started_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection started."
                     },
                     "finished_at": {
                         "type": "string",
                         "format": "date-time",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Time when collection finished."
                     },
                     "payload": {
                         "type": "array",
@@ -14370,23 +14582,28 @@
                 "properties": {
                     "ansible_product_serial": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Product serial number reported by Ansible."
                     },
                     "ansible_machine_id": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Machine identifier reported by Ansible."
                     },
                     "ansible_host": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Canonical Ansible host value."
                     },
                     "host_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host name."
                     },
                     "ansible_port": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Ansible connection port."
                     }
                 }
             },
@@ -14428,11 +14645,13 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Public group.function name of the collector."
                     },
                     "description": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Summary of the collector's output."
                     },
                     "payload_shape": {
                         "enum": [
@@ -14451,27 +14670,32 @@
                     },
                     "mode": {
                         "type": "string",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Collection schedule mode: hourly, daily, or snapshot."
                     },
                     "accepts_since_until": {
                         "type": "boolean",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "Whether the collector supports since and until collection bounds."
                     },
                     "last_collect": {
                         "type": "string",
                         "format": "date-time",
                         "readOnly": true,
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Time the latest successful collection finished, or null."
                     },
                     "rows_url": {
                         "type": "string",
                         "format": "uri",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "URL for stored collection envelopes."
                     },
                     "collect_url": {
                         "type": "string",
                         "format": "uri",
-                        "readOnly": true
+                        "readOnly": true,
+                        "description": "URL for triggering an on-demand collection task."
                     }
                 }
             },
@@ -14482,53 +14706,66 @@
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Authentication backend name."
                         },
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Configured authentication backends."
                     },
                     "controller_url_base": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Base URL of the Controller."
                     },
                     "external_logger_enabled": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether external logging is enabled."
                     },
                     "external_logger_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "External logger type."
                     },
                     "install_uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller installation UUID."
                     },
                     "instance_uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller instance UUID."
                     },
                     "logging_aggregators": {
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Logging aggregator name."
                         },
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Configured logging aggregators."
                     },
                     "pendo_tracking": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Pendo tracking state."
                     },
                     "subscription_usage_model": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Subscription usage model."
                     },
                     "account_number": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Subscription account number."
                     },
                     "automated_instances": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of automated instances."
                     },
                     "automated_since": {
                         "type": "integer",
@@ -14537,11 +14774,13 @@
                     },
                     "compliant": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the subscription is compliant."
                     },
                     "current_instances": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Current instance count."
                     },
                     "date_expired": {
                         "type": "boolean",
@@ -14555,7 +14794,8 @@
                     },
                     "free_instances": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of free instances."
                     },
                     "grace_period_remaining": {
                         "type": "integer",
@@ -14574,43 +14814,53 @@
                     },
                     "license_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "License type."
                     },
                     "pool_id": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Subscription pool identifier."
                     },
                     "product_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Licensed product name."
                     },
                     "satellite": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the subscription is provided through Satellite."
                     },
                     "sku": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Subscription SKU."
                     },
                     "subscription_id": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Subscription identifier."
                     },
                     "subscription_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Subscription name."
                     },
                     "support_level": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Support level reported by the source."
                     },
                     "total_licensed_instances": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Total number of licensed instances."
                     },
                     "trial": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the subscription is a trial."
                     },
                     "usage": {
                         "type": "string",
@@ -14619,7 +14869,8 @@
                     },
                     "valid_key": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the license key is valid."
                     },
                     "billing_provider_params": {
                         "type": "object",
@@ -14629,11 +14880,13 @@
                     },
                     "controller_version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller version."
                     },
                     "metrics_utility_version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Metrics Utility version."
                     },
                     "platform": {
                         "allOf": [
@@ -14641,7 +14894,8 @@
                                 "$ref": "#/components/schemas/PlatformPayload"
                             }
                         ],
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Platform value."
                     }
                 }
             },
@@ -14649,7 +14903,8 @@
                 "type": "object",
                 "properties": {
                     "controller_version": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Controller version."
                     }
                 }
             },
@@ -14658,53 +14913,65 @@
                 "properties": {
                     "organization": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of organizations."
                     },
                     "team": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of teams."
                     },
                     "user": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of users."
                     },
                     "inventory": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of inventories."
                     },
                     "credential": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of credentials."
                     },
                     "project": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of projects."
                     },
                     "job_template": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of job templates."
                     },
                     "workflow_job_template": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of workflow job templates."
                     },
                     "host": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of hosts."
                     },
                     "schedule": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of schedules."
                     },
                     "notification_template": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of notification templates."
                     },
                     "inventories": {
                         "type": "object",
                         "additionalProperties": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Inventorykindcount value."
                         },
                         "nullable": true,
                         "description": "Inventory counts keyed by inventory kind; always includes normal and smart."
@@ -14716,31 +14983,38 @@
                     },
                     "active_host_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Active host count value."
                     },
                     "active_sessions": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Active sessions value."
                     },
                     "active_user_sessions": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Active user sessions value."
                     },
                     "active_anonymous_sessions": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Active anonymous sessions value."
                     },
                     "running_jobs": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Running jobs value."
                     },
                     "pending_jobs": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Pending jobs value."
                     },
                     "database_connections": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Database connections value."
                     }
                 }
             },
@@ -14749,24 +15023,30 @@
                 "properties": {
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "credential_type_id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Credential type identifier."
                     },
                     "credential_type": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Credential type name."
                     },
                     "managed": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "Whether the resource is managed by the platform."
                     },
                     "credential_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of credentials."
                     }
                 }
             },
@@ -14775,15 +15055,18 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "credential_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of credentials."
                     },
                     "managed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the resource is managed by the platform."
                     }
                 }
             },
@@ -14792,11 +15075,13 @@
                 "properties": {
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "credential_type": {
                         "type": "string",
@@ -15152,7 +15437,8 @@
                 "properties": {
                     "msg": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Deprecation message."
                     },
                     "version": {
                         "type": "string",
@@ -15166,7 +15452,8 @@
                     },
                     "collection_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Ansible collection name."
                     }
                 }
             },
@@ -15298,12 +15585,14 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "job_created": {
                         "type": "string",
@@ -15313,11 +15602,13 @@
                     },
                     "uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Universally unique identifier."
                     },
                     "parent_uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "UUID of the parent event."
                     },
                     "event": {
                         "type": "string",
@@ -15336,7 +15627,8 @@
                     },
                     "resolved_role": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Role associated with the task."
                     },
                     "playbook_on_stats": {
                         "type": "object",
@@ -15346,49 +15638,60 @@
                     },
                     "failed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation failed."
                     },
                     "changed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation changed the target."
                     },
                     "playbook": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Playbook name."
                     },
                     "play": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Play name."
                     },
                     "task": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Task name."
                     },
                     "role": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Role name."
                     },
                     "job_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job identifier."
                     },
                     "host_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host identifier."
                     },
                     "host_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host name."
                     },
                     "start": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Event start time."
                     },
                     "end": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Event end time."
                     },
                     "duration": {
                         "type": "string",
@@ -15399,7 +15702,8 @@
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Warning reported in the task result."
                         },
                         "nullable": true,
                         "description": "Warnings reported in the task result."
@@ -15424,44 +15728,54 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "description": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record description."
                     },
                     "image": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Image value."
                     },
                     "managed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the resource is managed by the platform."
                     },
                     "created_by_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Identifier of the creating user."
                     },
                     "credential_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Credential id value."
                     },
                     "modified_by_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Identifier of the user who last modified the record."
                     },
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "pull": {
                         "type": "string",
@@ -15475,27 +15789,33 @@
                 "properties": {
                     "ansible_connection_variable": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "ansible_connection value from the host variables."
                     },
                     "ansible_virtualization_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Virtualization type reported by Ansible."
                     },
                     "ansible_virtualization_role": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Virtualization role reported by Ansible."
                     },
                     "ansible_system_vendor": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "System vendor reported by Ansible."
                     },
                     "ansible_product_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Product name reported by Ansible."
                     },
                     "ansible_architecture": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "System architecture reported by Ansible."
                     },
                     "ansible_processor": {
                         "type": "string",
@@ -15504,19 +15824,23 @@
                     },
                     "ansible_form_factor": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "System form factor reported by Ansible."
                     },
                     "ansible_bios_vendor": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "BIOS vendor reported by Ansible."
                     },
                     "ansible_bios_version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "BIOS version reported by Ansible."
                     },
                     "ansible_board_serial": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Board serial number reported by Ansible."
                     }
                 }
             },
@@ -15542,31 +15866,38 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Record name."
                     },
                     "condition": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Feature flag condition."
                     },
                     "value": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Feature flag value."
                     },
                     "description": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record description."
                     },
                     "support_level": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Support level reported by the source."
                     },
                     "toggle_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Feature flag toggle type."
                     },
                     "visibility": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the feature is visible."
                     }
                 }
             },
@@ -15702,7 +16033,8 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Unique identifier for this record."
                     },
                     "date": {
                         "type": "string",
@@ -15712,23 +16044,28 @@
                     },
                     "license_capacity": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Licensed host capacity."
                     },
                     "license_consumed": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Consumed licensed host capacity."
                     },
                     "hosts_added": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Hosts added during the month."
                     },
                     "hosts_deleted": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Hosts deleted during the month."
                     },
                     "indirectly_managed_hosts": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Indirectly managed host count."
                     }
                 }
             },
@@ -15742,7 +16079,8 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "host_name": {
                         "type": "string",
@@ -15770,7 +16108,8 @@
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Fully-qualified module name."
                         },
                         "nullable": true,
                         "description": "Fully-qualified names of modules that ran against the node."
@@ -15783,7 +16122,8 @@
                     "job_created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Creation time of the related job."
                     },
                     "job_remote_id": {
                         "type": "integer",
@@ -15797,7 +16137,8 @@
                     },
                     "job_template_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template name."
                     },
                     "inventory_remote_id": {
                         "type": "integer",
@@ -15806,7 +16147,8 @@
                     },
                     "inventory_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory name."
                     },
                     "organization_remote_id": {
                         "type": "integer",
@@ -15815,7 +16157,8 @@
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "project_remote_id": {
                         "type": "integer",
@@ -15824,7 +16167,8 @@
                     },
                     "project_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller project name."
                     }
                 }
             },
@@ -15833,7 +16177,8 @@
                 "properties": {
                     "version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Version reported by the source."
                     }
                 }
             },
@@ -15842,15 +16187,18 @@
                 "properties": {
                     "uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Universally unique identifier."
                     },
                     "version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Version reported by the source."
                     },
                     "capacity": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Total instance capacity."
                     },
                     "cpu": {
                         "type": "string",
@@ -15864,11 +16212,13 @@
                     },
                     "managed_by_policy": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the instance is managed by policy."
                     },
                     "enabled": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the resource is enabled."
                     },
                     "consumed_capacity": {
                         "type": "integer",
@@ -15877,11 +16227,13 @@
                     },
                     "remaining_capacity": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Capacity remaining for jobs."
                     },
                     "node_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller node type."
                     }
                 }
             },
@@ -15890,7 +16242,8 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "kind": {
                         "type": "string",
@@ -15899,18 +16252,21 @@
                     },
                     "hosts": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of hosts."
                     },
                     "sources": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of inventory sources."
                     },
                     "source_list": {
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/SourcePayload"
                         },
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory source details."
                     }
                 }
             },
@@ -15919,26 +16275,32 @@
                 "properties": {
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "inventory_kind": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Inventory kind."
                     },
                     "inventory_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of inventories."
                     },
                     "host_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of hosts."
                     },
                     "source_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of inventory sources."
                     }
                 }
             },
@@ -15952,16 +16314,19 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "host_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host name."
                     },
                     "host_remote_id": {
                         "type": "integer",
@@ -16000,7 +16365,8 @@
                     },
                     "processed": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of processed tasks."
                     },
                     "skipped": {
                         "type": "integer",
@@ -16025,7 +16391,8 @@
                     "job_created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Creation time of the related job."
                     },
                     "job_remote_id": {
                         "type": "integer",
@@ -16039,7 +16406,8 @@
                     },
                     "job_template_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template name."
                     },
                     "inventory_remote_id": {
                         "type": "integer",
@@ -16048,7 +16416,8 @@
                     },
                     "inventory_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory name."
                     },
                     "organization_remote_id": {
                         "type": "integer",
@@ -16057,7 +16426,8 @@
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "project_remote_id": {
                         "type": "integer",
@@ -16066,7 +16436,8 @@
                     },
                     "project_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller project name."
                     }
                 }
             },
@@ -16080,16 +16451,19 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "host_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host name."
                     },
                     "host_remote_id": {
                         "type": "integer",
@@ -16118,7 +16492,8 @@
                     },
                     "processed": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of processed tasks."
                     },
                     "skipped": {
                         "type": "integer",
@@ -16143,7 +16518,8 @@
                     "job_created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Creation time of the related job."
                     },
                     "job_remote_id": {
                         "type": "integer",
@@ -16157,15 +16533,18 @@
                     },
                     "job_template_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template name."
                     },
                     "ansible_version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Ansible version."
                     },
                     "launch_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "How the job was launched."
                     },
                     "inventory_remote_id": {
                         "type": "integer",
@@ -16174,7 +16553,8 @@
                     },
                     "inventory_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory name."
                     },
                     "organization_remote_id": {
                         "type": "integer",
@@ -16183,7 +16563,8 @@
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "project_remote_id": {
                         "type": "integer",
@@ -16192,7 +16573,8 @@
                     },
                     "project_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller project name."
                     },
                     "model": {
                         "type": "string",
@@ -16205,11 +16587,13 @@
                 "type": "object",
                 "properties": {
                     "host_name": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Inventory host name."
                     },
                     "host_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host identifier."
                     },
                     "inventory_remote_id": {
                         "type": "integer",
@@ -16218,7 +16602,8 @@
                     },
                     "inventory_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory name."
                     },
                     "organization_remote_id": {
                         "type": "integer",
@@ -16227,7 +16612,8 @@
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "last_automation": {
                         "type": "string",
@@ -16270,7 +16656,8 @@
                 "type": "object",
                 "properties": {
                     "hostname": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Hostname value."
                     },
                     "host_id": {
                         "type": "integer",
@@ -16280,29 +16667,35 @@
                     "first_automation": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "First automation time recorded for the host."
                     },
                     "last_automation": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Creation time of the host's most recent job."
                     },
                     "automated_counter": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of automation runs for the host."
                     },
                     "deleted_counter": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of deletion events for the host."
                     },
                     "last_deleted": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Time the host was last deleted."
                     },
                     "deleted": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the record was deleted."
                     },
                     "id": {
                         "type": "integer",
@@ -16311,23 +16704,28 @@
                     },
                     "used_in_inventories": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of inventories using the host."
                     },
                     "ansible_product_serial": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Product serial number reported by Ansible."
                     },
                     "ansible_machine_id": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Machine identifier reported by Ansible."
                     },
                     "ansible_host_variable": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "ansible_host value from the host variables."
                     },
                     "ansible_connection_variable": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "ansible_connection value from the host variables."
                     }
                 }
             },
@@ -16342,7 +16740,8 @@
                     "main_jobhostsummary_created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Creation time of the selected job host summary."
                     },
                     "id": {
                         "type": "integer",
@@ -16351,12 +16750,14 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "job_created": {
                         "type": "string",
@@ -16381,7 +16782,8 @@
                     },
                     "resolved_role": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Role associated with the task."
                     },
                     "duration": {
                         "type": "string",
@@ -16390,27 +16792,33 @@
                     },
                     "failed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation failed."
                     },
                     "changed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation changed the target."
                     },
                     "playbook": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Playbook name."
                     },
                     "play": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Play name."
                     },
                     "task": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Task name."
                     },
                     "role": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Role name."
                     },
                     "job_remote_id": {
                         "type": "integer",
@@ -16424,7 +16832,8 @@
                     },
                     "host_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host name."
                     }
                 }
             },
@@ -16438,12 +16847,14 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "job_created": {
                         "type": "string",
@@ -16454,19 +16865,23 @@
                     "job_finished": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Finish time of the related job."
                     },
                     "ansible_version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Ansible version."
                     },
                     "uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Universally unique identifier."
                     },
                     "parent_uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "UUID of the parent event."
                     },
                     "event": {
                         "type": "string",
@@ -16485,7 +16900,8 @@
                     },
                     "resolved_role": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Role associated with the task."
                     },
                     "duration": {
                         "type": "string",
@@ -16495,16 +16911,19 @@
                     "start": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Event start time."
                     },
                     "end": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Event end time."
                     },
                     "task_uuid": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "UUID of the task."
                     },
                     "ignore_errors": {
                         "type": "boolean",
@@ -16513,27 +16932,33 @@
                     },
                     "failed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation failed."
                     },
                     "changed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation changed the target."
                     },
                     "playbook": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Playbook name."
                     },
                     "play": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Play name."
                     },
                     "task": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Task name."
                     },
                     "role": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Role name."
                     },
                     "job_remote_id": {
                         "type": "integer",
@@ -16542,7 +16967,8 @@
                     },
                     "job_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job identifier."
                     },
                     "host_remote_id": {
                         "type": "integer",
@@ -16551,17 +16977,20 @@
                     },
                     "host_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host identifier."
                     },
                     "host_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Inventory host name."
                     },
                     "warnings": {
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Warning reported in the task result."
                         },
                         "nullable": true,
                         "description": "Warnings reported in the task result."
@@ -16581,12 +17010,14 @@
                     },
                     "job_failed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the related job failed."
                     },
                     "job_started": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Start time of the related job."
                     }
                 }
             },
@@ -16707,15 +17138,18 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "users": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of users."
                     },
                     "teams": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of teams."
                     }
                 }
             },
@@ -16813,23 +17247,27 @@
                 "type": "object",
                 "properties": {
                     "count": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Number of stored collection envelopes in the result set."
                     },
                     "next": {
                         "type": "string",
                         "format": "uri",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "URL for the next page, or null."
                     },
                     "previous": {
                         "type": "string",
                         "format": "uri",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "URL for the previous page, or null."
                     },
                     "results": {
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/AnalyticsPayloadByCollector"
-                        }
+                        },
+                        "description": "Stored collection envelopes for the requested collector."
                     }
                 },
                 "required": [
@@ -17809,18 +18247,21 @@
                         "type": "array",
                         "items": {
                             "type": "string",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Linux distribution component."
                         },
                         "nullable": true,
                         "description": "Linux distribution name, version, and codename."
                     },
                     "release": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Operating system release."
                     },
                     "system": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Operating system name."
                     },
                     "type": {
                         "type": "string",
@@ -17834,18 +18275,22 @@
                 "properties": {
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "scm_type": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Source-control type."
                     },
                     "project_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of projects."
                     }
                 }
             },
@@ -17864,7 +18309,8 @@
                     },
                     "collection_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Collection type value."
                     }
                 }
             },
@@ -18809,15 +19255,18 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "source": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Source name or source record."
                     },
                     "num_hosts": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of hosts associated with the source."
                     }
                 }
             },
@@ -18894,27 +19343,33 @@
                 "properties": {
                     "schemaname": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Database schema name."
                     },
                     "tablename": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Database table name."
                     },
                     "estimated_row_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Estimated number of rows in the table."
                     },
                     "total_size_bytes": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Total table and index size in bytes."
                     },
                     "table_size_bytes": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Table size in bytes."
                     },
                     "indexes_size_bytes": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Index size in bytes."
                     }
                 }
             },
@@ -19775,11 +20230,13 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Unique identifier for this record."
                     },
                     "polymorphic_ctype_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Django content type identifier for the concrete model."
                     },
                     "model": {
                         "type": "string",
@@ -19788,59 +20245,72 @@
                     },
                     "execution_environment_image": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Execution environment image."
                     },
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "created_by_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Identifier of the creating user."
                     },
                     "modified_by_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Identifier of the user who last modified the record."
                     },
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "current_job_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Current job identifier."
                     },
                     "last_job_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Most recent job identifier."
                     },
                     "last_job_failed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the most recent job failed."
                     },
                     "last_job_run": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Most recent job run time."
                     },
                     "next_job_run": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Next scheduled job run time."
                     },
                     "next_schedule_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Next schedule identifier."
                     },
                     "status": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Current status."
                     }
                 }
             },
@@ -19863,45 +20333,55 @@
                     },
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "execution_environment_image": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Execution environment image."
                     },
                     "inventory_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory identifier."
                     },
                     "inventory_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory name."
                     },
                     "execution_environment_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Execution environment identifier."
                     },
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "unified_job_template_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template identifier."
                     },
                     "launch_type": {
                         "type": "string",
@@ -19910,37 +20390,45 @@
                     },
                     "schedule_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Schedule identifier."
                     },
                     "execution_node": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Node on which the job executed."
                     },
                     "controller_node": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller node that handled the job."
                     },
                     "cancel_flag": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Cancel flag value."
                     },
                     "status": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Current status."
                     },
                     "failed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation failed."
                     },
                     "started": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Job start time."
                     },
                     "finished": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Job finish time."
                     },
                     "elapsed": {
                         "type": "string",
@@ -19949,11 +20437,13 @@
                     },
                     "job_explanation": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Explanation recorded for the job."
                     },
                     "instance_group_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Instance group identifier."
                     },
                     "installed_collections": {
                         "type": "object",
@@ -19963,22 +20453,26 @@
                                     "$ref": "#/components/schemas/InstalledCollectionPayload"
                                 }
                             ],
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Installedcollection value."
                         },
                         "nullable": true,
                         "description": "Ansible collections installed in the job's execution environment, keyed by collection FQCN."
                     },
                     "ansible_version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Ansible version."
                     },
                     "forks": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Forks value."
                     },
                     "job_template_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template name."
                     },
                     "scm_type": {
                         "type": "string",
@@ -19987,11 +20481,13 @@
                     },
                     "project_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller project identifier."
                     },
                     "project_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller project name."
                     },
                     "launched_by_id": {
                         "type": "integer",
@@ -20015,37 +20511,45 @@
                 "properties": {
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "job_type": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job type."
                     },
                     "status": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Current status."
                     },
                     "job_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of jobs."
                     },
                     "failure_count": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Number of failed jobs."
                     },
                     "elapsed_total": {
                         "type": "number",
                         "format": "double",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Total job run time in seconds."
                     },
                     "elapsed_average": {
                         "type": "number",
                         "format": "double",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Average job run time in seconds."
                     }
                 }
             },
@@ -20068,40 +20572,49 @@
                     },
                     "organization_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization identifier."
                     },
                     "organization_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller organization name."
                     },
                     "execution_environment_image": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Execution environment image."
                     },
                     "inventory_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory identifier."
                     },
                     "inventory_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory name."
                     },
                     "execution_environment_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Execution environment identifier."
                     },
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record name."
                     },
                     "unified_job_template_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template identifier."
                     },
                     "launch_type": {
                         "type": "string",
@@ -20110,37 +20623,45 @@
                     },
                     "schedule_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Schedule identifier."
                     },
                     "execution_node": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Node on which the job executed."
                     },
                     "controller_node": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller node that handled the job."
                     },
                     "cancel_flag": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Cancel flag value."
                     },
                     "status": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Current status."
                     },
                     "failed": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether the operation failed."
                     },
                     "started": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Job start time."
                     },
                     "finished": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Job finish time."
                     },
                     "elapsed": {
                         "type": "string",
@@ -20149,11 +20670,13 @@
                     },
                     "job_explanation": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Explanation recorded for the job."
                     },
                     "instance_group_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Instance group identifier."
                     },
                     "installed_collections": {
                         "type": "object",
@@ -20163,22 +20686,26 @@
                                     "$ref": "#/components/schemas/InstalledCollectionPayload"
                                 }
                             ],
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Installedcollection value."
                         },
                         "nullable": true,
                         "description": "Ansible collections installed in the job's execution environment, keyed by collection FQCN."
                     },
                     "ansible_version": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Ansible version."
                     },
                     "forks": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Forks value."
                     },
                     "job_template_name": {
                         "type": "string",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template name."
                     },
                     "scm_type": {
                         "type": "string",
@@ -20543,12 +21070,14 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "job_id": {
                         "type": "integer",
@@ -20557,21 +21086,25 @@
                     },
                     "unified_job_template_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template identifier."
                     },
                     "workflow_job_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Workflow job identifier."
                     },
                     "inventory_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory identifier."
                     },
                     "success_nodes": {
                         "type": "array",
                         "items": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Workflow node identifier."
                         },
                         "nullable": true,
                         "description": "Nodes run when this node succeeds."
@@ -20580,7 +21113,8 @@
                         "type": "array",
                         "items": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Workflow node identifier."
                         },
                         "nullable": true,
                         "description": "Nodes run when this node fails."
@@ -20589,18 +21123,21 @@
                         "type": "array",
                         "items": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Workflow node identifier."
                         },
                         "nullable": true,
                         "description": "Nodes run regardless of this node's result."
                     },
                     "do_not_run": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether this workflow node is disabled."
                     },
                     "all_parents_must_converge": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether all parent nodes must converge before this node runs."
                     }
                 }
             },
@@ -20614,30 +21151,36 @@
                     "created": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Record last-modification time."
                     },
                     "unified_job_template_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Unified job template identifier."
                     },
                     "workflow_job_template_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Workflow job template identifier."
                     },
                     "inventory_id": {
                         "type": "integer",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Controller inventory identifier."
                     },
                     "success_nodes": {
                         "type": "array",
                         "items": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Workflow node identifier."
                         },
                         "nullable": true,
                         "description": "Nodes run when this node succeeds."
@@ -20646,7 +21189,8 @@
                         "type": "array",
                         "items": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Workflow node identifier."
                         },
                         "nullable": true,
                         "description": "Nodes run when this node fails."
@@ -20655,14 +21199,16 @@
                         "type": "array",
                         "items": {
                             "type": "integer",
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Workflow node identifier."
                         },
                         "nullable": true,
                         "description": "Nodes run regardless of this node's result."
                     },
                     "all_parents_must_converge": {
                         "type": "boolean",
-                        "nullable": true
+                        "nullable": true,
+                        "description": "Whether all parent nodes must converge before this node runs."
                     }
                 }
             }

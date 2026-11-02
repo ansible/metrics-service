@@ -116,10 +116,10 @@ COLLECT_FUNCTION = "collect_analytics_on_demand"
 _STALE_ERROR = "Task timed out — worker died before completion"
 
 _COLLECT_RESPONSE_FIELDS = {
-    "task_id": drf_serializers.IntegerField(),
-    "task_url": drf_serializers.URLField(),
-    "collector": drf_serializers.CharField(),
-    "task_data": drf_serializers.DictField(),
+    "task_id": drf_serializers.IntegerField(help_text="Identifier of the collection task."),
+    "task_url": drf_serializers.URLField(help_text="URL of the collection task."),
+    "collector": drf_serializers.CharField(help_text="Public group.function collector name."),
+    "task_data": drf_serializers.DictField(help_text="Resolved collector and collection-window task data."),
     "task_status": drf_serializers.CharField(help_text="Current Task status."),
     "disposition": drf_serializers.ChoiceField(
         choices=("created", "reused", "requeued"),
@@ -479,11 +479,11 @@ class CollectorCollectView(APIView):
             409: inline_serializer(
                 name="AnalyticsCollectConflict",
                 fields={
-                    "detail": drf_serializers.CharField(),
-                    "task_id": drf_serializers.IntegerField(),
-                    "task_url": drf_serializers.URLField(),
-                    "task_status": drf_serializers.CharField(),
-                    "task_data": drf_serializers.DictField(),
+                    "detail": drf_serializers.CharField(help_text="Reason the requested collection conflicts."),
+                    "task_id": drf_serializers.IntegerField(help_text="Identifier of the blocking task."),
+                    "task_url": drf_serializers.URLField(help_text="URL of the blocking task."),
+                    "task_status": drf_serializers.CharField(help_text="Current status of the blocking task."),
+                    "task_data": drf_serializers.DictField(help_text="Collector and collection-window task data."),
                 },
             ),
         },

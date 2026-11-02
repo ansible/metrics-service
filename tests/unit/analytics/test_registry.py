@@ -52,6 +52,27 @@ def test_enabled_collectors_have_named_payload_schemas():
     assert {entry.payload_schema.kind for entry in enabled} == {"array", "object"}
 
 
+def _assert_field_descriptions(field):
+    assert field.description, field.name
+    for nested in field.fields:
+        _assert_field_descriptions(nested)
+    if field.items:
+        _assert_field_descriptions(field.items)
+    if field.additional_properties:
+        _assert_field_descriptions(field.additional_properties)
+
+
+@pytest.mark.unit
+def test_payload_fields_have_descriptions():
+    from apps.analytics.payload_schemas import PAYLOAD_SCHEMAS
+
+    for schema in PAYLOAD_SCHEMAS.values():
+        for field in (*schema.fields, *schema.item_fields):
+            _assert_field_descriptions(field)
+        if schema.additional_properties:
+            _assert_field_descriptions(schema.additional_properties)
+
+
 @pytest.mark.unit
 def test_payload_schema_types_match_representative_collector_fields():
     jobs = registry.get_entry("controller.unified_jobs_dashboard").payload_schema

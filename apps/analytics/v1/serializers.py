@@ -13,8 +13,8 @@ from apps.analytics.registry import CollectorEntry, enabled_collectors
 class CollectorDiscoverySerializer(serializers.Serializer):
     """Serialize one enabled collector and its hyperlinked API endpoints."""
 
-    name = serializers.CharField(read_only=True)
-    description = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True, help_text="Public group.function name of the collector.")
+    description = serializers.CharField(read_only=True, help_text="Summary of the collector's output.")
     payload_shape = serializers.ChoiceField(
         choices=("object", "array"),
         read_only=True,
@@ -25,24 +25,40 @@ class CollectorDiscoverySerializer(serializers.Serializer):
         allow_null=True,
         help_text="Field represented by top-level object keys, or null when not applicable.",
     )
-    mode = serializers.CharField(read_only=True)
-    accepts_since_until = serializers.BooleanField(read_only=True)
-    last_collect = serializers.DateTimeField(read_only=True, allow_null=True)
+    mode = serializers.CharField(read_only=True, help_text="Collection schedule mode: hourly, daily, or snapshot.")
+    accepts_since_until = serializers.BooleanField(
+        read_only=True, help_text="Whether the collector supports since and until collection bounds."
+    )
+    last_collect = serializers.DateTimeField(
+        read_only=True, allow_null=True, help_text="Time the latest successful collection finished, or null."
+    )
     rows_url = serializers.HyperlinkedIdentityField(
         view_name="analytics:v1:rows",
         lookup_field="name",
         lookup_url_kwarg="collector",
+        help_text="URL for stored collection envelopes.",
     )
     collect_url = serializers.HyperlinkedIdentityField(
         view_name="analytics:v1:collect",
         lookup_field="name",
         lookup_url_kwarg="collector",
+        help_text="URL for triggering an on-demand collection task.",
     )
 
 
 class AnalyticsPayloadSerializer(serializers.ModelSerializer):
     """Serialise one stored raw collection envelope."""
 
+    collector = serializers.CharField(read_only=True, help_text="Public group.function collector name.")
+    source = serializers.CharField(read_only=True, help_text="Originating platform component, normally local.")
+    since = serializers.DateTimeField(
+        read_only=True, allow_null=True, help_text="Inclusive start bound, or null for an open bound or snapshot."
+    )
+    until = serializers.DateTimeField(
+        read_only=True, allow_null=True, help_text="Exclusive end bound, or null for an open bound or snapshot."
+    )
+    started_at = serializers.DateTimeField(read_only=True, help_text="Time when collection started.")
+    finished_at = serializers.DateTimeField(read_only=True, help_text="Time when collection finished.")
     payload = serializers.JSONField(
         read_only=True,
         help_text="Raw collector output. The collector-specific schema is selected by collector.",
@@ -117,18 +133,24 @@ def collector_payload_serializer(entry: CollectorEntry) -> type[serializers.Seri
     """Build the documented collection envelope for one registry entry."""
     attrs = {
         "__module__": __name__,
-        "id": serializers.IntegerField(read_only=True),
-        "collector": serializers.ChoiceField(choices=[entry.name], default=entry.name),
-        "source": serializers.CharField(read_only=True),
+        "id": serializers.IntegerField(read_only=True, help_text="Unique stored collection envelope identifier."),
+        "collector": serializers.ChoiceField(
+            choices=[entry.name], default=entry.name, help_text="Public group.function collector name."
+        ),
+        "source": serializers.CharField(read_only=True, help_text="Originating platform component, normally local."),
         "cluster_id": serializers.CharField(
             read_only=True,
             allow_null=True,
             help_text="Controller installation UUID (INSTALL_UUID), or null if unavailable.",
         ),
-        "since": serializers.DateTimeField(read_only=True, allow_null=True),
-        "until": serializers.DateTimeField(read_only=True, allow_null=True),
-        "started_at": serializers.DateTimeField(read_only=True),
-        "finished_at": serializers.DateTimeField(read_only=True),
+        "since": serializers.DateTimeField(
+            read_only=True, allow_null=True, help_text="Inclusive start bound, or null for an open bound or snapshot."
+        ),
+        "until": serializers.DateTimeField(
+            read_only=True, allow_null=True, help_text="Exclusive end bound, or null for an open bound or snapshot."
+        ),
+        "started_at": serializers.DateTimeField(read_only=True, help_text="Time when collection started."),
+        "finished_at": serializers.DateTimeField(read_only=True, help_text="Time when collection finished."),
         "payload": _payload_field(entry.payload_schema),
     }
     return type(f"AnalyticsPayload{_serializer_name(entry.name)}", (serializers.Serializer,), attrs)
@@ -145,9 +167,11 @@ def analytics_payload_page_serializer():
     return inline_serializer(
         name="PaginatedAnalyticsPayloadList",
         fields={
-            "count": serializers.IntegerField(),
-            "next": serializers.URLField(allow_null=True),
-            "previous": serializers.URLField(allow_null=True),
-            "results": serializers.ListSerializer(child=collector_rows),
+            "count": serializers.IntegerField(help_text="Number of stored collection envelopes in the result set."),
+            "next": serializers.URLField(allow_null=True, help_text="URL for the next page, or null."),
+            "previous": serializers.URLField(allow_null=True, help_text="URL for the previous page, or null."),
+            "results": serializers.ListSerializer(
+                child=collector_rows, help_text="Stored collection envelopes for the requested collector."
+            ),
         },
     )
