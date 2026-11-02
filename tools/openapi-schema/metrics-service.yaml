@@ -11370,7 +11370,7 @@ components:
         job_template_name:
           type: string
           nullable: true
-          description: Unified job template name.
+          description: Name of the related job.
         inventory_remote_id:
           type: integer
           nullable: true
@@ -13595,7 +13595,7 @@ components:
         source:
           type: string
           nullable: true
-          description: Inventory source type or URL.
+          description: Inventory source type.
         num_hosts:
           type: integer
           nullable: true
@@ -14405,7 +14405,8 @@ components:
         model:
           type: string
           nullable: true
-          description: Concrete template type, for example job_template or project.
+          description: Concrete template type, for example jobtemplate, workflowjobtemplate,
+            or project.
         execution_environment_image:
           type: string
           nullable: true

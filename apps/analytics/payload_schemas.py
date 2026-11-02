@@ -9,7 +9,7 @@ so timestamps are ISO 8601 strings and missing values are null.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -68,9 +68,19 @@ def _map_value(
     return PayloadField(name, type_, description, fields=fields)
 
 
-def _pick(catalog: dict[str, PayloadField], *names: str) -> tuple[PayloadField, ...]:
+def _pick(
+    catalog: dict[str, PayloadField],
+    *names: str,
+    description_overrides: dict[str, str] | None = None,
+) -> tuple[PayloadField, ...]:
     """Select fields from a catalog in collector column order."""
-    return tuple(catalog[name] for name in names)
+    description_overrides = description_overrides or {}
+    return tuple(
+        replace(catalog[name], description=description_overrides[name])
+        if name in description_overrides
+        else catalog[name]
+        for name in names
+    )
 
 
 def _catalog(*fields: PayloadField) -> dict[str, PayloadField]:
@@ -183,7 +193,7 @@ _HOST_SUMMARY = _catalog(
     _field("job_created", "datetime", "Creation time of the related job."),
     _field("job_remote_id", "integer", "Controller job ID."),
     _field("job_template_remote_id", "integer", "Controller unified job template ID."),
-    _field("job_template_name", "string", "Unified job template name."),
+    _field("job_template_name", "string", "Name of the related job."),
     _field("ansible_version", "string", "Ansible version used by the related job."),
     _field("launch_type", "string", "How the related job was launched."),
     _field("inventory_remote_id", "integer", "Controller inventory ID."),
@@ -263,6 +273,7 @@ JOB_HOST_SUMMARY_SERVICE = PayloadSchema(
         "project_remote_id",
         "project_name",
         "model",
+        description_overrides={"job_template_name": "Unified job template name."},
     ),
 )
 
@@ -749,7 +760,7 @@ INVENTORY_COUNTS = PayloadSchema(
                     "source",
                     (
                         _field("name", "string", "Inventory source name."),
-                        _field("source", "string", "Inventory source type or URL."),
+                        _field("source", "string", "Inventory source type."),
                         _field("num_hosts", "integer", "Number of hosts associated with the source."),
                     ),
                     "Inventory source record.",
@@ -819,7 +830,11 @@ UNIFIED_JOB_TEMPLATE = PayloadSchema(
     item_fields=(
         _field("id", "integer", "Unified job template identifier.", nullable=False),
         _field("polymorphic_ctype_id", "integer", "Django content type identifier for the concrete template."),
-        _field("model", "string", "Concrete template type, for example job_template or project."),
+        _field(
+            "model",
+            "string",
+            "Concrete template type, for example jobtemplate, workflowjobtemplate, or project.",
+        ),
         _field("execution_environment_image", "string", "Execution environment image used by the template."),
         _field("created", "datetime", "Template creation time."),
         _field("modified", "datetime", "Template last-modification time."),
