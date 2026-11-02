@@ -10,6 +10,10 @@ on:
       - 'release**'
 jobs:
   validate:
+    if: >-
+      github.repository == 'ansible/metrics-service' ||
+      startsWith(github.event.pull_request.base.ref, 'stable-2.') ||
+      startsWith(github.ref_name, 'stable-2.')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

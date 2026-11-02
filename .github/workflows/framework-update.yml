@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 jobs:
   update:
+    if: github.repository == 'ansible/metrics-service'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
