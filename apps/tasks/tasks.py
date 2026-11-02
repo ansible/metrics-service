@@ -501,11 +501,6 @@ TASK_METADATA = {
         "category": _DASHBOARD_REPORTS_CATEGORY,
         "description": "One-time reconciliation: store Controller model names on existing dashboard JobData rows without deleting data",
         "parameters": {
-            "awx_database": {
-                "type": "string",
-                "default": "awx",
-                "description": "Configured database alias for the Controller database",
-            },
             "batch_size": {
                 "type": "integer",
                 "default": JOB_TYPE_BACKFILL_BATCH_SIZE,

@@ -16,8 +16,8 @@ from typing import Any
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from ..retention import DEFAULT_AWX_DB_NAME, get_controller_retention_days
-from ..utils import create_task_result, log_task_execution
+from ..retention import get_controller_retention_days
+from ..utils import create_task_result, ignore_database_override, log_task_execution
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,6 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
             - analytics_retention_days (int): Explicit analytics retention override for manual runs.
               When omitted, use the Controller cleanup_jobs schedule or 90 days if unavailable.
               Applies to analytics payloads and API usage counters.
-            - awx_database (str): Controller database alias (default: awx)
             - dry_run (bool): If true, only count without deleting (default: False)
 
     Returns:
@@ -66,12 +65,14 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
     from apps.analytics.models import AnalyticsPayload, APIUsageCounter
     from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary, HourlyMetricsCollection
 
+    task_name = "cleanup_metrics_data"
+    ignore_database_override(task_name, kwargs)
     hourly_retention_days = kwargs.get("hourly_retention_days", 7)
     daily_retention_days = kwargs.get("daily_retention_days", 30)
     payload_retention_days = kwargs.get("payload_retention_days", 7)
     analytics_retention_days = kwargs.get("analytics_retention_days")
     if analytics_retention_days is None:
-        analytics_retention_days = get_controller_retention_days(kwargs.get("awx_database", DEFAULT_AWX_DB_NAME))
+        analytics_retention_days = get_controller_retention_days()
     else:
         try:
             analytics_retention_days = int(analytics_retention_days)
@@ -85,7 +86,7 @@ def cleanup_metrics_data(**kwargs) -> dict[str, Any]:
             )
     dry_run = kwargs.get("dry_run", False)
 
-    log_task_execution("cleanup_metrics_data", "processing", f"Cleaning up metrics data (dry_run={dry_run})")
+    log_task_execution(task_name, "processing", f"Cleaning up metrics data (dry_run={dry_run})")
 
     results = {
         "hourly_collections": {"found": 0, "deleted": 0},

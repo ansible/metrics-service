@@ -32,7 +32,7 @@ from apps.tasks.retention import (
     _parse_dt,
     resolve_retention_days,
 )
-from apps.tasks.utils import create_task_result, get_db_connection, log_task_execution
+from apps.tasks.utils import create_task_result, get_db_connection, ignore_database_override, log_task_execution
 
 ORG_NAME_BACKFILL_BATCH_SIZE = 5_000
 JOB_TYPE_BACKFILL_BATCH_SIZE = 2_000
@@ -177,8 +177,8 @@ def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datet
     derived from active AWX cleanup_jobs schedules via ``get_retention_days`` instead.
     """
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
-    db_name = _get_renamed_kwarg(kwargs, "awx_database", "database", task_name)
-    db_name = DEFAULT_AWX_DB_NAME if db_name is _MISSING else db_name
+    ignore_database_override(task_name, kwargs)
+    db_name = DEFAULT_AWX_DB_NAME
     until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
     # Use MAX(finished) as the watermark because all collection queries use date_field='finished'.
     # This aligns the watermark with the query filter so the Controller DB finished index is
@@ -466,10 +466,9 @@ def backfill_dashboard_organization_names(**kwargs: Any) -> dict[str, Any]:
     """
     task_name = "backfill_dashboard_organization_names"
     try:
+        ignore_database_override(task_name, kwargs)
         batch_size = _org_name_backfill_batch_size(kwargs)
-        stats = fill_missing_organization_names(
-            task_name, db_name=kwargs.get("awx_database", DEFAULT_AWX_DB_NAME), batch_size=batch_size
-        )
+        stats = fill_missing_organization_names(task_name, db_name=DEFAULT_AWX_DB_NAME, batch_size=batch_size)
     except Exception as e:
         logger.exception(f"{task_name}: failed")
         msg = f"Filling organization names failed: {str(e)}"
@@ -505,9 +504,9 @@ def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
     updated_records = 0
     unresolved_records = 0
     try:
+        ignore_database_override(task_name, kwargs)
         batch_size = _job_type_backfill_batch_size(kwargs)
-        db_name = _get_renamed_kwarg(kwargs, "awx_database", "database", task_name)
-        db_name = DEFAULT_AWX_DB_NAME if db_name is _MISSING else db_name
+        db_name = DEFAULT_AWX_DB_NAME
 
         if not JobData.objects.filter(job_type__isnull=True).exists():
             log_task_execution(
@@ -861,8 +860,8 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     Returns a task result dict with the number of deleted records, cutoff date, and any error details.
     """
     task_name = "cleanup_dashboard_reports_old_data"
-    db_name = _get_renamed_kwarg(kwargs, "awx_database", "database", task_name)
-    db_name = DEFAULT_AWX_DB_NAME if db_name is _MISSING else db_name
+    ignore_database_override(task_name, kwargs)
+    db_name = DEFAULT_AWX_DB_NAME
     retention_days = _get_renamed_kwarg(kwargs, "retention_days", "retention_period_days", task_name)
     if retention_days is _MISSING:
         retention_days = get_retention_days(db_name) if _use_controller_retention() else DEFAULT_RETENTION_DAYS

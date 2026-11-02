@@ -330,9 +330,9 @@ def test_cleanup_metrics_data_uses_controller_retention_when_not_overridden():
     with patch(
         "apps.tasks.cleanup.cleanup_metrics_data.get_controller_retention_days", return_value=30
     ) as mock_retention:
-        result = cleanup_metrics_data()
+        result = cleanup_metrics_data(awx_database="custom_db")
 
-    mock_retention.assert_called_once_with("awx")
+    mock_retention.assert_called_once_with()
     assert result["status"] == "success"
     assert result["retention_policies"]["analytics_days"] == 30
     assert not AnalyticsPayload.objects.filter(pk=row.pk).exists()

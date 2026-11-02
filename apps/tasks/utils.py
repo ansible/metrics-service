@@ -12,6 +12,23 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def ignore_database_override(task_name: str, kwargs: dict[str, Any]) -> None:
+    """Log and ignore obsolete task database-alias overrides.
+
+    Some persisted task definitions still contain the historical ``awx_database``
+    or ``database`` arguments. Controller-backed tasks always use the configured
+    ``awx`` Django alias, so those arguments must not redirect a task to another
+    database.
+    """
+    ignored = [name for name in ("awx_database", "database") if name in kwargs]
+    if ignored:
+        logger.warning(
+            "%s: ignoring unsupported database override(s) %s; using the configured 'awx' alias",
+            task_name,
+            ", ".join(ignored),
+        )
+
+
 def ensure_django_setup():
     """
     Ensure Django is properly configured for dispatcherd workers.

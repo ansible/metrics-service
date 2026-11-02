@@ -35,6 +35,17 @@ class TaskUtilsTestCase(TestCase):
         task.save()
         return task
 
+    @patch("apps.tasks.utils.logger")
+    def test_ignore_database_override_logs_and_does_not_expose_values(self, mock_logger):
+        """Obsolete database kwargs are logged by name and cannot redirect a task."""
+        utils.ignore_database_override("test_task", {"awx_database": "custom", "database": "legacy"})
+
+        mock_logger.warning.assert_called_once_with(
+            "%s: ignoring unsupported database override(s) %s; using the configured 'awx' alias",
+            "test_task",
+            "awx_database, database",
+        )
+
     def test_handle_task_error_with_instances(self):
         """Test error handling with task and execution instances."""
         execution = TaskExecution.objects.create(task=self.task, status="running", worker_id="test-worker")
