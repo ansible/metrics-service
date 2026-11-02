@@ -864,23 +864,15 @@ class TestResolveCollectionParams:
         assert batch_size == 500
         mock_retention.assert_called_once_with()
 
+    @pytest.mark.parametrize("database_kwargs", [{"awx_database": "custom_db"}, {"database": "legacy_db"}])
     @patch("apps.dashboard_reports.tasks._use_controller_retention", return_value=True)
     @patch("apps.dashboard_reports.tasks.get_retention_days", return_value=30)
     @patch("apps.dashboard_reports.tasks.JobData")
-    def test_custom_database_kwarg_is_ignored(self, mock_jobdata, mock_retention, _mock_use_ctrl):
-        """An obsolete database override does not change the Controller alias used for retention."""
+    def test_database_overrides_are_ignored(self, mock_jobdata, mock_retention, _mock_use_ctrl, database_kwargs):
+        """Both obsolete database kwargs are ignored while retention stays on the fixed AWX alias."""
         mock_jobdata.last_finished_timestamp.return_value = None
-        until = datetime(2024, 6, 1, tzinfo=UTC)
-        _resolve_collection_params(
-            "collect_dashboard_reports_data", {"awx_database": "custom_db", "until": until.isoformat()}
-        )
+        _resolve_collection_params("collect_dashboard_reports_data", database_kwargs)
         mock_retention.assert_called_once_with()
-
-    @patch("apps.dashboard_reports.tasks.JobData")
-    def test_custom_database_kwarg_does_not_change_alias(self, mock_jobdata):
-        """The 'awx_database' kwarg does not override the fixed AWX alias."""
-        mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        _, _, _ = _resolve_collection_params("collect_dashboard_reports_data", {"awx_database": "custom_db"})
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_default_batch_size_applied(self, mock_jobdata):
@@ -909,18 +901,6 @@ class TestResolveCollectionParams:
         mock_jobdata.last_finished_timestamp.return_value = None
         with pytest.raises(ValueError, match="Retention days must be > 0"):
             _resolve_collection_params("collect_dashboard_reports_data", {})
-
-    @patch("apps.dashboard_reports.tasks.JobData")
-    def test_deprecated_database_kwarg_is_ignored(self, mock_jobdata):
-        """The old 'database' kwarg is ignored rather than selecting another database."""
-        mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        _resolve_collection_params("collect_dashboard_reports_data", {"database": "legacy_db"})
-
-    @patch("apps.dashboard_reports.tasks.JobData")
-    def test_database_kwargs_are_ignored(self, mock_jobdata):
-        """When both obsolete database kwargs are present, neither changes the alias."""
-        mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        _resolve_collection_params("collect_dashboard_reports_data", {"awx_database": "new_db", "database": "old_db"})
 
 
 # ---------------------------------------------------------------------------
