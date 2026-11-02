@@ -294,7 +294,7 @@ spec uses `/api/metrics/v1/` paths.
 Requires the database to be running:
 
 ```bash
-make generate-openapi-schema
+bash tools/generate-openapi.sh
 ```
 
 This will write/update:
