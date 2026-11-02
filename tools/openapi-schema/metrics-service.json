@@ -12627,7 +12627,7 @@
                                 }
                             ],
                             "nullable": true,
-                            "description": "Credentialtypecount value."
+                            "description": "Credential count record."
                         },
                         "description": "Credential counts keyed by credential type ID. Keys are credential_type_id values."
                     }
@@ -13153,7 +13153,7 @@
                                 }
                             ],
                             "nullable": true,
-                            "description": "Instanceinforecord value."
+                            "description": "Controller instance information record."
                         },
                         "description": "Controller instance topology and consumed capacity keyed by UUID. Keys are uuid values."
                     }
@@ -13224,7 +13224,7 @@
                                 }
                             ],
                             "nullable": true,
-                            "description": "Inventorycount value."
+                            "description": "Inventory count record."
                         },
                         "description": "Inventory details keyed by inventory ID. Keys are inventory_id values."
                     }
@@ -13880,7 +13880,7 @@
                                 }
                             ],
                             "nullable": true,
-                            "description": "Organizationcount value."
+                            "description": "Organization count record."
                         },
                         "description": "Organization user and team counts keyed by organization ID. Keys are organization_id values."
                     }
@@ -13947,7 +13947,7 @@
                         "additionalProperties": {
                             "type": "integer",
                             "nullable": true,
-                            "description": "Projectscmtypecount value."
+                            "description": "Number of projects of this type."
                         },
                         "description": "Project counts keyed by source-control type, with manual for projects without one. Keys are scm_type values."
                     }
@@ -14850,7 +14850,7 @@
                     "support_level": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Support level reported by the source."
+                        "description": "Subscription support level."
                     },
                     "total_licensed_instances": {
                         "type": "integer",
@@ -14881,7 +14881,7 @@
                     "controller_version": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Controller version."
+                        "description": "Controller version reported by the collection environment."
                     },
                     "metrics_utility_version": {
                         "type": "string",
@@ -14895,7 +14895,7 @@
                             }
                         ],
                         "nullable": true,
-                        "description": "Platform value."
+                        "description": "Runtime platform metadata."
                     }
                 }
             },
@@ -14904,7 +14904,7 @@
                 "properties": {
                     "controller_version": {
                         "type": "string",
-                        "description": "Controller version."
+                        "description": "Controller version reported by an enabled instance."
                     }
                 }
             },
@@ -14971,7 +14971,7 @@
                         "additionalProperties": {
                             "type": "integer",
                             "nullable": true,
-                            "description": "Inventorykindcount value."
+                            "description": "Number of inventories of this kind."
                         },
                         "nullable": true,
                         "description": "Inventory counts keyed by inventory kind; always includes normal and smart."
@@ -14984,37 +14984,37 @@
                     "active_host_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Active host count value."
+                        "description": "Number of active hosts."
                     },
                     "active_sessions": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Active sessions value."
+                        "description": "Number of active sessions."
                     },
                     "active_user_sessions": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Active user sessions value."
+                        "description": "Number of active user sessions."
                     },
                     "active_anonymous_sessions": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Active anonymous sessions value."
+                        "description": "Number of active anonymous sessions."
                     },
                     "running_jobs": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Running jobs value."
+                        "description": "Number of running jobs."
                     },
                     "pending_jobs": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Pending jobs value."
+                        "description": "Number of pending jobs."
                     },
                     "database_connections": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Database connections value."
+                        "description": "Number of active database connections."
                     }
                 }
             },
@@ -15041,12 +15041,12 @@
                     },
                     "managed": {
                         "type": "boolean",
-                        "description": "Whether the resource is managed by the platform."
+                        "description": "Whether the credential type is managed by the platform."
                     },
                     "credential_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of credentials."
+                        "description": "Number of credentials of this type."
                     }
                 }
             },
@@ -15056,17 +15056,17 @@
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Credential type name."
                     },
                     "credential_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of credentials."
+                        "description": "Number of credentials of this type."
                     },
                     "managed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the resource is managed by the platform."
+                        "description": "Whether the credential type is managed by the platform."
                     }
                 }
             },
@@ -15453,7 +15453,7 @@
                     "collection_name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Ansible collection name."
+                        "description": "Ansible collection containing the deprecated feature."
                     }
                 }
             },
@@ -15586,13 +15586,13 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Event creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Event last-modification time."
                     },
                     "job_created": {
                         "type": "string",
@@ -15603,7 +15603,7 @@
                     "uuid": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Universally unique identifier."
+                        "description": "Event UUID."
                     },
                     "parent_uuid": {
                         "type": "string",
@@ -15628,7 +15628,7 @@
                     "resolved_role": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Role associated with the task."
+                        "description": "Role associated with the event."
                     },
                     "playbook_on_stats": {
                         "type": "object",
@@ -15639,59 +15639,59 @@
                     "failed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation failed."
+                        "description": "Whether the event reported a failure."
                     },
                     "changed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation changed the target."
+                        "description": "Whether the event reported a change."
                     },
                     "playbook": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Playbook name."
+                        "description": "Playbook name recorded for the event."
                     },
                     "play": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Play name."
+                        "description": "Play name recorded for the event."
                     },
                     "task": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Task name."
+                        "description": "Task name recorded for the event."
                     },
                     "role": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Role name."
+                        "description": "Role name recorded for the event."
                     },
                     "job_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Unified job identifier."
+                        "description": "Unified job identifier associated with the event."
                     },
                     "host_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Inventory host identifier."
+                        "description": "Inventory host identifier associated with the event."
                     },
                     "host_name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Inventory host name."
+                        "description": "Inventory host name recorded for the event."
                     },
                     "start": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Event start time."
+                        "description": "Task start time recorded in the event data."
                     },
                     "end": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Event end time."
+                        "description": "Task end time recorded in the event data."
                     },
                     "duration": {
                         "type": "string",
@@ -15729,53 +15729,53 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Execution environment creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Execution environment last-modification time."
                     },
                     "description": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record description."
+                        "description": "Description of the execution environment."
                     },
                     "image": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Image value."
+                        "description": "Container image used by the execution environment."
                     },
                     "managed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the resource is managed by the platform."
+                        "description": "Whether the execution environment is managed by the platform."
                     },
                     "created_by_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Identifier of the creating user."
+                        "description": "Identifier of the user who created the execution environment."
                     },
                     "credential_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Credential id value."
+                        "description": "Credential identifier used to access the execution environment."
                     },
                     "modified_by_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Identifier of the user who last modified the record."
+                        "description": "Identifier of the user who last modified the execution environment."
                     },
                     "organization_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Controller organization identifier."
+                        "description": "Controller organization owning the execution environment."
                     },
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Execution environment name."
                     },
                     "pull": {
                         "type": "string",
@@ -15867,7 +15867,7 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "Record name."
+                        "description": "Feature flag name."
                     },
                     "condition": {
                         "type": "string",
@@ -15882,12 +15882,12 @@
                     "description": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record description."
+                        "description": "Feature flag description."
                     },
                     "support_level": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Support level reported by the source."
+                        "description": "Feature flag support level."
                     },
                     "toggle_type": {
                         "type": "string",
@@ -15897,7 +15897,7 @@
                     "visibility": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the feature is visible."
+                        "description": "Whether the feature flag is visible."
                     }
                 }
             },
@@ -16034,7 +16034,7 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "description": "Unique identifier for this record."
+                        "description": "Monthly host metric summary identifier."
                     },
                     "date": {
                         "type": "string",
@@ -16080,7 +16080,7 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Audit record creation time."
                     },
                     "host_name": {
                         "type": "string",
@@ -16178,7 +16178,7 @@
                     "version": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Version reported by the source."
+                        "description": "Installed collection version."
                     }
                 }
             },
@@ -16188,12 +16188,12 @@
                     "uuid": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Universally unique identifier."
+                        "description": "Controller instance UUID."
                     },
                     "version": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Version reported by the source."
+                        "description": "Controller instance version."
                     },
                     "capacity": {
                         "type": "integer",
@@ -16218,7 +16218,7 @@
                     "enabled": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the resource is enabled."
+                        "description": "Whether the instance is enabled."
                     },
                     "consumed_capacity": {
                         "type": "integer",
@@ -16243,7 +16243,7 @@
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Inventory name."
                     },
                     "kind": {
                         "type": "string",
@@ -16253,12 +16253,12 @@
                     "hosts": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of hosts."
+                        "description": "Number of hosts in the inventory."
                     },
                     "sources": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of inventory sources."
+                        "description": "Number of sources in the inventory."
                     },
                     "source_list": {
                         "type": "array",
@@ -16266,7 +16266,7 @@
                             "$ref": "#/components/schemas/SourcePayload"
                         },
                         "nullable": true,
-                        "description": "Inventory source details."
+                        "description": "Inventory sources and their host counts."
                     }
                 }
             },
@@ -16290,17 +16290,17 @@
                     "inventory_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of inventories."
+                        "description": "Number of inventories of this kind."
                     },
                     "host_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of hosts."
+                        "description": "Number of hosts in these inventories."
                     },
                     "source_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of inventory sources."
+                        "description": "Number of sources in these inventories."
                     }
                 }
             },
@@ -16315,13 +16315,13 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Job host summary creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Job host summary last-modification time."
                     },
                     "host_name": {
                         "type": "string",
@@ -16366,7 +16366,7 @@
                     "processed": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of processed tasks."
+                        "description": "Number of processed tasks on the host."
                     },
                     "skipped": {
                         "type": "integer",
@@ -16452,13 +16452,13 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Job host summary creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Job host summary last-modification time."
                     },
                     "host_name": {
                         "type": "string",
@@ -16493,7 +16493,7 @@
                     "processed": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of processed tasks."
+                        "description": "Number of processed tasks on the host."
                     },
                     "skipped": {
                         "type": "integer",
@@ -16539,12 +16539,12 @@
                     "ansible_version": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Ansible version."
+                        "description": "Ansible version used by the related job."
                     },
                     "launch_type": {
                         "type": "string",
                         "nullable": true,
-                        "description": "How the job was launched."
+                        "description": "How the related job was launched."
                     },
                     "inventory_remote_id": {
                         "type": "integer",
@@ -16657,7 +16657,7 @@
                 "properties": {
                     "hostname": {
                         "type": "string",
-                        "description": "Hostname value."
+                        "description": "Host name used as the host-metric key."
                     },
                     "host_id": {
                         "type": "integer",
@@ -16668,7 +16668,7 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "First automation time recorded for the host."
+                        "description": "First automation time recorded for this host."
                     },
                     "last_automation": {
                         "type": "string",
@@ -16695,7 +16695,7 @@
                     "deleted": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the record was deleted."
+                        "description": "Whether the host has been deleted."
                     },
                     "id": {
                         "type": "integer",
@@ -16751,13 +16751,13 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Event creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Event last-modification time."
                     },
                     "job_created": {
                         "type": "string",
@@ -16783,7 +16783,7 @@
                     "resolved_role": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Role associated with the task."
+                        "description": "Role associated with the event."
                     },
                     "duration": {
                         "type": "string",
@@ -16793,32 +16793,32 @@
                     "failed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation failed."
+                        "description": "Whether the event reported a failure."
                     },
                     "changed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation changed the target."
+                        "description": "Whether the event reported a change."
                     },
                     "playbook": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Playbook name."
+                        "description": "Playbook name recorded for the event."
                     },
                     "play": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Play name."
+                        "description": "Play name recorded for the event."
                     },
                     "task": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Task name."
+                        "description": "Task name recorded for the event."
                     },
                     "role": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Role name."
+                        "description": "Role name recorded for the event."
                     },
                     "job_remote_id": {
                         "type": "integer",
@@ -16833,7 +16833,7 @@
                     "host_name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Inventory host name."
+                        "description": "Inventory host name recorded for the event."
                     }
                 }
             },
@@ -16848,13 +16848,13 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Event creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Event last-modification time."
                     },
                     "job_created": {
                         "type": "string",
@@ -16871,12 +16871,12 @@
                     "ansible_version": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Ansible version."
+                        "description": "Ansible version used by the related job."
                     },
                     "uuid": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Universally unique identifier."
+                        "description": "Event UUID."
                     },
                     "parent_uuid": {
                         "type": "string",
@@ -16901,7 +16901,7 @@
                     "resolved_role": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Role associated with the task."
+                        "description": "Role associated with the event."
                     },
                     "duration": {
                         "type": "string",
@@ -16912,18 +16912,18 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Event start time."
+                        "description": "Task start time recorded in the event data."
                     },
                     "end": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Event end time."
+                        "description": "Task end time recorded in the event data."
                     },
                     "task_uuid": {
                         "type": "string",
                         "nullable": true,
-                        "description": "UUID of the task."
+                        "description": "UUID of the task recorded in the event data."
                     },
                     "ignore_errors": {
                         "type": "boolean",
@@ -16933,32 +16933,32 @@
                     "failed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation failed."
+                        "description": "Whether the event reported a failure."
                     },
                     "changed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation changed the target."
+                        "description": "Whether the event reported a change."
                     },
                     "playbook": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Playbook name."
+                        "description": "Playbook name recorded for the event."
                     },
                     "play": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Play name."
+                        "description": "Play name recorded for the event."
                     },
                     "task": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Task name."
+                        "description": "Task name recorded for the event."
                     },
                     "role": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Role name."
+                        "description": "Role name recorded for the event."
                     },
                     "job_remote_id": {
                         "type": "integer",
@@ -16968,7 +16968,7 @@
                     "job_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Unified job identifier."
+                        "description": "Unified job identifier associated with the event."
                     },
                     "host_remote_id": {
                         "type": "integer",
@@ -16978,12 +16978,12 @@
                     "host_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Inventory host identifier."
+                        "description": "Inventory host identifier associated with the event."
                     },
                     "host_name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Inventory host name."
+                        "description": "Inventory host name recorded for the event."
                     },
                     "warnings": {
                         "type": "array",
@@ -17139,17 +17139,17 @@
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Organization name."
                     },
                     "users": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of users."
+                        "description": "Number of users in the organization."
                     },
                     "teams": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of teams."
+                        "description": "Number of teams in the organization."
                     }
                 }
             },
@@ -18310,7 +18310,7 @@
                     "collection_type": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Collection type value."
+                        "description": "Type of collection that produced this metadata."
                     }
                 }
             },
@@ -19256,12 +19256,12 @@
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Inventory source name."
                     },
                     "source": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Source name or source record."
+                        "description": "Inventory source type or URL."
                     },
                     "num_hosts": {
                         "type": "integer",
@@ -20231,12 +20231,12 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "description": "Unique identifier for this record."
+                        "description": "Unified job template identifier."
                     },
                     "polymorphic_ctype_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Django content type identifier for the concrete model."
+                        "description": "Django content type identifier for the concrete template."
                     },
                     "model": {
                         "type": "string",
@@ -20246,39 +20246,39 @@
                     "execution_environment_image": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Execution environment image."
+                        "description": "Execution environment image used by the template."
                     },
                     "created": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Template creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Template last-modification time."
                     },
                     "created_by_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Identifier of the creating user."
+                        "description": "Identifier of the user who created the template."
                     },
                     "modified_by_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Identifier of the user who last modified the record."
+                        "description": "Identifier of the user who last modified the template."
                     },
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Unified job template name."
                     },
                     "current_job_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Current job identifier."
+                        "description": "Currently running job identifier."
                     },
                     "last_job_id": {
                         "type": "integer",
@@ -20310,7 +20310,7 @@
                     "status": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Current status."
+                        "description": "Template status."
                     }
                 }
             },
@@ -20344,7 +20344,7 @@
                     "execution_environment_image": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Execution environment image."
+                        "description": "Execution environment image used by the job."
                     },
                     "inventory_id": {
                         "type": "integer",
@@ -20365,18 +20365,18 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Job creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Job last-modification time."
                     },
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Job name."
                     },
                     "unified_job_template_id": {
                         "type": "integer",
@@ -20391,7 +20391,7 @@
                     "schedule_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Schedule identifier."
+                        "description": "Schedule identifier used to launch the job."
                     },
                     "execution_node": {
                         "type": "string",
@@ -20406,17 +20406,17 @@
                     "cancel_flag": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Cancel flag value."
+                        "description": "Whether cancellation was requested for the job."
                     },
                     "status": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Current status."
+                        "description": "Job status."
                     },
                     "failed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation failed."
+                        "description": "Whether the job failed."
                     },
                     "started": {
                         "type": "string",
@@ -20443,7 +20443,7 @@
                     "instance_group_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Instance group identifier."
+                        "description": "Instance group identifier used by the job."
                     },
                     "installed_collections": {
                         "type": "object",
@@ -20454,7 +20454,7 @@
                                 }
                             ],
                             "nullable": true,
-                            "description": "Installedcollection value."
+                            "description": "Installed collection record."
                         },
                         "nullable": true,
                         "description": "Ansible collections installed in the job's execution environment, keyed by collection FQCN."
@@ -20462,12 +20462,12 @@
                     "ansible_version": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Ansible version."
+                        "description": "Ansible version used by the job."
                     },
                     "forks": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Forks value."
+                        "description": "Maximum number of parallel forks configured for the job."
                     },
                     "job_template_name": {
                         "type": "string",
@@ -20527,29 +20527,29 @@
                     "status": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Current status."
+                        "description": "Job status."
                     },
                     "job_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of jobs."
+                        "description": "Number of jobs in this group."
                     },
                     "failure_count": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Number of failed jobs."
+                        "description": "Number of failed jobs in this group."
                     },
                     "elapsed_total": {
                         "type": "number",
                         "format": "double",
                         "nullable": true,
-                        "description": "Total job run time in seconds."
+                        "description": "Total job run time in seconds for this group."
                     },
                     "elapsed_average": {
                         "type": "number",
                         "format": "double",
                         "nullable": true,
-                        "description": "Average job run time in seconds."
+                        "description": "Average job run time in seconds for this group."
                     }
                 }
             },
@@ -20583,7 +20583,7 @@
                     "execution_environment_image": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Execution environment image."
+                        "description": "Execution environment image used by the job."
                     },
                     "inventory_id": {
                         "type": "integer",
@@ -20604,12 +20604,12 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Job creation time."
                     },
                     "name": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Record name."
+                        "description": "Job name."
                     },
                     "unified_job_template_id": {
                         "type": "integer",
@@ -20624,7 +20624,7 @@
                     "schedule_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Schedule identifier."
+                        "description": "Schedule identifier used to launch the job."
                     },
                     "execution_node": {
                         "type": "string",
@@ -20639,17 +20639,17 @@
                     "cancel_flag": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Cancel flag value."
+                        "description": "Whether cancellation was requested for the job."
                     },
                     "status": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Current status."
+                        "description": "Job status."
                     },
                     "failed": {
                         "type": "boolean",
                         "nullable": true,
-                        "description": "Whether the operation failed."
+                        "description": "Whether the job failed."
                     },
                     "started": {
                         "type": "string",
@@ -20676,7 +20676,7 @@
                     "instance_group_id": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Instance group identifier."
+                        "description": "Instance group identifier used by the job."
                     },
                     "installed_collections": {
                         "type": "object",
@@ -20687,7 +20687,7 @@
                                 }
                             ],
                             "nullable": true,
-                            "description": "Installedcollection value."
+                            "description": "Installed collection record."
                         },
                         "nullable": true,
                         "description": "Ansible collections installed in the job's execution environment, keyed by collection FQCN."
@@ -20695,12 +20695,12 @@
                     "ansible_version": {
                         "type": "string",
                         "nullable": true,
-                        "description": "Ansible version."
+                        "description": "Ansible version used by the job."
                     },
                     "forks": {
                         "type": "integer",
                         "nullable": true,
-                        "description": "Forks value."
+                        "description": "Maximum number of parallel forks configured for the job."
                     },
                     "job_template_name": {
                         "type": "string",
@@ -21071,13 +21071,13 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Workflow job node creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Workflow job node last-modification time."
                     },
                     "job_id": {
                         "type": "integer",
@@ -21152,13 +21152,13 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record creation time."
+                        "description": "Workflow job template node creation time."
                     },
                     "modified": {
                         "type": "string",
                         "format": "date-time",
                         "nullable": true,
-                        "description": "Record last-modification time."
+                        "description": "Workflow job template node last-modification time."
                     },
                     "unified_job_template_id": {
                         "type": "integer",
