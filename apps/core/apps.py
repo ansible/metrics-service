@@ -62,11 +62,22 @@ class CoreConfig(AppConfig):
     def _create_managed_roles(sender, **kwargs):
         """Create DAB-managed RBAC roles after each migration."""
         from ansible_base.rbac import permission_registry
-        from ansible_base.resource_registry.apps import initialize_resources
+        from ansible_base.rbac.models import RoleDefinition
+        from ansible_base.resource_registry.models import ResourceType
+        from ansible_base.resource_registry.registry import get_registry
         from django.apps import apps
+        from django.contrib.contenttypes.models import ContentType
 
-        # RBAC's post_migrate receiver runs before resource_registry's, so ResourceType
-        # rows may not exist yet. RoleDefinition is a synced resource, and saving one
-        # triggers resource creation, which requires its ResourceType.
-        initialize_resources(sender, apps=apps)
+        # RBAC's post_migrate receiver runs before resource_registry's, so the
+        # RoleDefinition ResourceType may not exist yet. Saving a RoleDefinition then
+        # triggers resource creation and fails with "ContentType has no resource_type".
+        registry = get_registry()
+        resource_config = registry.get_config_for_model(RoleDefinition)
+        ResourceType.objects.update_or_create(
+            content_type=ContentType.objects.get_for_model(RoleDefinition),
+            defaults={
+                "name": f"shared.{resource_config.managed_serializer.RESOURCE_TYPE}",
+                "externally_managed": resource_config.externally_managed,
+            },
+        )
         permission_registry.create_managed_roles(apps)

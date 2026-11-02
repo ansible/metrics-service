@@ -117,6 +117,23 @@ def user():
     return User.objects.create_superuser(username="testuser", email="test@example.com", password="testpassword123")  # noqa: S105
 
 
+@pytest.fixture(autouse=True)
+def clear_roledefinition_resources_for_sequence_reset(request, django_db_blocker):
+    """Remove post_migrate RoleDefinition resources before reset_sequences tests run.
+
+    RoleDefinitions are now registered shared resources, so post_migrate seeds Resource
+    rows. Django's reset_sequences resets every sequence to 1 before these tests, which
+    collides with those existing rows when a new Resource is saved.
+    """
+    marker = request.node.get_closest_marker("django_db")
+    if marker and marker.kwargs.get("reset_sequences"):
+        from ansible_base.resource_registry.models import Resource
+
+        with django_db_blocker.unblock():
+            Resource.objects.filter(content_type__model="roledefinition").delete()
+    yield
+
+
 @pytest.fixture
 def admin_user():
     """Create a test admin user."""
