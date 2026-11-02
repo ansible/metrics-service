@@ -527,7 +527,6 @@ TASK_METADATA = {
         "examples": [
             {"name": "Default", "data": {}},
             {"name": "Smaller batches", "data": {"batch_size": 500}},
-            {"name": "Custom Controller database", "data": {"awx_database": "controller"}},
         ],
     },
     "sync_dashboard_job_records": {
