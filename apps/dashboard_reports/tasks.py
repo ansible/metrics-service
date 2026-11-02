@@ -163,8 +163,8 @@ def _sync_jobs_atomically(job_results: list, default_job_type: str | None = None
     return failed_jobs
 
 
-def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datetime, datetime, int]:
-    """Resolve db_name, since, until, and batch_size from task kwargs with defaults applied.
+def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[datetime, datetime, int]:
+    """Resolve since, until, and batch_size from task kwargs with defaults applied.
 
     When ``since`` is not provided and no prior ``JobData`` timestamp exists, the backfill
     window defaults to ``DEFAULT_RETENTION_DAYS`` (90 days). When the
@@ -173,7 +173,6 @@ def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datet
     """
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
     ignore_database_override(task_name, kwargs)
-    db_name = "awx"
     until = _parse_dt(kwargs.get("until")) or datetime.now(tz=UTC)
     # Use MAX(finished) as the watermark because all collection queries use date_field='finished'.
     # This aligns the watermark with the query filter so the Controller DB finished index is
@@ -198,7 +197,7 @@ def _resolve_collection_params(task_name: str, kwargs: dict) -> tuple[str, datet
         ) from e
     if batch_size <= 0:
         raise ValueError("DASHBOARD_COLLECTION.BACKFILL_BATCH_SIZE must be > 0")
-    return db_name, since, until, batch_size
+    return since, until, batch_size
 
 
 def _process_batches(
@@ -247,7 +246,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
         "data": {"task_type": task_name, "date_range": {"start": None, "end": None}, "job_count": 0},
     }
     try:
-        db_name, since, until, batch_size = _resolve_collection_params(task_name, kwargs)
+        since, until, batch_size = _resolve_collection_params(task_name, kwargs)
     except ValueError as e:
         result["error"] = True
         result["message"] = str(e)
@@ -268,7 +267,7 @@ def _collect_data(task_name: str, **kwargs) -> dict[str, Any]:
     )
 
     try:
-        db_connection = get_db_connection(db_name)
+        db_connection = get_db_connection("awx")
         min_id, max_id = _get_job_id_range(db_connection, since, until)
     except Exception as e:
         logger.exception("Database error during collection setup")
@@ -499,7 +498,6 @@ def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
     try:
         ignore_database_override(task_name, kwargs)
         batch_size = _job_type_backfill_batch_size(kwargs)
-        db_name = "awx"
 
         if not JobData.objects.filter(job_type__isnull=True).exists():
             log_task_execution(
@@ -514,7 +512,7 @@ def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
                 },
             )
 
-        db_connection = get_db_connection(db_name)
+        db_connection = get_db_connection("awx")
         last_job_id: int | None = None
         while True:
             missing = JobData.objects.filter(job_type__isnull=True)

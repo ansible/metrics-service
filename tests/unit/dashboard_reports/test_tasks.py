@@ -124,7 +124,7 @@ def mock_collect_data_deps():
         patch("apps.dashboard_reports.tasks._process_batches") as mock_batches,
         patch("apps.dashboard_reports.tasks.log_task_execution") as mock_log,
     ):
-        mock_params.return_value = ("awx", since, until, 5000)
+        mock_params.return_value = (since, until, 5000)
         mock_db_conn.return_value = MagicMock()
         mock_id_range.return_value = (100, 200)
         mock_batches.return_value = (42, None)
@@ -185,7 +185,7 @@ class TestCollectData:
         mock_params, *_ = mock_collect_data_deps
         since = datetime(2024, 2, 1, tzinfo=UTC)
         until = datetime(2024, 1, 1, tzinfo=UTC)
-        mock_params.return_value = ("awx", since, until, 5000)
+        mock_params.return_value = (since, until, 5000)
 
         result = _collect_data("test_task")
 
@@ -829,12 +829,11 @@ class TestResolveCollectionParams:
 
         since = datetime(2024, 1, 1, tzinfo=UTC)
         until = datetime(2024, 2, 1, tzinfo=UTC)
-        db_name, got_since, got_until, batch_size = _resolve_collection_params(
+        got_since, got_until, batch_size = _resolve_collection_params(
             "collect_dashboard_reports_data", {"since": since.isoformat(), "until": until.isoformat()}
         )
         assert got_since == since
         assert got_until == until
-        assert db_name == "awx"
         mock_jobdata.last_finished_timestamp.assert_not_called()
 
     @patch("apps.dashboard_reports.tasks.JobData")
@@ -842,7 +841,7 @@ class TestResolveCollectionParams:
         """When since is absent and last_finished_timestamp() has a value, it is used as since."""
         ts = datetime(2024, 3, 15, tzinfo=UTC)
         mock_jobdata.last_finished_timestamp.return_value = ts
-        _, got_since, _, _ = _resolve_collection_params("collect_dashboard_reports_data", {})
+        got_since, _, _ = _resolve_collection_params("collect_dashboard_reports_data", {})
         assert got_since == ts
 
     @patch("apps.dashboard_reports.tasks._use_controller_retention", return_value=True)
@@ -856,7 +855,7 @@ class TestResolveCollectionParams:
         until = datetime(2024, 6, 1, tzinfo=UTC)
 
         with override_settings(DASHBOARD_COLLECTION={"BACKFILL_BATCH_SIZE": 500}):
-            _, got_since, _, batch_size = _resolve_collection_params(
+            got_since, _, batch_size = _resolve_collection_params(
                 "collect_dashboard_reports_data", {"until": until.isoformat()}
             )
 
@@ -881,14 +880,13 @@ class TestResolveCollectionParams:
     def test_custom_database_kwarg_does_not_change_alias(self, mock_jobdata):
         """The 'awx_database' kwarg does not override the fixed AWX alias."""
         mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        db_name, *_ = _resolve_collection_params("collect_dashboard_reports_data", {"awx_database": "custom_db"})
-        assert db_name == "awx"
+        _, _, _ = _resolve_collection_params("collect_dashboard_reports_data", {"awx_database": "custom_db"})
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_default_batch_size_applied(self, mock_jobdata):
         """BACKFILL_BATCH_SIZE defaults to 5_000 when not set."""
         mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        _, _, _, batch_size = _resolve_collection_params("collect_dashboard_reports_data", {})
+        _, _, batch_size = _resolve_collection_params("collect_dashboard_reports_data", {})
         assert batch_size == 5_000
 
     @patch("apps.dashboard_reports.tasks.JobData")
@@ -916,17 +914,13 @@ class TestResolveCollectionParams:
     def test_deprecated_database_kwarg_is_ignored(self, mock_jobdata):
         """The old 'database' kwarg is ignored rather than selecting another database."""
         mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        db_name, *_ = _resolve_collection_params("collect_dashboard_reports_data", {"database": "legacy_db"})
-        assert db_name == "awx"
+        _resolve_collection_params("collect_dashboard_reports_data", {"database": "legacy_db"})
 
     @patch("apps.dashboard_reports.tasks.JobData")
     def test_database_kwargs_are_ignored(self, mock_jobdata):
         """When both obsolete database kwargs are present, neither changes the alias."""
         mock_jobdata.last_finished_timestamp.return_value = datetime(2024, 1, 1, tzinfo=UTC)
-        db_name, *_ = _resolve_collection_params(
-            "collect_dashboard_reports_data", {"awx_database": "new_db", "database": "old_db"}
-        )
-        assert db_name == "awx"
+        _resolve_collection_params("collect_dashboard_reports_data", {"awx_database": "new_db", "database": "old_db"})
 
 
 # ---------------------------------------------------------------------------
