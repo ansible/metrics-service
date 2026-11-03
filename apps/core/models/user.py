@@ -1,4 +1,5 @@
 from ansible_base.lib.abstract_models.user import AbstractDABUser
+from ansible_base.resource_registry.fields import AnsibleResourceField
 
 
 class User(AbstractDABUser):
@@ -9,6 +10,11 @@ class User(AbstractDABUser):
     """
 
     encrypted_fields = ["password"]
+
+    # Exposes the user's Resource Registry row as `.resource`. DAB's RBAC API
+    # prefetches `user__resource` when listing role user assignments; without
+    # this field that lookup fails once a user holds a role.
+    resource = AnsibleResourceField(primary_key_field="id")
 
     @property
     def is_platform_auditor(self) -> bool:

@@ -158,6 +158,36 @@ class TestTeamRoleAccess:
         assert len(results) == 1
 
 
+@pytest.mark.django_db
+class TestRoleAssignmentEndpoints:
+    """DAB's RBAC assignment endpoints must serialize synced role assignments.
+
+    Users, teams, and organizations are shared resources. DAB's assignment viewsets
+    prefetch ``user__resource`` / ``team__resource``, which only works when those
+    models expose the Resource Registry accessor (``AnsibleResourceField``). Without
+    it, listing assignments raises AttributeError once any assignment exists.
+    """
+
+    def test_role_user_assignments_list_with_assignment(self, admin_api_client, rando, organization, org_admin_rd):
+        org_admin_rd.give_permission(rando, organization)
+
+        r = admin_api_client.get("/api/v1/role_user_assignments/")
+
+        assert r.status_code == 200
+        results = r.data["results"] if isinstance(r.data, dict) else r.data
+        assert len(results) == 1
+        assert results[0]["summary_fields"]["role_definition"]["name"] == org_admin_rd.name
+
+    def test_role_team_assignments_list_with_assignment(self, admin_api_client, team, team_admin_rd):
+        team_admin_rd.give_permission(team, team)
+
+        r = admin_api_client.get("/api/v1/role_team_assignments/")
+
+        assert r.status_code == 200
+        results = r.data["results"] if isinstance(r.data, dict) else r.data
+        assert len(results) == 1
+
+
 # ---------------------------------------------------------------------------
 # AAP-74790: activitystream, feature_flags_state, and users RBAC enforcement
 # ---------------------------------------------------------------------------

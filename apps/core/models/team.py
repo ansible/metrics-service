@@ -1,4 +1,5 @@
 from ansible_base.lib.abstract_models.team import AbstractTeam
+from ansible_base.resource_registry.fields import AnsibleResourceField
 from django.db import models
 
 
@@ -12,6 +13,11 @@ class Team(AbstractTeam):
     """
 
     objects = models.Manager()
+
+    # Exposes the team's Resource Registry row as `.resource`. DAB's RBAC API
+    # prefetches `team__resource` when listing role team assignments; without
+    # this field that lookup fails once a team holds a role.
+    resource = AnsibleResourceField(primary_key_field="id")
 
     class Meta:
         permissions = [("member_team", "Has all roles assigned to this team")]
