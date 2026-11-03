@@ -3529,6 +3529,14 @@
                     },
                     {
                         "in": "query",
+                        "name": "resource",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by resource (exact match)"
+                    },
+                    {
+                        "in": "query",
                         "name": "role_level",
                         "schema": {
                             "type": "string"
@@ -3984,6 +3992,14 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "in": "query",
+                        "name": "resource",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by resource (exact match)"
                     },
                     {
                         "in": "query",
@@ -10870,6 +10886,14 @@
                     },
                     {
                         "in": "query",
+                        "name": "resource",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by resource (exact match)"
+                    },
+                    {
+                        "in": "query",
                         "name": "role_level",
                         "schema": {
                             "type": "string"
@@ -11373,6 +11397,14 @@
                     },
                     {
                         "in": "query",
+                        "name": "resource",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by resource (exact match)"
+                    },
+                    {
+                        "in": "query",
                         "name": "role_level",
                         "schema": {
                             "type": "string"
@@ -11661,6 +11693,14 @@
                             "type": "string"
                         },
                         "description": "Filter by password (case-insensitive partial match)"
+                    },
+                    {
+                        "in": "query",
+                        "name": "resource",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Filter by resource (exact match)"
                     },
                     {
                         "in": "query",

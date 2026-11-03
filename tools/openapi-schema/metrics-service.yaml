@@ -2451,6 +2451,11 @@ paths:
         schema:
           type: integer
       - in: query
+        name: resource
+        schema:
+          type: string
+        description: Filter by resource (exact match)
+      - in: query
         name: role_level
         schema:
           type: string
@@ -2752,6 +2757,11 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
+      - in: query
+        name: resource
+        schema:
+          type: string
+        description: Filter by resource (exact match)
       - in: query
         name: role_level
         schema:
@@ -7155,6 +7165,11 @@ paths:
         schema:
           type: integer
       - in: query
+        name: resource
+        schema:
+          type: string
+        description: Filter by resource (exact match)
+      - in: query
         name: role_level
         schema:
           type: string
@@ -7465,6 +7480,11 @@ paths:
         schema:
           type: integer
       - in: query
+        name: resource
+        schema:
+          type: string
+        description: Filter by resource (exact match)
+      - in: query
         name: role_level
         schema:
           type: string
@@ -7648,6 +7668,11 @@ paths:
         schema:
           type: string
         description: Filter by password (case-insensitive partial match)
+      - in: query
+        name: resource
+        schema:
+          type: string
+        description: Filter by resource (exact match)
       - in: query
         name: role_level
         schema:
