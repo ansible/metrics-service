@@ -258,6 +258,14 @@ class UnifiedTaskScheduler:
         """Periodically check for new database tasks and add them to the scheduler."""
         close_old_connections()
 
+        # Apply a runtime log level override (AAP-79584), if one is active.
+        try:
+            from apps.core.logging_control import sync_from_db
+
+            sync_from_db()
+        except Exception as e:
+            logger.debug(f"Runtime log level sync skipped: {e}")
+
         # Always check for stuck tasks, regardless of AWX DB readiness.
         # Stuck task timeout reconciliation should not be paused during controller startup.
         try:

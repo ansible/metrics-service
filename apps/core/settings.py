@@ -30,6 +30,7 @@ REST_FRAMEWORK__DEFAULT_RENDERER_CLASSES = [
 MIDDLEWARE = [
     "dynaconf_merge_unique",
     "apps.core.middleware.ServicePrefixMiddleware",
+    "apps.core.middleware.LogLevelMiddleware",
     "apps.core.middleware.NullByteQueryParamMiddleware",
     "apps.core.middleware.APIRootViewMiddleware",
 ]

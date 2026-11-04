@@ -9,6 +9,20 @@ from pathlib import Path
 
 from dynaconf import Dynaconf, post_hook
 
+# Runtime log level control (AAP-79584). An ephemeral override row is applied at
+# bounded refresh points; see apps/core/logging_control.py.
+RUNTIME_LOG_LEVEL_REFRESH_SECONDS = 1
+"""Minimum seconds between database checks for a runtime log level override (0 disables throttling)."""
+
+RUNTIME_LOG_LEVEL_MAX_TTL = 3600
+"""Upper bound, in seconds, for a runtime log level override."""
+
+# Keep the `apps` logger aligned with the configured level. The framework-managed
+# metrics_service/settings.py hard-codes this logger to INFO, which ignores
+# METRICS_SERVICE_LOG_LEVEL; this module is the supported override point (the
+# same pattern apps/settings/development.py uses).
+LOGGING__loggers__apps__level = "@format {this.LOG_LEVEL}"
+
 # Extra applications added after PSF templating
 extra_applications = [
     "django_prometheus",
