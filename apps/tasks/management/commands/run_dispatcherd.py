@@ -71,6 +71,15 @@ class Command(BaseCommand):
                 sync_dispatcherd_log_level()
             except Exception as exc:
                 logger.debug(f"Runtime log level sync skipped: {exc}")
+            finally:
+                # The sync query opens a database connection in this process.
+                # Drop it before dispatcherd forks workers so they do not
+                # inherit a socket shared with the parent, and so a failed
+                # query cannot leave a broken connection behind.
+                from django.db import close_old_connections, connection
+
+                if not connection.in_atomic_block:
+                    close_old_connections()
 
             # Import dispatcherd after configuration
             import dispatcherd

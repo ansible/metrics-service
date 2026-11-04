@@ -5,6 +5,7 @@ This module provides complete test coverage for the run_dispatcherd
 management command including all execution paths and error handling.
 """
 
+import builtins
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +13,10 @@ import pytest
 from django.test import TestCase
 
 from apps.tasks.management.commands.run_dispatcherd import Command
+
+# Captured before tests patch builtins.__import__, so the side effects below can
+# fall back to the real importer instead of recursing into the patch.
+_REAL_IMPORT = builtins.__import__
 
 
 @pytest.mark.unit
@@ -31,7 +36,7 @@ class TestRunDispatcherdCommand(TestCase):
             if name == "dispatcherd":
                 return mock_dispatcherd
             # Use the real __import__ for everything else
-            return __import__(name, *args, **kwargs)
+            return _REAL_IMPORT(name, *args, **kwargs)
 
         return import_side_effect
 
@@ -237,7 +242,7 @@ class TestRunDispatcherdCommand(TestCase):
         def import_side_effect(name, *args, **kwargs):
             if name == "dispatcherd":
                 raise ImportError("Cannot import dispatcherd")
-            return __import__(name, *args, **kwargs)
+            return _REAL_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=import_side_effect):
             self.command.stdout = self.out
@@ -431,3 +436,53 @@ class TestRunDispatcherdCommand(TestCase):
     def test_handle_docstring(self):
         """Test that handle method has docstring."""
         self.assertIsNotNone(Command.handle.__doc__)
+
+
+def _dispatcherd_import_side_effect(mock_dispatcherd):
+    """Import dispatcherd from the mock and everything else for real."""
+
+    def import_side_effect(name, *args, **kwargs):
+        if name == "dispatcherd":
+            return mock_dispatcherd
+        return _REAL_IMPORT(name, *args, **kwargs)
+
+    return import_side_effect
+
+
+def _handle_options():
+    return {"workers": 1, "timeout": 3600, "max_tasks": 100, "log_level": "INFO"}
+
+
+@pytest.mark.unit
+def test_handle_closes_db_connections_before_workers_fork():
+    """The startup sync opens a connection; it must be closed before run_service forks."""
+    command = Command()
+    command.stdout = StringIO()
+
+    with (
+        patch("apps.core.logging_control.sync_dispatcherd_log_level"),
+        patch("django.db.close_old_connections") as mock_close,
+        patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+    ):
+        command.handle(**_handle_options())
+
+    mock_close.assert_called()
+
+
+@pytest.mark.unit
+def test_handle_closes_db_connections_when_startup_sync_fails():
+    """A failed startup sync must not leave its connection behind for forked workers."""
+    command = Command()
+    command.stdout = StringIO()
+
+    with (
+        patch(
+            "apps.core.logging_control.sync_dispatcherd_log_level",
+            side_effect=RuntimeError("sync failed"),
+        ),
+        patch("django.db.close_old_connections") as mock_close,
+        patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+    ):
+        command.handle(**_handle_options())
+
+    mock_close.assert_called()
