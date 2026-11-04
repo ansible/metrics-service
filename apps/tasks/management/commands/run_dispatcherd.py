@@ -5,9 +5,11 @@ This command starts dispatcherd workers to process background tasks from the dat
 """
 
 import logging
+import os
 import sys
 
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from apps.tasks.dispatcherd_config import setup_dispatcherd_config
 
@@ -49,10 +51,24 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Handle the command execution."""
         try:
+            # Record this process's epoch before workers are forked so they
+            # inherit it. A runtime log level override written before this
+            # moment is treated as stale and ignored (AAP-79584).
+            os.environ["METRICS_SERVICE_PROCESS_STARTED_AT"] = timezone.now().isoformat()
+
             log_level = getattr(logging, options["log_level"])
             logging.basicConfig(level=log_level)
             # Setup dispatcherd configuration
             setup_dispatcherd_config()
+
+            # Apply any active runtime log level override for the dispatcherd
+            # main process before it starts accepting work.
+            try:
+                from apps.core.logging_control import sync_from_db
+
+                sync_from_db(force=True)
+            except Exception as exc:
+                logger.debug(f"Runtime log level sync skipped: {exc}")
 
             # Import dispatcherd after configuration
             import dispatcherd

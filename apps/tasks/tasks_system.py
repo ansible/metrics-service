@@ -219,6 +219,16 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
     """
     ensure_django_setup()
 
+    # Apply a runtime log level override (AAP-79584). The worker may outlive
+    # many tasks, so re-check on every task entry. Restart semantics come from
+    # expiry and from the dispatcherd process epoch inherited at fork time.
+    try:
+        from apps.core.logging_control import sync_from_db
+
+        sync_from_db(respect_process_start=False)
+    except Exception as exc:  # noqa: BLE001 - log control must not block task execution
+        logger.debug(f"Runtime log level sync skipped: {exc}")
+
     task_id = kwargs.get("task_id")
     if not task_id:
         return create_task_result("error", error="task_id is required")
