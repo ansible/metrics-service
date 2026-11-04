@@ -427,3 +427,111 @@ def test_leaderboard_direct_streak_query_is_scoped_to_org_uuid():
     assert streak == 1
     assert "organization_ansible_id" in captured["sql"]
     assert str(ORG_A_UUID) in captured["sql"]
+
+
+# ---------------------------------------------------------------------------
+# Saved report (filter set) permission semantics
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("filters", "expected"),
+    [
+        ({"organization": ["1", "2"]}, [1, 2]),
+        ('{"organization": ["3"]}', [3]),
+        ({"organization_id": [4]}, [4]),
+        ({"organization": []}, []),
+        ({}, None),
+        (None, None),
+        ("not-json", None),
+    ],
+)
+def test_filter_set_organization_ids_parses_supported_shapes(filters, expected):
+    from apps.dashboard_reports.permissions import filter_set_organization_ids
+
+    assert filter_set_organization_ids(filters) == expected
+
+
+@pytest.mark.unit
+def test_user_can_save_report_allows_system_admin():
+    from apps.dashboard_reports.permissions import user_can_save_report
+
+    with patch("apps.dashboard_reports.permissions.is_dashboard_admin", return_value=True):
+        assert user_can_save_report(SimpleNamespace(), {"organization": ["501"]}) is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("organizations", "expected"),
+    [
+        ((DashboardOrganization(1, "Org A", ORG_A_UUID, True),), True),
+        ((DashboardOrganization(1, "Org A", ORG_A_UUID, False),), False),
+        (
+            (
+                DashboardOrganization(1, "Org A", ORG_A_UUID, True),
+                DashboardOrganization(2, "Org B", ORG_B_UUID, False),
+            ),
+            False,
+        ),
+    ],
+)
+def test_user_can_save_report_without_organization_filter_requires_edit_everywhere(organizations, expected):
+    from apps.dashboard_reports.permissions import user_can_save_report
+
+    with (
+        patch("apps.dashboard_reports.permissions.is_dashboard_admin", return_value=False),
+        patch(
+            "apps.dashboard_reports.permissions.get_dashboard_scope",
+            return_value=DashboardScope(False, organizations),
+        ),
+    ):
+        assert user_can_save_report(SimpleNamespace(), {}) is expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("can_edit", "expected"),
+    [
+        (True, True),
+        (False, False),
+    ],
+)
+def test_user_can_save_report_with_selected_organization_uses_change_permission(can_edit, expected):
+    from apps.dashboard_reports.permissions import user_can_save_report
+
+    organization = DashboardOrganization(1, "Org A", ORG_A_UUID, can_edit)
+    with (
+        patch("apps.dashboard_reports.permissions.is_dashboard_admin", return_value=False),
+        patch(
+            "apps.dashboard_reports.permissions.get_dashboard_scope",
+            return_value=DashboardScope(False, (organization,)),
+        ),
+        patch(
+            "apps.dashboard_reports.awx_queries.fetch_controller_organizations",
+            return_value=[{"id": 501, "name": "Org A", "ansible_id": ORG_A_UUID}],
+        ),
+        patch("apps.tasks.utils.get_db_connection", return_value=MagicMock()),
+    ):
+        assert user_can_save_report(SimpleNamespace(), {"organization": ["501"]}) is expected
+
+
+@pytest.mark.unit
+def test_user_can_save_report_rejects_unknown_or_empty_selection():
+    from apps.dashboard_reports.permissions import user_can_save_report
+
+    organization = DashboardOrganization(1, "Org A", ORG_A_UUID, True)
+    with (
+        patch("apps.dashboard_reports.permissions.is_dashboard_admin", return_value=False),
+        patch(
+            "apps.dashboard_reports.permissions.get_dashboard_scope",
+            return_value=DashboardScope(False, (organization,)),
+        ),
+        patch(
+            "apps.dashboard_reports.awx_queries.fetch_controller_organizations",
+            return_value=[{"id": 501, "name": "Org A", "ansible_id": ORG_A_UUID}],
+        ),
+        patch("apps.tasks.utils.get_db_connection", return_value=MagicMock()),
+    ):
+        assert user_can_save_report(SimpleNamespace(), {"organization": []}) is False
+        assert user_can_save_report(SimpleNamespace(), {"organization": ["999"]}) is False

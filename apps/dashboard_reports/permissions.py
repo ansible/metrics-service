@@ -1,5 +1,6 @@
 """Dashboard organization scope and permission helpers."""
 
+import json
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -84,6 +85,73 @@ def get_dashboard_scope(user) -> DashboardScope:
 def is_dashboard_admin(user) -> bool:
     """Return whether the caller has system-wide write permission."""
     return has_super_permission(user)
+
+
+def filter_set_organization_ids(filters) -> list[int] | None:
+    """Return the AWX organization IDs referenced by a saved filter set.
+
+    ``None`` means the filter set has no organization filter, so it spans every
+    organization the caller can see. The UI stores filters as a JSON string in
+    the ``FilterSet.filters`` JSON field, while tests and other callers may pass
+    a dict directly.
+    """
+    if isinstance(filters, str):
+        try:
+            filters = json.loads(filters)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(filters, dict):
+        return None
+
+    raw_ids = filters.get("organization", filters.get("organization_id"))
+    if raw_ids is None:
+        return None
+    if not isinstance(raw_ids, (list, tuple)):
+        raw_ids = [raw_ids]
+
+    organization_ids = []
+    for raw_id in raw_ids:
+        try:
+            organization_ids.append(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+    return organization_ids
+
+
+def user_can_save_report(user, filters) -> bool:
+    """Return whether the caller may create or update a saved dashboard report.
+
+    Option B semantics:
+    - system administrators may save any report;
+    - organization admins (``change_organization``) may save reports that stay
+      within organizations they can edit;
+    - organization members (``member_organization`` only) may not save reports;
+    - a report with no organization filter spans every visible organization, so
+      it requires edit permission on all of them;
+    - view-only organizations must never be included in a saved report.
+    """
+    if is_dashboard_admin(user):
+        return True
+
+    scope = get_dashboard_scope(user)
+    if scope.global_access or not scope.organizations:
+        return False
+
+    editable_ids = {org.ansible_id for org in scope.organizations if org.can_edit}
+    selected_ids = filter_set_organization_ids(filters)
+
+    if selected_ids is None:
+        # No organization filter: the report covers every visible organization.
+        return len(editable_ids) == len(scope.organizations)
+    if not selected_ids:
+        return False
+
+    from apps.dashboard_reports.awx_queries import fetch_controller_organizations
+    from apps.tasks.utils import get_db_connection
+
+    rows = fetch_controller_organizations(get_db_connection("awx"), ansible_ids=scope.ansible_ids)
+    ansible_id_by_awx_id = {row["id"]: row["ansible_id"] for row in rows}
+    return all(ansible_id_by_awx_id.get(awx_id) in editable_ids for awx_id in selected_ids)
 
 
 def scope_jobdata_queryset(user, queryset):

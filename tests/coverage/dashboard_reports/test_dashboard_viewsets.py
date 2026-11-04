@@ -40,7 +40,7 @@ def test_filter_sets_create(auth_client, user):
         "is_default": False,
     }
     response = auth_client.post("/api/v1/dashboard_reports/filter_sets/", payload, format="json")
-    assert response.status_code in (200, 201, 400, 404)
+    assert response.status_code in (200, 201, 400, 403, 404)
 
 
 @pytest.mark.unit

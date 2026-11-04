@@ -11,6 +11,7 @@ Covers:
 """
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from django.test import TestCase
@@ -50,6 +51,20 @@ def _create_filter_set(
         filters=filters or _FILTERS_A,
         is_default=is_default,
     )
+
+
+def _allow_saving_reports(test_case) -> None:
+    """Bypass the Option B report-save permission gate for CRUD mechanics tests.
+
+    The gate itself is covered by ``TestFilterSetsSavePermission`` and
+    ``tests/unit/dashboard_reports/test_organization_dashboard_access.py``.
+    """
+    patcher = patch(
+        "apps.dashboard_reports.viewsets.filter_sets.user_can_save_report",
+        return_value=True,
+    )
+    patcher.start()
+    test_case.addCleanup(patcher.stop)
 
 
 # =============================================================================
@@ -322,6 +337,7 @@ class TestFilterSetsCreateEndpoint(APITestCase):
     def setUp(self) -> None:
         self.user = _create_user()
         self.client.force_authenticate(user=self.user)
+        _allow_saving_reports(self)
 
     def tearDown(self) -> None:
         FilterSet.objects.all().delete()
@@ -421,6 +437,7 @@ class TestFilterSetsUpdateEndpoint(APITestCase):
     def setUp(self) -> None:
         self.user = _create_user()
         self.client.force_authenticate(user=self.user)
+        _allow_saving_reports(self)
         self.filter_set = _create_filter_set(self.user, "Original", _FILTERS_A, is_default=False)
 
     def tearDown(self) -> None:
@@ -557,6 +574,7 @@ class TestFilterSetsUserIsolation(APITestCase):
     def setUp(self) -> None:
         self.user_a = _create_user("user_a")
         self.user_b = _create_user("user_b")
+        _allow_saving_reports(self)
 
     def tearDown(self) -> None:
         FilterSet.objects.all().delete()
@@ -618,6 +636,7 @@ class TestFilterSetsSingleDefault(APITestCase):
     def setUp(self) -> None:
         self.user = _create_user()
         self.client.force_authenticate(user=self.user)
+        _allow_saving_reports(self)
 
     def tearDown(self) -> None:
         FilterSet.objects.all().delete()
@@ -656,6 +675,38 @@ class TestFilterSetsSingleDefault(APITestCase):
 
         existing_default.refresh_from_db()
         assert existing_default.is_default is True
+
+
+# =============================================================================
+# Report-save permission gate (Option B)
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestFilterSetsSavePermission(APITestCase):
+    """View-only organization members must not be able to save reports."""
+
+    def setUp(self) -> None:
+        self.user = _create_user()
+        self.client.force_authenticate(user=self.user)
+
+    def tearDown(self) -> None:
+        FilterSet.objects.all().delete()
+        User.objects.all().delete()
+
+    def test_user_without_change_permission_cannot_create_report(self) -> None:
+        url = reverse("v1:filter_sets-list")
+        response = self.client.post(
+            url, {"name": "Denied Report", "filters": _FILTERS_A, "is_default": False}, format="json"
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert not FilterSet.objects.filter(user=self.user, name="Denied Report").exists()
+
+    def test_user_without_change_permission_cannot_update_report(self) -> None:
+        filter_set = _create_filter_set(self.user, "Existing", _FILTERS_A)
+        url = reverse("v1:filter_sets-detail", kwargs={"pk": filter_set.pk})
+        response = self.client.put(url, {"name": "Changed", "filters": _FILTERS_B, "is_default": False}, format="json")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 # =============================================================================
