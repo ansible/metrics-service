@@ -82,12 +82,18 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
 
     # Windowed collectors take since/until; snapshots take neither.
     collector_kwargs: dict[str, Any] = {}
-    if entry.accepts_since_until:
-        collector_kwargs["since"] = since
-        collector_kwargs["until"] = until
-    if entry.collector_type == "main_jobevent_service":
-        collector_kwargs["row_limit"] = settings.JOBEVENT_ROW_LIMIT
-        collector_kwargs["job_limit"] = settings.JOBEVENT_JOB_LIMIT
+    collector_kwargs.update(
+        ({}, {"since": since, "until": until})[bool(entry.accepts_since_until)]
+    )
+    collector_kwargs.update(
+        (
+            {},
+            {
+                "row_limit": settings.JOBEVENT_ROW_LIMIT,
+                "job_limit": settings.JOBEVENT_JOB_LIMIT,
+            },
+        )[entry.collector_type == "main_jobevent_service"]
+    )
 
     from django.utils import timezone
 

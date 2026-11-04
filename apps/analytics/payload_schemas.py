@@ -11,6 +11,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+ANSIBLE_CONN_VALUE_FROM_HOST_VARS = "ansible_connection value from the host variables."
+ANSIBLE_HOST_VALUE_FROM_HOST_VARS = "ansible_host value from the host variables."
+CONTROLLER_INVENTORY_ID = "Controller inventory ID."
+CONTROLLER_JOB_ID = "Controller job ID."
+CONTROLLER_INVENTORY_IDENTIFIER = "Controller inventory identifier."
+CONTROLLER_INVENTORY_NAME = "Controller inventory name."
+CONTROLLER_ORGANIZATION_IDENTIFIER = "Controller organization identifier."
+CONTROLLER_ORGANIZATION_ID = "Controller organization ID."
+CONTROLLER_ORGANIZATION_NAME = "Controller organization name."
+CONTROLLER_PROJECT_NAME = "Controller project name."
+INVENTORY_HOST_NAME = "Inventory host name."
+UNIFIED_JOB_TEMPLATE_IDENTIFIER = "Unified job template identifier."
+UNIFIED_JOB_TEMPLATE_NAME = "Unified job template name."
+WORKFLOW_NODE_IDENTIFIER = "Workflow node identifier."
+
 
 @dataclass(frozen=True)
 class PayloadField:
@@ -102,16 +117,16 @@ _JOB_FIELDS = (
     _field("id", "integer", "Unified job identifier", nullable=False),
     _field("polymorphic_ctype_id", "integer", "Django content type ID of the concrete job type."),
     _field("model", "string", "Controller content type model name, for example job, projectupdate, or workflowjob."),
-    _field("organization_id", "integer", "Controller organization identifier."),
-    _field("organization_name", "string", "Controller organization name."),
+    _field("organization_id", "integer", CONTROLLER_ORGANIZATION_IDENTIFIER),
+    _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
     _field("execution_environment_image", "string", "Execution environment image used by the job."),
-    _field("inventory_id", "integer", "Controller inventory identifier."),
-    _field("inventory_name", "string", "Controller inventory name."),
+    _field("inventory_id", "integer", CONTROLLER_INVENTORY_IDENTIFIER),
+    _field("inventory_name", "string", CONTROLLER_INVENTORY_NAME),
     _field("execution_environment_id", "integer", "Execution environment identifier."),
     _field("created", "datetime", "Job creation time."),
     _field("modified", "datetime", "Job last-modification time."),
     _field("name", "string", "Job name."),
-    _field("unified_job_template_id", "integer", "Unified job template identifier."),
+    _field("unified_job_template_id", "integer", UNIFIED_JOB_TEMPLATE_IDENTIFIER),
     _field("launch_type", "string", "How the job was launched, for example manual, relaunch, scheduled, or workflow."),
     _field("schedule_id", "integer", "Schedule identifier used to launch the job."),
     _field("execution_node", "string", "Node on which the job executed."),
@@ -127,7 +142,7 @@ _JOB_FIELDS = (
     _INSTALLED_COLLECTIONS,
     _field("ansible_version", "string", "Ansible version used by the job."),
     _field("forks", "integer", "Maximum number of parallel forks configured for the job."),
-    _field("job_template_name", "string", "Unified job template name."),
+    _field("job_template_name", "string", UNIFIED_JOB_TEMPLATE_NAME),
     _field("scm_type", "string", "Source-control type of the job's project."),
 )
 
@@ -143,8 +158,8 @@ UNIFIED_JOBS_ORG = PayloadSchema(
     kind="array",
     description="Unified job summaries grouped by organization, job type, and status.",
     item_fields=(
-        _field("organization_id", "integer", "Controller organization identifier."),
-        _field("organization_name", "string", "Controller organization name."),
+        _field("organization_id", "integer", CONTROLLER_ORGANIZATION_IDENTIFIER),
+        _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
         _field("job_type", "string", "Unified job type."),
         _field("status", "string", "Job status."),
         _field("job_count", "integer", "Number of jobs in this group."),
@@ -161,7 +176,7 @@ UNIFIED_JOBS_DASHBOARD = PayloadSchema(
     item_fields=_JOB_FIELDS
     + (
         _field("project_id", "integer", "Controller project identifier."),
-        _field("project_name", "string", "Controller project name."),
+        _field("project_name", "string", CONTROLLER_PROJECT_NAME),
         _field(
             "launched_by_id", "integer", "User ID that launched the job; null unless launch_type is manual or relaunch."
         ),
@@ -177,10 +192,10 @@ _HOST_SUMMARY = _catalog(
     _field("id", "integer", "Job host summary identifier", nullable=False),
     _field("created", "datetime", "Job host summary creation time."),
     _field("modified", "datetime", "Job host summary last-modification time."),
-    _field("host_name", "string", "Inventory host name."),
+    _field("host_name", "string", INVENTORY_HOST_NAME),
     _field("host_remote_id", "integer", "Controller host ID."),
-    _field("ansible_host_variable", "string", "ansible_host value from the host variables."),
-    _field("ansible_connection_variable", "string", "ansible_connection value from the host variables."),
+    _field("ansible_host_variable", "string", ANSIBLE_HOST_VALUE_FROM_HOST_VARS),
+    _field("ansible_connection_variable", "string", ANSIBLE_CONN_VALUE_FROM_HOST_VARS),
     _field("changed", "integer", "Number of tasks that reported changes on the host."),
     _field("dark", "integer", "Number of tasks for which the host was unreachable."),
     _field("failures", "integer", "Number of failed tasks on the host."),
@@ -191,17 +206,17 @@ _HOST_SUMMARY = _catalog(
     _field("ignored", "integer", "Number of failed tasks ignored on the host."),
     _field("rescued", "integer", "Number of failed tasks rescued on the host."),
     _field("job_created", "datetime", "Creation time of the related job."),
-    _field("job_remote_id", "integer", "Controller job ID."),
+    _field("job_remote_id", "integer", CONTROLLER_JOB_ID),
     _field("job_template_remote_id", "integer", "Controller unified job template ID."),
     _field("job_template_name", "string", "Name of the related job."),
     _field("ansible_version", "string", "Ansible version used by the related job."),
     _field("launch_type", "string", "How the related job was launched."),
-    _field("inventory_remote_id", "integer", "Controller inventory ID."),
-    _field("inventory_name", "string", "Controller inventory name."),
-    _field("organization_remote_id", "integer", "Controller organization ID."),
-    _field("organization_name", "string", "Controller organization name."),
+    _field("inventory_remote_id", "integer", CONTROLLER_INVENTORY_ID),
+    _field("inventory_name", "string", CONTROLLER_INVENTORY_NAME),
+    _field("organization_remote_id", "integer", CONTROLLER_ORGANIZATION_ID),
+    _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
     _field("project_remote_id", "integer", "Controller project ID."),
-    _field("project_name", "string", "Controller project name."),
+    _field("project_name", "string", CONTROLLER_PROJECT_NAME),
     _field("model", "string", "Concrete job type of the related job."),
 )
 
@@ -273,7 +288,7 @@ JOB_HOST_SUMMARY_SERVICE = PayloadSchema(
         "project_remote_id",
         "project_name",
         "model",
-        description_overrides={"job_template_name": "Unified job template name."},
+        description_overrides={"job_template_name": UNIFIED_JOB_TEMPLATE_NAME},
     ),
 )
 
@@ -289,8 +304,8 @@ CREDENTIALS_SERVICE_ORG = PayloadSchema(
     kind="array",
     description="Managed credential types used by jobs, grouped by job organization.",
     item_fields=(
-        _field("organization_id", "integer", "Controller organization identifier."),
-        _field("organization_name", "string", "Controller organization name."),
+        _field("organization_id", "integer", CONTROLLER_ORGANIZATION_IDENTIFIER),
+        _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
         _field("credential_type", "string", "Managed credential type name.", nullable=False),
     ),
 )
@@ -336,7 +351,7 @@ _EVENT = _catalog(
     _field("play", "string", "Play name recorded for the event."),
     _field("task", "string", "Task name recorded for the event."),
     _field("role", "string", "Role name recorded for the event."),
-    _field("job_remote_id", "integer", "Controller job ID."),
+    _field("job_remote_id", "integer", CONTROLLER_JOB_ID),
     _field("job_id", "integer", "Unified job identifier associated with the event."),
     _field("host_remote_id", "integer", "Controller host ID."),
     _field("host_id", "integer", "Inventory host identifier associated with the event."),
@@ -460,17 +475,17 @@ EVENTS_TABLE = PayloadSchema(
 _EDGE_FIELDS = (
     _array(
         "success_nodes",
-        _field("node_id", "integer", "Workflow node identifier."),
+        _field("node_id", "integer", WORKFLOW_NODE_IDENTIFIER),
         "Nodes run when this node succeeds.",
     ),
     _array(
         "failure_nodes",
-        _field("node_id", "integer", "Workflow node identifier."),
+        _field("node_id", "integer", WORKFLOW_NODE_IDENTIFIER),
         "Nodes run when this node fails.",
     ),
     _array(
         "always_nodes",
-        _field("node_id", "integer", "Workflow node identifier."),
+        _field("node_id", "integer", WORKFLOW_NODE_IDENTIFIER),
         "Nodes run regardless of this node's result.",
     ),
 )
@@ -484,9 +499,9 @@ WORKFLOW_JOB_NODE = PayloadSchema(
         _field("created", "datetime", "Workflow job node creation time."),
         _field("modified", "datetime", "Workflow job node last-modification time."),
         _field("job_id", "integer", "Unified job spawned by this node."),
-        _field("unified_job_template_id", "integer", "Unified job template identifier."),
+        _field("unified_job_template_id", "integer", UNIFIED_JOB_TEMPLATE_IDENTIFIER),
         _field("workflow_job_id", "integer", "Workflow job identifier."),
-        _field("inventory_id", "integer", "Controller inventory identifier."),
+        _field("inventory_id", "integer", CONTROLLER_INVENTORY_IDENTIFIER),
         *_EDGE_FIELDS,
         _field("do_not_run", "boolean", "Whether this workflow node is disabled."),
         _field(
@@ -693,8 +708,8 @@ CRED_TYPE_COUNTS_ORG = PayloadSchema(
     kind="array",
     description="Credential counts grouped by owning organization and credential type.",
     item_fields=(
-        _field("organization_id", "integer", "Controller organization identifier."),
-        _field("organization_name", "string", "Controller organization name."),
+        _field("organization_id", "integer", CONTROLLER_ORGANIZATION_IDENTIFIER),
+        _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
         _field("credential_type_id", "integer", "Credential type identifier.", nullable=False),
         _field("credential_type", "string", "Credential type name.", nullable=False),
         _field("managed", "boolean", "Whether the credential type is managed by the platform.", nullable=False),
@@ -777,8 +792,8 @@ INVENTORY_COUNTS_ORG = PayloadSchema(
     kind="array",
     description="Inventory, host, and source counts grouped by organization and inventory kind.",
     item_fields=(
-        _field("organization_id", "integer", "Controller organization identifier."),
-        _field("organization_name", "string", "Controller organization name."),
+        _field("organization_id", "integer", CONTROLLER_ORGANIZATION_IDENTIFIER),
+        _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
         _field("inventory_kind", "string", "Inventory kind.", nullable=False),
         _field("inventory_count", "integer", "Number of inventories of this kind."),
         _field("host_count", "integer", "Number of hosts in these inventories."),
@@ -816,8 +831,8 @@ PROJECTS_BY_SCM_TYPE_ORG = PayloadSchema(
     kind="array",
     description="Project counts grouped by organization and source-control type.",
     item_fields=(
-        _field("organization_id", "integer", "Controller organization identifier."),
-        _field("organization_name", "string", "Controller organization name."),
+        _field("organization_id", "integer", CONTROLLER_ORGANIZATION_IDENTIFIER),
+        _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
         _field("scm_type", "string", "Source-control type.", nullable=False),
         _field("project_count", "integer", "Number of projects."),
     ),
@@ -828,7 +843,7 @@ UNIFIED_JOB_TEMPLATE = PayloadSchema(
     kind="array",
     description="Unified job template identity, scheduling, and status records.",
     item_fields=(
-        _field("id", "integer", "Unified job template identifier.", nullable=False),
+        _field("id", "integer", UNIFIED_JOB_TEMPLATE_IDENTIFIER, nullable=False),
         _field("polymorphic_ctype_id", "integer", "Django content type identifier for the concrete template."),
         _field(
             "model",
@@ -840,7 +855,7 @@ UNIFIED_JOB_TEMPLATE = PayloadSchema(
         _field("modified", "datetime", "Template last-modification time."),
         _field("created_by_id", "integer", "Identifier of the user who created the template."),
         _field("modified_by_id", "integer", "Identifier of the user who last modified the template."),
-        _field("name", "string", "Unified job template name."),
+        _field("name", "string", UNIFIED_JOB_TEMPLATE_NAME),
         _field("current_job_id", "integer", "Currently running job identifier."),
         _field("last_job_id", "integer", "Most recent job identifier."),
         _field("last_job_failed", "boolean", "Whether the most recent job failed."),
@@ -859,9 +874,9 @@ WORKFLOW_JOB_TEMPLATE_NODE = PayloadSchema(
         _field("id", "integer", "Workflow job template node identifier", nullable=False),
         _field("created", "datetime", "Workflow job template node creation time."),
         _field("modified", "datetime", "Workflow job template node last-modification time."),
-        _field("unified_job_template_id", "integer", "Unified job template identifier."),
+        _field("unified_job_template_id", "integer", UNIFIED_JOB_TEMPLATE_IDENTIFIER),
         _field("workflow_job_template_id", "integer", "Workflow job template identifier."),
-        _field("inventory_id", "integer", "Controller inventory identifier."),
+        _field("inventory_id", "integer", CONTROLLER_INVENTORY_IDENTIFIER),
         *_EDGE_FIELDS,
         _field(
             "all_parents_must_converge",
@@ -876,22 +891,22 @@ MAIN_HOST = PayloadSchema(
     kind="array",
     description="Enabled inventory hosts and selected host facts.",
     item_fields=(
-        _field("host_name", "string", "Inventory host name.", nullable=False),
+        _field("host_name", "string", INVENTORY_HOST_NAME, nullable=False),
         _field("host_id", "integer", "Inventory host identifier."),
-        _field("inventory_remote_id", "integer", "Controller inventory ID."),
-        _field("inventory_name", "string", "Controller inventory name."),
-        _field("organization_remote_id", "integer", "Controller organization ID."),
-        _field("organization_name", "string", "Controller organization name."),
+        _field("inventory_remote_id", "integer", CONTROLLER_INVENTORY_ID),
+        _field("inventory_name", "string", CONTROLLER_INVENTORY_NAME),
+        _field("organization_remote_id", "integer", CONTROLLER_ORGANIZATION_ID),
+        _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
         _field("last_automation", "datetime", "Creation time of the host's most recent job."),
         _field("first_automation", "datetime", "First automation time recorded for this host."),
-        _field("ansible_host_variable", "string", "ansible_host value from the host variables."),
+        _field("ansible_host_variable", "string", ANSIBLE_HOST_VALUE_FROM_HOST_VARS),
         _object(
             "canonical_facts",
             (
                 _field("ansible_product_serial", "string", "Product serial number reported by Ansible."),
                 _field("ansible_machine_id", "string", "Machine identifier reported by Ansible."),
                 _field("ansible_host", "string", "Canonical Ansible host value."),
-                _field("host_name", "string", "Inventory host name."),
+                _field("host_name", "string", INVENTORY_HOST_NAME),
                 _field("ansible_port", "integer", "Ansible connection port."),
             ),
             "Host identity facts used for deduplication.",
@@ -899,7 +914,7 @@ MAIN_HOST = PayloadSchema(
         _object(
             "facts",
             (
-                _field("ansible_connection_variable", "string", "ansible_connection value from the host variables."),
+                _field("ansible_connection_variable", "string", ANSIBLE_CONN_VALUE_FROM_HOST_VARS),
                 _field("ansible_virtualization_type", "string", "Virtualization type reported by Ansible."),
                 _field("ansible_virtualization_role", "string", "Virtualization role reported by Ansible."),
                 _field("ansible_system_vendor", "string", "System vendor reported by Ansible."),
@@ -933,8 +948,8 @@ MAIN_HOSTMETRIC = PayloadSchema(
         _field("used_in_inventories", "integer", "Number of inventories using the host."),
         _field("ansible_product_serial", "string", "Product serial number reported by Ansible."),
         _field("ansible_machine_id", "string", "Machine identifier reported by Ansible."),
-        _field("ansible_host_variable", "string", "ansible_host value from the host variables."),
-        _field("ansible_connection_variable", "string", "ansible_connection value from the host variables."),
+        _field("ansible_host_variable", "string", ANSIBLE_HOST_VALUE_FROM_HOST_VARS),
+        _field("ansible_connection_variable", "string", ANSIBLE_CONN_VALUE_FROM_HOST_VARS),
     ),
 )
 
@@ -956,15 +971,15 @@ INDIRECT_MANAGED_NODES = PayloadSchema(
         ),
         _field("task_runs", "integer", "How many times registered modules were invoked on the node."),
         _field("job_created", "datetime", "Creation time of the related job."),
-        _field("job_remote_id", "integer", "Controller job ID."),
+        _field("job_remote_id", "integer", CONTROLLER_JOB_ID),
         _field("job_template_remote_id", "integer", "Controller unified job template ID."),
-        _field("job_template_name", "string", "Unified job template name."),
-        _field("inventory_remote_id", "integer", "Controller inventory ID."),
-        _field("inventory_name", "string", "Controller inventory name."),
-        _field("organization_remote_id", "integer", "Controller organization ID."),
-        _field("organization_name", "string", "Controller organization name."),
+        _field("job_template_name", "string", UNIFIED_JOB_TEMPLATE_NAME),
+        _field("inventory_remote_id", "integer", CONTROLLER_INVENTORY_ID),
+        _field("inventory_name", "string", CONTROLLER_INVENTORY_NAME),
+        _field("organization_remote_id", "integer", CONTROLLER_ORGANIZATION_ID),
+        _field("organization_name", "string", CONTROLLER_ORGANIZATION_NAME),
         _field("project_remote_id", "integer", "Controller project ID."),
-        _field("project_name", "string", "Controller project name."),
+        _field("project_name", "string", CONTROLLER_PROJECT_NAME),
     ),
 )
 
