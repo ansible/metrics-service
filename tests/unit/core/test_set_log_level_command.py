@@ -123,3 +123,15 @@ def test_unified_metrics_service_command_delegates(settings):
     call_command("metrics_service", "set-log-level", "DEBUG", "--ttl", "60", stdout=out)
     assert RuntimeLogLevelOverride.objects.get(pk=1).level == "DEBUG"
     assert "Log level set to DEBUG" in out.getvalue()
+
+
+@pytest.mark.django_db
+def test_clear_notifies_dispatcherd_with_baseline(monkeypatch):
+    """--clear must tell dispatcherd to restore its main-process logger."""
+    notified = []
+    monkeypatch.setattr(logging_control, "notify_dispatcherd", lambda level: notified.append(level))
+    logging_control.set_override("DEBUG", ttl_seconds=60)
+
+    call_command("set_log_level", "--clear", stdout=StringIO())
+
+    assert notified == [logging_control.BASELINE_LEVEL]

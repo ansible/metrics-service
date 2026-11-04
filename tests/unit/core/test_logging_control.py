@@ -156,3 +156,47 @@ def test_singleton_enforced_on_save():
 def test_notify_dispatcherd_disabled_is_noop(settings):
     settings.DISPATCHERD_ENABLED = False
     assert logging_control.notify_dispatcherd("DEBUG") is None
+
+
+@pytest.mark.django_db
+def test_dispatcherd_main_sync_applies_live_override():
+    """The dispatcherd main-process refresh applies an active override."""
+    logging_control.set_override("DEBUG", ttl_seconds=60)
+    logging_control.reset_throttle()
+
+    logging_control.sync_dispatcherd_log_level()
+
+    assert logging_control._APPLIED_LEVEL == "DEBUG"
+
+
+@pytest.mark.django_db
+def test_dispatcherd_main_sync_reverts_expired_override():
+    """TTL expiry must reach the dispatcherd main process, which has no task boundary."""
+    logging_control.apply_level("DEBUG")
+    RuntimeLogLevelOverride.objects.create(
+        level="DEBUG",
+        expires_at=timezone.now() - timedelta(seconds=1),
+        set_by="test",
+    )
+    logging_control.reset_throttle()
+
+    logging_control.sync_dispatcherd_log_level()
+
+    baseline = logging.getLevelNamesMapping()[logging_control.BASELINE_LEVEL]
+    assert logging_control._APPLIED_LEVEL is None
+    assert logging.getLogger("apps").level == baseline
+
+
+@pytest.mark.django_db
+def test_dispatcherd_main_sync_reverts_after_clear():
+    """Clearing the row must reach the dispatcherd main process on its next refresh."""
+    logging_control.set_override("DEBUG", ttl_seconds=60)
+    logging_control.reset_throttle()
+    logging_control.sync_dispatcherd_log_level()
+    assert logging_control._APPLIED_LEVEL == "DEBUG"
+
+    logging_control.clear_override()
+    logging_control.reset_throttle()
+    logging_control.sync_dispatcherd_log_level()
+
+    assert logging_control._APPLIED_LEVEL is None

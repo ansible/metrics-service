@@ -179,6 +179,23 @@ def sync_from_db(respect_process_start: bool = True, force: bool = False) -> str
     return _APPLIED_LEVEL
 
 
+def sync_dispatcherd_log_level() -> str | None:
+    """One refresh cycle for the dispatcherd main process.
+
+    The main process has no request or task boundary, so :mod:`run_dispatcherd`
+    calls this from a background loop. That is what makes clears and TTL
+    expiry propagate to the dispatcherd logger; without it the main process
+    would keep a level applied at startup indefinitely.
+    """
+    from django.db import close_old_connections, connection
+
+    # Never close inside an atomic block (tests); production has no long-lived
+    # transaction here and benefits from recycling stale connections.
+    if not connection.in_atomic_block:
+        close_old_connections()
+    return sync_from_db(force=True)
+
+
 def set_override(level: str, ttl_seconds: int | None = None, actor: str = "cli"):
     """Create or replace the shared override row."""
     from apps.core.models import RuntimeLogLevelOverride

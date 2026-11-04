@@ -104,6 +104,9 @@ class Command(BaseCommand):
 
     def _clear(self, local: bool = False):
         deleted = logging_control.clear_override()
+        # Tell dispatcherd to restore its main-process logger immediately;
+        # without this it would keep the old level until its next refresh.
+        logging_control.notify_dispatcherd(logging_control.BASELINE_LEVEL)
         if local:
             logging_control.revert()
         if deleted:

@@ -7,7 +7,9 @@ This command starts dispatcherd workers to process background tasks from the dat
 import logging
 import os
 import sys
+import threading
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -64,9 +66,9 @@ class Command(BaseCommand):
             # Apply any active runtime log level override for the dispatcherd
             # main process before it starts accepting work.
             try:
-                from apps.core.logging_control import sync_from_db
+                from apps.core.logging_control import sync_dispatcherd_log_level
 
-                sync_from_db(force=True)
+                sync_dispatcherd_log_level()
             except Exception as exc:
                 logger.debug(f"Runtime log level sync skipped: {exc}")
 
@@ -79,8 +81,23 @@ class Command(BaseCommand):
                 )
             )
 
+            # The main process has no request/task boundary, so reconcile the
+            # runtime log level in the background; this is how clears and TTL
+            # expiry reach the dispatcherd logger (AAP-79584).
+            stop_event = threading.Event()
+            sync_thread = threading.Thread(
+                target=self._log_level_sync_loop,
+                args=(stop_event,),
+                name="runtime-log-level-sync",
+                daemon=True,
+            )
+            sync_thread.start()
+
             # Start dispatcherd service
-            dispatcherd.run_service()
+            try:
+                dispatcherd.run_service()
+            finally:
+                stop_event.set()
 
         except ImportError as e:
             self.stdout.write(self.style.ERROR(f"Failed to import dispatcherd: {e}"))
@@ -88,3 +105,18 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Failed to start dispatcherd: {e}"))
             sys.exit(1)
+
+    @staticmethod
+    def _log_level_sync_loop(stop_event: threading.Event) -> None:
+        """Reconcile the runtime log level in the dispatcherd main process."""
+        interval = float(getattr(settings, "RUNTIME_LOG_LEVEL_REFRESH_SECONDS", 1) or 1)
+        interval = max(interval, 1.0)
+        while not stop_event.wait(interval):
+            try:
+                # Imported in the loop so a failure (or a mocked import in
+                # tests) is caught instead of killing the thread.
+                from apps.core.logging_control import sync_dispatcherd_log_level
+
+                sync_dispatcherd_log_level()
+            except Exception as exc:  # noqa: BLE001 - never kill the sync loop
+                logger.debug(f"Runtime log level sync skipped: {exc}")
