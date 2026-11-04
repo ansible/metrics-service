@@ -7,6 +7,7 @@ Provides dispatcherd tasks:
 - collect_dashboard_reports_data: incremental sync from last known timestamp (deprecated)
 - sync_dashboard_job_records: writes unified_jobs data from the hourly hook to JobData
 - sync_dashboard_host_summaries: writes host summary data from the hourly hook to JobHostSummary
+- sync_dashboard_on_demand: manually runs both sync paths for a time window
 - cleanup_dashboard_reports_old_data: removes JobData records beyond retention period
 """
 
@@ -663,6 +664,136 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
     return create_task_result(
         "success", data={"task_type": task_name, "job_count": synced, "hour_timestamp": hour_timestamp}
     )
+
+
+_ON_DEMAND_WINDOW = timedelta(days=1)  # sub-window size, bounds memory for large backfills
+
+
+def _on_demand_windows(since: datetime, until: datetime):
+    """Yield consecutive [start, end) sub-windows of at most ``_ON_DEMAND_WINDOW`` covering since..until."""
+    start = since
+    while start < until:
+        end = min(start + _ON_DEMAND_WINDOW, until)
+        yield start, end
+        start = end
+
+
+def _sync_on_demand_window(db_connection, start: datetime, end: datetime) -> tuple[int, int, str | None]:
+    """Run both dashboard sync paths for one window.
+
+    Returns ``(job_count, host_summary_job_count, error_or_None)``. Jobs are synced first because
+    host summaries are only written for jobs already present in JobData.
+    """
+    # Lazy imports: keep metrics_utility optional at module level and avoid the
+    # apps.tasks <-> apps.dashboard_reports import cycle.
+    from metrics_utility.library.collectors.controller import job_host_summary_service, unified_jobs_dashboard
+
+    from apps.tasks.collectors.collect_hourly_metrics import _build_dashboard_job_records, _build_host_summary_by_job
+
+    window = f"{start.isoformat()} to {end.isoformat()}"
+    hour_timestamp = start.isoformat()
+    try:
+        raw_jobs = unified_jobs_dashboard(db=db_connection, since=start, until=end).gather()
+        job_records = _build_dashboard_job_records(raw_jobs)
+        raw_summaries = job_host_summary_service(db=db_connection, since=start, until=end).gather()
+        summary_records = [r for records in _build_host_summary_by_job(raw_summaries).values() for r in records]
+    except Exception as e:
+        logger.exception(f"On-demand dashboard sync collection failed for {window}")
+        return 0, 0, f"Collection failed for {window}: {e}"
+
+    job_count = 0
+    if job_records:
+        job_result = sync_dashboard_job_records(raw_jobs=job_records, hour_timestamp=hour_timestamp)
+        if job_result["status"] != "success":
+            return 0, 0, f"sync_dashboard_job_records failed for {window}: {job_result.get('error', 'unknown error')}"
+        job_count = job_result.get("job_count", 0)
+
+    summary_job_count = 0
+    if summary_records:
+        summary_result = sync_dashboard_host_summaries(
+            raw_host_summaries=summary_records, hour_timestamp=hour_timestamp
+        )
+        summary_job_count = summary_result.get("job_count", 0)
+        if summary_result["status"] != "success":
+            return (
+                job_count,
+                summary_job_count,
+                f"sync_dashboard_host_summaries failed for {window}: {summary_result.get('failed', 0)} job(s) failed",
+            )
+    return job_count, summary_job_count, None
+
+
+def sync_dashboard_on_demand(**kwargs) -> dict[str, Any]:
+    """Manually sync dashboard JobData and JobHostSummary records for a time window.
+
+    Runs the same collection and upsert paths as the hourly hooks (``sync_dashboard_job_records``
+    then ``sync_dashboard_host_summaries``), inline, so failures are reported in the task result.
+    Safe to rerun: both writers upsert.
+
+    Args:
+        **kwargs: task_data containing:
+            - since (str|None): ISO start of window, inclusive. Defaults to the latest JobData
+              ``finished`` timestamp (or the retention window if no data exists).
+            - until (str|None): ISO end of window, exclusive. Defaults to now.
+            - awx_database (str|None): Controller database name.
+
+    Returns:
+        dict: task result with ``date_range``, ``job_count`` and ``host_summary_job_count``;
+        status is ``error`` if any window failed.
+    """
+    task_name = "sync_dashboard_on_demand"
+    start_time = time.monotonic()
+    try:
+        db_name, since, until, _ = _resolve_collection_params(task_name, kwargs)
+    except (TypeError, ValueError) as e:
+        return create_task_result("error", error=str(e))
+    if since >= until:
+        return create_task_result("error", error=f"Invalid date range: '{since}' to '{until}'")
+
+    date_range = {"start": since.isoformat(), "end": until.isoformat()}
+    log_task_execution(
+        task_name=task_name,
+        operation="processing",
+        details=f"On-demand dashboard sync for {date_range['start']} to {date_range['end']}",
+    )
+
+    total_jobs = 0
+    total_summary_jobs = 0
+    error: str | None = None
+    try:
+        db_connection = get_db_connection(db_name)
+        for start, end in _on_demand_windows(since, until):
+            job_count, summary_job_count, error = _sync_on_demand_window(db_connection, start, end)
+            total_jobs += job_count
+            total_summary_jobs += summary_job_count
+            if error:
+                break
+    except Exception as e:
+        logger.exception("On-demand dashboard sync failed")
+        error = f"Database error: {e}"
+
+    data = {
+        "task_type": task_name,
+        "date_range": date_range,
+        "job_count": total_jobs,
+        "host_summary_job_count": total_summary_jobs,
+    }
+    _save_telemetry_details(
+        task_name=task_name,
+        success=error is None,
+        collection_duration_ms=(time.monotonic() - start_time) * 1000,
+        number_of_records_processed=total_jobs,
+        database_query_time_ms=None,
+        cache_hit_rate=None,
+    )
+    if error:
+        return create_task_result("error", data=data, error=error)
+    log_task_execution(
+        task_name=task_name,
+        operation="completed",
+        details=f"Synced {total_jobs} jobs and host summaries for {total_summary_jobs} jobs",
+    )
+    return create_task_result("success", data=data)
 
 
 def _normalize_retention_days(task_name: str, retention_days: Any) -> tuple[int, dict[str, Any] | None]:

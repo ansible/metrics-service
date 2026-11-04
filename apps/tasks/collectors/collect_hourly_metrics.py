@@ -315,6 +315,57 @@ def _build_host_summary_task_chunks(by_job: dict[int, list], hour_ts_str: str) -
     return chunks
 
 
+def _build_host_summary_by_job(raw_data) -> dict[int, list]:
+    """Convert a raw job_host_summary_service DataFrame into serialised host summaries grouped by job id.
+
+    Returns an empty dict when the frame is empty or lacks the expected columns.
+    """
+    if raw_data is None or raw_data.empty:
+        return {}
+
+    available = [c for c in _HOST_SUMMARY_COLUMNS if c in raw_data.columns]
+    missing = set(_HOST_SUMMARY_COLUMNS) - set(available)
+    if missing:
+        logger.warning(
+            "job_host_summary_service is missing expected columns for dashboard sync: %s",
+            sorted(missing),
+        )
+        return {}
+
+    subset = raw_data[list(available)]
+    rows = subset.where(subset.notna(), other=None).to_dict("records")
+    return _group_host_summary_rows(rows)
+
+
+def _build_dashboard_job_records(raw_data) -> list[dict]:
+    """Convert a raw unified_jobs_dashboard DataFrame into serialised dashboard job records.
+
+    Keeps only terminal, non-sync, non-workflow jobs. Returns an empty list when nothing qualifies.
+    """
+    if raw_data is None or raw_data.empty:
+        return []
+
+    mask = raw_data["status"].isin(["failed", "successful"]) & (~raw_data["launch_type"].isin(["sync", "workflow"]))
+    filtered = raw_data[mask]
+    if filtered.empty:
+        return []
+
+    # unified_jobs_dashboard guarantees these columns; guard with available
+    # in case a future schema change temporarily drops one.
+    available = [c for c in _DASHBOARD_COLUMNS if c in filtered.columns]
+    missing = set(_DASHBOARD_COLUMNS) - set(available)
+    if missing:
+        logger.warning(
+            "unified_jobs_dashboard is missing expected columns: %s",
+            sorted(missing),
+        )
+    subset = filtered[available]
+    records = subset.where(subset.notna(), other=None).to_dict("records")
+    for row in records:
+        _serialize_dashboard_record(row)
+    return records
+
+
 def _build_dashboard_host_summary_sync_hook(hour_timestamp):
     """Return a post_collect_hook that schedules sync_dashboard_host_summaries tasks.
 
@@ -332,21 +383,7 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
         return None
 
     def hook(raw_data):
-        if raw_data is None or raw_data.empty:
-            return
-
-        available = [c for c in _HOST_SUMMARY_COLUMNS if c in raw_data.columns]
-        missing = set(_HOST_SUMMARY_COLUMNS) - set(available)
-        if missing:
-            logger.warning(
-                "job_host_summary_service is missing expected columns for dashboard sync: %s",
-                sorted(missing),
-            )
-            return
-
-        subset = raw_data[list(available)]
-        rows = subset.where(subset.notna(), other=None).to_dict("records")
-        by_job = _group_host_summary_rows(rows)
+        by_job = _build_host_summary_by_job(raw_data)
         if not by_job:
             return
 
@@ -404,27 +441,9 @@ def _build_dashboard_sync_hook(hour_timestamp):
         return None
 
     def hook(raw_data):
-        if raw_data is None or raw_data.empty:
+        records = _build_dashboard_job_records(raw_data)
+        if not records:
             return
-
-        mask = raw_data["status"].isin(["failed", "successful"]) & (~raw_data["launch_type"].isin(["sync", "workflow"]))
-        filtered = raw_data[mask]
-        if filtered.empty:
-            return
-
-        # unified_jobs_dashboard guarantees these columns; guard with available
-        # in case a future schema change temporarily drops one.
-        available = [c for c in _DASHBOARD_COLUMNS if c in filtered.columns]
-        missing = set(_DASHBOARD_COLUMNS) - set(available)
-        if missing:
-            logger.warning(
-                "unified_jobs_dashboard is missing expected columns: %s",
-                sorted(missing),
-            )
-        subset = filtered[available]
-        records = subset.where(subset.notna(), other=None).to_dict("records")
-        for row in records:
-            _serialize_dashboard_record(row)
 
         # Lazy import inside closure: Task must be resolved at call time so tests can
         # patch apps.tasks.models.Task after the hook is built (same circular-import reason).

@@ -27,6 +27,7 @@ from ..dashboard_reports.tasks import (
     collect_dashboard_reports_initial_data,
     sync_dashboard_host_summaries,
     sync_dashboard_job_records,
+    sync_dashboard_on_demand,
 )
 
 # Import cleanup tasks
@@ -74,6 +75,7 @@ TASK_FUNCTIONS = {
     "cleanup_dashboard_telemetry": cleanup_dashboard_telemetry,
     "sync_dashboard_job_records": sync_dashboard_job_records,
     "sync_dashboard_host_summaries": sync_dashboard_host_summaries,
+    "sync_dashboard_on_demand": sync_dashboard_on_demand,
 }
 
 # Tasks that require a PostgreSQL advisory lock during scheduled execution.
@@ -92,6 +94,7 @@ TASK_LOCKS = {
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
     "sync_dashboard_host_summaries",
+    "sync_dashboard_on_demand",
 }
 
 
@@ -567,6 +570,28 @@ TASK_METADATA = {
             },
         ],
     },
+    "sync_dashboard_on_demand": {
+        "queue": "dashboard",
+        "category": _DASHBOARD_REPORTS_CATEGORY,
+        "description": "Manually sync dashboard job records and host summaries for a time window (defaults to the last JobData watermark until now)",
+        "parameters": {
+            "since": {
+                "type": "string",
+                "description": "ISO start of window, inclusive. Defaults to the latest synced job finish time.",
+            },
+            "until": {
+                "type": "string",
+                "description": "ISO end of window, exclusive. Defaults to now.",
+            },
+        },
+        "examples": [
+            {"name": "Incremental (since last sync)", "data": {}},
+            {
+                "name": "Backfill a specific range",
+                "data": {"since": "2024-01-01T00:00:00+00:00", "until": "2024-01-02T00:00:00+00:00"},
+            },
+        ],
+    },
     "cleanup_dashboard_reports_old_data": {
         "queue": "dashboard",
         "category": "Maintenance",  # dashboard report JobData
@@ -636,4 +661,5 @@ __all__ = [
     "cleanup_dashboard_telemetry",
     "sync_dashboard_job_records",
     "sync_dashboard_host_summaries",
+    "sync_dashboard_on_demand",
 ]
