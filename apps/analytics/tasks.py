@@ -82,9 +82,7 @@ def collect_analytics_on_demand(**kwargs) -> dict[str, Any]:
 
     # Windowed collectors take since/until; snapshots take neither.
     collector_kwargs: dict[str, Any] = {}
-    collector_kwargs.update(
-        ({}, {"since": since, "until": until})[bool(entry.accepts_since_until)]
-    )
+    collector_kwargs.update(({}, {"since": since, "until": until})[bool(entry.accepts_since_until)])
     collector_kwargs.update(
         (
             {},
