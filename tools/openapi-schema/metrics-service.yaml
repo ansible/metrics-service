@@ -1844,8 +1844,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this Job Data.
+          type: string
         required: true
       tags:
       - dashboard_reports
@@ -2805,6 +2804,13 @@ paths:
         but can be assigned to users.
       parameters:
       - in: query
+        name: assignable_scope
+        schema:
+          type: string
+        description: 'Filter to roles usable without a specific target object. Comma-separated
+          values from: system, organization, team. Without this parameter, all role
+          definitions are returned.'
+      - in: query
         name: content_type
         schema:
           type: string
@@ -3155,7 +3161,7 @@ paths:
         and assigned to users and teams
   /api/v1/role_definitions/{id}/team_assignments/:
     get:
-      operationId: role_definitions_team_assignments_retrieve
+      operationId: role_definitions_team_assignments_list
       description: |-
         Manage Role Team Assignment objects in the 'team_assignments' relationship of this particular Role Definition.
 
@@ -3169,6 +3175,41 @@ paths:
           type: string
           pattern: ^[0-9]+$
         required: true
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - role_definitions
       security:
@@ -3176,8 +3217,12 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
-      x-ai-description: Retrieve single assignment for a role_definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoleTeamAssignmentList'
+          description: ''
+      x-ai-description: List all assignments for a role_definition
   /api/v1/role_definitions/{id}/user_assignments/:
     get:
       operationId: role_definitions_user_assignments_list
@@ -3334,7 +3379,7 @@ paths:
       x-ai-description: List all role team access
   /api/v1/role_team_access/{model_name}/{id}/{actor_pk}/:
     get:
-      operationId: role_team_access_retrieve
+      operationId: role_team_access_list_2
       description: |-
         This gives drill-down information about the means of inheritance
         for all the permissions show in the higher-level view of the access list
@@ -3355,6 +3400,41 @@ paths:
         schema:
           type: string
         required: true
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - role_team_access
       security:
@@ -3362,11 +3442,15 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
-      x-ai-description: Retrieve single role team access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTeamAccessAssignmentList'
+          description: ''
+      x-ai-description: List all role team access
   /api/v1/role_team_assignments/:
     get:
-      operationId: role_team_assignments_retrieve
+      operationId: role_team_assignments_list
       description: |-
         Use this endpoint to give a team permission to a resource or an organization.
         The needed data is the team, the role definition, and the object id.
@@ -3376,6 +3460,42 @@ paths:
 
         After creation, the assignment cannot be edited, but can be deleted to
         remove those permissions.
+      parameters:
+      - in: query
+        name: order
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - in: query
+        name: order_by
+        schema:
+          type: string
+        description: Order results by field name. Prefix with '-' for descending order.
+          Supports comma-separated values for multiple fields.
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role_level
+        schema:
+          type: string
+        description: Filter by role level for RBAC
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by object type. Supports comma-separated values for multiple
+          types.
       tags:
       - role_team_assignments
       security:
@@ -3383,9 +3503,13 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
-      x-ai-description: Retrieve a RBAC role grants assigning permissions to team
-        for specific resources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoleTeamAssignmentList'
+          description: ''
+      x-ai-description: List RBAC role grants assigning permissions to teams for specific
+        resources
     post:
       operationId: role_team_assignments_create
       description: |-
@@ -3399,17 +3523,33 @@ paths:
         remove those permissions.
       tags:
       - role_team_assignments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleTeamAssignmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RoleTeamAssignmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RoleTeamAssignmentRequest'
+        required: true
       security:
       - cookieAuth: []
       - basicAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleTeamAssignment'
+          description: ''
       x-ai-description: Create a RBAC role grants assigning permissions to team for
         specific resources
   /api/v1/role_team_assignments/{id}/:
     get:
-      operationId: role_team_assignments_retrieve_2
+      operationId: role_team_assignments_retrieve
       description: |-
         Use this endpoint to give a team permission to a resource or an organization.
         The needed data is the team, the role definition, and the object id.
@@ -3433,7 +3573,11 @@ paths:
       - basicAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleTeamAssignment'
+          description: ''
       x-ai-description: Retrieve a RBAC role grants assigning permissions to team
         for specific resources
     delete:
@@ -3868,6 +4012,12 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - in: query
         name: role_level
         schema:
@@ -3944,7 +4094,9 @@ paths:
   /api/v1/service-index/resources/:
     get:
       operationId: service_index_resources_list
-      description: Index of all the resources in the system.
+      description: 'List all resources. Accepts an optional ''extra_fields'' query
+        parameter (comma-separated) to include additional fields in the response.
+        Supported values: resource_data.'
       parameters:
       - in: query
         name: ansible_id
@@ -4027,6 +4179,12 @@ paths:
         required: false
         in: query
         description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
         schema:
           type: integer
       - in: query
@@ -4202,6 +4360,64 @@ paths:
         '204':
           description: No response body
       x-ai-description: Delete existing service index resource
+  /api/v1/service-index/resources/bulk-update/:
+    post:
+      operationId: service_index_resources_bulk_update_create
+      description: 'Bulk-update resource metadata for up to 1000 resources per request.
+        Accepts a JSON object with an ''items'' key containing a list of update objects.
+        Each object must contain ''ansible_id'' and at least one of: ''new_service_id'',
+        ''new_ansible_id'', ''is_partially_migrated'', ''resource_data''. Returns
+        a summary with the count of updated resources and any per-item errors.'
+      tags:
+      - service-index
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkResourceUpdateRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BulkResourceUpdateRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BulkResourceUpdateRequestRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                required:
+                - updated
+                - errors
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - type: object
+                  properties:
+                    detail:
+                      type: string
+                  required:
+                  - detail
+                - type: array
+                  items:
+                    type: object
+          description: ''
+      x-ai-description: Create new service index resources bulk update
   /api/v1/service-index/role-permissions/:
     get:
       operationId: service_index_role_permissions_list
@@ -4321,86 +4537,6 @@ paths:
       description: List of team role assignments for cross-service communication
       parameters:
       - in: query
-        name: content_object
-        schema:
-          type: string
-        description: Filter by content_object (exact match)
-      - in: query
-        name: content_type
-        schema:
-          type: string
-        description: Filter by content_type (exact match)
-      - in: query
-        name: created
-        schema:
-          type: string
-        description: Filter by created (exact match)
-      - in: query
-        name: created__gt
-        schema:
-          type: string
-        description: Filter by created (gt)
-      - in: query
-        name: created__gte
-        schema:
-          type: string
-        description: Filter by created (gte)
-      - in: query
-        name: created__lt
-        schema:
-          type: string
-        description: Filter by created (lt)
-      - in: query
-        name: created__lte
-        schema:
-          type: string
-        description: Filter by created (lte)
-      - in: query
-        name: created_by
-        schema:
-          type: string
-        description: Filter by created_by (exact match)
-      - in: query
-        name: id
-        schema:
-          type: string
-        description: Filter by id (exact match)
-      - in: query
-        name: id__gt
-        schema:
-          type: string
-        description: Filter by id (gt)
-      - in: query
-        name: id__gte
-        schema:
-          type: string
-        description: Filter by id (gte)
-      - in: query
-        name: id__lt
-        schema:
-          type: string
-        description: Filter by id (lt)
-      - in: query
-        name: id__lte
-        schema:
-          type: string
-        description: Filter by id (lte)
-      - in: query
-        name: object_id
-        schema:
-          type: string
-        description: Filter by object_id (exact match)
-      - in: query
-        name: object_id__icontains
-        schema:
-          type: string
-        description: Filter by object_id (case-insensitive partial match)
-      - in: query
-        name: object_role
-        schema:
-          type: string
-        description: Filter by object_role (exact match)
-      - in: query
         name: order
         schema:
           type: string
@@ -4419,11 +4555,6 @@ paths:
         schema:
           type: integer
       - in: query
-        name: role_definition
-        schema:
-          type: string
-        description: Filter by role_definition (exact match)
-      - in: query
         name: role_level
         schema:
           type: string
@@ -4434,11 +4565,6 @@ paths:
         description: A search term.
         schema:
           type: string
-      - in: query
-        name: team
-        schema:
-          type: string
-        description: Filter by team (exact match)
       - in: query
         name: type
         schema:
@@ -4468,13 +4594,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequestRequest'
         required: true
       security:
       - cookieAuth: []
@@ -4487,6 +4613,64 @@ paths:
                 $ref: '#/components/schemas/ServiceRoleTeamAssignment'
           description: ''
       x-ai-description: Create new service index role team assignments assign
+  /api/v1/service-index/role-team-assignments/bulk-assign/:
+    post:
+      operationId: service_index_role_team_assignments_bulk_assign_create
+      description: Assign multiple team roles from one service-index request.
+      tags:
+      - service-index
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkRoleAssignmentResponse'
+          description: ''
+      x-ai-description: Create new service index role team assignments bulk assign
+  /api/v1/service-index/role-team-assignments/bulk-unassign/:
+    post:
+      operationId: service_index_role_team_assignments_bulk_unassign_create
+      description: Remove multiple team roles from one service-index request.
+      tags:
+      - service-index
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkRoleUnassignmentResponse'
+          description: ''
+      x-ai-description: Create new service index role team assignments bulk unassign
   /api/v1/service-index/role-team-assignments/unassign/:
     post:
       operationId: service_index_role_team_assignments_unassign_create
@@ -4497,13 +4681,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleTeamAssignmentRequestRequest'
         required: true
       security:
       - cookieAuth: []
@@ -4656,86 +4840,6 @@ paths:
       description: List of user assignments for cross-service communication
       parameters:
       - in: query
-        name: content_object
-        schema:
-          type: string
-        description: Filter by content_object (exact match)
-      - in: query
-        name: content_type
-        schema:
-          type: string
-        description: Filter by content_type (exact match)
-      - in: query
-        name: created
-        schema:
-          type: string
-        description: Filter by created (exact match)
-      - in: query
-        name: created__gt
-        schema:
-          type: string
-        description: Filter by created (gt)
-      - in: query
-        name: created__gte
-        schema:
-          type: string
-        description: Filter by created (gte)
-      - in: query
-        name: created__lt
-        schema:
-          type: string
-        description: Filter by created (lt)
-      - in: query
-        name: created__lte
-        schema:
-          type: string
-        description: Filter by created (lte)
-      - in: query
-        name: created_by
-        schema:
-          type: string
-        description: Filter by created_by (exact match)
-      - in: query
-        name: id
-        schema:
-          type: string
-        description: Filter by id (exact match)
-      - in: query
-        name: id__gt
-        schema:
-          type: string
-        description: Filter by id (gt)
-      - in: query
-        name: id__gte
-        schema:
-          type: string
-        description: Filter by id (gte)
-      - in: query
-        name: id__lt
-        schema:
-          type: string
-        description: Filter by id (lt)
-      - in: query
-        name: id__lte
-        schema:
-          type: string
-        description: Filter by id (lte)
-      - in: query
-        name: object_id
-        schema:
-          type: string
-        description: Filter by object_id (exact match)
-      - in: query
-        name: object_id__icontains
-        schema:
-          type: string
-        description: Filter by object_id (case-insensitive partial match)
-      - in: query
-        name: object_role
-        schema:
-          type: string
-        description: Filter by object_role (exact match)
-      - in: query
         name: order
         schema:
           type: string
@@ -4754,11 +4858,6 @@ paths:
         schema:
           type: integer
       - in: query
-        name: role_definition
-        schema:
-          type: string
-        description: Filter by role_definition (exact match)
-      - in: query
         name: role_level
         schema:
           type: string
@@ -4775,11 +4874,6 @@ paths:
           type: string
         description: Filter by object type. Supports comma-separated values for multiple
           types.
-      - in: query
-        name: user
-        schema:
-          type: string
-        description: Filter by user (exact match)
       tags:
       - service-index
       security:
@@ -4803,13 +4897,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequestRequest'
         required: true
       security:
       - cookieAuth: []
@@ -4822,6 +4916,64 @@ paths:
                 $ref: '#/components/schemas/ServiceRoleUserAssignment'
           description: ''
       x-ai-description: Create new service index role user assignments assign
+  /api/v1/service-index/role-user-assignments/bulk-assign/:
+    post:
+      operationId: service_index_role_user_assignments_bulk_assign_create
+      description: Assign multiple user roles from one service-index request.
+      tags:
+      - service-index
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkRoleAssignmentResponse'
+          description: ''
+      x-ai-description: Create new service index role user assignments bulk assign
+  /api/v1/service-index/role-user-assignments/bulk-unassign/:
+    post:
+      operationId: service_index_role_user_assignments_bulk_unassign_create
+      description: Remove multiple user roles from one service-index request.
+      tags:
+      - service-index
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkRoleUnassignmentResponse'
+          description: ''
+      x-ai-description: Create new service index role user assignments bulk unassign
   /api/v1/service-index/role-user-assignments/unassign/:
     post:
       operationId: service_index_role_user_assignments_unassign_create
@@ -4832,13 +4984,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequest'
+              $ref: '#/components/schemas/ServiceRoleUserAssignmentRequestRequest'
         required: true
       security:
       - cookieAuth: []
@@ -9951,6 +10103,63 @@ components:
       required:
       - daily
       - streak
+    BulkResourceUpdateItemRequest:
+      type: object
+      description: Serializer for a single item in a bulk resource update request.
+      properties:
+        ansible_id:
+          type: string
+          format: uuid
+          description: The ansible_id of the resource to update.
+        new_service_id:
+          type: string
+          format: uuid
+          description: New service_id to assign.
+        new_ansible_id:
+          type: string
+          format: uuid
+          description: New ansible_id to assign (renames the resource identifier).
+        is_partially_migrated:
+          type: boolean
+          description: Partially migrated flag.
+        resource_data:
+          type: object
+          additionalProperties: {}
+          description: Resource data to update on the content object.
+      required:
+      - ansible_id
+    BulkResourceUpdateRequestRequest:
+      type: object
+      description: Envelope serializer for the bulk resource update request.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkResourceUpdateItemRequest'
+      required:
+      - items
+    BulkRoleAssignmentResponse:
+      type: object
+      description: Document the created and already-existing assignment counts.
+      properties:
+        created:
+          type: integer
+        existing:
+          type: integer
+      required:
+      - created
+      - existing
+    BulkRoleUnassignmentResponse:
+      type: object
+      description: Document the deleted and missing assignment counts.
+      properties:
+        deleted:
+          type: integer
+        missing:
+          type: integer
+      required:
+      - deleted
+      - missing
     CanonicalFactsPayload:
       type: object
       properties:
@@ -12303,6 +12512,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RoleDefinition'
+    PaginatedRoleTeamAssignmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleTeamAssignment'
     PaginatedRoleUserAssignmentList:
       type: object
       required:
@@ -12441,6 +12673,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TaskList'
+    PaginatedTeamAccessAssignmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamAccessAssignment'
     PaginatedTeamAccessViewSet_Team_List:
       type: object
       required:
@@ -13351,6 +13606,96 @@ components:
             its content type.
       required:
       - allowed_permissions
+    RoleTeamAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+        related:
+          type: object
+          additionalProperties:
+            type: string
+          readOnly: true
+        summary_fields:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+          description: The date/time this resource was created.
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: The user who created this resource.
+        content_type:
+          type: string
+          description: String to use for references to this type from other models
+            in the API.
+          readOnly: true
+        object_id:
+          type: string
+          nullable: true
+          description: The primary key of the object this assignment applies to; null
+            value indicates system-wide assignment.
+        object_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource id of the object this role applies to. An alternative
+            to the object_id field.
+        role_definition:
+          type: integer
+          description: The role definition which defines permissions conveyed by this
+            assignment.
+        team:
+          type: integer
+          nullable: true
+        team_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource ID of the team who will receive permissions from
+            this assignment. An alternative to team field.
+      required:
+      - role_definition
+    RoleTeamAssignmentRequest:
+      type: object
+      properties:
+        object_id:
+          type: string
+          nullable: true
+          description: The primary key of the object this assignment applies to; null
+            value indicates system-wide assignment.
+        object_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource id of the object this role applies to. An alternative
+            to the object_id field.
+        role_definition:
+          type: integer
+          description: The role definition which defines permissions conveyed by this
+            assignment.
+        team:
+          type: integer
+          nullable: true
+        team_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource ID of the team who will receive permissions from
+            this assignment. An alternative to team field.
+      required:
+      - role_definition
     RoleUserAssignment:
       type: object
       properties:
@@ -13503,6 +13848,9 @@ components:
     ServiceRoleTeamAssignment:
       type: object
       properties:
+        id:
+          type: integer
+          readOnly: true
         created:
           type: string
           format: date-time
@@ -13526,19 +13874,20 @@ components:
         role_definition:
           type: string
           description: The name of this role.
+        parent_reference:
+          type: string
+          description: Read parent_reference from the prefetched object_role relation.
+          readOnly: true
         team_ansible_id:
           type: string
           format: uuid
       required:
       - role_definition
       - team_ansible_id
-    ServiceRoleTeamAssignmentRequest:
+    ServiceRoleTeamAssignmentBatchItemRequest:
       type: object
+      description: Serialize a team assignment without batch-level metadata.
       properties:
-        created_by_ansible_id:
-          type: string
-          format: uuid
-          nullable: true
         object_id:
           type: string
           nullable: true
@@ -13549,15 +13898,66 @@ components:
           type: string
           minLength: 1
           description: The name of this role.
+        parent_reference:
+          type: string
+          nullable: true
         team_ansible_id:
           type: string
           format: uuid
+      required:
+      - role_definition
+      - team_ansible_id
+    ServiceRoleTeamAssignmentBatchRequest:
+      type: object
+      description: Validate bulk requests containing team role assignments.
+      properties:
+        from_service:
+          type: string
+          format: uuid
+        created_by_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceRoleTeamAssignmentBatchItemRequest'
+      required:
+      - assignments
+      - from_service
+    ServiceRoleTeamAssignmentRequestRequest:
+      type: object
+      description: OpenAPI request contract for service-index team assignment actions.
+      properties:
+        role_definition:
+          type: string
+          minLength: 1
+        team_ansible_id:
+          type: string
+          format: uuid
+        created_by_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+        object_id:
+          type: string
+          nullable: true
+        object_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+        parent_reference:
+          type: string
+          nullable: true
       required:
       - role_definition
       - team_ansible_id
     ServiceRoleUserAssignment:
       type: object
       properties:
+        id:
+          type: integer
+          readOnly: true
         created:
           type: string
           format: date-time
@@ -13581,19 +13981,20 @@ components:
         role_definition:
           type: string
           description: The name of this role.
+        parent_reference:
+          type: string
+          description: Read parent_reference from the prefetched object_role relation.
+          readOnly: true
         user_ansible_id:
           type: string
           format: uuid
       required:
       - role_definition
       - user_ansible_id
-    ServiceRoleUserAssignmentRequest:
+    ServiceRoleUserAssignmentBatchItemRequest:
       type: object
+      description: Serialize a user assignment without batch-level metadata.
       properties:
-        created_by_ansible_id:
-          type: string
-          format: uuid
-          nullable: true
         object_id:
           type: string
           nullable: true
@@ -13604,9 +14005,57 @@ components:
           type: string
           minLength: 1
           description: The name of this role.
+        parent_reference:
+          type: string
+          nullable: true
         user_ansible_id:
           type: string
           format: uuid
+      required:
+      - role_definition
+      - user_ansible_id
+    ServiceRoleUserAssignmentBatchRequest:
+      type: object
+      description: Validate bulk requests containing user role assignments.
+      properties:
+        from_service:
+          type: string
+          format: uuid
+        created_by_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceRoleUserAssignmentBatchItemRequest'
+      required:
+      - assignments
+      - from_service
+    ServiceRoleUserAssignmentRequestRequest:
+      type: object
+      description: OpenAPI request contract for service-index user assignment actions.
+      properties:
+        role_definition:
+          type: string
+          minLength: 1
+        user_ansible_id:
+          type: string
+          format: uuid
+        created_by_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+        object_id:
+          type: string
+          nullable: true
+        object_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+        parent_reference:
+          type: string
+          nullable: true
       required:
       - role_definition
       - user_ansible_id
@@ -14286,6 +14735,67 @@ components:
       required:
       - name
       - organization
+    TeamAccessAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+        related:
+          type: object
+          additionalProperties:
+            type: string
+          readOnly: true
+        summary_fields:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+          description: The date/time this resource was created.
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: The user who created this resource.
+        content_type:
+          type: string
+          description: String to use for references to this type from other models
+            in the API.
+          readOnly: true
+        object_id:
+          type: string
+          nullable: true
+          description: The primary key of the object this assignment applies to; null
+            value indicates system-wide assignment.
+        object_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource id of the object this role applies to. An alternative
+            to the object_id field.
+        role_definition:
+          type: integer
+          description: The role definition which defines permissions conveyed by this
+            assignment.
+        team:
+          type: integer
+          nullable: true
+        team_ansible_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The resource ID of the team who will receive permissions from
+            this assignment. An alternative to team field.
+      required:
+      - role_definition
     TeamAccessViewSet_Team_:
       type: object
       properties:
@@ -15212,7 +15722,166 @@ components:
         all_parents_must_converge:
           type: boolean
           nullable: true
+<<<<<<< HEAD
           description: Whether all parent nodes must converge before this node runs.
+=======
+    CleanTextFieldInfo:
+      type: object
+      description: Per-field metadata returned in OPTIONS actions. When ENHANCED_INPUT_VALIDATION_ENABLED
+        is on, CharField/TextField entries on CleanTextMixin serializers may also
+        include pattern hint keys. Tier-1 name fields may include normalize=NFC; tier-2
+        fields do not.
+      properties:
+        type:
+          type: string
+        hidden:
+          type: boolean
+        label:
+          type: string
+        help_text:
+          type: string
+        filterable:
+          type: boolean
+        required:
+          type: boolean
+        max_length:
+          type: integer
+        default: {}
+        pattern:
+          type: string
+          nullable: true
+          description: Regex pattern (ECMAScript-compatible, no delimiters) that API
+            clients can use for real-time client-side validation before submit. UX
+            convenience only -- the server independently enforces validation, so clients
+            must not treat this as a substitute for handling server-side errors. Omitted
+            when ENHANCED_INPUT_VALIDATION_ENABLED is off, or when the field has no
+            validation rule (non-text, excluded, or secret).
+        patternDescription:
+          type: string
+          nullable: true
+          description: Human-readable explanation of `pattern`, suitable for display
+            next to the field. Present under the same condition as `pattern` -- the
+            two always appear or are absent together.
+        flags:
+          type: string
+          nullable: true
+          description: Regex flags to apply when evaluating `pattern` (e.g. "u" for
+            Unicode mode, "i" for case-insensitive). Present under the same condition
+            as `pattern`.
+        normalize:
+          type: string
+          nullable: true
+          enum:
+          - NFC
+          description: Unicode normalization form to apply before evaluating `pattern`.
+            Requires ENHANCED_INPUT_VALIDATION_ENABLED and a tier-1 "name" field --
+            narrower than the other three keys, so it can be absent even when `pattern`
+            is present. Not used on nested JSON field catalogs (credential inputs,
+            etc.).
+      required:
+      - type
+      - hidden
+      - label
+      additionalProperties: true
+    CleanTextNestedStringField:
+      type: object
+      description: Dynamic credential-type input field catalog entry. When ENHANCED_INPUT_VALIDATION_ENABLED
+        is on, non-secret string fields may include pattern, patternDescription, and
+        flags (Tier 2; no normalize).
+      properties:
+        id:
+          type: string
+          description: Stable field identifier (used in inputs.required and credential
+            payloads).
+        label:
+          type: string
+          description: Human-readable field label.
+        type:
+          type: string
+          description: Field type (e.g. string, boolean). Pattern hints apply to non-secret
+            strings.
+        help_text:
+          type: string
+        secret:
+          type: boolean
+          description: When true, pattern hints are omitted.
+        default:
+          description: Optional default value (string, boolean, etc.).
+        multiline:
+          type: boolean
+        format:
+          type: string
+        ask_at_runtime:
+          type: boolean
+        pattern:
+          type: string
+          nullable: true
+          description: Regex pattern (ECMAScript-compatible, no delimiters) that API
+            clients can use for real-time client-side validation before submit. UX
+            convenience only -- the server independently enforces validation, so clients
+            must not treat this as a substitute for handling server-side errors. Omitted
+            when ENHANCED_INPUT_VALIDATION_ENABLED is off, or when the field has no
+            validation rule (non-text, excluded, or secret).
+        patternDescription:
+          type: string
+          nullable: true
+          description: Human-readable explanation of `pattern`, suitable for display
+            next to the field. Present under the same condition as `pattern` -- the
+            two always appear or are absent together.
+        flags:
+          type: string
+          nullable: true
+          description: Regex flags to apply when evaluating `pattern` (e.g. "u" for
+            Unicode mode, "i" for case-insensitive). Present under the same condition
+            as `pattern`.
+      additionalProperties: true
+    AuthenticatorPluginConfigurationField:
+      type: object
+      description: Authenticator plugin configuration field. When ENHANCED_INPUT_VALIDATION_ENABLED
+        is on, non-secret CharField entries may include pattern, patternDescription,
+        and flags (Tier 2; no normalize).
+      properties:
+        name:
+          type: string
+          description: Configuration field name.
+        help_text:
+          type: string
+        required:
+          type: boolean
+        default: {}
+        type:
+          type: string
+          description: DRF field class name (e.g. CharField).
+        ui_field_label:
+          type: string
+        choices:
+          type: object
+          additionalProperties: {}
+          description: Optional choice mapping (value -> label) when the field defines
+            choices.
+        pattern:
+          type: string
+          nullable: true
+          description: Regex pattern (ECMAScript-compatible, no delimiters) that API
+            clients can use for real-time client-side validation before submit. UX
+            convenience only -- the server independently enforces validation, so clients
+            must not treat this as a substitute for handling server-side errors. Omitted
+            when ENHANCED_INPUT_VALIDATION_ENABLED is off, or when the field has no
+            validation rule (non-text, excluded, or secret).
+        patternDescription:
+          type: string
+          nullable: true
+          description: Human-readable explanation of `pattern`, suitable for display
+            next to the field. Present under the same condition as `pattern` -- the
+            two always appear or are absent together.
+        flags:
+          type: string
+          nullable: true
+          description: Regex flags to apply when evaluating `pattern` (e.g. "u" for
+            Unicode mode, "i" for case-insensitive). Present under the same condition
+            as `pattern`.
+      additionalProperties: true
+>>>>>>> a1c83f2 (Regenerate openapi schema)
   securitySchemes:
     basicAuth:
       type: http
