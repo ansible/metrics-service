@@ -39,6 +39,15 @@ question or are unsure if a contribution is wanted, please join us in
 forum using the TBD tag if you prefer asynchronous discussion.
 Open a GitHub issue to report bugs or request features.
 
+## Trace Propagation
+
+New async or outbound HTTP code MUST follow the
+[trace propagation standard](docs/trace-propagation-standard.md): request IDs
+(`X-Request-ID`) are propagated across async task boundaries and outbound
+calls, and all log records carry a `request_id` field. Use its
+[conformance checklist](docs/trace-propagation-standard.md#conformance-checklist)
+when reviewing changes that add task submission or HTTP client code.
+
 ## Governance
 
 The Metrics Service project uses the following governance model:
