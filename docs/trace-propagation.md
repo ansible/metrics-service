@@ -42,7 +42,8 @@ produces one searchable ID across retries.
 
 ## Searching logs
 
-Verbose logs render `[<request_id>]`; JSON logs include a `request_id` field.
+Verbose logs render `[<request_id>]`; JSON logs (`METRICS_SERVICE_MODE=production`
+or `METRICS_SERVICE_LOG_FORMAT=json`) carry it as a top-level `request_id` key.
 Search by the UUID, for example:
 
 ```bash
@@ -61,3 +62,73 @@ deliberately not part of this PR.
 
 Out of scope: OpenTelemetry spans and trace export (AAP-79589). This service
 never synthesises a `traceparent`; it only forwards a valid inbound one.
+
+## Verifying trace continuity
+
+### Automated (CI / local)
+
+Three layers of regression coverage keep this property from silently breaking:
+
+- **Tier 1 — in-process** (`tests/unit/tasks/test_trace_continuity.py`): exercises
+  middleware → `Task.request_id` → `submit_task_to_dispatcher` payload →
+  `execute_db_task` context → log records, with only the dispatcherd broker
+  mocked. Runs on every PR via the normal `pytest` job.
+- **Tier 2 — scheduler in the loop**
+  (`tests/unit/tasks/test_trace_continuity_scheduler.py`): drives
+  `UnifiedTaskScheduler._execute_database_task()` for both the non-recurring and
+  the recurring (execution-row) branch. Runs on every PR via the normal `pytest`
+  job.
+- **Tier 3 — cross-process** (`tests/integration/test_trace_continuity_process.py`):
+  starts a real scheduler and a real dispatcherd worker as subprocesses (real
+  pg_notify broker) and asserts the ID appears in the worker process's own log
+  output. **Opt-in only — it is not run in CI**: `.github/workflows/pytest.yml`
+  does not set `TRACE_E2E`, so this file is collected and skipped there. Run it
+  explicitly, against a PostgreSQL instance, with:
+
+  ```bash
+  make test-trace-e2e
+  # equivalent to:
+  TRACE_E2E=1 uv run pytest tests/integration/test_trace_continuity_process.py -s -v
+  ```
+
+  It creates the probe table it needs inside a dedicated `trace_e2e_probe`
+  schema and drops that schema afterwards, and it has a hard timeout, so it is
+  safe to run repeatedly against a `--reuse-db` database. Expect roughly half a
+  minute of wall-clock time.
+
+  Adding a nightly or `workflow_dispatch` job that sets `TRACE_E2E=1` is tracked
+  as a follow-up decision (needs maintainer agreement on CI cost); until then
+  nothing in CI exercises the cross-process hop, and Tiers 1–2 remain the
+  CI-enforced guarantee.
+
+### Manual (deployed instance)
+
+For a deployed instance (or `docker-compose.prod.single.yml`):
+
+1. Send a request with a known ID and confirm the response echoes it:
+
+   ```bash
+   curl -sS -D - -o /dev/null \
+     -H "X-Request-ID: 6f1d1c2a-1f0e-4f0b-9a3e-2b1c4d5e6f70" \
+     -H "Authorization: Bearer <token>" \
+     -H "Content-Type: application/json" \
+     -X POST .../api/v1/tasks/schedule_immediate/ \
+     -d '{"function_name": "hello_world", "name": "trace-check"}'
+   # expect: X-Request-ID: 6f1d1c2a-1f0e-4f0b-9a3e-2b1c4d5e6f70 in the response headers
+   ```
+
+2. Find the API-side entries:
+
+   ```bash
+   kubectl logs deploy/metrics-service | grep 6f1d1c2a-1f0e-4f0b-9a3e-2b1c4d5e6f70
+   ```
+
+3. Find the worker-side entries for the same ID — task start/run/complete lines
+   such as `Task 'hello_world' start` and `Task execution finished with status: completed`:
+
+   ```bash
+   kubectl logs deploy/metrics-service-worker | grep 6f1d1c2a-1f0e-4f0b-9a3e-2b1c4d5e6f70
+   ```
+
+4. Expected result: **both** streams contain the ID. Record the output as
+   acceptance evidence on the verifying ticket (AAP-79590).

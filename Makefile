@@ -30,10 +30,18 @@ validate-openapi-schema: generate-openapi-schema
 	@echo "✓ OpenAPI schema files are valid!"
 
 help:
-	@echo help test coverage lint fix sync-requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc clean psql
+	@echo help test test-trace-e2e coverage lint fix sync-requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc clean psql
 
 test:
 	uv run pytest -s -v
+
+# Cross-process trace-continuity test (AAP-79590): starts a real scheduler and
+# a real dispatcherd worker as subprocesses. OPT-IN ONLY and NOT run in CI --
+# nothing in .github/workflows/pytest.yml sets TRACE_E2E, so `make test`
+# collects this file and skips it. Run it explicitly against a PostgreSQL
+# instance (~30s). See docs/trace-propagation.md.
+test-trace-e2e:
+	TRACE_E2E=1 uv run pytest tests/integration/test_trace_continuity_process.py -s -v
 
 coverage:
 	uv run pytest -s -v --cov --cov-branch --cov-report=html --cov-report=xml
@@ -65,4 +73,4 @@ clean:
 psql:
 	$(COMPOSE_CMD) -f $(METRICS_UTILITY_COMPOSE) exec postgres psql -U awx
 
-.PHONY: help test coverage lint fix sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc clean psql
+.PHONY: help test test-trace-e2e coverage lint fix sync-requirements requirements requirements-check generate-openapi-schema validate-openapi-schema compose compose-service compose-pytest-svc clean psql
