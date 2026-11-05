@@ -571,3 +571,37 @@ class TestEnsureDispatcherdConfigured:
 
         mock_logger.exception.assert_called()
         assert "Failed to ensure dispatcherd configuration" in str(mock_logger.exception.call_args)
+
+
+@pytest.mark.unit
+class TestDispatcherdLoggingLevel:
+    """ES-SUP-2: dispatcherd's logging level must follow the Django LOG_LEVEL setting."""
+
+    def _patched_settings(self, log_level):
+        settings = MagicMock()
+        settings.DATABASES = {"default": {"NAME": "metrics", "USER": "u", "PASSWORD": "", "HOST": "h", "PORT": "5432"}}
+        settings.TASK_TIMEOUT = 3600
+        settings.LOG_LEVEL = log_level
+        return patch("django.conf.settings", settings)
+
+    def test_yaml_config_logging_level_follows_django_setting(self, tmp_path):
+        """The YAML 'logging.level' fallback is overridden by settings.LOG_LEVEL."""
+        config_file = tmp_path / "dispatcherd.yaml"
+        config_file.write_text("logging:\n  level: INFO\n")
+        with self._patched_settings("DEBUG"):
+            config = _load_config_with_django_db(config_file)
+        assert config["logging"]["level"] == "DEBUG"
+
+    def test_yaml_config_adds_logging_section_when_missing(self, tmp_path):
+        """A YAML without a logging section gets one from settings.LOG_LEVEL."""
+        config_file = tmp_path / "dispatcherd.yaml"
+        config_file.write_text("brokers: {}\n")
+        with self._patched_settings("WARNING"):
+            config = _load_config_with_django_db(config_file)
+        assert config["logging"]["level"] == "WARNING"
+
+    def test_built_config_logging_level_follows_django_setting(self):
+        """build_config_from_django_settings propagates settings.LOG_LEVEL."""
+        with self._patched_settings("ERROR"):
+            config = build_config_from_django_settings()
+        assert config["logging"]["level"] == "ERROR"

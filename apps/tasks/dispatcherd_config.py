@@ -138,6 +138,9 @@ def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
     # config file does not name one; an explicit worker_cls is left alone.
     config.setdefault("worker", {}).setdefault("worker_cls", WORKER_CLS)
 
+    # Propagate the Django LOG_LEVEL into dispatcherd's logging config
+    config.setdefault("logging", {})["level"] = django_settings.LOG_LEVEL
+
     logger.info(
         f"Configured dispatcherd with Django database settings: "
         f"{pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
@@ -184,6 +187,9 @@ def build_config_from_django_settings() -> dict[str, Any]:
             # dispatcherd forks its worker pool: the runtime log level refresh
             # thread must start in each child, post-fork (AAP-79584).
             "worker": {"worker_cls": WORKER_CLS},
+            "logging": {
+                "level": django_settings.LOG_LEVEL,
+            },
         }
 
         logger.info(

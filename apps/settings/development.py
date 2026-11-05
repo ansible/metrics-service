@@ -58,6 +58,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 LOGGING__loggers__django__level = "DEBUG"
 LOGGING__loggers__metrics_service__level = "DEBUG"
 LOGGING__loggers__ansible_base__level = "DEBUG"
+LOGGING__loggers__apps__level = "DEBUG"
 LOGGING__loggers = {
     "dynaconf_merge": True,
     # disable autoreload DEBUG - lists all watched files

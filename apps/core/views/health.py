@@ -20,7 +20,7 @@ class ChecksSerializer(serializers.Serializer):
 
 
 class HealthSerializer(serializers.Serializer):
-    status = serializers.ChoiceField(choices=["healthy", "unhealthy"])
+    status = serializers.ChoiceField(choices=[STATUS_GOOD, STATUS_DEGRADED])
     checks = ChecksSerializer()
 
 

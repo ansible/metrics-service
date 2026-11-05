@@ -177,6 +177,7 @@ ignore = [
 "apps/settings/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in settings
 "tests/unit/*.py" = ["S105", "S106"]  # Allow hardcoded passwords in tests
 "manage.py" = ["T20"]
+"tools/emerging-services/check_support_standard.py" = ["T20", "S602"]  # CLI script: prints output and runs operator-supplied commands
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15  # Increased to match Sonar's threshold

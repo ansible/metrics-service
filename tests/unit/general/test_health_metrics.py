@@ -39,6 +39,32 @@ class TestHealthEndpoint:
         assert json_response["status"] == "good"
         assert response.status_code == status.HTTP_200_OK
 
+    def test_health_serializer_choices_match_response(self, client, db):
+        """ES-SUP-1: the documented schema must match the values the view actually returns."""
+        from apps.core.views.health import HealthSerializer
+
+        choices = list(HealthSerializer().fields["status"].choices)
+        assert choices == ["good", "degraded"]
+
+        response = client.get("/health/")
+        assert response.status_code == status.HTTP_200_OK
+        json_response = response.json()
+        assert json_response["status"] in choices
+        assert "checks" in json_response
+        assert "database" in json_response["checks"]
+
+    def test_health_serializer_schema_matches_degraded_response(self, db):
+        """ES-SUP-1: the degraded value (HTTP 503 path) is also covered by the schema."""
+        from apps.core.views.health import HealthSerializer
+
+        choices = list(HealthSerializer().fields["status"].choices)
+
+        with patch("django.db.connection.ensure_connection", side_effect=Exception("DB Error")):
+            client = APIClient()
+            response = client.get("/health/")
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json()["status"] in choices
+
     @pytest.mark.django_db
     @patch("apps.core.views.health.close_old_connections")
     def test_health_check_fails_when_segment_payloads_failed(self, mock_close, client):

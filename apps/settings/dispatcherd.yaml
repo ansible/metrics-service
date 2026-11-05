@@ -36,6 +36,9 @@ worker:
   worker_cls: 'apps.tasks.dispatcherd_worker.LogLevelSyncWorker'
 
 # Logging configuration
+# NOTE: when dispatcherd is configured by metrics-service (apps/tasks/dispatcherd_config.py),
+# the Django LOG_LEVEL setting (METRICS_SERVICE_LOG_LEVEL env var) overrides this level.
+# The value below is only a fallback for standalone dispatcherd use.
 logging:
   level: INFO
   format: '%(asctime)s [%(levelname)s] %(name)s: %(message)s'

@@ -214,7 +214,7 @@ LOGGING = {
         },
         "apps": {
             "handlers": ["console"],
-            "level": "INFO",
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "": {
