@@ -5,8 +5,11 @@ Tests the full metrics service management command functionality including
 service initialization, task management, and command line operations.
 """
 
+import json
 import subprocess
 import sys
+from datetime import timedelta
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,8 +17,9 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
 
-from apps.tasks.models import Task
+from apps.tasks.models import Task, TaskExecution
 from tests.test_utils import get_test_password
 from tests.unit.core.test_metrics_service_helpers import create_mock_processes_with_exit, get_default_config
 
@@ -137,6 +141,172 @@ class TestMetricsServiceCommand(TransactionTestCase):
         # Verify task was reset to pending
         task.refresh_from_db()
         assert task.status == "pending"
+
+    def test_task_diagnose_empty_database(self):
+        """Test tasks diagnose exits 0 and reports no stuck tasks on an empty DB."""
+        out = StringIO()
+        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "test"}
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command("metrics_service", "tasks", "diagnose", stdout=out)
+
+        output = out.getvalue()
+        assert "Metrics service task diagnostics" in output
+        assert "No stuck tasks." in output
+
+    def test_task_diagnose_reports_findings(self):
+        """Test tasks diagnose text output includes stuck, success, and failure data."""
+        now = timezone.now()
+        stuck_task = Task.objects.create(
+            name="Stuck Collect",
+            function_name="collect_hourly_metrics",
+            status="running",
+            started_at=now - timedelta(seconds=120),
+            attempts=2,
+            created_by=self.user,
+        )
+        TaskExecution.objects.create(task=stuck_task, status="running", worker_id="dispatcher-1")
+
+        success_task = Task.objects.create(
+            name="Successful Hello", function_name="hello_world", status="completed", created_by=self.user
+        )
+        completed_at = now - timedelta(minutes=5)
+        TaskExecution.objects.create(task=success_task, status="completed", completed_at=completed_at)
+        TaskExecution.objects.create(
+            task=success_task, status="failed", completed_at=now - timedelta(hours=1), error_message="boom"
+        )
+
+        out = StringIO()
+        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "test"}
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command("metrics_service", "tasks", "diagnose", "--stuck-timeout", "60", stdout=out)
+
+        output = out.getvalue()
+        assert f"ID: {stuck_task.id}" in output
+        assert "collect_hourly_metrics" in output
+        assert "00:02:00" in output
+        assert completed_at.isoformat() in output
+        assert "hello_world: 1 failure(s)" in output
+
+    def test_task_diagnose_json_output(self):
+        """Test tasks diagnose --format json emits valid parseable JSON."""
+        now = timezone.now()
+        stuck_task = Task.objects.create(
+            name="Stuck Task",
+            function_name="hello_world",
+            status="running",
+            started_at=now - timedelta(seconds=120),
+            created_by=self.user,
+        )
+
+        out = StringIO()
+        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "test"}
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command(
+                "metrics_service", "tasks", "diagnose", "--format", "json", "--stuck-timeout", "60", stdout=out
+            )
+
+        data = json.loads(out.getvalue())
+        assert data["schema_version"] == 1
+        assert set(data) >= {
+            "generated_at",
+            "task_timeout_seconds",
+            "window_hours",
+            "stuck_tasks",
+            "last_success",
+            "failures_last_24h",
+            "queue_depth",
+        }
+        assert [row["task_id"] for row in data["stuck_tasks"]] == [stuck_task.id]
+
+    def test_task_diagnose_hours_window(self):
+        """Test --hours excludes failures older than the window."""
+        now = timezone.now()
+        failed_task = Task.objects.create(
+            name="Old Failure", function_name="hello_world", status="failed", created_by=self.user
+        )
+        TaskExecution.objects.create(
+            task=failed_task, status="failed", completed_at=now - timedelta(hours=2), error_message="old"
+        )
+
+        out = StringIO()
+        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "test"}
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command("metrics_service", "tasks", "diagnose", "--format", "json", "--hours", "1", stdout=out)
+
+        data = json.loads(out.getvalue())
+        assert all(row["function_name"] != "hello_world" for row in data["failures_last_24h"])
+
+        out_24h = StringIO()
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command("metrics_service", "tasks", "diagnose", "--format", "json", stdout=out_24h)
+        assert any(row["function_name"] == "hello_world" for row in json.loads(out_24h.getvalue())["failures_last_24h"])
+
+    def test_task_diagnose_stuck_timeout_override(self):
+        """Test --stuck-timeout flags a recently started task."""
+        now = timezone.now()
+        task = Task.objects.create(
+            name="Recent Runner",
+            function_name="hello_world",
+            status="running",
+            started_at=now - timedelta(seconds=2),
+            created_by=self.user,
+        )
+
+        out = StringIO()
+        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "test"}
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command("metrics_service", "tasks", "diagnose", "--format", "json", "--stuck-timeout", "1", stdout=out)
+
+        data = json.loads(out.getvalue())
+        assert [row["task_id"] for row in data["stuck_tasks"]] == [task.id]
+
+    def test_task_diagnose_limit_applies_to_sections(self):
+        """Test --limit bounds the stuck-task section in both text and JSON."""
+        now = timezone.now()
+        for index in range(3):
+            Task.objects.create(
+                name=f"Stuck {index}",
+                function_name="hello_world",
+                status="running",
+                started_at=now - timedelta(seconds=200 + index),
+                created_by=self.user,
+            )
+
+        out = StringIO()
+        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "test"}
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command(
+                "metrics_service",
+                "tasks",
+                "diagnose",
+                "--format",
+                "json",
+                "--stuck-timeout",
+                "60",
+                "--limit",
+                "1",
+                stdout=out,
+            )
+
+        data = json.loads(out.getvalue())
+        assert len(data["stuck_tasks"]) == 1
+
+    def test_task_diagnose_invalid_options(self):
+        """Test invalid diagnose options exit non-zero."""
+        with pytest.raises(SystemExit):
+            call_command("metrics_service", "tasks", "diagnose", "--hours", "0")
+
+        with pytest.raises(SystemExit):
+            call_command("metrics_service", "tasks", "diagnose", "--limit", "0")
+
+        with pytest.raises(SystemExit):
+            call_command("metrics_service", "tasks", "diagnose", "--stuck-timeout", "0")
 
     def test_invalid_command_arguments(self):
         """Test error handling for invalid command arguments."""

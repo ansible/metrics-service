@@ -279,6 +279,10 @@ python manage.py metrics_service init-service-id
 
 # Initialize system tasks
 python manage.py metrics_service init-system-tasks
+
+# Diagnose task health (stuck tasks, last success, recent failures, queue depth)
+python manage.py metrics_service tasks diagnose
+python manage.py metrics_service tasks diagnose --format json
 ```
 
 ### OpenAPI Schema

@@ -229,6 +229,37 @@ python manage.py metrics_service tasks retry <task_id>
 python manage.py metrics_service tasks retry <task_id> --force
 ```
 
+### Diagnosing task health
+
+`tasks diagnose` is a read-only view for support triage. It answers the four
+questions asked first when a task issue is reported:
+
+- **Stuck tasks** — `running` tasks past `TASK_TIMEOUT` (default 3600 s), with
+  duration, attempt count, worker, and whether dispatcherd actually reports the
+  task as running (an empty "reported by" list suggests a dead worker).
+- **Last successful run** per task type (`function_name`), including functions
+  that have never succeeded.
+- **Failure count** per task type in the last 24 hours, with the latest error.
+- **Queue depth** — pending `Task` rows per queue plus live dispatcherd
+  queued/blocked/delayed counts.
+
+```bash
+# Human-readable output
+python manage.py metrics_service tasks diagnose
+
+# Machine-readable JSON (stable schema_version field)
+python manage.py metrics_service tasks diagnose --format json
+
+# Options
+python manage.py metrics_service tasks diagnose --hours 6 --stuck-timeout 900 --limit 50
+```
+
+The command never mutates task state — the scheduler owns stuck-task
+transitions. If dispatcherd is unreachable, database-backed sections are still
+reported and live state is marked unavailable. Exit status is 0 even when
+findings exist; diagnostics are informational.
+
+
 ## Adding a New Background Task
 
 1. Implement the function in `apps/tasks/collectors/`, `cleanup/`, or
