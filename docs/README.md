@@ -123,6 +123,7 @@ python manage.py metrics_service init-system-tasks
 | [analytics-retention.md](analytics-retention.md) | Controller-aligned analytics payload retention and fallback rules |
 | [ingress.md](ingress.md) | Non-local analytics payload ingress and source semantics |
 | [data-models.md](data-models.md) | Entity relationships across tasks, metrics, and dashboard models |
+| [support-tooling.md](support-tooling.md) | Support guide: collecting a support bundle, task diagnostics, runtime log level |
 
 ## Where to Start
 
@@ -138,6 +139,8 @@ toggles. Dashboard: [dashboard-sync.md](dashboard-sync.md) (collection) and
 **Developers adding RBAC-protected APIs** — [core-rbac.md](core-rbac.md).
 
 **Debugging stuck or failed tasks** — [task-state-machine.md](task-state-machine.md).
+
+**Support engineers / collecting diagnostics** — [support-tooling.md](support-tooling.md).
 
 **Upstream transmission / opt-out** — [anonymization-and-transmission.md](anonymization-and-transmission.md).
 

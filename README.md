@@ -202,6 +202,26 @@ effect at task execution time without restart.
 
 If system tasks are missing `_feature_flag` for metrics collection templates, run `python manage.py metrics_service init-system-tasks` to sync them.
 
+### Support and Diagnostics
+
+Three commands cover day-to-day troubleshooting on a live deployment (all
+read-only except `set-log-level`, which is temporary):
+
+```bash
+# Collect a redacted diagnostic tarball for a support ticket
+metrics-service support-bundle --output-dir /tmp
+
+# Task health: stuck tasks, last success per task type, failures, queue depth
+metrics-service tasks diagnose [--format json]
+
+# Temporarily change the log level without a restart (auto-reverts)
+metrics-service set-log-level DEBUG --ttl 900
+```
+
+The full support-engineer guide — including `oc exec` usage, expected output,
+what is redacted, and what to attach to a ticket — lives in
+[docs/support-tooling.md](docs/support-tooling.md).
+
 
 ## Development
 
@@ -492,6 +512,18 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py runserver
 # Or for the complete service
 METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py metrics_service run
 ```
+
+**Changing the log level on a running deployment** (no restart required):
+
+```bash
+metrics-service set-log-level DEBUG --ttl 900   # raise; expires automatically
+metrics-service set-log-level --show            # check the active override
+metrics-service set-log-level --clear           # revert early
+```
+
+The change is shared through the database, applies to all service processes
+within one request/task cycle, and reverts on restart to
+`METRICS_SERVICE_LOG_LEVEL`.
 
 **Log Output Format:**
 
