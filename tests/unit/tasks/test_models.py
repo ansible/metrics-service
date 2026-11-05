@@ -2,6 +2,7 @@
 Comprehensive edge case tests for tasks/models.py
 """
 
+import uuid
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -238,3 +239,36 @@ class TestTaskModelEdgeCases:
 
         assert task.result_data["result"] == "success"
         assert task.result_data["count"] == 42
+
+    def test_task_request_id_is_persisted_and_indexed(self):
+        """Task.request_id stores the originating request ID and is indexed."""
+        request_id = str(uuid.uuid4())
+        task = Task.objects.create(name="Traced Task", function_name="hello_world", request_id=request_id)
+
+        task.refresh_from_db()
+        assert task.request_id == request_id
+        assert task._meta.get_field("request_id").db_index is True
+        assert task._meta.get_field("request_id").editable is False
+
+
+@pytest.mark.django_db
+class TestTaskRequestIdSerializer:
+    """request_id is exposed read-only and cannot be supplied on create."""
+
+    def test_task_serializer_exposes_request_id_read_only(self):
+        from apps.tasks.v1.serializers import TaskSerializer
+
+        serializer = TaskSerializer()
+        assert "request_id" in serializer.fields
+        assert serializer.fields["request_id"].read_only is True
+
+    def test_task_create_serializer_ignores_request_id(self):
+        from apps.tasks.v1.serializers import TaskCreateSerializer
+
+        request_id = str(uuid.uuid4())
+        serializer = TaskCreateSerializer(
+            data={"name": "Spoofed Task", "function_name": "hello_world", "request_id": request_id}
+        )
+
+        assert serializer.is_valid(), serializer.errors
+        assert "request_id" not in serializer.validated_data
