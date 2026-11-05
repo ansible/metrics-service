@@ -11,8 +11,12 @@ from django.urls import resolve
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
 
-from apps.dashboard_reports.models import TemplateMetadata
-from apps.dashboard_reports.serializers import TemplateMetadataSerializer
+from apps.dashboard_reports.models import (
+    DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES,
+    DEFAULT_TIME_TAKEN_TO_MANUALLY_EXECUTE_MINUTES,
+    TemplateMetadata,
+)
+from apps.dashboard_reports.serializers import TemplateMetadataDefaultsSerializer, TemplateMetadataSerializer
 from apps.dashboard_reports.viewsets.template_metadata import TemplateMetadataViewSet
 
 # =============================================================================
@@ -395,3 +399,41 @@ class TestTemplateMetadataBulkUpdate:
         api_client.force_authenticate(platform_auditor)
         response = api_client.patch(self.url, {"time_taken_manually_execute_minutes": 30}, format="json")
         assert response.status_code == 403
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestTemplateMetadataDefaults:
+    url = "/api/v1/dashboard_reports/template_metadata/defaults/"
+
+    def test_url_resolves_to_defaults_action(self):
+        match = resolve(self.url)
+        assert match.func.cls is TemplateMetadataViewSet
+        assert match.func.actions == {"get": "defaults"}
+
+    def test_returns_default_values_from_model_constants(self, admin_client):
+        assert DEFAULT_TIME_TAKEN_TO_MANUALLY_EXECUTE_MINUTES == 30
+        assert DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES == 60
+        response = admin_client.get(self.url)
+        assert response.status_code == 200
+        assert response.json() == {
+            "time_taken_manually_execute_minutes": DEFAULT_TIME_TAKEN_TO_MANUALLY_EXECUTE_MINUTES,
+            "time_taken_create_automation_minutes": DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES,
+        }
+
+    def test_action_uses_defaults_serializer(self):
+        assert resolve(self.url).func.initkwargs["serializer_class"] is TemplateMetadataDefaultsSerializer
+
+    def test_platform_auditor_allowed(self, api_client, platform_auditor):
+        api_client.force_authenticate(platform_auditor)
+        assert api_client.get(self.url).status_code == 200
+
+    def test_regular_user_forbidden(self, api_client, rando):
+        api_client.force_authenticate(rando)
+        assert api_client.get(self.url).status_code == 403
+
+    def test_unauthenticated_forbidden(self, api_client):
+        assert api_client.get(self.url).status_code == 403
+
+    def test_post_not_allowed(self, admin_client):
+        assert admin_client.post(self.url, {}, format="json").status_code == 405

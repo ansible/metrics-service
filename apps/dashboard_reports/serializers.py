@@ -310,6 +310,17 @@ class TemplateMetadataBulkUpdateSerializer(TemplateMetadataSerializer):
     )
 
 
+class TemplateMetadataDefaultsSerializer(serializers.Serializer):
+    """Response serializer for the default template time estimates."""
+
+    time_taken_manually_execute_minutes = serializers.IntegerField(
+        help_text="Default estimated time to perform a task manually (minutes)"
+    )
+    time_taken_create_automation_minutes = serializers.IntegerField(
+        help_text="Default estimated time spent creating an automation (minutes)"
+    )
+
+
 class FilterSetSerializer(serializers.ModelSerializer):
     """Serializer for FilterSet, exposing name, filter criteria, and default flag."""
 

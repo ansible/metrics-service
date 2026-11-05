@@ -2565,6 +2565,37 @@
                 "x-ai-description": "Partially update existing dashboard reports template metadatum"
             }
         },
+        "/api/v1/dashboard_reports/template_metadata/defaults/": {
+            "get": {
+                "operationId": "dashboard_reports_template_metadata_defaults",
+                "description": "Returns the default time estimates (minutes) for manual execution and automation creation. These are suggested values shown when setting time estimates for all templates.",
+                "summary": "Get default template time estimates.",
+                "tags": [
+                    "dashboard_reports"
+                ],
+                "security": [
+                    {
+                        "cookieAuth": []
+                    },
+                    {
+                        "basicAuth": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TemplateMetadataDefaults"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "x-ai-description": "Get the default manual execution and automation creation time estimates"
+            }
+        },
         "/api/v1/dashboard_reports/templates/": {
             "get": {
                 "operationId": "dashboard_reports_templates_retrieve",
@@ -20183,6 +20214,24 @@
                         "minimum": 0,
                         "nullable": true,
                         "description": "User override: Estimated time spent creating this automation (minutes)"
+                    }
+                },
+                "required": [
+                    "time_taken_create_automation_minutes",
+                    "time_taken_manually_execute_minutes"
+                ]
+            },
+            "TemplateMetadataDefaults": {
+                "type": "object",
+                "description": "Response serializer for the default template time estimates.",
+                "properties": {
+                    "time_taken_manually_execute_minutes": {
+                        "type": "integer",
+                        "description": "Default estimated time to perform a task manually (minutes)"
+                    },
+                    "time_taken_create_automation_minutes": {
+                        "type": "integer",
+                        "description": "Default estimated time spent creating an automation (minutes)"
                     }
                 },
                 "required": [

@@ -5,13 +5,22 @@ from django.db.models import QuerySet
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers, status
+from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin, UpdateModelMixin
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from apps.dashboard_reports.models import TemplateMetadata
-from apps.dashboard_reports.serializers import TemplateMetadataBulkUpdateSerializer, TemplateMetadataSerializer
+from apps.dashboard_reports.models import (
+    DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES,
+    DEFAULT_TIME_TAKEN_TO_MANUALLY_EXECUTE_MINUTES,
+    TemplateMetadata,
+)
+from apps.dashboard_reports.serializers import (
+    TemplateMetadataBulkUpdateSerializer,
+    TemplateMetadataDefaultsSerializer,
+    TemplateMetadataSerializer,
+)
 
 
 @extend_schema_view(
@@ -37,6 +46,7 @@ class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewS
         PUT    api/v1/dashboard_reports/template_metadata/{id}/ - Update template metadata
         PATCH  api/v1/dashboard_reports/template_metadata/{id}/ - Partially update template metadata
         PATCH  api/v1/dashboard_reports/template_metadata/ - Partially update ALL template metadata
+        GET    api/v1/dashboard_reports/template_metadata/defaults/ - Get default time estimates
     """
 
     permission_classes = [IsSystemAdminOrAuditor]
@@ -73,3 +83,24 @@ class TemplateMetadataViewSet(RetrieveModelMixin, UpdateModelMixin, GenericViewS
             return Response({"detail": "Provide at least one time estimate field."}, status=status.HTTP_400_BAD_REQUEST)
         updated = self.get_queryset().update(**values, modified=timezone.now(), modified_by=request.user)
         return Response({"updated": updated})
+
+    @extend_schema(
+        operation_id="dashboard_reports_template_metadata_defaults",
+        summary="Get default template time estimates.",
+        description=(
+            "Returns the default time estimates (minutes) for manual execution and automation creation. "
+            "These are suggested values shown when setting time estimates for all templates."
+        ),
+        extensions={"x-ai-description": "Get the default manual execution and automation creation time estimates"},
+        responses=TemplateMetadataDefaultsSerializer,
+    )
+    @action(detail=False, methods=["get"], url_path="defaults", serializer_class=TemplateMetadataDefaultsSerializer)
+    def defaults(self, request: Request) -> Response:
+        """Return the default time estimates for template metadata."""
+        serializer = self.get_serializer(
+            {
+                "time_taken_manually_execute_minutes": DEFAULT_TIME_TAKEN_TO_MANUALLY_EXECUTE_MINUTES,
+                "time_taken_create_automation_minutes": DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES,
+            }
+        )
+        return Response(serializer.data)

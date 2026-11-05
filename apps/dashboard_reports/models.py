@@ -41,6 +41,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES = 60
+DEFAULT_TIME_TAKEN_TO_MANUALLY_EXECUTE_MINUTES = 30
 
 
 def _month_range_iter(start_date, end_date):
