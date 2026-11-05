@@ -610,6 +610,85 @@ def collect_dashboard_reports_data(**kwargs) -> dict[str, Any]:
     return create_task_result("success", data=result.get("data", {}))
 
 
+def _has_dashboard_job_model(row: dict) -> bool:
+    """Return whether a dashboard job row has a usable Controller model name."""
+    model = row.get("model")
+    return isinstance(model, str) and bool(model.strip())
+
+
+def _get_dashboard_job_ids_missing_models(rows: list[dict]) -> list[int]:
+    """Return unique integer job IDs whose Controller models need to be recovered."""
+    return list(
+        dict.fromkeys(row["id"] for row in rows if isinstance(row.get("id"), int) and not isinstance(row["id"], bool))
+    )
+
+
+def _resolve_dashboard_job_models(raw_jobs: list[Any], task_name: str) -> str | None:
+    """Recover missing Controller model names and return an error message on failure."""
+    jobs_missing_model = [row for row in raw_jobs if isinstance(row, dict) and not _has_dashboard_job_model(row)]
+    job_ids = _get_dashboard_job_ids_missing_models(jobs_missing_model)
+    if not job_ids:
+        return None
+
+    try:
+        controller_models = fetch_job_types_for_ids(get_db_connection("awx"), job_ids)
+    except Exception:
+        logger.exception("Unable to recover Controller models for queued dashboard job records")
+        error = f"Unable to recover Controller models for {len(job_ids)} queued dashboard job record(s)"
+        log_task_execution(task_name=task_name, operation="error", details=error)
+        return error
+
+    for row in jobs_missing_model:
+        model = controller_models.get(row.get("id"))
+        if isinstance(model, str) and model.strip():
+            row["model"] = model
+    return None
+
+
+def _parse_dashboard_job_labels(row: dict) -> list[int] | None:
+    """Parse the optional label IDs from a raw dashboard job row."""
+    if "label_ids" not in row:
+        # Older metrics_utility versions omit this column. None tells
+        # create_or_update_from_awx to preserve existing labels.
+        return None
+
+    label_ids_raw = row["label_ids"]
+    if label_ids_raw is None or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
+        return []
+    if isinstance(label_ids_raw, str):
+        return [int(value.strip()) for value in label_ids_raw.split(",") if value.strip()]
+    return [int(label_ids_raw)]
+
+
+def _assemble_dashboard_job(row: dict) -> dict:
+    """Build the JobData payload from a serialized dashboard job row."""
+    awx_job = {
+        "id": row["id"],
+        "name": row["name"],
+        "unified_job_template_id": row.get("unified_job_template_id"),
+        "organization_id": row.get("organization_id"),
+        "organization_name": row.get("organization_name"),
+        "started": _parse_dt(row.get("started")),
+        "finished": _parse_dt(row.get("finished")),
+        "status": row["status"],
+        "elapsed": row["elapsed"],
+        "launched_by_id": row.get("launched_by_id"),
+        "launched_by_username": row.get("launched_by_username"),
+        "project_id": row.get("project_id"),
+        "project_name": row.get("project_name"),
+        "created": _parse_dt(row.get("created")),
+        "modified": _parse_dt(row.get("modified")),
+        "labels": _parse_dashboard_job_labels(row),
+        # host_summaries=None signals create_or_update_from_awx to leave
+        # existing JobHostSummary records intact (created by initial backfill).
+        "host_summaries": None,
+        "num_hosts": row.get("num_hosts") or 0,
+    }
+    if _has_dashboard_job_model(row):
+        awx_job["job_type"] = row["model"]
+    return awx_job
+
+
 def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
     """
     Write unified_jobs raw data collected during the hourly rollup to the dashboard JobData table.
@@ -629,36 +708,11 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
         details=f"Syncing {len(raw_jobs)} dashboard job records for {hour_timestamp}",
     )
 
-    jobs_missing_model = [
-        row
-        for row in raw_jobs
-        if isinstance(row, dict) and (not isinstance(row.get("model"), str) or not row["model"].strip())
-    ]
-    job_ids = list(
-        dict.fromkeys(
-            row["id"]
-            for row in jobs_missing_model
-            if isinstance(row.get("id"), int) and not isinstance(row["id"], bool)
-        )
-    )
-    if job_ids:
-        try:
-            controller_models = fetch_job_types_for_ids(get_db_connection("awx"), job_ids)
-        except Exception:
-            logger.exception("Unable to recover Controller models for queued dashboard job records")
-            error = f"Unable to recover Controller models for {len(job_ids)} queued dashboard job record(s)"
-            log_task_execution(task_name=task_name, operation="error", details=error)
-            return create_task_result("error", error=error)
+    error = _resolve_dashboard_job_models(raw_jobs, task_name)
+    if error:
+        return create_task_result("error", error=error)
 
-        for row in jobs_missing_model:
-            model = controller_models.get(row.get("id"))
-            if isinstance(model, str) and model.strip():
-                row["model"] = model
-
-    unclassified_count = sum(
-        not isinstance(row, dict) or not isinstance(row.get("model"), str) or not row["model"].strip()
-        for row in raw_jobs
-    )
+    unclassified_count = sum(not isinstance(row, dict) or not _has_dashboard_job_model(row) for row in raw_jobs)
     if unclassified_count:
         logger.warning(
             "Syncing %s dashboard job record(s) without a Controller model for %s; they remain unclassified",
@@ -666,47 +720,7 @@ def sync_dashboard_job_records(**kwargs) -> dict[str, Any]:
             hour_timestamp,
         )
 
-    assembled = []
-    for row in raw_jobs:
-        if "label_ids" not in row:
-            # Column was absent in collected data (older metrics_utility without label support).
-            # Use None to signal that create_or_update_from_awx should preserve existing labels
-            # rather than clearing them.
-            labels: list[int] | None = None
-        else:
-            label_ids_raw = row["label_ids"]
-            if label_ids_raw is None or (isinstance(label_ids_raw, float) and math.isnan(label_ids_raw)):
-                labels = []
-            elif isinstance(label_ids_raw, str):
-                labels = [int(x.strip()) for x in label_ids_raw.split(",") if x.strip()]
-            else:
-                labels = [int(label_ids_raw)]
-        awx_job = {
-            "id": row["id"],
-            "name": row["name"],
-            "unified_job_template_id": row.get("unified_job_template_id"),
-            "organization_id": row.get("organization_id"),
-            "organization_name": row.get("organization_name"),
-            "started": _parse_dt(row.get("started")),
-            "finished": _parse_dt(row.get("finished")),
-            "status": row["status"],
-            "elapsed": row["elapsed"],
-            "launched_by_id": row.get("launched_by_id"),
-            "launched_by_username": row.get("launched_by_username"),
-            "project_id": row.get("project_id"),
-            "project_name": row.get("project_name"),
-            "created": _parse_dt(row.get("created")),
-            "modified": _parse_dt(row.get("modified")),
-            "labels": labels,
-            # host_summaries=None signals create_or_update_from_awx to leave
-            # existing JobHostSummary records intact (created by initial backfill).
-            "host_summaries": None,
-            "num_hosts": row.get("num_hosts") or 0,
-        }
-        model = row.get("model")
-        if isinstance(model, str) and model.strip():
-            awx_job["job_type"] = model
-        assembled.append(awx_job)
+    assembled = [_assemble_dashboard_job(row) for row in raw_jobs]
 
     failed_jobs = _sync_jobs_atomically(assembled)
 

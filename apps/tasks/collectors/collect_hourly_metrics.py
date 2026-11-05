@@ -409,6 +409,92 @@ def _build_dashboard_host_summary_sync_hook(hour_timestamp):
     return hook
 
 
+def _get_dashboard_jobs_for_sync(raw_data):
+    """Return terminal, non-sync dashboard jobs or None when there is nothing to queue."""
+    if raw_data is None or raw_data.empty:
+        return None
+
+    mask = raw_data["status"].isin(["failed", "successful"]) & (~raw_data["launch_type"].isin(["sync", "workflow"]))
+    filtered = raw_data[mask]
+    return None if filtered.empty else filtered
+
+
+def _has_usable_dashboard_model(value: Any) -> bool:
+    """Return whether a collected dashboard model value can be persisted."""
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _log_dashboard_model_gaps(filtered) -> None:
+    """Warn when dashboard rows need Controller model recovery during sync."""
+    if "model" not in filtered.columns:
+        return
+
+    invalid_models = ~filtered["model"].map(_has_usable_dashboard_model)
+    if invalid_models.any():
+        logger.warning(
+            "unified_jobs_dashboard returned %s rows without a usable model; the sync task will resolve them",
+            int(invalid_models.sum()),
+        )
+
+
+def _prepare_dashboard_sync_records(filtered) -> list[dict]:
+    """Select and serialize the dashboard columns from collected job rows."""
+    _log_dashboard_model_gaps(filtered)
+
+    # unified_jobs_dashboard guarantees these columns; guard with available
+    # in case a future schema change temporarily drops one.
+    available = [column for column in _DASHBOARD_COLUMNS if column in filtered.columns]
+    missing = set(_DASHBOARD_COLUMNS) - set(available)
+    if missing:
+        logger.warning(
+            "unified_jobs_dashboard is missing expected columns: %s",
+            sorted(missing),
+        )
+        if "model" in missing:
+            logger.warning("Dashboard job types will be resolved from Controller by job ID where possible")
+
+    subset = filtered[available]
+    records = subset.where(subset.notna(), other=None).to_dict("records")
+    for row in records:
+        _serialize_dashboard_record(row)
+    return records
+
+
+def _schedule_dashboard_sync_tasks(records: list[dict], hour_timestamp) -> None:
+    """Upsert dashboard job sync chunks and remove stale pending chunks."""
+    # Lazy import inside helper: Task must be resolved at call time so tests can
+    # patch apps.tasks.models.Task after the hook is built (same circular-import reason).
+    from apps.tasks.models import Task
+
+    hour_ts_str = hour_timestamp.isoformat()
+    new_names: set[str] = set()
+    for chunk_index, start in enumerate(range(0, len(records), _SYNC_TASK_CHUNK_SIZE)):
+        chunk = records[start : start + _SYNC_TASK_CHUNK_SIZE]
+        chunk_name = f"sync_dashboard_jobs_{hour_ts_str}_{chunk_index}"
+        new_names.add(chunk_name)
+        Task.objects.update_or_create(
+            name=chunk_name,
+            defaults={
+                "description": f"Sync dashboard job records from unified_jobs for {hour_ts_str} (chunk {chunk_index})",
+                "function_name": "sync_dashboard_job_records",
+                "task_data": {
+                    "raw_jobs": chunk,
+                    "hour_timestamp": hour_ts_str,
+                    "_feature_flag": "DASHBOARD_COLLECTION",
+                },
+                "is_system_task": False,
+            },
+        )
+
+    # Remove pending chunks from a prior run that exceed the current chunk count.
+    if not new_names:
+        return
+    Task.objects.filter(
+        name__startswith=f"sync_dashboard_jobs_{hour_ts_str}_",
+        status="pending",
+    ).exclude(name__in=new_names).delete()
+
+
 def _build_dashboard_sync_hook(hour_timestamp):
     """
     Return a post_collect_hook that schedules a sync_dashboard_job_records task.
@@ -428,69 +514,11 @@ def _build_dashboard_sync_hook(hour_timestamp):
 
     def hook(raw_data):
         """Log model gaps and queue eligible dashboard job records for syncing."""
-        if raw_data is None or raw_data.empty:
+        filtered = _get_dashboard_jobs_for_sync(raw_data)
+        if filtered is None:
             return
 
-        mask = raw_data["status"].isin(["failed", "successful"]) & (~raw_data["launch_type"].isin(["sync", "workflow"]))
-        filtered = raw_data[mask]
-        if filtered.empty:
-            return
-
-        # The consumer resolves missing models in one Controller lookup. If some IDs have
-        # expired from Controller, it stores those rows with a NULL type for legacy reporting.
-        if "model" in filtered.columns:
-            invalid_models = filtered["model"].map(lambda value: not isinstance(value, str) or not value.strip())
-            if invalid_models.any():
-                logger.warning(
-                    "unified_jobs_dashboard returned %s rows without a usable model; the sync task will resolve them",
-                    int(invalid_models.sum()),
-                )
-
-        # unified_jobs_dashboard guarantees these columns; guard with available
-        # in case a future schema change temporarily drops one.
-        available = [c for c in _DASHBOARD_COLUMNS if c in filtered.columns]
-        missing = set(_DASHBOARD_COLUMNS) - set(available)
-        if missing:
-            logger.warning(
-                "unified_jobs_dashboard is missing expected columns: %s",
-                sorted(missing),
-            )
-            if "model" in missing:
-                logger.warning("Dashboard job types will be resolved from Controller by job ID where possible")
-        subset = filtered[available]
-        records = subset.where(subset.notna(), other=None).to_dict("records")
-        for row in records:
-            _serialize_dashboard_record(row)
-
-        # Lazy import inside closure: Task must be resolved at call time so tests can
-        # patch apps.tasks.models.Task after the hook is built (same circular-import reason).
-        from apps.tasks.models import Task
-
-        hour_ts_str = hour_timestamp.isoformat()
-        new_names: set[str] = set()
-        for chunk_index, start in enumerate(range(0, len(records), _SYNC_TASK_CHUNK_SIZE)):
-            chunk = records[start : start + _SYNC_TASK_CHUNK_SIZE]
-            chunk_name = f"sync_dashboard_jobs_{hour_ts_str}_{chunk_index}"
-            new_names.add(chunk_name)
-            Task.objects.update_or_create(
-                name=chunk_name,
-                defaults={
-                    "description": f"Sync dashboard job records from unified_jobs for {hour_ts_str} (chunk {chunk_index})",
-                    "function_name": "sync_dashboard_job_records",
-                    "task_data": {
-                        "raw_jobs": chunk,
-                        "hour_timestamp": hour_ts_str,
-                        "_feature_flag": "DASHBOARD_COLLECTION",
-                    },
-                    "is_system_task": False,
-                },
-            )
-        # Remove pending chunks from a prior run that exceed the current chunk count.
-        if not new_names:
-            return
-        Task.objects.filter(
-            name__startswith=f"sync_dashboard_jobs_{hour_ts_str}_",
-            status="pending",
-        ).exclude(name__in=new_names).delete()
+        records = _prepare_dashboard_sync_records(filtered)
+        _schedule_dashboard_sync_tasks(records, hour_timestamp)
 
     return hook
