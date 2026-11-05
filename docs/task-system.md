@@ -248,3 +248,4 @@ one-shot tasks (run once on enable), set `cron: None`.
 - [collectors.md](collectors.md) — metrics collection pipeline
 - [dashboard-sync.md](dashboard-sync.md) — automation-reports data sync
 - [core-rbac.md](core-rbac.md) — API authentication and permissions
+- [adr/0002-opentelemetry-trace-export.md](adr/0002-opentelemetry-trace-export.md) — trace export decision and async-boundary propagation constraints

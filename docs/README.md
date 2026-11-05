@@ -123,6 +123,7 @@ python manage.py metrics_service init-system-tasks
 | [analytics-retention.md](analytics-retention.md) | Controller-aligned analytics payload retention and fallback rules |
 | [ingress.md](ingress.md) | Non-local analytics payload ingress and source semantics |
 | [data-models.md](data-models.md) | Entity relationships across tasks, metrics, and dashboard models |
+| [adr/README.md](adr/README.md) | Architecture decision records, including the OpenTelemetry trace-export decision ([ADR 0002](adr/0002-opentelemetry-trace-export.md)) |
 
 ## Where to Start
 
