@@ -1844,7 +1844,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this Job Data.
         required: true
       tags:
       - dashboard_reports
@@ -15722,9 +15723,7 @@ components:
         all_parents_must_converge:
           type: boolean
           nullable: true
-<<<<<<< HEAD
           description: Whether all parent nodes must converge before this node runs.
-=======
     CleanTextFieldInfo:
       type: object
       description: Per-field metadata returned in OPTIONS actions. When ENHANCED_INPUT_VALIDATION_ENABLED
@@ -15881,7 +15880,6 @@ components:
             Unicode mode, "i" for case-insensitive). Present under the same condition
             as `pattern`.
       additionalProperties: true
->>>>>>> a1c83f2 (Regenerate openapi schema)
   securitySchemes:
     basicAuth:
       type: http
