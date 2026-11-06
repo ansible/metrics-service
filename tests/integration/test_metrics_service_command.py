@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
@@ -209,14 +210,14 @@ class TestMetricsServiceCommand(TransactionTestCase):
             )
 
         data = json.loads(out.getvalue())
-        assert data["schema_version"] == 1
+        assert data["schema_version"] == 2
         assert set(data) >= {
             "generated_at",
             "task_timeout_seconds",
             "window_hours",
             "stuck_tasks",
             "last_success",
-            "failures_last_24h",
+            "failures_in_window",
             "queue_depth",
         }
         assert [row["task_id"] for row in data["stuck_tasks"]] == [stuck_task.id]
@@ -238,12 +239,14 @@ class TestMetricsServiceCommand(TransactionTestCase):
             call_command("metrics_service", "tasks", "diagnose", "--format", "json", "--hours", "1", stdout=out)
 
         data = json.loads(out.getvalue())
-        assert all(row["function_name"] != "hello_world" for row in data["failures_last_24h"])
+        assert all(row["function_name"] != "hello_world" for row in data["failures_in_window"])
 
         out_24h = StringIO()
         with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
             call_command("metrics_service", "tasks", "diagnose", "--format", "json", stdout=out_24h)
-        assert any(row["function_name"] == "hello_world" for row in json.loads(out_24h.getvalue())["failures_last_24h"])
+        assert any(
+            row["function_name"] == "hello_world" for row in json.loads(out_24h.getvalue())["failures_in_window"]
+        )
 
     def test_task_diagnose_stuck_timeout_override(self):
         """Test --stuck-timeout flags a recently started task."""
@@ -298,20 +301,139 @@ class TestMetricsServiceCommand(TransactionTestCase):
         assert len(data["stuck_tasks"]) == 1
 
     def test_task_diagnose_invalid_options(self):
-        """Test invalid diagnose options exit non-zero."""
-        with pytest.raises(SystemExit):
+        """Test invalid diagnose options raise CommandError (Django's stderr/exit-1 contract)."""
+        with pytest.raises(CommandError, match="--hours must be >= 1"):
             call_command("metrics_service", "tasks", "diagnose", "--hours", "0")
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError, match="--limit must be >= 1"):
             call_command("metrics_service", "tasks", "diagnose", "--limit", "0")
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError, match="--stuck-timeout must be >= 1"):
             call_command("metrics_service", "tasks", "diagnose", "--stuck-timeout", "0")
+
+    def test_task_diagnose_text_with_malformed_workers_reply(self):
+        """Regression: a non-dict dispatcherd workers reply must not crash text output."""
+        out = StringIO()
+        live_state = {
+            "live_available": True,
+            "running": {},
+            # dispatcherd's own fallback reply for a malformed payload / plain strings
+            "workers": ["JSON parse error", "{bad"],
+            "producers": [],
+            "error": None,
+            "query_errors": {},
+            "warnings": ["ignored 2 malformed dispatcherd worker entries"],
+        }
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            # Must exit 0: no exception raised.
+            call_command("metrics_service", "tasks", "diagnose", stdout=out)
+
+        output = out.getvalue()
+        assert "Metrics service task diagnostics" in output
+        assert "Warning: ignored 2 malformed dispatcherd worker entries" in output
+        assert "Workers: 2 | Producers: 0" in output
+
+    def test_task_diagnose_json_with_malformed_workers_reply_unchanged(self):
+        """JSON mode keeps the raw worker payload and stays parseable."""
+        out = StringIO()
+        live_state = {
+            "live_available": True,
+            "running": {},
+            "workers": ["JSON parse error", "{bad"],
+            "producers": [],
+            "error": None,
+            "query_errors": {},
+            "warnings": ["ignored 2 malformed dispatcherd worker entries"],
+        }
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command("metrics_service", "tasks", "diagnose", "--format", "json", stdout=out)
+
+        data = json.loads(out.getvalue())
+        assert data["queue_depth"]["dispatcherd_workers"] == ["JSON parse error", "{bad"]
+        assert data["queue_depth"]["warnings"] == ["ignored 2 malformed dispatcherd worker entries"]
+        assert data["queue_depth"]["live_available"] is True
+
+    def test_task_diagnose_validation_errors_stay_off_stdout(self):
+        """Errors must not pollute stdout, which carries JSON in --format json."""
+        for output_format in ("text", "json"):
+            out = StringIO()
+
+            with pytest.raises(CommandError, match="--hours must be >= 1"):
+                call_command(
+                    "metrics_service", "tasks", "diagnose", "--format", output_format, "--hours", "0", stdout=out
+                )
+
+            assert out.getvalue() == "", f"stdout polluted in {output_format} mode"
+
+    def test_task_diagnose_collection_failure_is_command_error(self):
+        """Unexpected collection failures surface as CommandError with an empty stdout."""
+        for output_format in ("text", "json"):
+            out = StringIO()
+
+            with (
+                patch("apps.tasks.diagnostics.get_diagnostics", side_effect=RuntimeError("db down")),
+                pytest.raises(CommandError, match="Failed to collect task diagnostics: db down"),
+            ):
+                call_command("metrics_service", "tasks", "diagnose", "--format", output_format, stdout=out)
+
+            assert out.getvalue() == "", f"stdout polluted in {output_format} mode"
+
+    def test_task_diagnose_cli_error_written_to_stderr(self):
+        """Through the CLI entrypoint, CommandError goes to stderr and exits 1."""
+        from apps.tasks.management.commands.metrics_service import Command
+
+        for output_format in ("text", "json"):
+            out, err = StringIO(), StringIO()
+
+            with patch.object(sys, "stderr", err):
+                command = Command()
+                command.stdout = type(command.stdout)(out)
+                with pytest.raises(SystemExit) as exc_info:
+                    command.run_from_argv(
+                        [
+                            "manage.py",
+                            "metrics_service",
+                            "tasks",
+                            "diagnose",
+                            "--format",
+                            output_format,
+                            "--hours",
+                            "0",
+                        ]
+                    )
+
+            assert exc_info.value.code == 1
+            assert "--hours must be >= 1" in err.getvalue(), f"no stderr message in {output_format} mode"
+            assert "must be >= 1" not in out.getvalue(), f"stdout polluted in {output_format} mode"
+
+    def test_task_diagnose_text_limit_matches_header_count(self):
+        """--limit must bound the text rows to the same count as the header."""
+        now = timezone.now()
+        for index in range(30):
+            Task.objects.create(
+                name=f"Stuck {index}",
+                function_name="hello_world",
+                status="running",
+                started_at=now - timedelta(seconds=200 + index),
+                created_by=self.user,
+            )
+
+        out = StringIO()
+        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "test"}
+
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command("metrics_service", "tasks", "diagnose", "--stuck-timeout", "60", "--limit", "50", stdout=out)
+
+        output = out.getvalue()
+        assert "Stuck tasks (30)" in output
+        assert output.count("    Function: hello_world") == 30
 
     def test_invalid_command_arguments(self):
         """Test error handling for invalid command arguments."""
         # Test invalid JSON data
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError):
             call_command(
                 "metrics_service",
                 "tasks",
@@ -325,7 +447,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
             )
 
         # Test invalid scheduled time format
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError):
             call_command(
                 "metrics_service",
                 "tasks",
@@ -339,7 +461,7 @@ class TestMetricsServiceCommand(TransactionTestCase):
             )
 
         # Test non-existent user
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError):
             call_command(
                 "metrics_service",
                 "tasks",
@@ -355,15 +477,15 @@ class TestMetricsServiceCommand(TransactionTestCase):
     def test_task_not_found_operations(self):
         """Test operations on non-existent tasks."""
         # Test show non-existent task
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError):
             call_command("metrics_service", "tasks", "show", "99999")
 
         # Test cancel non-existent task
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError):
             call_command("metrics_service", "tasks", "cancel", "99999")
 
         # Test retry non-existent task
-        with pytest.raises(SystemExit):
+        with pytest.raises(CommandError):
             call_command("metrics_service", "tasks", "retry", "99999")
 
     def test_task_invalid_state_operations(self):

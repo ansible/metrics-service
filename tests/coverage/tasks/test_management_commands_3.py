@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 
 def get_metrics_command():
@@ -85,12 +86,9 @@ def test_extract_config_none_workers_use_fallback():
 @pytest.mark.django_db
 def test_handle_task_management_unknown_action():
     cmd = get_metrics_command()
-    # Should not raise SystemExit for unknown action — it logs error
-    try:
+    # Unknown actions raise CommandError (Django's stderr/exit-1 contract).
+    with pytest.raises(CommandError):
         cmd._handle_task_management_command({"task_action": "unknown_action"})
-    except SystemExit:
-        pass  # Some actions call sys.exit
-    # Either succeeded or raised SystemExit — both are fine for coverage
 
 
 # ---------------------------------------------------------------------------
@@ -173,20 +171,20 @@ def test_tasks_create_basic(user):
 def test_handle_command_error_exits():
     cmd = get_metrics_command()
 
-    # Test that a CommandError in handle() results in an error message
-    with patch.object(cmd, "_handle_run_command", side_effect=Exception("Unexpected error")):
-        try:
-            cmd.handle(
-                command="run",
-                workers=1,
-                gunicorn_workers=None,
-                dispatcher_workers=None,
-                host="127.0.0.1",
-                port="8000",
-                timeout=3600,
-                max_tasks=100,
-                log_level="INFO",
-                check_interval=60,
-            )
-        except SystemExit:
-            pass
+    # Unexpected errors are wrapped in CommandError, which Django reports on stderr.
+    with (
+        patch.object(cmd, "_handle_run_command", side_effect=Exception("Unexpected error")),
+        pytest.raises(CommandError, match="Unexpected error"),
+    ):
+        cmd.handle(
+            command="run",
+            workers=1,
+            gunicorn_workers=None,
+            dispatcher_workers=None,
+            host="127.0.0.1",
+            port="8000",
+            timeout=3600,
+            max_tasks=100,
+            log_level="INFO",
+            check_interval=60,
+        )

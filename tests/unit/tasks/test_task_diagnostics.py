@@ -10,6 +10,7 @@ from apps.tasks.diagnostics import (
     get_diagnostics,
     get_dispatcherd_state,
     get_failure_counts,
+    get_known_queues,
     get_last_success_by_function,
     get_queue_depth,
     get_stuck_tasks,
@@ -18,6 +19,21 @@ from apps.tasks.diagnostics import (
 from apps.tasks.models import Task, TaskExecution
 
 TIMEOUT = 3600
+
+
+class _FakeControl:
+    """Minimal stand-in for dispatcherd's ``Control`` with canned replies."""
+
+    def __init__(self, replies=None, errors=None):
+        self.replies = replies or {}
+        self.errors = errors or {}
+        self.calls = []
+
+    def control_with_reply(self, command, timeout=None):
+        self.calls.append((command, timeout))
+        if command in self.errors:
+            raise self.errors[command]
+        return list(self.replies.get(command, []))
 
 
 def _task(user, name="Task", function_name="hello_world", status="pending", started_at=None, **kwargs):
@@ -194,6 +210,16 @@ class TestGetFailureCounts:
         assert results[0]["legacy_task_failures"] == 1
         assert results[0]["last_error"] == "legacy failure"
 
+    def test_legacy_task_failures_key_present_on_execution_rows(self, user):
+        """The row schema is stable: every row carries legacy_task_failures."""
+        now = timezone.now()
+        task = _task(user, function_name="hello_world", status="failed")
+        _execution(task, "failed", completed_at=now - timedelta(hours=1))
+
+        results = get_failure_counts(hours=24, now=now)
+
+        assert results[0]["legacy_task_failures"] == 0
+
 
 @pytest.mark.unit
 @pytest.mark.django_db
@@ -246,6 +272,89 @@ class TestQueueDepth:
         assert by_queue["maintenance"]["pending_in_db"] == 1
 
 
+def _live_state_with(control):
+    """Run get_dispatcherd_state against a fake dispatcherd control."""
+    with (
+        patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"),
+        patch("dispatcherd.factories.get_control_from_settings", return_value=control),
+    ):
+        return get_dispatcherd_state(timeout=0.01)
+
+
+@pytest.mark.unit
+class TestGetDispatcherdState:
+    def test_no_daemon_replies_marks_live_unavailable(self):
+        """No daemon means no replies after the timeout, not a healthy idle system."""
+        control = _FakeControl()
+
+        state = _live_state_with(control)
+
+        assert state["live_available"] is False
+        assert state["error"] == "no replies from dispatcherd (control timeout)"
+        assert state["workers"] == []
+        assert state["producers"] == []
+
+    def test_reply_from_daemon_marks_live_available(self):
+        control = _FakeControl(replies={"running": [{"worker-0": {"kwargs": {"task_id": 7}}}]})
+
+        state = _live_state_with(control)
+
+        assert state["live_available"] is True
+        assert state["error"] is None
+        assert state["running"] == {"worker-0": {"kwargs": {"task_id": 7}}}
+
+    def test_non_dict_worker_values_are_filtered_at_ingestion(self):
+        """dispatcherd's own JSON-parse-error reply yields string values."""
+        control = _FakeControl(
+            replies={
+                "workers": [
+                    {"error": "JSON parse error", "original": "{bad"},
+                    {"0": {"worker_id": 0, "status": "idle"}},
+                ]
+            }
+        )
+
+        state = _live_state_with(control)
+
+        assert state["live_available"] is True
+        assert state["workers"] == [{"worker_id": 0, "status": "idle"}]
+        assert any("malformed" in warning for warning in state["warnings"])
+
+    def test_one_failing_query_keeps_other_replies_and_records_error(self):
+        control = _FakeControl(
+            replies={"running": [{"worker-1": {"kwargs": {"task_id": 3}}}]},
+            errors={"workers": RuntimeError("broker gone")},
+        )
+
+        state = _live_state_with(control)
+
+        assert state["live_available"] is True
+        assert state["running"] == {"worker-1": {"kwargs": {"task_id": 3}}}
+        assert "RuntimeError: broker gone" in state["query_errors"]["workers"]
+        assert any("workers query failed" in warning for warning in state["warnings"])
+
+
+@pytest.mark.unit
+class TestKnownQueues:
+    def test_queues_read_from_dispatcherd_config(self):
+        assert set(get_known_queues()) == {"dashboard", "maintenance", "metrics"}
+
+    def test_queues_read_from_configured_yaml(self, tmp_path, monkeypatch):
+        config = tmp_path / "dispatcherd.yaml"
+        config.write_text(
+            "version: 2\nbrokers:\n  pg_notify:\n    channels:\n      - alpha\n      - beta\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("DISPATCHERD_CONFIG_FILE", str(config))
+
+        assert get_known_queues() == ("alpha", "beta")
+
+    def test_fallback_when_config_file_is_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISPATCHERD_CONFIG_FILE", str(tmp_path / "absent.yaml"))
+
+        assert get_known_queues() == ("dashboard", "maintenance", "metrics")
+
+
 @pytest.mark.unit
 @pytest.mark.django_db
 class TestGetDiagnostics:
@@ -263,16 +372,17 @@ class TestGetDiagnostics:
             }
             data = get_diagnostics()
 
-        assert data["schema_version"] == 1
+        assert data["schema_version"] == 2
         assert data["task_timeout_seconds"] == TIMEOUT
         assert data["window_hours"] == 24
         assert set(data) >= {
             "generated_at",
             "stuck_tasks",
             "last_success",
-            "failures_last_24h",
+            "failures_in_window",
             "queue_depth",
         }
+        assert "failures_last_24h" not in data
         assert len(data["stuck_tasks"]) == 1
 
 
@@ -280,7 +390,7 @@ class TestGetDiagnostics:
 class TestRenderDiagnosticsText:
     def _data(self):
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "generated_at": "2026-11-03T12:00:00+00:00",
             "task_timeout_seconds": 3600,
             "window_hours": 24,
@@ -293,10 +403,11 @@ class TestRenderDiagnosticsText:
                     "task_name": None,
                 }
             ],
-            "failures_last_24h": [],
+            "failures_in_window": [],
             "queue_depth": {
                 "live_available": False,
                 "error": "nope",
+                "warnings": [],
                 "queues": [
                     {"queue": "maintenance", "pending_in_db": 0, "queued_live": 0, "blocked_live": 0, "delayed_live": 0}
                 ],
@@ -320,10 +431,11 @@ class TestRenderDiagnosticsText:
 
     def test_error_text_truncated_and_collapsed(self):
         data = self._data()
-        data["failures_last_24h"] = [
+        data["failures_in_window"] = [
             {
                 "function_name": "hello_world",
                 "failure_count": 1,
+                "legacy_task_failures": 0,
                 "last_failure_at": "2026-11-03T11:00:00+00:00",
                 "last_error": "line one\nline two " + "x" * 500,
             }
@@ -334,3 +446,61 @@ class TestRenderDiagnosticsText:
         assert "line one line two" in text
         assert "\nline two" not in text
         assert "x" * 500 not in text
+
+    def test_dict_workers_rendered(self):
+        data = self._data()
+        data["queue_depth"] = {
+            "live_available": True,
+            "error": None,
+            "warnings": [],
+            "queues": [],
+            "dispatcherd_workers": [{"worker_id": 0, "status": "idle", "current_task": None}],
+            "dispatcherd_producers": [{"producer": "scheduler", "produced_count": 4}],
+        }
+
+        text = render_diagnostics_text(data)
+
+        assert "Workers: 1 | Producers: 1" in text
+        assert "worker-0: idle | current task: idle" in text
+        assert "scheduler: produced 4" in text
+
+    def test_non_dict_worker_and_producer_entries_do_not_crash(self):
+        """Regression: dispatcherd error replies made the text renderer raise AttributeError."""
+        data = self._data()
+        data["queue_depth"] = {
+            "live_available": True,
+            "error": None,
+            "warnings": ["ignored 1 malformed dispatcherd worker entries"],
+            "queues": [],
+            "dispatcherd_workers": ["idle", {"worker_id": 0, "status": "idle", "current_task": None}],
+            "dispatcherd_producers": ["bogus"],
+        }
+
+        text = render_diagnostics_text(data)
+
+        assert "worker-0: idle" in text
+        assert "Warning: ignored 1 malformed dispatcherd worker entries" in text
+        assert "Warning: unexpected worker entry 'idle'" in text
+        assert "Warning: unexpected producer entry 'bogus'" in text
+
+    def test_limit_matches_row_count(self):
+        data = self._data()
+        data["stuck_tasks"] = [
+            {
+                "task_id": index,
+                "name": f"Stuck {index}",
+                "function_name": "hello_world",
+                "started_at": "2026-11-03T10:00:00+00:00",
+                "duration_seconds": 7200,
+                "attempts": 1,
+                "worker_id": None,
+                "execution_id": None,
+                "reported_by": [],
+            }
+            for index in range(3)
+        ]
+
+        text = render_diagnostics_text(data, limit=2)
+
+        assert "Stuck tasks (3)" in text
+        assert text.count("Function: hello_world") == 2

@@ -239,7 +239,8 @@ questions asked first when a task issue is reported:
   task as running (an empty "reported by" list suggests a dead worker).
 - **Last successful run** per task type (`function_name`), including functions
   that have never succeeded.
-- **Failure count** per task type in the last 24 hours, with the latest error.
+- **Failure count** per task type in the failure window (`--hours`, default
+  24 h), with the latest error.
 - **Queue depth** — pending `Task` rows per queue plus live dispatcherd
   queued/blocked/delayed counts.
 
@@ -255,10 +256,20 @@ python manage.py metrics_service tasks diagnose --hours 6 --stuck-timeout 900 --
 ```
 
 The command never mutates task state — the scheduler owns stuck-task
-transitions. If dispatcherd is unreachable, database-backed sections are still
-reported and live state is marked unavailable. Exit status is 0 even when
-findings exist; diagnostics are informational.
+transitions. Database-backed sections are always reported, so the command works
+with the database alone.
 
+Live dispatcherd state is only marked available when at least one control
+command actually answers within the 2 s timeout. Reporting on a dispatcherd
+daemon that is not running (or that never replies) therefore sets
+`queue_depth.live_available` to `false` and fills `queue_depth.error`; the text
+output prints `Live dispatcherd state unavailable: …` instead of a misleading
+`Workers: 0 | Producers: 0`. Per-command failures and malformed control replies
+are ignored and surfaced as warnings rather than failing the report.
+
+JSON output is versioned (`schema_version: 2`) and uses window-neutral keys:
+failure counts are under `failures_in_window`, with the window in `window_hours`.
+Exit status is 0 even when findings exist; diagnostics are informational.
 
 ## Adding a New Background Task
 

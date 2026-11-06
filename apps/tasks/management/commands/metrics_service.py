@@ -230,14 +230,14 @@ class Command(BaseCommand):
             elif command == "tasks":
                 self._handle_task_management_command(options)
             else:
-                self.output.error(f"Unknown command: {command}")
-                sys.exit(1)
-        except CommandError as e:
-            self.output.error(str(e))
-            sys.exit(1)
+                raise CommandError(f"Unknown command: {command}")
+        except CommandError:
+            # Let Django print the message to STDERR and exit 1 (see
+            # BaseCommand.run_from_argv). Never write errors to stdout: that
+            # would corrupt machine-readable output such as --format json.
+            raise
         except Exception as e:
-            self.output.error(f"Unexpected error: {e}")
-            sys.exit(1)
+            raise CommandError(f"Unexpected error: {e}") from e
 
     def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service (API, dispatcherd, scheduler only).
@@ -550,13 +550,18 @@ class Command(BaseCommand):
             # Bypass OutputFormatter so the output stays valid parseable JSON.
             self.stdout.write(json.dumps(data, indent=2, sort_keys=True, default=str))
         else:
-            self._render_diagnostics_text(data)
+            self._render_diagnostics_text(data, limit)
 
-    def _render_diagnostics_text(self, data: dict[str, Any]) -> None:
-        """Render diagnostics data as human-readable text."""
+    def _render_diagnostics_text(self, data: dict[str, Any], limit: int) -> None:
+        """Render diagnostics data as human-readable text.
+
+        ``limit`` is the CLI ``--limit`` value: it must match the limit already
+        applied to the data, otherwise the section header count and the number
+        of rendered rows disagree.
+        """
         from apps.tasks.diagnostics import render_diagnostics_text
 
-        for line in render_diagnostics_text(data).splitlines():
+        for line in render_diagnostics_text(data, limit=limit).splitlines():
             self.stdout.write(line)
 
     def _start_services(self, config: dict[str, Any]) -> None:
@@ -806,6 +811,8 @@ class Command(BaseCommand):
                 self._handle_task_diagnose(options)
             else:
                 raise CommandError(f"Unknown task action: {action}")
+        except CommandError:
+            # Django's CommandError contract: printed to STDERR, exit code 1.
+            raise
         except Exception as e:
-            self.output.error(f"Task management error: {e}")
-            sys.exit(1)
+            raise CommandError(f"Task management error: {e}") from e

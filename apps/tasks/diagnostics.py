@@ -27,10 +27,12 @@ from apps.tasks.models import Task, TaskExecution
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-# Queues defined in apps/settings/dispatcherd.yaml. Always reported, even at depth 0.
-KNOWN_QUEUES = ("dashboard", "maintenance", "metrics")
+# Fallback queue registry, used only when apps/settings/dispatcherd.yaml cannot
+# be read. The authoritative list is the pg_notify broker ``channels`` entry in
+# that file, which is what dispatcherd actually listens on.
+_DEFAULT_QUEUES = ("dashboard", "maintenance", "metrics")
 
 # Live dispatcherd keys classify into these buckets; "worker-" keys are actively executing.
 _LIVE_BUCKETS = ("queued", "blocked", "delayed")
@@ -49,6 +51,33 @@ def _truncate_error(message, limit: int = 200) -> str:
     if len(collapsed) > limit:
         return collapsed[: limit - 3] + "..."
     return collapsed
+
+
+def get_known_queues() -> tuple[str, ...]:
+    """Return the configured dispatcherd queue names.
+
+    Queue names live in ``apps/settings/dispatcherd.yaml`` (the pg_notify broker
+    ``channels``), which is the single source of truth for what dispatcherd
+    listens on. Reading it keeps this module aligned with the dispatcher
+    instead of duplicating a hard-coded list. If the file is missing or
+    unreadable, fall back to ``_DEFAULT_QUEUES`` so diagnostics still render.
+    """
+    try:
+        import yaml
+
+        from apps.tasks.dispatcherd_config import get_config_file_path
+
+        config_file = get_config_file_path()
+        if config_file.is_file():
+            with config_file.open(encoding="utf-8") as handle:
+                config = yaml.safe_load(handle) or {}
+            channels = (config.get("brokers") or {}).get("pg_notify", {}).get("channels") or []
+            queues = tuple(str(channel) for channel in channels if channel)
+            if queues:
+                return queues
+    except Exception as exc:  # noqa: BLE001 - diagnostics must never raise
+        logger.warning("Could not read dispatcherd queue names from config: %s", exc)
+    return _DEFAULT_QUEUES
 
 
 def _running_task_ids_by_live_key(live_state: dict | None) -> dict[int, list[str]]:
@@ -193,6 +222,7 @@ def get_failure_counts(hours: int = 24, limit: int | None = None, now=None) -> l
         rows[function_name] = {
             "function_name": function_name,
             "failure_count": aggregate["failure_count"],
+            "legacy_task_failures": 0,
             "last_failure_at": _iso(aggregate["last_failure_at"]),
             "last_error": "",
         }
@@ -225,12 +255,13 @@ def get_failure_counts(hours: int = 24, limit: int | None = None, now=None) -> l
             {
                 "function_name": task.function_name,
                 "failure_count": 0,
+                "legacy_task_failures": 0,
                 "last_failure_at": None,
                 "last_error": "",
             },
         )
         row["failure_count"] += 1
-        row["legacy_task_failures"] = row.get("legacy_task_failures", 0) + 1
+        row["legacy_task_failures"] += 1
         task_completed_at = _iso(task.completed_at)
         if task_completed_at and (row["last_failure_at"] is None or task_completed_at > row["last_failure_at"]):
             row["last_failure_at"] = task_completed_at
@@ -245,14 +276,79 @@ def get_failure_counts(hours: int = 24, limit: int | None = None, now=None) -> l
     return results
 
 
+def _control_replies(control, command: str, timeout: float) -> tuple[list, str | None]:
+    """Issue one dispatcherd control command, returning ``(replies, error)``.
+
+    A single failing command must not discard the replies of the others, so the
+    exception is converted into an error string and an empty reply list.
+    """
+    try:
+        return list(control.control_with_reply(command, timeout=timeout) or []), None
+    except Exception as exc:  # noqa: BLE001 - diagnostics must never raise
+        logger.warning("dispatcherd control command %r failed: %s", command, exc)
+        return [], f"{type(exc).__name__}: {exc}"
+
+
+def _merge_running_replies(replies: list) -> dict:
+    """Merge ``running`` control replies into one key -> message mapping."""
+    running: dict = {}
+    for reply in replies:
+        if isinstance(reply, dict):
+            running.update(reply)
+    return running
+
+
+def _merge_worker_replies(replies: list) -> tuple[list[dict], int]:
+    """Extract worker records, dropping values that are not dicts.
+
+    dispatcherd's own fallback reply is ``{'error': 'JSON parse error', ...}``;
+    its values are strings. Only dict worker records are renderable, so the
+    rest are counted and reported as a warning instead of crashing the report.
+    """
+    workers: list[dict] = []
+    malformed = 0
+    for reply in replies:
+        if not isinstance(reply, dict):
+            continue
+        for value in reply.values():
+            if isinstance(value, dict):
+                workers.append(value)
+            else:
+                malformed += 1
+    return workers, malformed
+
+
+def _merge_producer_replies(replies: list) -> list[dict]:
+    """Flatten ``producers`` control replies into a list of producer records."""
+    producers: list[dict] = []
+    for reply in replies:
+        if not isinstance(reply, dict):
+            continue
+        for name, data in reply.items():
+            producer = {"producer": name}
+            if isinstance(data, dict):
+                producer.update(data)
+            producers.append(producer)
+    return producers
+
+
 def get_dispatcherd_state(timeout: float = 2.0) -> dict:
-    """Collect live dispatcherd state, degrading gracefully when unavailable."""
+    """Collect live dispatcherd state, degrading gracefully when unavailable.
+
+    ``live_available`` is only ``True`` when dispatcherd actually answered at
+    least one control command. With no daemon running the broker simply returns
+    no replies after ``timeout`` instead of raising, which must not be reported
+    as a healthy idle system. Per-command failures are recorded in
+    ``query_errors`` and surfaced as ``warnings``.
+    """
     state = {
         "live_available": False,
         "running": {},
         "workers": [],
         "producers": [],
         "error": None,
+        "query_errors": {},
+        "warnings": [],
     }
 
     try:
@@ -263,37 +359,43 @@ def get_dispatcherd_state(timeout: float = 2.0) -> dict:
         from dispatcherd.factories import get_control_from_settings
 
         control = get_control_from_settings()
-
-        running: dict = {}
-        for reply in control.control_with_reply("running", timeout=timeout):
-            if isinstance(reply, dict):
-                running.update(reply)
-
-        workers = []
-        for reply in control.control_with_reply("workers", timeout=timeout):
-            if isinstance(reply, dict):
-                workers.extend(reply.values())
-
-        producers = []
-        for reply in control.control_with_reply("producers", timeout=timeout):
-            if isinstance(reply, dict):
-                for name, data in reply.items():
-                    producer = {"producer": name}
-                    if isinstance(data, dict):
-                        producer.update(data)
-                    producers.append(producer)
-
-        state.update(
-            {
-                "live_available": True,
-                "running": running,
-                "workers": workers,
-                "producers": producers,
-            }
-        )
     except Exception as exc:  # noqa: BLE001 - diagnostics must never raise
         logger.warning("Live dispatcherd state unavailable: %s", exc)
         state["error"] = f"{type(exc).__name__}: {exc}"
+        return state
+
+    replies: dict[str, list] = {}
+    query_errors: dict[str, str] = {}
+    for command in ("running", "workers", "producers"):
+        replies[command], error = _control_replies(control, command, timeout)
+        if error:
+            query_errors[command] = error
+
+    warnings = []
+    workers, malformed_workers = _merge_worker_replies(replies["workers"])
+    if malformed_workers:
+        warnings.append(f"ignored {malformed_workers} malformed dispatcherd worker entries")
+    warnings.extend(f"{command} query failed: {error}" for command, error in query_errors.items())
+
+    # Availability must reflect a real reply, not the absence of an exception.
+    reply_count = sum(len(command_replies) for command_replies in replies.values())
+    live_available = reply_count > 0
+
+    state.update(
+        {
+            "live_available": live_available,
+            "running": _merge_running_replies(replies["running"]),
+            "workers": workers,
+            "producers": _merge_producer_replies(replies["producers"]),
+            "query_errors": query_errors,
+            "warnings": warnings,
+        }
+    )
+    if not live_available:
+        state["error"] = (
+            "; ".join(f"{command}: {error}" for command, error in query_errors.items())
+            or "no replies from dispatcherd (control timeout)"
+        )
     return state
 
 
@@ -305,7 +407,7 @@ def get_queue_depth(live_state: dict | None = None) -> dict:
     pending_counts: Counter = Counter(get_queue_for_function(function_name) for function_name in pending_functions)
 
     live_counts: dict[str, dict[str, int]] = {}
-    queues = set(KNOWN_QUEUES) | set(pending_counts)
+    queues = set(get_known_queues()) | set(pending_counts)
 
     if live_state and live_state.get("live_available"):
         running = live_state.get("running") or {}
@@ -348,6 +450,8 @@ def get_queue_depth(live_state: dict | None = None) -> dict:
     return {
         "live_available": bool(live_state and live_state.get("live_available")),
         "error": (live_state or {}).get("error"),
+        "warnings": (live_state or {}).get("warnings") or [],
+        "query_errors": (live_state or {}).get("query_errors") or {},
         "queues": queue_rows,
         "dispatcherd_workers": (live_state or {}).get("workers", []),
         "dispatcherd_producers": (live_state or {}).get("producers", []),
@@ -374,7 +478,15 @@ def get_diagnostics(
     if include_live:
         live_state = get_dispatcherd_state()
     else:
-        live_state = {"live_available": False, "running": {}, "workers": [], "producers": [], "error": "disabled"}
+        live_state = {
+            "live_available": False,
+            "running": {},
+            "workers": [],
+            "producers": [],
+            "error": "disabled",
+            "query_errors": {},
+            "warnings": [],
+        }
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -383,7 +495,7 @@ def get_diagnostics(
         "window_hours": hours,
         "stuck_tasks": get_stuck_tasks(stuck_timeout=timeout, limit=limit, now=now, live_state=live_state),
         "last_success": get_last_success_by_function(now=now),
-        "failures_last_24h": get_failure_counts(hours=hours, limit=limit, now=now),
+        "failures_in_window": get_failure_counts(hours=hours, limit=limit, now=now),
         "queue_depth": get_queue_depth(live_state=live_state),
     }
 
@@ -435,7 +547,7 @@ def _render_last_success(lines: list[str], data: dict) -> None:
 
 def _render_failures(lines: list[str], data: dict, limit: int) -> None:
     """Append the recent-failures section."""
-    failures = data.get("failures_last_24h") or []
+    failures = data.get("failures_in_window") or []
     lines.append(f"Failures in the last {data.get('window_hours')}h")
     lines.append("-" * 50)
     if not failures:
@@ -461,6 +573,10 @@ def _render_queue_depth(lines: list[str], data: dict) -> None:
             f"  {row['queue']:<16} {row['pending_in_db']:>12} {row['queued_live']:>8} "
             f"{row['blocked_live']:>8} {row['delayed_live']:>8}"
         )
+
+    for warning in queue_depth.get("warnings") or []:
+        lines.append(f"Warning: {warning}")
+
     if not queue_depth.get("live_available"):
         lines.append(f"Live dispatcherd state unavailable: {queue_depth.get('error') or 'unknown error'}")
         return
@@ -469,11 +585,19 @@ def _render_queue_depth(lines: list[str], data: dict) -> None:
     producers = queue_depth.get("dispatcherd_producers") or []
     lines.append(f"Workers: {len(workers)} | Producers: {len(producers)}")
     for worker in workers:
+        # Never assume the shape of a control reply: an older or hand-edited
+        # payload must not take the whole report down.
+        if not isinstance(worker, dict):
+            lines.append(f"  Warning: unexpected worker entry {worker!r}")
+            continue
         lines.append(
             f"  worker-{worker.get('worker_id')}: {worker.get('status')} | "
             f"current task: {worker.get('current_task') or 'idle'}"
         )
     for producer in producers:
+        if not isinstance(producer, dict):
+            lines.append(f"  Warning: unexpected producer entry {producer!r}")
+            continue
         lines.append(f"  {producer.get('producer')}: produced {producer.get('produced_count', 0)}")
 
 
