@@ -32,6 +32,25 @@ class TestHealthEndpoint:
             response = client.get("/health/")
             assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
+    def test_health_check_does_not_leak_database_error_detail(self, client, db):
+        """ES-SUP-1: driver messages (host/port/user) must never reach the response body."""
+        driver_error = 'connection to server at "db.prod" (10.1.2.3), port 5432 failed: password authentication failed for user "metrics_service"'
+
+        with (
+            patch("apps.core.views.health.logger") as mock_logger,
+            patch("django.db.connection.ensure_connection", side_effect=Exception(driver_error)),
+        ):
+            response = client.get("/health/")
+
+        body = response.content.decode()
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json()["status"] == "degraded"
+        assert response.json()["checks"]["database"] == "error: database_unavailable"
+        assert "db.prod" not in body
+        assert "metrics_service" not in body
+        # The detail is preserved server-side for operators.
+        assert driver_error in str(mock_logger.warning.call_args_list)
+
     def test_health_check_works_without_authentication(self, client, db):
         """Test that health endpoint doesn't require authentication."""
         response = client.get("/health/")

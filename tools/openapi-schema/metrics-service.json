@@ -14669,7 +14669,7 @@
                 "properties": {
                     "database": {
                         "type": "string",
-                        "description": "'ok' or 'error: <message>'"
+                        "description": "'ok' or 'error: <stable-reason>'"
                     },
                     "segment_send": {
                         "$ref": "#/components/schemas/SegmentSend"
@@ -16054,11 +16054,11 @@
                 "properties": {
                     "status": {
                         "enum": [
-                            "healthy",
-                            "unhealthy"
+                            "good",
+                            "degraded"
                         ],
                         "type": "string",
-                        "description": "* `healthy` - healthy\n* `unhealthy` - unhealthy"
+                        "description": "* `good` - good\n* `degraded` - degraded"
                     },
                     "checks": {
                         "$ref": "#/components/schemas/Checks"

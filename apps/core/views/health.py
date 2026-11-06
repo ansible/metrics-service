@@ -1,3 +1,5 @@
+import logging
+
 from ansible_base.lib.constants import STATUS_DEGRADED, STATUS_GOOD
 from ansible_base.lib.utils.views.ansible_base import AnsibleBaseView
 from django.db import close_old_connections, connection
@@ -5,6 +7,8 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+logger = logging.getLogger(__name__)
 
 
 class SegmentSendSerializer(serializers.Serializer):
@@ -15,7 +19,7 @@ class SegmentSendSerializer(serializers.Serializer):
 
 
 class ChecksSerializer(serializers.Serializer):
-    database = serializers.CharField(help_text="'ok' or 'error: <message>'")
+    database = serializers.CharField(help_text="'ok' or 'error: <stable-reason>'")
     segment_send = SegmentSendSerializer(required=False)
 
 
@@ -51,9 +55,12 @@ class HealthView(AnsibleBaseView):
             close_old_connections()
             connection.ensure_connection()
             health_status["checks"]["database"] = "ok"
-        except Exception as e:
+        except Exception as exc:
+            # ES-SUP-1: never echo driver messages - psycopg includes host,
+            # port, database name and user in them. Detail goes to the logs only.
+            logger.warning("Health check: database unavailable: %s", exc)
             health_status["status"] = STATUS_DEGRADED
-            health_status["checks"]["database"] = f"error: {str(e)}"
+            health_status["checks"]["database"] = "error: database_unavailable"
 
         # Segment send check (no data is shown if there's no payloads to check)
         try:
@@ -69,9 +76,10 @@ class HealthView(AnsibleBaseView):
                 else:
                     health_status["checks"]["segment_send"]["status"] = "ok"
                     health_status["checks"]["segment_send"]["last_success_at"] = str(most_recent.modified.isoformat())
-        except Exception as e:
-            health_status["checks"]["segment_send"] = {}
-            health_status["checks"]["segment_send"]["error"] = str(e)
+        except Exception as exc:
+            # Same MUST as above: the exception text can carry connection details.
+            logger.warning("Health check: segment send state unavailable: %s", exc)
+            health_status["checks"]["segment_send"] = {"error": "segment_state_unavailable"}
 
         http_status = (
             status.HTTP_200_OK if health_status["status"] == STATUS_GOOD else status.HTTP_503_SERVICE_UNAVAILABLE

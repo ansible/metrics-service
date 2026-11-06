@@ -574,8 +574,15 @@ class TestEnsureDispatcherdConfigured:
 
 
 @pytest.mark.unit
-class TestDispatcherdLoggingLevel:
-    """ES-SUP-2: dispatcherd's logging level must follow the Django LOG_LEVEL setting."""
+class TestDispatcherdLogging:
+    """ES-SUP-2: dispatcherd loggers inherit Django's root logger at LOG_LEVEL.
+
+    dispatcherd 2026.1.x ``DispatcherSettings`` reads only version/brokers/producers/
+    service/publish/worker and silently drops a ``logging`` key, so the config dicts
+    must not carry one. The previous implementation wrote ``logging.level`` and
+    claimed it propagated LOG_LEVEL; these tests replace the self-referential
+    dict-shape tests that "passed" without proving any effect.
+    """
 
     def _patched_settings(self, log_level):
         settings = MagicMock()
@@ -584,24 +591,24 @@ class TestDispatcherdLoggingLevel:
         settings.LOG_LEVEL = log_level
         return patch("django.conf.settings", settings)
 
-    def test_yaml_config_logging_level_follows_django_setting(self, tmp_path):
-        """The YAML 'logging.level' fallback is overridden by settings.LOG_LEVEL."""
-        config_file = tmp_path / "dispatcherd.yaml"
-        config_file.write_text("logging:\n  level: INFO\n")
+    def test_built_config_has_no_dead_logging_key(self):
+        """build_config_from_django_settings must not emit a key dispatcherd ignores."""
         with self._patched_settings("DEBUG"):
-            config = _load_config_with_django_db(config_file)
-        assert config["logging"]["level"] == "DEBUG"
+            config = build_config_from_django_settings()
+        assert "logging" not in config
 
-    def test_yaml_config_adds_logging_section_when_missing(self, tmp_path):
-        """A YAML without a logging section gets one from settings.LOG_LEVEL."""
+    def test_yaml_config_does_not_add_logging_key(self, tmp_path):
+        """The YAML loader must not re-introduce logging.level from settings.LOG_LEVEL."""
         config_file = tmp_path / "dispatcherd.yaml"
-        config_file.write_text("brokers: {}\n")
+        config_file.write_text("version: 2\nbrokers: {}\n")
         with self._patched_settings("WARNING"):
             config = _load_config_with_django_db(config_file)
-        assert config["logging"]["level"] == "WARNING"
+        assert "logging" not in config
 
-    def test_built_config_logging_level_follows_django_setting(self):
-        """build_config_from_django_settings propagates settings.LOG_LEVEL."""
-        with self._patched_settings("ERROR"):
-            config = build_config_from_django_settings()
-        assert config["logging"]["level"] == "ERROR"
+    def test_dispatcherd_settings_drops_logging_key(self):
+        """Proof for the comment in dispatcherd_config.py: the key has no effect."""
+        from dispatcherd.config import DispatcherSettings
+
+        parsed = DispatcherSettings({"version": 2, "brokers": {}, "logging": {"level": "DEBUG"}})
+        assert not hasattr(parsed, "logging")
+        assert "logging" not in parsed.serialize()

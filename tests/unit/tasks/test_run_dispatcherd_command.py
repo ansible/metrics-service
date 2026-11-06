@@ -12,7 +12,7 @@ from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.tasks.management.commands.run_dispatcherd import Command
 
@@ -89,8 +89,8 @@ class TestRunDispatcherdCommand(TestCase):
 
         # Verify argument configuration
         call_kwargs = calls[0][1]
-        self.assertEqual(call_kwargs["choices"], ["DEBUG", "INFO", "WARNING", "ERROR"])
-        self.assertEqual(call_kwargs["default"], "INFO")
+        self.assertEqual(call_kwargs["choices"], ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+        self.assertIsNone(call_kwargs["default"])
         self.assertIn("log level", call_kwargs["help"].lower())
 
     def test_add_arguments_all_args(self):
@@ -118,8 +118,9 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify logging configuration
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.INFO)
+            # Verify the dispatcherd loggers were given the configured level
+            mock_logging.getLogger.assert_any_call("dispatcherd")
+            mock_logging.getLogger.return_value.setLevel.assert_called_with("INFO")
 
             # Verify dispatcherd setup was called
             mock_setup.assert_called_once()
@@ -188,7 +189,24 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
             # Verify DEBUG logging level was configured
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.DEBUG)
+            mock_logging.getLogger.return_value.setLevel.assert_called_with("DEBUG")
+
+    @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
+    @patch("apps.tasks.management.commands.run_dispatcherd.logging")
+    def test_handle_defaults_log_level_to_settings(self, mock_logging, mock_setup):
+        """ES-SUP-2: without --log-level the worker follows METRICS_SERVICE_LOG_LEVEL."""
+        mock_dispatcherd = MagicMock()
+        options = {"workers": 1, "timeout": 3600, "max_tasks": 100, "log_level": None}
+
+        with (
+            override_settings(LOG_LEVEL="warning"),
+            patch("builtins.__import__", side_effect=self._mock_dispatcherd_import(mock_dispatcherd)),
+        ):
+            self.command.stdout = self.out
+            self.command.handle(**options)
+
+        # Lowercase settings values must be normalised before reaching logging.
+        mock_logging.getLogger.return_value.setLevel.assert_called_with("WARNING")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -207,7 +225,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
             # Verify WARNING logging level was configured
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.WARNING)
+            mock_logging.getLogger.return_value.setLevel.assert_called_with("WARNING")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -226,7 +244,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
             # Verify ERROR logging level was configured
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.ERROR)
+            mock_logging.getLogger.return_value.setLevel.assert_called_with("ERROR")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -333,7 +351,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.assertIn("500", output)
 
             # Verify DEBUG logging
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.DEBUG)
+            mock_logging.getLogger.return_value.setLevel.assert_called_with("DEBUG")
 
             # Verify setup and run were called
             mock_setup.assert_called_once()
@@ -378,15 +396,15 @@ class TestRunDispatcherdCommand(TestCase):
         def record_setup_call(*args, **kwargs):
             call_order.append("setup")
 
-        mock_logging.basicConfig.side_effect = record_logging_call
+        mock_logging.getLogger.return_value.setLevel.side_effect = record_logging_call
         mock_setup.side_effect = record_setup_call
 
         with patch("builtins.__import__", side_effect=self._mock_dispatcherd_import(mock_dispatcherd)):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify logging was configured before setup
-            self.assertEqual(call_order, ["logging", "setup"])
+            # Verify log levels were configured before setup
+            self.assertEqual(call_order, ["logging", "logging", "setup"])
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")

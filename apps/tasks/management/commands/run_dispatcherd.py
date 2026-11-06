@@ -16,12 +16,18 @@ import logging
 import os
 import sys
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.tasks.dispatcherd_config import setup_dispatcherd_config
 
 logger = logging.getLogger(__name__)
+
+# ES-SUP-2: ``--log-level`` may only retune these named loggers. The root logger
+# stays at ``settings.LOG_LEVEL`` so a worker can never be quieter than the level
+# the operator configured for the deployment.
+ES_SUP_2_LOGGER_NAMES = ("apps", "dispatcherd", "awx.main.dispatch")
 
 
 class Command(BaseCommand):
@@ -51,9 +57,13 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--log-level",
-            choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-            default="INFO",
-            help="Log level (default: INFO)",
+            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+            default=None,
+            help=(
+                "Log level for the dispatcherd and apps loggers. Defaults to "
+                "settings.LOG_LEVEL (the METRICS_SERVICE_LOG_LEVEL env var); the root "
+                "logger is never modified (ES-SUP-2)."
+            ),
         )
 
     def handle(self, *args, **options):
@@ -64,8 +74,15 @@ class Command(BaseCommand):
             # moment is treated as stale and ignored (AAP-79584).
             os.environ["METRICS_SERVICE_PROCESS_STARTED_AT"] = timezone.now().isoformat()
 
-            log_level = getattr(logging, options["log_level"])
-            logging.basicConfig(level=log_level)
+            # ES-SUP-2: the worker process inherits Django's logging
+            # configuration, whose root logger is already at LOG_LEVEL. Setting
+            # the level on named loggers keeps an explicit --log-level effective
+            # without calling logging.basicConfig(level=...), which would rewrite
+            # the ROOT logger and could drop the whole process below the level
+            # the operator configured (METRICS_SERVICE_LOG_LEVEL).
+            log_level = str(options.get("log_level") or getattr(settings, "LOG_LEVEL", "INFO")).upper()
+            for logger_name in ES_SUP_2_LOGGER_NAMES:
+                logging.getLogger(logger_name).setLevel(log_level)
             # Setup dispatcherd configuration
             setup_dispatcherd_config()
 

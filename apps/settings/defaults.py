@@ -317,3 +317,29 @@ def setup_json_logging_for_production(settings: Dynaconf) -> dict:
                 h["formatter"] = "json"
         return {"LOGGING": log_cfg}
     return {}
+
+
+@post_hook
+def apps_logger_follows_log_level(settings: Dynaconf) -> dict:
+    """ES-SUP-2: the ``apps`` logger follows METRICS_SERVICE_LOG_LEVEL.
+
+    ``metrics_service/settings.py`` is framework-owned (see ``.protected_files.yaml``),
+    so the override lives here instead. The logger's handlers come from that file;
+    only its level is rewritten. Runs after ``setup_json_logging_for_production`` so
+    the JSON formatter it installs is preserved.
+
+    Guarded twice: it only ever adjusts an ``apps`` logger that the loaded
+    LOGGING already defines, and it does nothing when the app is running tests
+    (``apps/settings/test.py`` swaps in a null-handler configuration that must
+    stay untouched).
+    """
+    import copy
+
+    if settings.get("TESTING") or settings.get("IS_RUNNING_TESTS"):
+        return {}
+    log_cfg = copy.deepcopy(settings.get("LOGGING") or {})
+    loggers = log_cfg.get("loggers")
+    if not isinstance(loggers, dict) or "apps" not in loggers:
+        return {}
+    loggers["apps"]["level"] = str(settings.get("LOG_LEVEL", "INFO")).upper()
+    return {"LOGGING": log_cfg}

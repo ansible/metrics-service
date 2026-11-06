@@ -64,7 +64,9 @@ def test_health_db_error_returns_503(anon_client):
 
     assert response.status_code == 503
     data = response.json()
-    assert "error" in data["checks"]["database"]
+    # ES-SUP-1: stable reason token, never the driver message.
+    assert data["checks"]["database"] == "error: database_unavailable"
+    assert "connection refused" not in response.content.decode()
 
 
 @pytest.mark.unit

@@ -138,8 +138,11 @@ def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
     # config file does not name one; an explicit worker_cls is left alone.
     config.setdefault("worker", {}).setdefault("worker_cls", WORKER_CLS)
 
-    # Propagate the Django LOG_LEVEL into dispatcherd's logging config
-    config.setdefault("logging", {})["level"] = django_settings.LOG_LEVEL
+    # Note: this dict is handed to dispatcherd.config.setup(). dispatcherd
+    # 2026.1.x DispatcherSettings only reads version/brokers/producers/service/
+    # publish/worker and silently drops any "logging" key, so a per-component log
+    # level cannot be configured here. Dispatcherd loggers inherit Django's root
+    # logger, which is already at LOG_LEVEL (see apps/settings/defaults.py).
 
     logger.info(
         f"Configured dispatcherd with Django database settings: "
@@ -187,9 +190,6 @@ def build_config_from_django_settings() -> dict[str, Any]:
             # dispatcherd forks its worker pool: the runtime log level refresh
             # thread must start in each child, post-fork (AAP-79584).
             "worker": {"worker_cls": WORKER_CLS},
-            "logging": {
-                "level": django_settings.LOG_LEVEL,
-            },
         }
 
         logger.info(
