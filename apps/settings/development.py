@@ -3,6 +3,8 @@ Development environment overrides
 Inherits from ./defaults.py and adds dev-specific defaults
 """
 
+from dynaconf import post_hook
+
 DEBUG = True
 ALLOW_SHARED_RESOURCE_CUSTOM_ROLES = False
 
@@ -81,3 +83,22 @@ LOGGING__loggers = {
         "level": "INFO",
     },
 }
+
+
+@post_hook
+def apps_logger_debug_in_development(settings) -> dict:
+    """Keep ``apps.*`` at DEBUG locally, like the other first-party loggers.
+
+    ``apps_logger_follows_log_level`` (apps/settings/defaults.py) runs first and
+    sets the ``apps`` logger to LOG_LEVEL. This hook is registered later, so it
+    wins in development only; production keeps the single-variable behaviour
+    required by ES-SUP-2.
+    """
+    import copy
+
+    log_cfg = copy.deepcopy(settings.get("LOGGING") or {})
+    loggers = log_cfg.get("loggers")
+    if not isinstance(loggers, dict) or "apps" not in loggers:
+        return {}
+    loggers["apps"]["level"] = "DEBUG"
+    return {"LOGGING": log_cfg}

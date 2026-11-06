@@ -64,6 +64,26 @@ class Command(BaseCommand):
         tasks_parser = subparsers.add_parser("tasks", help="Manage database tasks")
         self._add_task_management_arguments(tasks_parser)
 
+        # Runtime log level (AAP-79584). Reached via `metrics-service set-log-level`;
+        # the console script forwards unmapped subcommands here.
+        log_level_parser = subparsers.add_parser(
+            "set-log-level", help="Change the runtime log level without restarting the service"
+        )
+        log_level_parser.add_argument(
+            "level",
+            nargs="?",
+            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+            help="Log level to apply. Required unless --show or --clear is used.",
+        )
+        log_level_parser.add_argument("--ttl", type=int, default=None, help="Seconds before the override expires.")
+        log_level_parser.add_argument("--show", action="store_true", help="Show the active override and exit.")
+        log_level_parser.add_argument("--clear", action="store_true", help="Remove the override and exit.")
+        log_level_parser.add_argument(
+            "--local",
+            action="store_true",
+            help="Also apply the level to this short-lived command process.",
+        )
+
     def _add_run_arguments(self, parser):
         """Add arguments for the run command."""
         parser.add_argument(
@@ -193,6 +213,8 @@ class Command(BaseCommand):
                 self._handle_init_system_tasks_command(options)
             elif command == "tasks":
                 self._handle_task_management_command(options)
+            elif command == "set-log-level":
+                self._handle_set_log_level_command(options)
             else:
                 self.output.error(f"Unknown command: {command}")
                 sys.exit(1)
@@ -202,6 +224,23 @@ class Command(BaseCommand):
         except Exception as e:
             self.output.error(f"Unexpected error: {e}")
             sys.exit(1)
+
+    def _handle_set_log_level_command(self, options: dict[str, Any]) -> None:
+        """Delegate runtime log level changes to the standalone command."""
+        from django.core.management import call_command
+
+        level = options.get("level")
+        args = [level] if level else []
+        call_command(
+            "set_log_level",
+            *args,
+            ttl=options.get("ttl"),
+            show=options.get("show", False),
+            clear=options.get("clear", False),
+            local=options.get("local", False),
+            stdout=self.stdout,
+            stderr=self.stderr,
+        )
 
     def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service (API, dispatcherd, scheduler only).

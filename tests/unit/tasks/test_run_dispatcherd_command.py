@@ -5,13 +5,21 @@ This module provides complete test coverage for the run_dispatcherd
 management command including all execution paths and error handling.
 """
 
+import builtins
+import logging
+import signal
+import threading
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
-from apps.tasks.management.commands.run_dispatcherd import Command
+from apps.tasks.management.commands.run_dispatcherd import ES_SUP_2_LOGGER_NAMES, Command
+
+# Captured before tests patch builtins.__import__, so the side effects below can
+# fall back to the real importer instead of recursing into the patch.
+_REAL_IMPORT = builtins.__import__
 
 
 @pytest.mark.unit
@@ -31,9 +39,29 @@ class TestRunDispatcherdCommand(TestCase):
             if name == "dispatcherd":
                 return mock_dispatcherd
             # Use the real __import__ for everything else
-            return __import__(name, *args, **kwargs)
+            return _REAL_IMPORT(name, *args, **kwargs)
 
         return import_side_effect
+
+    def _assert_applied_to_named_loggers(self, mock_logging, level):
+        """ES-SUP-2 assertion helper.
+
+        Replaces the pre-#522 ``logging.basicConfig(level=...)`` assertions with
+        the equivalent claims under the fork-safe, root-preserving design:
+
+        * the ROOT logger is never reconfigured (``basicConfig`` is not called,
+          so ``--log-level`` can never lower the process below ``LOG_LEVEL``);
+        * every logger in ``ES_SUP_2_LOGGER_NAMES`` receives ``level``.
+        """
+        mock_logging.basicConfig.assert_not_called()
+        self.assertEqual(
+            [call.args[0] for call in mock_logging.getLogger.call_args_list],
+            list(ES_SUP_2_LOGGER_NAMES),
+        )
+        set_level = mock_logging.getLogger.return_value.setLevel
+        self.assertEqual(set_level.call_count, len(ES_SUP_2_LOGGER_NAMES))
+        for call in set_level.call_args_list:
+            self.assertEqual(call.args, (level,))
 
     def test_command_help_text(self):
         """Test that command has appropriate help text."""
@@ -82,9 +110,12 @@ class TestRunDispatcherdCommand(TestCase):
 
         # Verify argument configuration
         call_kwargs = calls[0][1]
-        self.assertEqual(call_kwargs["choices"], ["DEBUG", "INFO", "WARNING", "ERROR"])
-        self.assertEqual(call_kwargs["default"], "INFO")
+        self.assertEqual(call_kwargs["choices"], ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+        # ``None`` means "use settings.LOG_LEVEL"; the level is resolved in
+        # handle(), so an argparse default can never shadow the setting.
+        self.assertIsNone(call_kwargs["default"])
         self.assertIn("log level", call_kwargs["help"].lower())
+        self.assertIn("LOG_LEVEL", call_kwargs["help"])
 
     def test_add_arguments_all_args(self):
         """Test that all required arguments are added."""
@@ -111,8 +142,9 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify logging configuration
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.INFO)
+            # Verify the named loggers were given the configured level and the
+            # root logger was left alone (ES-SUP-2)
+            self._assert_applied_to_named_loggers(mock_logging, "INFO")
 
             # Verify dispatcherd setup was called
             mock_setup.assert_called_once()
@@ -180,8 +212,26 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify DEBUG logging level was configured
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.DEBUG)
+            # Verify DEBUG logging level was configured on the named loggers and
+            # the root logger was left alone
+            self._assert_applied_to_named_loggers(mock_logging, "DEBUG")
+
+    @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
+    @patch("apps.tasks.management.commands.run_dispatcherd.logging")
+    def test_handle_defaults_log_level_to_settings(self, mock_logging, mock_setup):
+        """ES-SUP-2: without --log-level the worker follows METRICS_SERVICE_LOG_LEVEL."""
+        mock_dispatcherd = MagicMock()
+        options = {"workers": 1, "timeout": 3600, "max_tasks": 100, "log_level": None}
+
+        with (
+            override_settings(LOG_LEVEL="warning"),
+            patch("builtins.__import__", side_effect=self._mock_dispatcherd_import(mock_dispatcherd)),
+        ):
+            self.command.stdout = self.out
+            self.command.handle(**options)
+
+        # Lowercase settings values must be normalised before reaching logging.
+        self._assert_applied_to_named_loggers(mock_logging, "WARNING")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -200,7 +250,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
             # Verify WARNING logging level was configured
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.WARNING)
+            self._assert_applied_to_named_loggers(mock_logging, "WARNING")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -219,7 +269,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
             # Verify ERROR logging level was configured
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.ERROR)
+            self._assert_applied_to_named_loggers(mock_logging, "ERROR")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -237,7 +287,7 @@ class TestRunDispatcherdCommand(TestCase):
         def import_side_effect(name, *args, **kwargs):
             if name == "dispatcherd":
                 raise ImportError("Cannot import dispatcherd")
-            return __import__(name, *args, **kwargs)
+            return _REAL_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=import_side_effect):
             self.command.stdout = self.out
@@ -326,7 +376,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.assertIn("500", output)
 
             # Verify DEBUG logging
-            mock_logging.basicConfig.assert_called_once_with(level=mock_logging.DEBUG)
+            self._assert_applied_to_named_loggers(mock_logging, "DEBUG")
 
             # Verify setup and run were called
             mock_setup.assert_called_once()
@@ -371,15 +421,15 @@ class TestRunDispatcherdCommand(TestCase):
         def record_setup_call(*args, **kwargs):
             call_order.append("setup")
 
-        mock_logging.basicConfig.side_effect = record_logging_call
+        mock_logging.getLogger.return_value.setLevel.side_effect = record_logging_call
         mock_setup.side_effect = record_setup_call
 
         with patch("builtins.__import__", side_effect=self._mock_dispatcherd_import(mock_dispatcherd)):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify logging was configured before setup
-            self.assertEqual(call_order, ["logging", "setup"])
+            # Verify every log level was configured before setup
+            self.assertEqual(call_order, ["logging"] * len(ES_SUP_2_LOGGER_NAMES) + ["setup"])
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -431,3 +481,213 @@ class TestRunDispatcherdCommand(TestCase):
     def test_handle_docstring(self):
         """Test that handle method has docstring."""
         self.assertIsNotNone(Command.handle.__doc__)
+
+
+def _dispatcherd_import_side_effect(mock_dispatcherd):
+    """Import dispatcherd from the mock and everything else for real."""
+
+    def import_side_effect(name, *args, **kwargs):
+        if name == "dispatcherd":
+            return mock_dispatcherd
+        return _REAL_IMPORT(name, *args, **kwargs)
+
+    return import_side_effect
+
+
+def _handle_options():
+    return {"workers": 1, "timeout": 3600, "max_tasks": 100, "log_level": "INFO"}
+
+
+@pytest.mark.unit
+def test_es_sup_2_logger_scope_is_application_and_dispatcherd_only():
+    """ES-SUP-2: ``--log-level`` retunes these named loggers and nothing else."""
+    assert ES_SUP_2_LOGGER_NAMES == ("apps", "dispatcherd", "awx.main.dispatch")
+
+
+@pytest.mark.unit
+def test_explicit_log_level_never_lowers_the_root_logger():
+    """Runtime proof of ES-SUP-2 (replaces #522's ``basicConfig`` assertions).
+
+    ``--log-level ERROR`` used to call ``logging.basicConfig(level=ERROR)``,
+    which rewrites the ROOT logger and silences every first-party logger in the
+    worker below the operator's ``METRICS_SERVICE_LOG_LEVEL``. It must now only
+    retune the named loggers; the root logger keeps the level Django configured.
+    """
+    root_logger = logging.getLogger()
+    saved_root_level = root_logger.level
+    saved_named_levels = {name: logging.getLogger(name).level for name in ES_SUP_2_LOGGER_NAMES}
+
+    try:
+        root_logger.setLevel(logging.INFO)
+        command = Command()
+        command.stdout = StringIO()
+
+        with (
+            patch("apps.core.logging_control.sync_dispatcherd_log_level"),
+            patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+            patch("apps.tasks.management.commands.run_dispatcherd.logging.basicConfig") as mock_basic_config,
+        ):
+            command.handle(**{**_handle_options(), "log_level": "ERROR"})
+
+        mock_basic_config.assert_not_called()
+        assert root_logger.level == logging.INFO, "--log-level must not lower the root logger"
+        for name in ES_SUP_2_LOGGER_NAMES:
+            assert logging.getLogger(name).level == logging.ERROR
+    finally:
+        root_logger.setLevel(saved_root_level)
+        for name, level in saved_named_levels.items():
+            logging.getLogger(name).setLevel(level)
+
+
+@pytest.mark.unit
+def test_handle_closes_db_connections_before_workers_fork():
+    """The startup sync opens a connection; it must be closed before run_service forks.
+
+    ``connections.close_all()`` is used rather than ``close_old_connections()``,
+    which is a no-op when ``CONN_MAX_AGE > 0`` and would leave forked workers
+    sharing the parent's socket.
+    """
+    command = Command()
+    command.stdout = StringIO()
+
+    with (
+        patch("apps.core.logging_control.sync_dispatcherd_log_level"),
+        patch("django.db.connections.close_all") as mock_close,
+        patch("django.db.close_old_connections") as mock_close_old,
+        patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+    ):
+        command.handle(**_handle_options())
+
+    mock_close.assert_called()
+    mock_close_old.assert_not_called()
+
+
+@pytest.mark.unit
+def test_handle_closes_db_connections_when_startup_sync_fails():
+    """A failed startup sync must not leave its connection behind for forked workers."""
+    command = Command()
+    command.stdout = StringIO()
+
+    with (
+        patch(
+            "apps.core.logging_control.sync_dispatcherd_log_level",
+            side_effect=RuntimeError("sync failed"),
+        ),
+        patch("django.db.connections.close_all") as mock_close,
+        patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+    ):
+        command.handle(**_handle_options())
+
+    mock_close.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Fork model (AAP-79584): the refresh thread belongs to worker children only
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def log_level_thread():
+    """Guarantee a clean, stopped refresh thread before and after a test."""
+    from apps.core import logging_control
+
+    logging_control.stop_refresh_thread()
+    yield logging_control
+    logging_control.stop_refresh_thread()
+
+
+@pytest.fixture
+def restore_signal_handlers():
+    """Undo the signal handlers TaskWorker installs for its own process."""
+    saved = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGUSR1)}
+    yield
+    for sig, handler in saved.items():
+        signal.signal(sig, handler)
+
+
+@pytest.mark.unit
+def test_handle_does_not_start_refresh_thread_in_parent(log_level_thread):
+    """The pre-fork parent must not have a DB-touching thread when it forks.
+
+    This is the regression guard for the fork-safety risk: dispatcherd calls
+    ``run_service()`` which forks the worker pool, so a thread started in
+    ``handle()`` would be running (and possibly mid-query) at fork time. The old
+    implementation started ``runtime-log-level-sync`` here; this test fails if
+    that comes back.
+    """
+    command = Command()
+    command.stdout = StringIO()
+
+    with (
+        patch("apps.core.logging_control.sync_dispatcherd_log_level"),
+        patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+        patch(
+            "apps.core.logging_control.start_refresh_thread",
+            wraps=log_level_thread.start_refresh_thread,
+        ) as mock_start,
+    ):
+        command.handle(**_handle_options())
+
+    mock_start.assert_not_called()
+    assert log_level_thread.active_refresh_thread() is None
+    assert log_level_thread.REFRESH_THREAD_NAME not in [t.name for t in threading.enumerate()]
+
+
+@pytest.mark.unit
+def test_worker_child_starts_refresh_thread_after_fork(log_level_thread, restore_signal_handlers):
+    """dispatcherd's post-fork hook starts the thread, and shutdown stops it.
+
+    ``os.fork()`` is not reproducible inside pytest, so the fork boundary is
+    modelled by calling ``on_start()`` directly: ``dispatcherd.worker.target.work_loop``
+    calls nothing but ``worker.on_start()`` first in the child, after
+    ``multiprocessing`` has forked it. Proves (a) the worker bootstraps the
+    refresh thread, i.e. every child gets one, (b) it is a real live thread in
+    this process, and (c) ``on_shutdown()`` leaves nothing behind. It does not
+    prove the OS-level fork ordering; the parent-side assertion above covers
+    the "nothing to inherit" half of that.
+    """
+    from apps.tasks.dispatcherd_worker import LogLevelSyncWorker
+
+    worker = LogLevelSyncWorker(worker_id=0, message_queue=MagicMock(), finished_queue=MagicMock())
+    assert log_level_thread.active_refresh_thread() is None, "premise: child starts without a thread"
+
+    worker.on_start()
+    thread = log_level_thread.active_refresh_thread()
+    assert thread is not None
+    assert thread.is_alive()
+    assert thread.name == log_level_thread.REFRESH_THREAD_NAME
+    assert thread.daemon is True
+
+    # A second bootstrap must not create a second poller.
+    worker.on_start()
+    assert log_level_thread.active_refresh_thread() is thread
+
+    worker.on_shutdown()
+    assert log_level_thread.active_refresh_thread() is None
+
+
+@pytest.mark.unit
+def test_refresh_thread_loop_applies_log_level(log_level_thread, monkeypatch):
+    """The thread polls the shared apply point, so an idle worker still updates."""
+    applied = threading.Event()
+
+    def fake_sync():
+        applied.set()
+        return "DEBUG"
+
+    monkeypatch.setattr(log_level_thread, "sync_dispatcherd_log_level", fake_sync)
+    monkeypatch.setattr(log_level_thread, "refresh_interval_seconds", lambda: 0.01)
+
+    thread = log_level_thread.start_refresh_thread()
+    assert thread is not None
+    assert applied.wait(5.0), "the refresh loop never called sync_dispatcherd_log_level"
+    assert thread.is_alive()
+
+    log_level_thread.stop_refresh_thread()
+    assert log_level_thread.active_refresh_thread() is None
+
+
+@pytest.mark.unit
+def test_stop_refresh_thread_is_safe_without_a_thread(log_level_thread):
+    """Shutdown paths must be idempotent."""
+    log_level_thread.stop_refresh_thread()
+    log_level_thread.stop_refresh_thread()
+    assert log_level_thread.active_refresh_thread() is None

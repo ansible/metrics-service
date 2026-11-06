@@ -457,6 +457,60 @@ class TestBuildConfigFromDjangoSettings:
         assert "Failed to build config from Django settings" in str(mock_logger.exception.call_args)
 
 
+class TestWorkerClassConfiguration:
+    """dispatcherd must be told about the post-fork worker class (AAP-79584).
+
+    Without this wiring the child never starts the refresh thread, so the fix
+    would look correct in unit tests while doing nothing in production.
+    """
+
+    def test_yaml_config_names_the_log_level_sync_worker(self):
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+
+        config = _load_config_with_django_db(get_config_file_path())
+
+        assert config["worker"]["worker_cls"] == WORKER_CLS
+
+    def test_django_settings_fallback_names_the_log_level_sync_worker(self):
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+
+        config = build_config_from_django_settings()
+
+        assert config["worker"]["worker_cls"] == WORKER_CLS
+
+    def test_operator_config_without_worker_section_gets_the_sync_worker(self, tmp_path):
+        """A mounted config file must not silently drop the fork-safe worker."""
+        config_file = tmp_path / "dispatcherd.yaml"
+        config_file.write_text("version: 2\nbrokers:\n  pg_notify:\n    channels: [metrics]\n")
+
+        config = _load_config_with_django_db(config_file)
+
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+
+        assert config["worker"]["worker_cls"] == WORKER_CLS
+
+    def test_operator_worker_cls_is_not_overridden(self, tmp_path):
+        config_file = tmp_path / "dispatcherd.yaml"
+        config_file.write_text("version: 2\nworker:\n  worker_cls: my.custom.Worker\n  idle_timeout: 5\n")
+
+        config = _load_config_with_django_db(config_file)
+
+        assert config["worker"] == {"worker_cls": "my.custom.Worker", "idle_timeout": 5}
+
+    def test_configured_worker_cls_resolves_to_the_post_fork_class(self):
+        """The dotted path must import in a worker child, not just look right."""
+        from dispatcherd.utils import resolve_callable
+        from dispatcherd.worker.task import TaskWorker
+
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+        from apps.tasks.dispatcherd_worker import LogLevelSyncWorker
+
+        resolved = resolve_callable(WORKER_CLS)
+
+        assert resolved is LogLevelSyncWorker
+        assert issubclass(resolved, TaskWorker)
+
+
 class TestEnsureDispatcherdConfigured:
     """Tests for ensure_dispatcherd_configured function."""
 
@@ -517,3 +571,44 @@ class TestEnsureDispatcherdConfigured:
 
         mock_logger.exception.assert_called()
         assert "Failed to ensure dispatcherd configuration" in str(mock_logger.exception.call_args)
+
+
+@pytest.mark.unit
+class TestDispatcherdLogging:
+    """ES-SUP-2: dispatcherd loggers inherit Django's root logger at LOG_LEVEL.
+
+    dispatcherd 2026.1.x ``DispatcherSettings`` reads only version/brokers/producers/
+    service/publish/worker and silently drops a ``logging`` key, so the config dicts
+    must not carry one. The previous implementation wrote ``logging.level`` and
+    claimed it propagated LOG_LEVEL; these tests replace the self-referential
+    dict-shape tests that "passed" without proving any effect.
+    """
+
+    def _patched_settings(self, log_level):
+        settings = MagicMock()
+        settings.DATABASES = {"default": {"NAME": "metrics", "USER": "u", "PASSWORD": "", "HOST": "h", "PORT": "5432"}}
+        settings.TASK_TIMEOUT = 3600
+        settings.LOG_LEVEL = log_level
+        return patch("django.conf.settings", settings)
+
+    def test_built_config_has_no_dead_logging_key(self):
+        """build_config_from_django_settings must not emit a key dispatcherd ignores."""
+        with self._patched_settings("DEBUG"):
+            config = build_config_from_django_settings()
+        assert "logging" not in config
+
+    def test_yaml_config_does_not_add_logging_key(self, tmp_path):
+        """The YAML loader must not re-introduce logging.level from settings.LOG_LEVEL."""
+        config_file = tmp_path / "dispatcherd.yaml"
+        config_file.write_text("version: 2\nbrokers: {}\n")
+        with self._patched_settings("WARNING"):
+            config = _load_config_with_django_db(config_file)
+        assert "logging" not in config
+
+    def test_dispatcherd_settings_drops_logging_key(self):
+        """Proof for the comment in dispatcherd_config.py: the key has no effect."""
+        from dispatcherd.config import DispatcherSettings
+
+        parsed = DispatcherSettings({"version": 2, "brokers": {}, "logging": {"level": "DEBUG"}})
+        assert not hasattr(parsed, "logging")
+        assert "logging" not in parsed.serialize()
