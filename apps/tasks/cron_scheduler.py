@@ -489,6 +489,7 @@ class UnifiedTaskScheduler:
                     max_attempts=task.max_attempts,
                     created_by=task.created_by,
                     is_system_task=task.is_system_task,
+                    request_id=task.request_id,
                 )
 
                 logger.info(

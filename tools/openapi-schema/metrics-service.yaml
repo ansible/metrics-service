@@ -5265,6 +5265,16 @@ paths:
         schema:
           type: integer
       - in: query
+        name: request_id
+        schema:
+          type: string
+        description: Filter by request_id (exact match)
+      - in: query
+        name: request_id__icontains
+        schema:
+          type: string
+        description: Filter by request_id (case-insensitive partial match)
+      - in: query
         name: result_data
         schema:
           type: string
@@ -6325,6 +6335,16 @@ paths:
         schema:
           type: integer
       - in: query
+        name: request_id
+        schema:
+          type: string
+        description: Filter by request_id (exact match)
+      - in: query
+        name: request_id__icontains
+        schema:
+          type: string
+        description: Filter by request_id (case-insensitive partial match)
+      - in: query
         name: result_data
         schema:
           type: string
@@ -6664,6 +6684,16 @@ paths:
         schema:
           type: integer
       - in: query
+        name: request_id
+        schema:
+          type: string
+        description: Filter by request_id (exact match)
+      - in: query
+        name: request_id__icontains
+        schema:
+          type: string
+        description: Filter by request_id (case-insensitive partial match)
+      - in: query
         name: result_data
         schema:
           type: string
@@ -7002,6 +7032,16 @@ paths:
         description: A page number within the paginated result set.
         schema:
           type: integer
+      - in: query
+        name: request_id
+        schema:
+          type: string
+        description: Filter by request_id (exact match)
+      - in: query
+        name: request_id__icontains
+        schema:
+          type: string
+        description: Filter by request_id (case-insensitive partial match)
       - in: query
         name: result_data
         schema:
@@ -14207,6 +14247,11 @@ components:
           type: object
           additionalProperties: {}
           description: JSON data to pass to the task function
+        request_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: request_id of the API call that created this task
         scheduled_time:
           type: string
           format: date-time

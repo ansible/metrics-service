@@ -39,6 +39,7 @@ from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.request_context import current_request_id
 from apps.tasks.api_utils import ErrorResponseSerializer, build_error_response
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.task_groups import get_oneshot_task_ids
@@ -609,6 +610,7 @@ class TaskViewSet(BaseViewSet):
                 function_name=serializer.validated_data["function_name"],
                 task_data=serializer.validated_data.get("task_data", {}),
                 created_by=request.user if request.user.is_authenticated else None,
+                request_id=current_request_id(),
                 # No scheduled_time means immediate execution
             )
 
@@ -669,6 +671,7 @@ class TaskViewSet(BaseViewSet):
                 task_data=serializer.validated_data.get("task_data", {}),
                 cron_expression=cron_expression,
                 created_by=request.user if request.user.is_authenticated else None,
+                request_id=current_request_id(),
             )
 
             return Response({"message": "Recurring task scheduled successfully", "task_id": str(task.id)})
