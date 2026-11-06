@@ -17,11 +17,13 @@ RUNTIME_LOG_LEVEL_REFRESH_SECONDS = 1
 RUNTIME_LOG_LEVEL_MAX_TTL = 3600
 """Upper bound, in seconds, for a runtime log level override."""
 
-# Keep the `apps` logger aligned with the configured level. The framework-managed
-# metrics_service/settings.py hard-codes this logger to INFO, which ignores
-# METRICS_SERVICE_LOG_LEVEL; this module is the supported override point (the
-# same pattern apps/settings/development.py uses).
-LOGGING__loggers__apps__level = "@format {this.LOG_LEVEL}"
+# The `apps` logger level follows METRICS_SERVICE_LOG_LEVEL through the
+# `apps_logger_follows_log_level` post-hook at the bottom of this module. Do not
+# add `LOGGING__loggers__apps__level` here as well: a dotted setting is applied
+# when the key is read, before the LOGGING post-hooks run, so the two mechanisms
+# would silently fight each other (and the dotted form cannot guard test mode,
+# where `apps/settings/test.py` installs a null-handler LOGGING). The post-hook
+# is the single source of truth for ES-SUP-2.
 
 # Extra applications added after PSF templating
 extra_applications = [

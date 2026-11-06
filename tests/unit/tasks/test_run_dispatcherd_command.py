@@ -6,6 +6,7 @@ management command including all execution paths and error handling.
 """
 
 import builtins
+import logging
 import signal
 import threading
 from io import StringIO
@@ -14,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import TestCase, override_settings
 
-from apps.tasks.management.commands.run_dispatcherd import Command
+from apps.tasks.management.commands.run_dispatcherd import ES_SUP_2_LOGGER_NAMES, Command
 
 # Captured before tests patch builtins.__import__, so the side effects below can
 # fall back to the real importer instead of recursing into the patch.
@@ -41,6 +42,26 @@ class TestRunDispatcherdCommand(TestCase):
             return _REAL_IMPORT(name, *args, **kwargs)
 
         return import_side_effect
+
+    def _assert_applied_to_named_loggers(self, mock_logging, level):
+        """ES-SUP-2 assertion helper.
+
+        Replaces the pre-#522 ``logging.basicConfig(level=...)`` assertions with
+        the equivalent claims under the fork-safe, root-preserving design:
+
+        * the ROOT logger is never reconfigured (``basicConfig`` is not called,
+          so ``--log-level`` can never lower the process below ``LOG_LEVEL``);
+        * every logger in ``ES_SUP_2_LOGGER_NAMES`` receives ``level``.
+        """
+        mock_logging.basicConfig.assert_not_called()
+        self.assertEqual(
+            [call.args[0] for call in mock_logging.getLogger.call_args_list],
+            list(ES_SUP_2_LOGGER_NAMES),
+        )
+        set_level = mock_logging.getLogger.return_value.setLevel
+        self.assertEqual(set_level.call_count, len(ES_SUP_2_LOGGER_NAMES))
+        for call in set_level.call_args_list:
+            self.assertEqual(call.args, (level,))
 
     def test_command_help_text(self):
         """Test that command has appropriate help text."""
@@ -90,8 +111,11 @@ class TestRunDispatcherdCommand(TestCase):
         # Verify argument configuration
         call_kwargs = calls[0][1]
         self.assertEqual(call_kwargs["choices"], ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+        # ``None`` means "use settings.LOG_LEVEL"; the level is resolved in
+        # handle(), so an argparse default can never shadow the setting.
         self.assertIsNone(call_kwargs["default"])
         self.assertIn("log level", call_kwargs["help"].lower())
+        self.assertIn("LOG_LEVEL", call_kwargs["help"])
 
     def test_add_arguments_all_args(self):
         """Test that all required arguments are added."""
@@ -118,9 +142,9 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify the dispatcherd loggers were given the configured level
-            mock_logging.getLogger.assert_any_call("dispatcherd")
-            mock_logging.getLogger.return_value.setLevel.assert_called_with("INFO")
+            # Verify the named loggers were given the configured level and the
+            # root logger was left alone (ES-SUP-2)
+            self._assert_applied_to_named_loggers(mock_logging, "INFO")
 
             # Verify dispatcherd setup was called
             mock_setup.assert_called_once()
@@ -188,8 +212,9 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify DEBUG logging level was configured
-            mock_logging.getLogger.return_value.setLevel.assert_called_with("DEBUG")
+            # Verify DEBUG logging level was configured on the named loggers and
+            # the root logger was left alone
+            self._assert_applied_to_named_loggers(mock_logging, "DEBUG")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -206,7 +231,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
         # Lowercase settings values must be normalised before reaching logging.
-        mock_logging.getLogger.return_value.setLevel.assert_called_with("WARNING")
+        self._assert_applied_to_named_loggers(mock_logging, "WARNING")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -225,7 +250,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
             # Verify WARNING logging level was configured
-            mock_logging.getLogger.return_value.setLevel.assert_called_with("WARNING")
+            self._assert_applied_to_named_loggers(mock_logging, "WARNING")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -244,7 +269,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.handle(**options)
 
             # Verify ERROR logging level was configured
-            mock_logging.getLogger.return_value.setLevel.assert_called_with("ERROR")
+            self._assert_applied_to_named_loggers(mock_logging, "ERROR")
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -351,7 +376,7 @@ class TestRunDispatcherdCommand(TestCase):
             self.assertIn("500", output)
 
             # Verify DEBUG logging
-            mock_logging.getLogger.return_value.setLevel.assert_called_with("DEBUG")
+            self._assert_applied_to_named_loggers(mock_logging, "DEBUG")
 
             # Verify setup and run were called
             mock_setup.assert_called_once()
@@ -403,8 +428,8 @@ class TestRunDispatcherdCommand(TestCase):
             self.command.stdout = self.out
             self.command.handle(**options)
 
-            # Verify log levels were configured before setup
-            self.assertEqual(call_order, ["logging", "logging", "setup"])
+            # Verify every log level was configured before setup
+            self.assertEqual(call_order, ["logging"] * len(ES_SUP_2_LOGGER_NAMES) + ["setup"])
 
     @patch("apps.tasks.management.commands.run_dispatcherd.setup_dispatcherd_config")
     @patch("apps.tasks.management.commands.run_dispatcherd.logging")
@@ -471,6 +496,47 @@ def _dispatcherd_import_side_effect(mock_dispatcherd):
 
 def _handle_options():
     return {"workers": 1, "timeout": 3600, "max_tasks": 100, "log_level": "INFO"}
+
+
+@pytest.mark.unit
+def test_es_sup_2_logger_scope_is_application_and_dispatcherd_only():
+    """ES-SUP-2: ``--log-level`` retunes these named loggers and nothing else."""
+    assert ES_SUP_2_LOGGER_NAMES == ("apps", "dispatcherd", "awx.main.dispatch")
+
+
+@pytest.mark.unit
+def test_explicit_log_level_never_lowers_the_root_logger():
+    """Runtime proof of ES-SUP-2 (replaces #522's ``basicConfig`` assertions).
+
+    ``--log-level ERROR`` used to call ``logging.basicConfig(level=ERROR)``,
+    which rewrites the ROOT logger and silences every first-party logger in the
+    worker below the operator's ``METRICS_SERVICE_LOG_LEVEL``. It must now only
+    retune the named loggers; the root logger keeps the level Django configured.
+    """
+    root_logger = logging.getLogger()
+    saved_root_level = root_logger.level
+    saved_named_levels = {name: logging.getLogger(name).level for name in ES_SUP_2_LOGGER_NAMES}
+
+    try:
+        root_logger.setLevel(logging.INFO)
+        command = Command()
+        command.stdout = StringIO()
+
+        with (
+            patch("apps.core.logging_control.sync_dispatcherd_log_level"),
+            patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+            patch("apps.tasks.management.commands.run_dispatcherd.logging.basicConfig") as mock_basic_config,
+        ):
+            command.handle(**{**_handle_options(), "log_level": "ERROR"})
+
+        mock_basic_config.assert_not_called()
+        assert root_logger.level == logging.INFO, "--log-level must not lower the root logger"
+        for name in ES_SUP_2_LOGGER_NAMES:
+            assert logging.getLogger(name).level == logging.ERROR
+    finally:
+        root_logger.setLevel(saved_root_level)
+        for name, level in saved_named_levels.items():
+            logging.getLogger(name).setLevel(level)
 
 
 @pytest.mark.unit

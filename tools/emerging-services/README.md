@@ -12,7 +12,7 @@ python tools/emerging-services/check_support_standard.py \
   --base-url http://localhost:8080 \
   --health-path /health/ \
   --diagnostics-command "metrics-service tasks diagnose --format json" \
-  --bundle-command "metrics-service support-bundle --dry-run" \
+  --bundle-command "metrics-service support-bundle --output-dir /tmp" \
   --bundle-path /tmp/metrics-service-support.tar.gz \
   --log-level-env METRICS_SERVICE_LOG_LEVEL \
   --log-level-observed DEBUG \
@@ -69,17 +69,46 @@ python check_support_standard.py --base-url http://localhost:8080 \
 ```
 
 `{window}` is replaced by `--failure-window` (hours, default 24). Dotted paths
-are resolved against nested objects.
+are resolved against nested objects. A candidate ending in `*` matches any
+sibling key with that prefix, so `failures*` covers `failures_in_window`,
+`failures_in_window_seconds`, and so on.
+
+A section that is **present and empty** is valid evidence: zero stuck tasks and
+zero failures are results, not missing coverage. The reference implementation
+(`tasks diagnose`) reports `running` through its `stuck_tasks` scan (each row
+carries `duration_seconds`) and through `queue_depth.dispatcherd_workers` when
+the live broker is reachable, so both are accepted for that concept.
 
 ## ES-SUP-4 redaction scan
 
 With `--bundle-path` (a file, `.zip`/`.tar` archive, or directory) the checker
 scans the produced bundle for unredacted values of `*SECRET*`, `*PASSWORD*`,
 `*TOKEN*`, `*KEY*`, `*CREDENTIAL*`, `*AUTH*`, `*PRIVATE*` keys, plus known token
-patterns (AWS/GitHub/Slack/Stripe keys, JWTs, private-key blocks) and URL
-userinfo. Findings report the key or pattern name only — never the secret — so
-they are safe to paste into a ticket. Without `--bundle-path` the redaction row
-is `MANUAL`, not `PASS`.
+patterns (AWS/GitHub/Slack/Stripe keys, JWTs, private-key blocks,
+`Authorization:` headers) and URL userinfo.
+
+Counter and metadata keys are not credentials: a key ending in `_count`,
+`_counts`, `_budget`, `_ms`, `_seconds`, `_bytes` or `_policy` is exempt, as is
+a value that is redacted, a boolean/`enabled`/`disabled` style token, an
+ENV-VAR-style reference such as `METRICS_SERVICE_DB_PASSWORD` or
+`${DB_PASSWORD}`, a dotted Python path, or a bare URL without userinfo. A
+suspicious key with a real-looking value still fails, so `redacted_key_count: 11`
+passes while `DB_PASSWORD: HUNTER2` does not.
+
+Findings report the key or pattern name only — never the secret — so they are
+safe to paste into a ticket. Without `--bundle-path` the redaction row is
+`MANUAL`, not `PASS`.
+
+## ES-SUP-5 support guide
+
+`--docs-path` is accepted in either form:
+
+1. the guide cites `ES-SUP-1`, `ES-SUP-2` and `ES-SUP-3`; or
+2. the guide has an "Emerging Services conformance" section **and** links
+   `emerging-services-support-standard.md`.
+
+The second form exists because a support guide can map its tools to the
+standard by name without repeating the rule ids.
 
 ## Adopting it in another service
 

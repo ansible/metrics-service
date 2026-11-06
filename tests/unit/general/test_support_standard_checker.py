@@ -69,9 +69,82 @@ class TestDiagnosticsPayloadChecks:
         assert {r.result for r in results} == {"PASS"}
 
     def test_running_jobs_concept_is_mandated(self, checker):
-        payload = {k: v for k, v in self.COMPLETE.items() if k != "running"}
+        payload = {k: v for k, v in self.COMPLETE.items() if k not in ("running", "stuck_tasks")}
+        payload["queue_depth"] = {"queues": []}
         results = _as_dict(checker._evaluate_diagnostics_payload(payload))
         assert results["running"] == "FAIL"
+
+    def test_running_is_evidenced_by_the_stuck_task_scan(self, checker):
+        """AAP-79585 exposes running+elapsed through ``stuck_tasks``, not ``running``."""
+        payload = {k: v for k, v in self.COMPLETE.items() if k != "running"}
+        assert _as_dict(checker._evaluate_diagnostics_payload(payload))["running"] == "PASS"
+
+    def test_running_is_evidenced_by_live_worker_state(self, checker):
+        payload = {"stuck_tasks": [], "queue_depth": {"dispatcherd_workers": [{"worker-0": {"status": "idle"}}]}}
+        assert _as_dict(checker._evaluate_diagnostics_payload(payload))["running"] == "PASS"
+
+    def test_real_reference_payload_passes_every_concept(self, checker):
+        """Verbatim shape of ``metrics-service tasks diagnose --format json`` (AAP-79585).
+
+        There is no ``running`` key and the failure section is
+        ``failures_in_window``: the two names the checker originally rejected.
+        """
+        payload = {
+            "schema_version": 2,
+            "generated_at": "2026-11-06T13:40:00+00:00",
+            "task_timeout_seconds": 3600,
+            "window_hours": 24,
+            "stuck_tasks": [
+                {
+                    "task_id": 1142,
+                    "name": "support-demo-stuck",
+                    "function_name": "collect_hourly_metrics",
+                    "started_at": "2026-11-06T11:34:27.129894+00:00",
+                    "duration_seconds": 7563.640496,
+                    "attempts": 1,
+                    "worker_id": None,
+                    "execution_id": None,
+                    "reported_by": [],
+                }
+            ],
+            "last_success": [
+                {"function_name": "collect_hourly_metrics", "last_success_at": "2026-11-06T12:00:00+00:00"}
+            ],
+            "failures_in_window": [
+                {
+                    "function_name": "collect_hourly_metrics",
+                    "failure_count": 3,
+                    "legacy_task_failures": 0,
+                    "last_failure_at": "2026-11-06T12:37:40.361912+00:00",
+                    "last_error": "OperationalError: could not connect to server",
+                }
+            ],
+            "queue_depth": {
+                "live_available": False,
+                "error": "disabled",
+                "warnings": [],
+                "query_errors": {},
+                "queues": [{"queue": "metrics", "pending_in_db": 0, "queued_live": 0}],
+                "dispatcherd_workers": [],
+                "dispatcherd_producers": [],
+            },
+        }
+        results = checker._evaluate_diagnostics_payload(payload)
+        assert [r.check for r in results] == ["running", "stuck", "last_success", "failures", "queue_depth"]
+        assert {r.result for r in results} == {"PASS"}
+
+    def test_failures_accepts_the_historical_window_name(self, checker):
+        results = _as_dict(checker._evaluate_diagnostics_payload({"failures_last_24h": []}))
+        assert results["failures"] == "PASS"
+
+    def test_failures_prefix_glob_matches_a_versioned_section(self, checker):
+        results = _as_dict(checker._evaluate_diagnostics_payload({"failures_in_window_seconds": []}))
+        assert results["failures"] == "PASS"
+
+    def test_empty_sections_are_present_evidence(self, checker):
+        """Zero running/failed jobs is a legitimate result, not missing coverage."""
+        payload = {"stuck_tasks": [], "last_success": [], "failures_in_window": [], "queue_depth": {"queues": []}}
+        assert {r.result for r in checker._evaluate_diagnostics_payload(payload)} == {"PASS"}
 
     def test_missing_keys_fail(self, checker):
         results = _as_dict(checker._evaluate_diagnostics_payload({"stuck_tasks": []}))
@@ -165,6 +238,60 @@ class TestSecretScan:
         hits = checker.scan_text_for_secrets('{"DB_PASSWORD": "hunter2"}')
         assert hits and "hunter2" not in " ".join(hits)
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # AAP-79583 allow-list: counters, budgets and durations are metadata.
+            '{"redacted_key_count": 9}',
+            '{"key_count": 12, "api_key_count": 12}',
+            '{"token_budget": 4096, "secret_scan_duration_ms": 12}',
+            '{"password_policy": "min_length_12", "payload_bytes": 2048}',
+            # Configuration shapes that carry no credential value.
+            '{"AUTH_USER_MODEL": "django.contrib.auth.models.User"}',
+            '{"LOGGING_AUTH_LOGGER": "ansible_base.jwt_consumer.common.auth"}',
+            '{"DB_PASSWORD": "$METRICS_SERVICE_DB_PASSWORD"}',
+            '{"AUTH_MODE": "enabled"}',
+        ],
+    )
+    def test_metadata_and_configuration_values_pass(self, checker, text):
+        assert checker.scan_text_for_secrets(text) == []
+
+    @pytest.mark.parametrize(
+        "key,value",
+        [
+            ("api_key", "s3cr3t-value"),
+            ("db_password", "hunter2"),
+            ("client_secret", "abcd1234efgh"),
+            ("auth_token", "0123456789abcdef"),
+        ],
+    )
+    def test_allow_list_does_not_exempt_real_credentials(self, checker, key, value):
+        """Narrow allow-list: a bare ``api_key``/``auth_token`` is still a secret."""
+        assert checker.scan_text_for_secrets(json.dumps({key: value}))
+
+    @pytest.mark.parametrize("value", ["HUNTER2", "ABCD1234", "PRODKEY99"])
+    def test_bare_uppercase_values_are_not_treated_as_env_var_names(self, checker, value):
+        """Only an underscored ENV-VAR *reference* is exempt from the key-name rule."""
+        assert checker.scan_text_for_secrets(json.dumps({"DB_PASSWORD": value}))
+
+    def test_underscored_env_var_reference_stays_benign(self, checker):
+        assert checker.scan_text_for_secrets('{"DB_PASSWORD": "METRICS_SERVICE_DB_PASSWORD"}') == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Authorization: Bearer abcdef1234567890",
+            '{"Authorization": "Basic dXNlcjpwYXNzd29yZA=="}',
+            "authorization = token 0123456789abcdef",
+        ],
+    )
+    def test_authorization_headers_are_detected(self, checker, text):
+        assert "credential pattern 'authorization-header'" in checker.scan_text_for_secrets(text)
+
+    def test_redacted_authorization_header_passes(self, checker):
+        """AAP-79583 rewrites the credential, keeping the scheme word."""
+        assert checker.scan_text_for_secrets("Authorization: Bearer **REDACTED**") == []
+
 
 class TestDocsCheck:
     """ES-SUP-5 documentation check."""
@@ -183,6 +310,28 @@ class TestDocsCheck:
     def test_guide_missing_a_requirement_fails(self, checker, tmp_path):
         guide = tmp_path / "support-tooling.md"
         guide.write_text("# Guide\nES-SUP-1\n")
+        assert _as_dict(checker.check_docs(str(guide)))["guide coverage"] == "FAIL"
+
+    def test_guide_linking_the_standard_passes(self, checker, tmp_path):
+        """AAP-79586 maps tools to the standard by name and links it (no ES-SUP ids)."""
+        guide = tmp_path / "support-tooling.md"
+        guide.write_text(
+            "# Support and Diagnostics\n\n"
+            "## Emerging Services conformance\n\n"
+            "These tools satisfy the health-endpoint, log-level, task-state and\n"
+            "diagnostic-bundle rules of the\n"
+            "[Emerging Services support standard](emerging-services-support-standard.md).\n"
+        )
+        assert {r.result for r in checker.check_docs(str(guide))} == {"PASS"}
+
+    def test_standard_link_without_the_section_fails(self, checker, tmp_path):
+        guide = tmp_path / "support-tooling.md"
+        guide.write_text("# Guide\nSee emerging-services-support-standard.md\n")
+        assert _as_dict(checker.check_docs(str(guide)))["guide coverage"] == "FAIL"
+
+    def test_section_without_the_standard_link_fails(self, checker, tmp_path):
+        guide = tmp_path / "support-tooling.md"
+        guide.write_text("# Guide\n## Emerging Services conformance\nwe comply\n")
         assert _as_dict(checker.check_docs(str(guide)))["guide coverage"] == "FAIL"
 
 

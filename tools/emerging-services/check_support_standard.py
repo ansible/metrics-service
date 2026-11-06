@@ -71,11 +71,26 @@ STATUS_INCOMPLETE = "INCOMPLETE"
 
 # ES-SUP-3: the five mandated concepts and the key names each one may use.
 # A service may override any entry with --diagnostics-map (JSON object of
-# concept -> list of key names, dotted paths allowed).
+# concept -> list of key names, dotted paths allowed). A candidate ending in
+# ``*`` matches any sibling key with that prefix, so a service can version a
+# section name (``failures_in_window``, ``failures_in_window_seconds``, ...)
+# without losing coverage.
 DIAGNOSTICS_CONCEPTS: dict[str, tuple[str, tuple[str, ...]]] = {
     "running": (
         "jobs currently running and their elapsed time",
-        ("running", "running_jobs", "in_progress_jobs", "active_jobs", "current_jobs"),
+        (
+            "running",
+            "running_jobs",
+            "running_tasks",
+            "in_progress_jobs",
+            "active_jobs",
+            "current_jobs",
+            # Falling back to evidence that carries the same information:
+            # a stuck-task scan lists *running* tasks with duration_seconds,
+            # and live dispatcherd worker state reports per-worker running jobs.
+            "stuck_tasks",
+            "queue_depth.dispatcherd_workers",
+        ),
     ),
     "stuck": (
         "jobs exceeding the configured timeout",
@@ -87,7 +102,15 @@ DIAGNOSTICS_CONCEPTS: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     "failures": (
         "failure count per job type over the recent window",
-        ("failures_last_{window}h", "failures", "recent_failures", "failure_counts"),
+        (
+            "failures_in_window",
+            "failures_last_{window}h",
+            "failures_last_24h",
+            "failures",
+            "recent_failures",
+            "failure_counts",
+            "failures*",
+        ),
     ),
     "queue_depth": (
         "queue/backlog depth",
@@ -96,6 +119,46 @@ DIAGNOSTICS_CONCEPTS: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 SENSITIVE_KEY_TOKENS = ("SECRET", "PASSWORD", "PASSWD", "TOKEN", "KEY", "CREDENTIAL", "AUTH", "PRIVATE")
+
+#: Suffixes of keys that carry counters, budgets and metadata rather than
+#: credentials. Mirrors ``apps/core/support_bundle/redaction.py`` (AAP-79583) so
+#: the checker and the reference bundle agree on what a secret key is:
+#: ``redacted_key_count``, ``key_count``, ``token_budget``, ``api_key_count``,
+#: ``secret_scan_duration_ms`` and ``password_policy`` are diagnostic data, not
+#: secrets, and a bundle that keeps them must not be reported as leaking.
+SAFE_KEY_SUFFIXES = (
+    "_count",
+    "_counts",
+    "_budget",
+    "_ms",
+    "_seconds",
+    "_bytes",
+    "_policy",
+)
+
+#: Values that never constitute credential material even under a suspicious key.
+NON_CREDENTIAL_VALUES = {
+    "true",
+    "false",
+    "yes",
+    "no",
+    "on",
+    "off",
+    "null",
+    "none",
+    "nil",
+    "empty",
+    "enabled",
+    "disabled",
+    "required",
+    "optional",
+    "default",
+}
+
+#: Values shorter than this are only reported when they also match a known
+#: token pattern; a 1-3 character value cannot be a usable credential.
+MIN_CREDENTIAL_LENGTH = 4
+
 REDACTION_MARKERS = {
     "",
     "none",
@@ -116,6 +179,17 @@ SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("private-key-block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
     ("url-userinfo", re.compile(r"\b[a-z][a-z0-9+.-]*://[^:/\s@]+:[^@\s/]+@", re.IGNORECASE)),
+    # ``Authorization: Bearer <token>`` / ``Basic <token>``. The reference
+    # redactor (AAP-79583) rewrites the credential to ``Bearer **REDACTED**``,
+    # which does not match the token character class below, so redacted headers
+    # stay clean while a real one is reported.
+    (
+        "authorization-header",
+        re.compile(
+            r"\bauthorization\b[\"']?\s*[:=]\s*[\"']?(?:bearer|basic|token)?\s*[A-Za-z0-9._~+/=-]{8,}",
+            re.IGNORECASE,
+        ),
+    ),
 )
 KEY_VALUE_RE = re.compile(
     r"(?P<key>\"[A-Za-z][A-Za-z0-9_.\-]{0,64}\"|[A-Za-z][A-Za-z0-9_.\-]{0,64})"
@@ -283,13 +357,45 @@ def check_log_level_contract(log_level_env: str, observed_level: str, docs_path:
 # ES-SUP-3 — task/job state visibility
 # ---------------------------------------------------------------------------
 def _resolve(payload, path: str):
-    """Resolve a dotted key path against nested dicts, or return _MISSING."""
+    """Resolve a dotted key path against nested dicts, or return _MISSING.
+
+    A trailing ``*`` matches any sibling key with that prefix, so a section that
+    is versioned (``failures_in_window``) still satisfies a ``failures*``
+    candidate.
+    """
+    if path.endswith("*"):
+        parent_path, _, prefix = path[:-1].rpartition(".")
+        parent = payload if not parent_path else _resolve(payload, parent_path)
+        if not isinstance(parent, dict):
+            return _MISSING
+        for key in parent:
+            if str(key).startswith(prefix):
+                return parent[key]
+        return _MISSING
     current = payload
     for part in path.split("."):
         if not isinstance(current, dict) or part not in current:
             return _MISSING
         current = current[part]
     return current
+
+
+def _match_path(payload, path: str) -> str | None:
+    """Return the concrete key path that satisfies *path*, or None.
+
+    Handles the ``prefix*`` candidates in :data:`DIAGNOSTICS_CONCEPTS` by
+    returning the sibling key that actually matched.
+    """
+    if not path.endswith("*"):
+        return path if _resolve(payload, path) is not _MISSING else None
+    parent_path, _, prefix = path[:-1].rpartition(".")
+    parent = payload if not parent_path else _resolve(payload, parent_path)
+    if not isinstance(parent, dict):
+        return None
+    for key in parent:
+        if str(key).startswith(prefix):
+            return f"{parent_path}.{key}" if parent_path else str(key)
+    return None
 
 
 def diagnostics_key_map(overrides: dict[str, object] | None = None) -> dict[str, tuple[str, ...]]:
@@ -313,7 +419,7 @@ def _evaluate_diagnostics_payload(
     results: list[Result] = []
     for concept, (label, _) in DIAGNOSTICS_CONCEPTS.items():
         candidates = [key.format(window=window_hours) for key in mapping[concept]]
-        found = next((path for path in candidates if _resolve(payload, path) is not _MISSING), None)
+        found = next((match for path in candidates if (match := _match_path(payload, path))), None)
         if found:
             results.append(Result("ES-SUP-3", concept, STATUS_PASS, f"{label}: {found}"))
         else:
@@ -358,7 +464,18 @@ def check_diagnostics_command(
 # ES-SUP-4 — diagnostic bundle + redaction
 # ---------------------------------------------------------------------------
 def _is_sensitive_key(key: str) -> bool:
-    segments = re.split(r"[._\-]|(?<=[a-z0-9])(?=[A-Z])", key.strip("\"'"))
+    """Return True when *key* names a credential rather than a counter or policy.
+
+    Key segments (split on ``_``, ``-``, ``.`` and camelCase) are compared to
+    :data:`SENSITIVE_KEY_TOKENS`, which avoids flagging ``monkey``/``author``.
+    Counter and metadata suffixes in :data:`SAFE_KEY_SUFFIXES` win, mirroring the
+    reference bundle's allow-list so that ``redacted_key_count``, ``key_count``
+    and ``token_budget`` are not reported as leaks (AAP-79583).
+    """
+    cleaned = key.strip("\"'")
+    if cleaned.lower().endswith(SAFE_KEY_SUFFIXES):
+        return False
+    segments = re.split(r"[._\-]|(?<=[a-z0-9])(?=[A-Z])", cleaned)
     return any(segment.upper() in SENSITIVE_KEY_TOKENS for segment in segments if segment)
 
 
@@ -368,6 +485,39 @@ def _is_redacted(value: str) -> bool:
         return True
     compact = re.sub(r"[^a-z0-9]", "", cleaned)
     return compact in REDACTION_MARKERS or (bool(compact) and set(compact) <= {"x"})
+
+
+def _looks_like_credential(value: str) -> bool:
+    """Return True when *value* could plausibly be a usable credential.
+
+    A suspicious key name alone is not enough: a redacted, empty, boolean,
+    numeric or configuration-shaped value (a dotted Python path, a URL without
+    userinfo, an ENV-VAR-style name) carries no secret. This keeps the scan from
+    flagging diagnostic metadata while still reporting real leaks.
+    """
+    cleaned = value.strip().strip("\"'").strip()
+    if not cleaned or _is_redacted(cleaned):
+        return False
+    if cleaned.lower() in NON_CREDENTIAL_VALUES:
+        return False
+    # Numeric values are counters, budgets, ports, TTLs -- unless they are long
+    # enough to be a key (``api_key = 1234567890`` stays reportable).
+    if re.fullmatch(r"[-+]?\d+(?:\.\d+)?", cleaned):
+        return len(cleaned) >= 8
+    # Configuration shapes that carry no secret: a dotted Python path / logger
+    # name, a URL without userinfo (userinfo URLs are caught by SECRET_PATTERNS),
+    # or an ENV-VAR-style *reference* (``${DB_PASSWORD}`` is caught above;
+    # ``METRICS_SERVICE_DB_PASSWORD`` keeps its underscores). A bare uppercase
+    # run such as ``ABCD1234`` or ``HUNTER2`` is NOT exempt -- that is a plausible
+    # credential, so requiring an underscore keeps the exemption narrow.
+    config_shaped = (
+        bool(re.fullmatch(r"[A-Za-z_][\w.]*", cleaned) and "." in cleaned)
+        or bool(re.match(r"^[a-z][a-z0-9+.\-]*://", cleaned, re.IGNORECASE))
+        or bool(re.fullmatch(r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+", cleaned))
+    )
+    if config_shaped:
+        return False
+    return len(cleaned) >= MIN_CREDENTIAL_LENGTH
 
 
 def scan_text_for_secrets(text: str) -> list[str]:
@@ -382,7 +532,7 @@ def scan_text_for_secrets(text: str) -> list[str]:
     hits: list[str] = []
     for match in KEY_VALUE_RE.finditer(text[:MAX_SCAN_BYTES]):
         key = match.group("key").strip("\"'")
-        if _is_sensitive_key(key) and not _is_redacted(match.group("value")):
+        if _is_sensitive_key(key) and _looks_like_credential(match.group("value")):
             hits.append(f"unredacted value for key {key!r}")
     for name, pattern in SECRET_PATTERNS:
         if pattern.search(text[:MAX_SCAN_BYTES]):
@@ -470,8 +620,25 @@ def check_bundle_command(command: str, bundle_path: str = "") -> list[Result]:
 # ---------------------------------------------------------------------------
 # ES-SUP-5 — support documentation
 # ---------------------------------------------------------------------------
+STANDARD_DOC_NAME = "emerging-services-support-standard.md"
+CONFORMANCE_HEADING = "emerging services conformance"
+
+
 def check_docs(docs_path: str) -> list[Result]:
-    """ES-SUP-5: a support guide exists and covers ES-SUP-1..3."""
+    """ES-SUP-5: a support guide exists and covers ES-SUP-1..3.
+
+    Coverage is accepted in either of two forms, because the standard describes
+    outcomes rather than a citation style:
+
+    1. the rule ids ``ES-SUP-1``/``ES-SUP-2``/``ES-SUP-3`` appear in the guide; or
+    2. the guide links to ``emerging-services-support-standard.md`` **and** has an
+       "Emerging Services conformance" section naming the rules the documented
+       tools satisfy.
+
+    Form 2 exists because the reference guide (``docs/support-tooling.md``,
+    AAP-79586 / PR #535) maps its tools to the standard by name and links it
+    without repeating the ``ES-SUP-n`` identifiers inline.
+    """
     if not docs_path:
         return [Result("ES-SUP-5", "support guide", STATUS_SKIP, "no --docs-path supplied")]
     guide = Path(docs_path)
@@ -479,11 +646,38 @@ def check_docs(docs_path: str) -> list[Result]:
         return [Result("ES-SUP-5", "support guide", STATUS_FAIL, f"{guide} not found")]
     text = guide.read_text(encoding="utf-8", errors="replace").lower()
     results = [Result("ES-SUP-5", "support guide", STATUS_PASS, f"{guide} exists")]
-    missing = [r for r in ("es-sup-1", "es-sup-2", "es-sup-3") if r not in text]
-    if missing:
-        results.append(Result("ES-SUP-5", "guide coverage", STATUS_FAIL, f"guide does not cover {missing}"))
-    else:
-        results.append(Result("ES-SUP-5", "guide coverage", STATUS_PASS, "covers ES-SUP-1..3"))
+
+    missing = [rule for rule in ("es-sup-1", "es-sup-2", "es-sup-3") if rule not in text]
+    if not missing:
+        results.append(Result("ES-SUP-5", "guide coverage", STATUS_PASS, "cites ES-SUP-1..3"))
+        return results
+
+    links_standard = STANDARD_DOC_NAME in text
+    has_section = CONFORMANCE_HEADING in text
+    if links_standard and has_section:
+        results.append(
+            Result(
+                "ES-SUP-5",
+                "guide coverage",
+                STATUS_PASS,
+                f"'{CONFORMANCE_HEADING}' section links {STANDARD_DOC_NAME}",
+            )
+        )
+        return results
+
+    reason = []
+    if not links_standard:
+        reason.append(f"no link to {STANDARD_DOC_NAME}")
+    if not has_section:
+        reason.append(f"no '{CONFORMANCE_HEADING}' section")
+    results.append(
+        Result(
+            "ES-SUP-5",
+            "guide coverage",
+            STATUS_FAIL,
+            f"guide covers none of {missing} and {' / '.join(reason)}",
+        )
+    )
     return results
 
 

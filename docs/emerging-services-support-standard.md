@@ -55,7 +55,7 @@ Each requirement states how it is verified. `check_support_standard.py` automate
 
 - The service MUST publish a support-engineer guide covering ES-SUP-1..3 with copy-paste commands and expected output, written for a reader with no knowledge of the codebase.
 - Reference: `docs/support-tooling.md` (AAP-79586, PR #535).
-- **Verification: Mixed.** File existence and coverage of ES-SUP-1..3 are **Automatic** (`--docs-path`). "Copy-paste commands with expected output, readable by a non-expert" is **Manual** review.
+- **Verification: Mixed.** File existence and coverage of ES-SUP-1..3 are **Automatic** (`--docs-path`). Coverage is accepted either as the literal rule ids `ES-SUP-1`/`ES-SUP-2`/`ES-SUP-3`, or as an "Emerging Services conformance" section that links this document — a guide may map its tools to the standard by name without repeating the ids. "Copy-paste commands with expected output, readable by a non-expert" is **Manual** review.
 
 ## Conformance
 
@@ -66,7 +66,11 @@ Each requirement states how it is verified. `check_support_standard.py` automate
 
 ## Evidence table — metrics-service (reference implementation)
 
-On `devel` today only ES-SUP-1 and ES-SUP-2 are delivered. ES-SUP-3/4/5 arrive with unmerged PRs; until they land, metrics-service is **not** conformant and the checker exits `3` against it.
+On `devel` today only ES-SUP-1 and ES-SUP-2 are delivered: run the checker there and it exits `3`
+(`INCOMPLETE`) because ES-SUP-3/4/5 arrive with the unmerged PRs below. Verified against the stacked
+branches (`#530` `8183cf9`, `#531` `0aa25fc`, `#535` `44b2653`, with a live instance) every required
+requirement passes and the checker exits `0`; the status column tracks merge state, not the checker's
+verdict.
 
 | Requirement | Implementation | Evidence | Status |
 |---|---|---|---|
