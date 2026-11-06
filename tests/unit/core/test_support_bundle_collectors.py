@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from apps.analytics.models import AnalyticsPayload
 from apps.core.support_bundle import bundle, collectors
+from apps.core.support_bundle.redaction import REDACTED
 from apps.tasks.models import (
     AnonymizedMetricsPayload,
     DailyMetricsSummary,
@@ -365,3 +366,167 @@ def test_build_bundle_redacts_every_section_before_serialisation():
     assert "hunter2" not in str(sections["tasks.json"]["dispatcherd"]["running"]["queued-0"]["args"])
     assert sections["ingestion.json"]["collectors"][0]["collector_type"] == "unified_jobs"
     assert sections["tasks.json"]["meta"] == {"generated_at": "now"}
+
+
+def _walk(node, path=""):
+    """Yield ``(dotted_path, key, value)`` for every node in *node*."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            child = f"{path}.{key}" if path else str(key)
+            yield child, key, value
+            yield from _walk(value, child)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            child = f"{path}[{index}]"
+            yield child, index, value
+            yield from _walk(value, child)
+
+
+def _full_bundle_collectors(dynaconf):
+    """Five collectors shaped like the real bundle, including the real settings pass."""
+
+    def settings_section():
+        with patch("metrics_service.settings.DYNACONF", dynaconf):
+            return collectors.collect_settings()
+
+    return {
+        "tasks.json": lambda: {
+            "task_timeout_seconds": 3600,
+            "dispatcherd": {
+                "available": True,
+                "partial": False,
+                "nodes": ["node-a"],
+                "node_count": 1,
+                "reply_counts": {"running": 1, "workers": 1},
+                "running": {"queued-0": {"task": "send_report", "args": ["--api-key=abc123"]}},
+                "workers": {"worker-0": {"status": "idle"}},
+            },
+            "tasks": [],
+            "stuck_task_ids": [],
+            "task_count": 0,
+        },
+        "ingestion.json": lambda: {
+            "dimension": "collector",
+            "collectors": [
+                {
+                    "collector_type": "unified_jobs",
+                    "consecutive_failures": 0,
+                    "last_error_message": "failed to POST https://segment/api?token=abc123 (401)",
+                }
+            ],
+            "daily_summaries": [
+                {
+                    "summary_date": "2026-11-05",
+                    "hourly_collections_count": 24,
+                    "missing_hours_count": 0,
+                }
+            ],
+            "segment": [{"retry_count": 2, "error_message": "redis://:redispw@cache:6379/0 refused"}],
+            "analytics_payloads": [{"collector": "main", "cluster_id": "cluster-123", "source": "scheduler"}],
+        },
+        "queues.json": lambda: {
+            "queues": [{"name": "dashboard", "db_pending": 0}],
+            "db_pending_total": 0,
+            "dispatcherd": {
+                "available": True,
+                "partial": True,
+                "nodes": ["node-a"],
+                "node_count": 1,
+                "reply_counts": {"running": 1, "workers": 0, "producers": 0},
+                "workers": {"worker-0": {"status": "idle"}},
+                "producers": {"p-0": {"status": "ok"}},
+            },
+            "live_available": True,
+        },
+        "schema.json": lambda: {
+            "connected": True,
+            "applied_migrations_count": 42,
+            "unapplied_migrations_count": 0,
+        },
+        "settings.json": settings_section,
+    }
+
+
+def test_full_bundle_keeps_metadata_numbers_and_still_redacts_secrets():
+    """The whole bundle, as shipped, keeps counts and strips credentials.
+
+    The collectors tests used to assert on ``collect_settings()`` in isolation,
+    which hid a global-pass bug: ``_redaction.redacted_key_count`` was replaced
+    by the redaction marker because its *name* contains ``KEY``. This test builds
+    all five sections through :func:`bundle.build_bundle` and inspects the
+    serialized result.
+    """
+    dynaconf = Mock()
+    dynaconf.as_dict.return_value = {
+        "SECRET_KEY": "test-secret-key-value",
+        "SEGMENT_WRITE_KEY": "test-segment-key",
+        "DATABASES": {"default": {"PASSWORD": "test-db-password", "NAME": "metrics_service"}},
+        "TASK_TIMEOUT": 3600,
+        "TOKEN_BUDGET": 100,
+        "PASSWORD_POLICY": "min-length-12",
+    }
+
+    with (
+        patch.dict(bundle.COLLECTORS, _full_bundle_collectors(dynaconf)),
+        patch.object(bundle, "collect_meta", return_value={"generated_at": "now"}),
+    ):
+        sections = bundle.build_bundle()
+
+    serialized = json.dumps(sections)
+
+    # 1. The shipped summary field is a count, not the redaction marker.
+    redaction = sections["settings.json"]["_redaction"]
+    assert isinstance(redaction["redacted_key_count"], int)
+    assert redaction["redacted_key_count"] == 3
+    assert redaction["redacted_paths"] == [
+        "DATABASES.default.PASSWORD",
+        "SECRET_KEY",
+        "SEGMENT_WRITE_KEY",
+    ]
+
+    # 2. Every counter/measurement survives as a number.
+    safe_suffixes = ("_count", "_counts", "_budget", "_ms", "_seconds", "_bytes", "_policy")
+    for path, key, value in _walk(sections):
+        if not isinstance(key, str):
+            continue
+        if key.lower().endswith(("_count", "_ms")):
+            assert isinstance(value, (int, float)), f"{path} should be numeric, got {value!r}"
+        if key.lower().endswith(safe_suffixes):
+            assert value != REDACTED, f"{path} is metadata and must not be redacted"
+
+    assert sections["tasks.json"]["task_count"] == 0
+    assert sections["tasks.json"]["task_timeout_seconds"] == 3600
+    assert sections["tasks.json"]["dispatcherd"]["node_count"] == 1
+    assert sections["ingestion.json"]["daily_summaries"][0]["hourly_collections_count"] == 24
+    assert sections["ingestion.json"]["daily_summaries"][0]["missing_hours_count"] == 0
+    assert sections["ingestion.json"]["segment"][0]["retry_count"] == 2
+    assert sections["queues.json"]["db_pending_total"] == 0
+    assert sections["schema.json"]["applied_migrations_count"] == 42
+    assert sections["schema.json"]["unapplied_migrations_count"] == 0
+    assert sections["settings.json"]["settings"]["TASK_TIMEOUT"] == 3600
+    assert sections["settings.json"]["settings"]["TOKEN_BUDGET"] == 100
+    assert sections["settings.json"]["settings"]["PASSWORD_POLICY"] == "min-length-12"
+
+    # 3. Genuine secrets are still gone (values and key-based).
+    for secret in (
+        "test-secret-key-value",
+        "test-segment-key",
+        "test-db-password",
+        "abc123",
+        "redispw",
+    ):
+        assert secret not in serialized
+    assert sections["settings.json"]["settings"]["SECRET_KEY"] == REDACTED
+    assert sections["settings.json"]["settings"]["SEGMENT_WRITE_KEY"] == REDACTED
+    assert sections["settings.json"]["settings"]["DATABASES"]["default"]["PASSWORD"] == REDACTED
+
+    # 4. Other shape keys that contain a marker as a substring survive.
+    assert sections["ingestion.json"]["analytics_payloads"][0]["cluster_id"] == "cluster-123"
+    assert sections["tasks.json"]["dispatcherd"]["reply_counts"] == {"running": 1, "workers": 1}
+    assert sections["tasks.json"]["dispatcherd"]["partial"] is False
+    assert sections["queues.json"]["dispatcherd"]["partial"] is True
+    assert sections["queues.json"]["dispatcherd"]["available"] is True
+    assert sections["queues.json"]["live_available"] is True
+
+    # 5. The bundle is still valid JSON end to end.
+    assert json.loads(serialized) == sections

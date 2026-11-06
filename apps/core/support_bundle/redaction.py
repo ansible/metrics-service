@@ -1,9 +1,12 @@
 """Recursive redaction for support-bundle output.
 
-Key names matching :data:`SECRET_KEY_MARKERS` are replaced wholesale. Values that do
-not sit under a suspicious key still get a value-level pass so that credentials
-embedded in connection strings, ``Authorization``-style headers, and ``key=value``
-pairs in free-text error messages do not leak.
+Key names matching :data:`SECRET_KEY_MARKERS` are replaced wholesale, except for
+counter/metadata keys whose name ends in one of :data:`SAFE_KEY_SUFFIXES`
+(``redacted_key_count``, ``token_budget``, ``secret_scan_duration_ms``, ...):
+those hold numbers or policies, not credentials. Values that do not sit under a
+suspicious key still get a value-level pass so that credentials embedded in
+connection strings, ``Authorization``-style headers, and ``key=value`` pairs in
+free-text error messages do not leak.
 
 The marker list lives in code, not configuration, so it cannot be weakened per
 environment by accident. The value-level pass is deliberately over-eager: a
@@ -31,6 +34,29 @@ SECRET_KEY_MARKERS = (
     "SEGMENT_WRITE_KEY",
 )
 
+#: Suffixes of keys that carry *counters and metadata*, not credentials. They win
+#: over :data:`SECRET_KEY_MARKERS`, which matches raw substrings, because
+#: ``redacted_key_count``, ``api_key_count``, ``token_budget``,
+#: ``secret_scan_duration_ms`` and ``password_policy`` all describe the
+#: diagnostic data rather than hold a secret. Their values are numeric (or a
+#: short policy string) and must survive for the bundle to be usable -- most
+#: importantly ``_redaction.redacted_key_count``, which is documented as a count.
+#:
+#: Narrow on purpose: a bare ``api_key``/``auth_token``/``db_password``/
+#: ``private_key``/``client_secret`` has none of these suffixes, so genuine
+#: credential keys are still redacted. The value-level pass in
+#: :func:`redact_string` is not affected, so a credential *value* under an
+#: allow-listed-looking key is still stripped.
+SAFE_KEY_SUFFIXES = (
+    "_count",
+    "_counts",
+    "_budget",
+    "_ms",
+    "_seconds",
+    "_bytes",
+    "_policy",
+)
+
 #: ``scheme://user:password@host`` -- replace the whole userinfo component.
 #: Both the user and the password are optional so the common password-only forms
 #: (``redis://:pw@host``, ``amqp://:pw@host/vhost``) are covered too.
@@ -55,8 +81,15 @@ _SECRET_ASSIGNMENT_RE = re.compile(
 
 
 def is_secret_key(key: Any) -> bool:
-    """Return True when *key* contains one of the secret markers."""
+    """Return True when *key* names a secret rather than a counter or policy.
+
+    Counter/metadata suffixes in :data:`SAFE_KEY_SUFFIXES` are checked first so
+    that e.g. ``redacted_key_count`` survives while ``api_key`` is still
+    replaced wholesale.
+    """
     if not isinstance(key, str):
+        return False
+    if key.lower().endswith(SAFE_KEY_SUFFIXES):
         return False
     upper = key.upper()
     return any(marker in upper for marker in SECRET_KEY_MARKERS)

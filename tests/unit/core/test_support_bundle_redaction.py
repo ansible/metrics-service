@@ -140,3 +140,61 @@ def test_redact_value_is_recursive_and_non_mutating():
 
     assert original == {"TOKEN": "abc", "nested": [{"PASSWORD": "def"}]}
     assert redacted == {"TOKEN": REDACTED, "nested": [{"PASSWORD": REDACTED}]}
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "redacted_key_count",
+        "key_count",
+        "api_key_count",
+        "token_budget",
+        "secret_scan_duration_ms",
+        "password_policy",
+        "applied_migrations_count",
+        "task_timeout_seconds",
+        "max_payload_bytes",
+    ],
+)
+def test_counter_and_metadata_keys_are_not_redacted(key):
+    """A count/policy/measurement is data, not a credential."""
+    redacted, summary = redact_settings({key: 42})
+
+    assert redacted == {key: 42}
+    assert summary == {"redacted_key_count": 0, "redacted_paths": []}
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "api_key",
+        "auth_token",
+        "db_password",
+        "secret",
+        "my_secret",
+        "refresh_token",
+        "root_password",
+        "private_key",
+        "client_secret",
+        "SECRET_KEY",
+        "SEGMENT_WRITE_KEY",
+    ],
+)
+def test_credential_keys_are_still_redacted(key):
+    """The counter/policy allow-list must not weaken genuine credential coverage."""
+    redacted, summary = redact_settings({key: "super-secret-value"})
+
+    assert redacted == {key: REDACTED}
+    assert summary["redacted_key_count"] == 1
+    assert summary["redacted_paths"] == [key]
+
+
+@pytest.mark.parametrize("key", ["token_budget", "key_count", "password_policy"])
+def test_credential_looking_values_are_redacted_even_under_metadata_keys(key):
+    """The value-level pass is independent of the key-name allow-list."""
+    dsn = "redis://:redispw@cache:6379/0"
+
+    redacted, summary = redact_settings({key: dsn})
+
+    assert redacted == {key: "redis://**REDACTED**@cache:6379/0"}
+    assert summary["redacted_paths"] == [key]
