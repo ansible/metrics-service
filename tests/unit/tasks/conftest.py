@@ -5,11 +5,58 @@ This module provides fixtures specific to the tasks app testing,
 supplementing the global fixtures in tests/conftest.py.
 """
 
+import logging
 from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
 from django.utils import timezone
+
+from apps.core.logging_filters import RequestIdFilter
+
+# Canonical request ID used by the trace-continuity tests. Asserting against a
+# specific known UUID (never just "non-empty") is what makes those tests fail
+# for the wrong reason — e.g. two records sharing an unrelated default —
+# impossible.
+TRACE_REQUEST_ID = "6f1d1c2a-1f0e-4f0b-9a3e-2b1c4d5e6f70"
+
+# Loggers that emit during an API request and during a worker-side task run.
+_TRACE_LOGGER_NAMES = ("apps", "apps.tasks", "apps.tasks.tasks_system", "apps.core")
+
+
+@pytest.fixture
+def trace_records():
+    """
+    Collect log records with the production request-id filter applied.
+
+    Test settings replace logging with a NullHandler root, so production
+    wiring is never exercised by default. This fixture mirrors it: a handler
+    with ``apps.core.logging_filters.RequestIdFilter`` attached (filters are
+    per-handler) on the loggers that emit on the request → worker path. The
+    filter stamps ``record.request_id`` exactly as the console handler does in
+    production, so assertions on it are assertions on production behaviour.
+    """
+    records: list[logging.LogRecord] = []
+
+    class _Collector(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    handler = _Collector(level=logging.DEBUG)
+    handler.addFilter(RequestIdFilter())
+    loggers = [logging.getLogger(name) for name in _TRACE_LOGGER_NAMES]
+    saved = [(lg.level, lg.propagate) for lg in loggers]
+    for lg in loggers:
+        lg.addHandler(handler)
+        lg.setLevel(logging.DEBUG)
+        lg.propagate = False
+    try:
+        yield records
+    finally:
+        for lg, (level, propagate) in zip(loggers, saved, strict=True):
+            lg.removeHandler(handler)
+            lg.setLevel(level)
+            lg.propagate = propagate
 
 
 @pytest.fixture

@@ -14,6 +14,8 @@ from typing import Any
 
 from django.db import models, transaction
 
+from apps.core.request_context import current_request_id, normalize_request_id, request_context
+
 from .utils import (
     create_task_result,
     ensure_django_setup,
@@ -213,13 +215,24 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
     Args:
         **kwargs: Task data containing:
             - task_id (int): ID of the task to execute (required)
+            - request_id (str): Originating request ID, set on the contextvar so
+              every log record emitted while the task runs carries it.
 
     Returns:
         dict: Task result dictionary with execution status and results
     """
+    request_id = normalize_request_id(kwargs.pop("request_id", None))
+    task_id = kwargs.pop("task_id", None)
+
+    # Enter the context before ensure_django_setup() so setup-time logs are tagged too.
+    with request_context(request_id, origin="worker"):
+        return _execute_db_task(task_id)
+
+
+def _execute_db_task(task_id) -> dict[str, Any]:
+    """Body of execute_db_task, run inside a request context."""
     ensure_django_setup()
 
-    task_id = kwargs.get("task_id")
     if not task_id:
         return create_task_result("error", error="task_id is required")
 
@@ -237,12 +250,23 @@ def execute_db_task(**kwargs) -> dict[str, Any]:
             logger.warning(f"Task {task_id} already claimed by another worker, skipping")
             return create_task_result("error", error="Task already claimed by another worker")
 
+        # Fallback for mixed-version rollouts: an old scheduler submits no
+        # request_id, but the Task row may still have one persisted.
+        if current_request_id() is None and task.request_id:
+            with request_context(task.request_id, origin="worker"):
+                return execute_claimed(task, execution)
+
         return execute_claimed(task, execution)
 
     except Exception as e:
-        return handle_task_error(
-            task, execution, task_id=task_id, execution_id=(execution.id if execution else None), exception=e
-        )
+        # Any context entered only around execute_claimed (the rolling-upgrade
+        # fallback below) has unwound by now, so re-enter the effective context
+        # to keep failure/retry log lines tagged with the originating request.
+        effective_request_id = current_request_id() or normalize_request_id(getattr(task, "request_id", None))
+        with request_context(effective_request_id, origin="worker"):
+            return handle_task_error(
+                task, execution, task_id=task_id, execution_id=(execution.id if execution else None), exception=e
+            )
 
 
 def submit_task_to_dispatcher(task: Any) -> None:
@@ -272,7 +296,11 @@ def submit_task_to_dispatcher(task: Any) -> None:
 
     queue = get_queue_for_function(task.function_name)
 
-    submit_task(execute_db_task, kwargs={"task_id": task.id}, queue=queue)
+    payload: dict[str, Any] = {"task_id": task.id}
+    if task.request_id:
+        payload["request_id"] = str(task.request_id)
+
+    submit_task(execute_db_task, kwargs=payload, queue=queue)
 
     logger.info(f"Submitted task {task.name} (ID: {task.id}) to dispatcher queue {queue}")
 
