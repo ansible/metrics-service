@@ -632,6 +632,28 @@ class TestTaskDispatcher(TestCase):
 
         assert captured["request_id"] == request_id
 
+    @pytest.mark.django_db(transaction=True)
+    @patch("apps.tasks.tasks_system.execute_claimed", side_effect=RuntimeError("boom"))
+    def test_execute_db_task_fallback_preserves_id_on_error(self, mock_execute_claimed):
+        """The error handler must run inside the restored context on the fallback path."""
+        request_id = str(uuid.uuid4())
+        self.task.request_id = request_id
+        self.task.save(update_fields=["request_id"])
+        seen = {}
+
+        def fake_handle_task_error(task, execution, **kwargs):
+            seen["request_id"] = current_request_id()
+            return {"status": "error", "error": "handled"}
+
+        with patch("apps.tasks.tasks_system.handle_task_error", side_effect=fake_handle_task_error) as mock_handle:
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result == {"status": "error", "error": "handled"}
+        mock_handle.assert_called_once()
+        assert seen["request_id"] == request_id
+        # The restored context must not leak past the task.
+        assert current_request_id() is None
+
     def test_dispatcherd_decorator_functionality(self):
         """Test dispatcherd decorator is properly configured."""
         assert callable(tasks_system.task)

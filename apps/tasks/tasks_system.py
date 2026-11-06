@@ -259,9 +259,14 @@ def _execute_db_task(task_id) -> dict[str, Any]:
         return execute_claimed(task, execution)
 
     except Exception as e:
-        return handle_task_error(
-            task, execution, task_id=task_id, execution_id=(execution.id if execution else None), exception=e
-        )
+        # Any context entered only around execute_claimed (the rolling-upgrade
+        # fallback below) has unwound by now, so re-enter the effective context
+        # to keep failure/retry log lines tagged with the originating request.
+        effective_request_id = current_request_id() or normalize_request_id(getattr(task, "request_id", None))
+        with request_context(effective_request_id, origin="worker"):
+            return handle_task_error(
+                task, execution, task_id=task_id, execution_id=(execution.id if execution else None), exception=e
+            )
 
 
 def submit_task_to_dispatcher(task: Any) -> None:
