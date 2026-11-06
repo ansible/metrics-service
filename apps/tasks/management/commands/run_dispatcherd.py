@@ -76,10 +76,12 @@ class Command(BaseCommand):
                 # Drop it before dispatcherd forks workers so they do not
                 # inherit a socket shared with the parent, and so a failed
                 # query cannot leave a broken connection behind.
-                from django.db import close_old_connections, connection
+                # ``close_old_connections()`` would be a no-op when
+                # CONN_MAX_AGE > 0, so close every connection unconditionally.
+                from django.db import connection, connections
 
                 if not connection.in_atomic_block:
-                    close_old_connections()
+                    connections.close_all()
 
             # Import dispatcherd after configuration
             import dispatcherd

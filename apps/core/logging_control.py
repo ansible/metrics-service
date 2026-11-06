@@ -11,10 +11,15 @@ channel; each process applies it at a bounded refresh point:
 
 The override is ephemeral by design:
 
-* it expires after ``expires_at``;
+* it expires after ``expires_at``, and an expiry further out than
+  ``RUNTIME_LOG_LEVEL_MAX_TTL`` is ignored on the read path (not just clamped
+  when written by the CLI), so a hand-written row cannot pin a level;
 * a process that started after the row was written ignores it
-  (``override.modified < process_started_at()``), so restarting reverts to
-  ``METRICS_SERVICE_LOG_LEVEL`` / ``settings.LOG_LEVEL``.
+  (``override.modified < process_started_at()``), so restarting reverts to the
+  configured logger levels (``settings.LOGGING``, which defaults to
+  ``METRICS_SERVICE_LOG_LEVEL``);
+* the level each managed logger had before the override was applied is
+  restored on revert, so per-logger configuration survives an override cycle.
 
 All database access is best-effort. A failure to read the override must never
 break request or task handling.
@@ -48,6 +53,13 @@ _PROCESS_STARTED_AT = timezone.now()
 _PROCESS_STARTED_AT_READY = False
 _LAST_SYNC_MONOTONIC = 0.0
 _APPLIED_LEVEL: str | None = None
+# Levels captured immediately before the first override is applied in this
+# process. ``revert()`` restores exactly these values instead of rewriting the
+# loggers to ``BASELINE_LEVEL``, because per-logger configuration is often
+# different from ``LOG_LEVEL`` (e.g. ``apps/settings/development.py`` raises
+# ``django``/``metrics_service``/``ansible_base`` to DEBUG, and deployments may
+# silence ``django.db.backends`` with ``LOGGING__loggers__*__level``).
+_BASELINE_LEVELS: dict[str, int] = {}
 
 BASELINE_LEVEL = str(getattr(settings, "LOG_LEVEL", "INFO") or "INFO").upper()
 
@@ -104,13 +116,20 @@ def reset_throttle() -> None:
 
 
 def apply_level(level: str) -> dict[str, str]:
-    """Set every managed logger to ``level`` in this process."""
+    """Set every managed logger to ``level`` in this process.
+
+    The level each logger had *before* the first override was applied is
+    captured once and later restored by :func:`revert`; repeated applies (the
+    per-request/task refresh) never overwrite that snapshot.
+    """
     name, value = _coerce_level(level)
     names = managed_loggers()
     for logger_name in names:
+        _BASELINE_LEVELS.setdefault(logger_name, logging.getLogger(logger_name).level)
         logging.getLogger(logger_name).setLevel(value)
     for logger_name in OPTIONAL_LOGGERS:
         if logger_name in logging.Logger.manager.loggerDict:
+            _BASELINE_LEVELS.setdefault(logger_name, logging.getLogger(logger_name).level)
             logging.getLogger(logger_name).setLevel(value)
     global _APPLIED_LEVEL
     _APPLIED_LEVEL = name
@@ -118,20 +137,27 @@ def apply_level(level: str) -> dict[str, str]:
 
 
 def revert() -> dict[str, str]:
-    """Restore every managed logger to the configured baseline."""
+    """Restore every managed logger to the level it had before the override.
+
+    Only loggers captured by :func:`apply_level` are touched. When no override
+    was applied in this process this is a no-op, so configured per-logger
+    levels are never rewritten to ``BASELINE_LEVEL``.
+
+    Returns the restored ``{logger: level_name}`` mapping.
+    """
     global _APPLIED_LEVEL
-    result = apply_level(BASELINE_LEVEL)
+    restored: dict[str, str] = {}
+    for logger_name, value in _BASELINE_LEVELS.items():
+        logging.getLogger(logger_name).setLevel(value)
+        restored[logger_name] = str(logging.getLevelName(value))
+    _BASELINE_LEVELS.clear()
     _APPLIED_LEVEL = None
-    return result
+    return restored
 
 
 def _revert_if_applied() -> None:
-    global _APPLIED_LEVEL
     if _APPLIED_LEVEL is not None:
-        try:
-            revert()
-        except ValueError:  # pragma: no cover - BASELINE_LEVEL is validated at import
-            logger.warning("Could not revert runtime log level to baseline %s", BASELINE_LEVEL)
+        revert()
 
 
 def get_active_override():
@@ -162,6 +188,21 @@ def sync_from_db(respect_process_start: bool = True, force: bool = False) -> str
         return _APPLIED_LEVEL
 
     if override is None or override.expires_at <= timezone.now():
+        _revert_if_applied()
+        return _APPLIED_LEVEL
+
+    # ``set_override`` caps the TTL, but the row is a plain table: a level
+    # written directly to the database must not pin a process indefinitely.
+    # Enforce the same bound on the read path and fail safe (baseline) rather
+    # than honouring an over-long expiry.
+    max_ttl = int(getattr(settings, "RUNTIME_LOG_LEVEL_MAX_TTL", 3600) or 0)
+    if max_ttl and override.expires_at > timezone.now() + timedelta(seconds=max_ttl):
+        logger.warning(
+            "Ignoring runtime log level override %s: expires_at %s exceeds RUNTIME_LOG_LEVEL_MAX_TTL (%ss)",
+            override.level,
+            override.expires_at.isoformat(),
+            max_ttl,
+        )
         _revert_if_applied()
         return _APPLIED_LEVEL
 

@@ -1216,9 +1216,8 @@ class TestWorkerRuntimeLogLevel:
 
             execute_db_task(task_id=task.id)
 
-            baseline = logging.getLevelNamesMapping()[logging_control.BASELINE_LEVEL]
             assert logging_control._APPLIED_LEVEL is None
-            assert logging.getLogger("apps").level == baseline
+            assert logging.getLogger("apps").level == saved["apps"]
 
             # A new override written after the worker started is still applied.
             RuntimeLogLevelOverride.objects.update(modified=timezone.now())

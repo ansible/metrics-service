@@ -84,9 +84,10 @@ class Command(BaseCommand):
             )
         )
         self.stdout.write(
-            "Running processes apply the change within one request/task cycle "
-            f"(refresh interval: {refresh}s). Restarting the service reverts to "
-            f"{logging_control.BASELINE_LEVEL}."
+            "Web requests and the dispatcherd main process apply the change within "
+            f"~{refresh}s; dispatcherd workers do so when they next start a task. The task "
+            "scheduler picks it up at its next check interval (30s by default, 60s when "
+            "started via metrics-service run). Restarting the service reverts to the configured log levels."
         )
 
     def _show(self):

@@ -455,18 +455,25 @@ def _handle_options():
 
 @pytest.mark.unit
 def test_handle_closes_db_connections_before_workers_fork():
-    """The startup sync opens a connection; it must be closed before run_service forks."""
+    """The startup sync opens a connection; it must be closed before run_service forks.
+
+    ``connections.close_all()`` is used rather than ``close_old_connections()``,
+    which is a no-op when ``CONN_MAX_AGE > 0`` and would leave forked workers
+    sharing the parent's socket.
+    """
     command = Command()
     command.stdout = StringIO()
 
     with (
         patch("apps.core.logging_control.sync_dispatcherd_log_level"),
-        patch("django.db.close_old_connections") as mock_close,
+        patch("django.db.connections.close_all") as mock_close,
+        patch("django.db.close_old_connections") as mock_close_old,
         patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
     ):
         command.handle(**_handle_options())
 
     mock_close.assert_called()
+    mock_close_old.assert_not_called()
 
 
 @pytest.mark.unit
@@ -480,7 +487,7 @@ def test_handle_closes_db_connections_when_startup_sync_fails():
             "apps.core.logging_control.sync_dispatcherd_log_level",
             side_effect=RuntimeError("sync failed"),
         ),
-        patch("django.db.close_old_connections") as mock_close,
+        patch("django.db.connections.close_all") as mock_close,
         patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
     ):
         command.handle(**_handle_options())
