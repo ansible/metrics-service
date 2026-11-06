@@ -288,6 +288,51 @@ def parse_allowed_hosts_env(settings: Dynaconf) -> dict:
     return {"ALLOWED_HOSTS": allowed_hosts}
 
 
+_REQUEST_ID_MIDDLEWARE = "apps.core.middleware.request_id.RequestIdMiddleware"
+"""Middleware that binds (or generates) the request ID for every HTTP request."""
+
+_DAB_LOG_REQUEST_MIDDLEWARE = "ansible_base.lib.middleware.logging.LogRequestMiddleware"
+"""DAB middleware that logs the request line; it must run inside the request ID context."""
+
+
+@post_hook
+def insert_request_id_middleware(settings: Dynaconf) -> dict:
+    """
+    Place ``RequestIdMiddleware`` immediately outside DAB's request logger.
+
+    ``dynaconf_merge_unique`` appends to the end of ``MIDDLEWARE``, i.e. at the
+    innermost position, which would leave DAB's request/traceback log records
+    outside the request ID context. Inserting it explicitly keeps the contextvar
+    bound while those middlewares log.
+    """
+    middleware = list(settings.get("MIDDLEWARE") or [])
+    if _REQUEST_ID_MIDDLEWARE in middleware:
+        return {}
+    if _DAB_LOG_REQUEST_MIDDLEWARE in middleware:
+        middleware.insert(middleware.index(_DAB_LOG_REQUEST_MIDDLEWARE), _REQUEST_ID_MIDDLEWARE)
+    else:  # pragma: no cover - DAB always ships this middleware in this project
+        middleware.append(_REQUEST_ID_MIDDLEWARE)
+    return {"MIDDLEWARE": middleware}
+
+
+@post_hook
+def use_project_request_id_filter(settings: Dynaconf) -> dict:
+    """
+    Prefer the ContextVar-aware request ID filter over DAB's thread-local one.
+
+    Guarded on the filter existing: ``apps/settings/test.py`` replaces ``LOGGING``
+    wholesale (no ``filters`` block), and post hooks run after the mode file.
+    """
+    import copy
+
+    log_cfg = copy.deepcopy(settings.get("LOGGING") or {})
+    filters = log_cfg.get("filters") or {}
+    if "request_id" not in filters:
+        return {}
+    filters["request_id"]["()"] = "apps.core.logging_filters.RequestIdFilter"
+    return {"LOGGING": log_cfg}
+
+
 @post_hook
 def setup_json_logging_for_production(settings: Dynaconf) -> dict:
     """Enable JSON logging when in production mode or when METRICS_SERVICE_LOG_FORMAT=json."""

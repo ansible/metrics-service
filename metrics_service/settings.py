@@ -97,7 +97,6 @@ MIDDLEWARE = [
     # DAB middlewares
     "crum.CurrentRequestUserMiddleware",
     "ansible_base.lib.middleware.logging.LogRequestMiddleware",
-    "apps.core.middleware.request_id.RequestIdMiddleware",
     "ansible_base.lib.middleware.logging.LogTracebackMiddleware",
 ]
 """List of middleware classes"""
@@ -177,7 +176,7 @@ LOGGING = {
     "disable_existing_loggers": False,
     "filters": {
         "request_id": {
-            "()": "apps.core.logging_filters.RequestIdFilter",
+            "()": "ansible_base.lib.logging.filters.RequestIdFilter",
         },
     },
     "formatters": {
@@ -201,31 +200,26 @@ LOGGING = {
         "ansible_base": {
             "handlers": ["console"],
             "level": LOG_LEVEL,
-            "filters": ["request_id"],
             "propagate": False,
         },
         "metrics_service": {
             "handlers": ["console"],
             "level": LOG_LEVEL,
-            "filters": ["request_id"],
             "propagate": False,
         },
         "django": {
             "handlers": ["console"],
             "level": LOG_LEVEL,
-            "filters": ["request_id"],
             "propagate": False,
         },
         "apps": {
             "handlers": ["console"],
             "level": "INFO",
-            "filters": ["request_id"],
             "propagate": False,
         },
         "": {
             "handlers": ["console"],
             "level": LOG_LEVEL,
-            "filters": ["request_id"],
             "propagate": True,
         },
     },
