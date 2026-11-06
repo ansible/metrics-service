@@ -260,12 +260,30 @@ transitions. Database-backed sections are always reported, so the command works
 with the database alone.
 
 Live dispatcherd state is only marked available when at least one control
-command actually answers within the 2 s timeout. Reporting on a dispatcherd
-daemon that is not running (or that never replies) therefore sets
-`queue_depth.live_available` to `false` and fills `queue_depth.error`; the text
-output prints `Live dispatcherd state unavailable: …` instead of a misleading
+command gets a genuine answer within the 2 s timeout. Two things are not
+answers: an empty result (the broker times out) and a **request echo** — with
+the pg_notify broker the control *request* is republished on its own reply
+channel, so with no daemon it comes straight back as
+`{"control": ..., "reply_to": ...}`. Echoes are discarded, and a reply only
+counts as evidence when it carries something beyond that envelope (worker ids,
+producer names, or the `node_id` a real daemon always stamps on its reply).
+Reporting on a dispatcherd daemon that is not running (or that never replies)
+therefore sets `queue_depth.live_available` to `false` and fills
+`queue_depth.error`; the text output prints
+`Live dispatcherd state unavailable: …` instead of a misleading
 `Workers: 0 | Producers: 0`. Per-command failures and malformed control replies
 are ignored and surfaced as warnings rather than failing the report.
+
+Reply metadata (`node_id`, `control`, `reply_to`, `control_data`, `data`,
+`error`) is never rendered as a worker or producer, so a healthy single-node
+deployment reports its real counts without a spurious "malformed worker
+entries" warning.
+
+> Note: dispatcherd's `Control` only reaches a daemon when it knows which queue
+> to publish the request to. `get_control_from_settings()` leaves that unset for
+> this project, so live state currently reports `live_available: false` even
+> with a daemon running. Database-backed sections are unaffected; wiring an
+> explicit control queue is a separate follow-up.
 
 JSON output is versioned (`schema_version: 2`) and uses window-neutral keys:
 failure counts are under `failures_in_window`, with the window in `window_hours`.

@@ -37,6 +37,20 @@ _DEFAULT_QUEUES = ("dashboard", "maintenance", "metrics")
 # Live dispatcherd keys classify into these buckets; "worker-" keys are actively executing.
 _LIVE_BUCKETS = ("queued", "blocked", "delayed")
 
+#: Keys dispatcherd adds *around* the per-command payload, i.e. reply metadata
+#: rather than worker/producer records. ``node_id`` is injected by
+#: ``DispatcherMain.run_control_action()`` (``dispatcherd/service/main.py``), and
+#: ``error`` is what ``service/control_tasks.py`` returns for an unknown control
+#: method or what ``Control.parse_replies()`` returns for an unparseable payload.
+REPLY_METADATA_KEYS = frozenset({"node_id", "node", "hostname", "control", "reply_to", "control_data", "data", "error"})
+
+#: The keys ``Control.create_message()`` puts in a control *request*. With the
+#: pg_notify broker and ``Control.queuename is None`` (this deployment's config)
+#: the publisher channel resolves to the reply queue itself, so the broker
+#: republishes the request straight back to the caller. A reply carrying nothing
+#: beyond these keys is that echo, not evidence that a worker or producer lives.
+CONTROL_ECHO_KEYS = frozenset({"control", "reply_to", "control_data", "data"})
+
 
 def _iso(value):
     """Serialize a datetime to ISO-8601, passing None through."""
@@ -289,28 +303,48 @@ def _control_replies(control, command: str, timeout: float) -> tuple[list, str |
         return [], f"{type(exc).__name__}: {exc}"
 
 
+def _is_state_reply(reply) -> bool:
+    """True only for a reply that carries dispatcherd state.
+
+    A bare echo of the control request (``{"control": ..., "reply_to": ...}``)
+    proves nothing about the daemon: the pg_notify broker produces one even when
+    no dispatcherd process is running. Anything beyond the request envelope --
+    worker ids, producer names, or just the ``node_id`` a real daemon always
+    stamps on its reply -- means something actually answered.
+    """
+    return isinstance(reply, dict) and bool(set(reply) - CONTROL_ECHO_KEYS)
+
+
 def _merge_running_replies(replies: list) -> dict:
     """Merge ``running`` control replies into one key -> message mapping."""
     running: dict = {}
     for reply in replies:
-        if isinstance(reply, dict):
-            running.update(reply)
+        if not isinstance(reply, dict):
+            continue
+        for key, value in reply.items():
+            if key in REPLY_METADATA_KEYS:
+                continue
+            running[str(key)] = value
     return running
 
 
 def _merge_worker_replies(replies: list) -> tuple[list[dict], int]:
-    """Extract worker records, dropping values that are not dicts.
+    """Extract worker records, dropping reply metadata and non-dict values.
 
     dispatcherd's own fallback reply is ``{'error': 'JSON parse error', ...}``;
     its values are strings. Only dict worker records are renderable, so the
     rest are counted and reported as a warning instead of crashing the report.
+    A real reply also carries ``node_id`` (a string), which is reply metadata --
+    not a malformed worker, and never a worker called ``node_id``.
     """
     workers: list[dict] = []
     malformed = 0
     for reply in replies:
         if not isinstance(reply, dict):
             continue
-        for value in reply.values():
+        for key, value in reply.items():
+            if key in REPLY_METADATA_KEYS:
+                continue
             if isinstance(value, dict):
                 workers.append(value)
             else:
@@ -325,6 +359,8 @@ def _merge_producer_replies(replies: list) -> list[dict]:
         if not isinstance(reply, dict):
             continue
         for name, data in reply.items():
+            if name in REPLY_METADATA_KEYS:
+                continue
             producer = {"producer": name}
             if isinstance(data, dict):
                 producer.update(data)
@@ -337,8 +373,10 @@ def get_dispatcherd_state(timeout: float = 2.0) -> dict:
 
     ``live_available`` is only ``True`` when dispatcherd actually answered at
     least one control command. With no daemon running the broker simply returns
-    no replies after ``timeout`` instead of raising, which must not be reported
-    as a healthy idle system. Per-command failures are recorded in
+    no replies after ``timeout`` instead of raising -- and, with the pg_notify
+    broker, it returns the control *request* echoed back on the reply channel.
+    Neither is a healthy idle system, so echoes are discarded and the absence of
+    a real reply is reported as unavailable. Per-command failures are recorded in
     ``query_errors`` and surfaced as ``warnings``.
     """
     state = {
@@ -367,9 +405,16 @@ def get_dispatcherd_state(timeout: float = 2.0) -> dict:
     replies: dict[str, list] = {}
     query_errors: dict[str, str] = {}
     for command in ("running", "workers", "producers"):
-        replies[command], error = _control_replies(control, command, timeout)
+        raw_replies, error = _control_replies(control, command, timeout)
+        # Drop control-request echoes at ingestion so they can never be counted
+        # as evidence, nor merged into workers/producers/running.
+        replies[command] = [reply for reply in raw_replies if _is_state_reply(reply)]
         if error:
             query_errors[command] = error
+        for reply in replies[command]:
+            reply_error = reply.get("error")
+            if isinstance(reply_error, str) and reply_error:
+                query_errors.setdefault(command, f"dispatcherd error: {reply_error}")
 
     warnings = []
     workers, malformed_workers = _merge_worker_replies(replies["workers"])
@@ -377,9 +422,9 @@ def get_dispatcherd_state(timeout: float = 2.0) -> dict:
         warnings.append(f"ignored {malformed_workers} malformed dispatcherd worker entries")
     warnings.extend(f"{command} query failed: {error}" for command, error in query_errors.items())
 
-    # Availability must reflect a real reply, not the absence of an exception.
-    reply_count = sum(len(command_replies) for command_replies in replies.values())
-    live_available = reply_count > 0
+    # Availability must reflect a meaningful reply, not the absence of an
+    # exception and not the broker echoing our own request back.
+    live_available = any(replies.values())
 
     state.update(
         {

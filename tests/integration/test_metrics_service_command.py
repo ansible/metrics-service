@@ -300,6 +300,24 @@ class TestMetricsServiceCommand(TransactionTestCase):
         data = json.loads(out.getvalue())
         assert len(data["stuck_tasks"]) == 1
 
+        # Text mode must honour the same limit instead of falling back to 20.
+        text_out = StringIO()
+        with patch("apps.tasks.diagnostics.get_dispatcherd_state", return_value=live_state):
+            call_command(
+                "metrics_service",
+                "tasks",
+                "diagnose",
+                "--stuck-timeout",
+                "60",
+                "--limit",
+                "2",
+                stdout=text_out,
+            )
+
+        text = text_out.getvalue()
+        assert "Stuck tasks (2)" in text
+        assert text.count("Function: hello_world") == 2
+
     def test_task_diagnose_invalid_options(self):
         """Test invalid diagnose options raise CommandError (Django's stderr/exit-1 contract)."""
         with pytest.raises(CommandError, match="--hours must be >= 1"):
@@ -354,6 +372,64 @@ class TestMetricsServiceCommand(TransactionTestCase):
         assert data["queue_depth"]["dispatcherd_workers"] == ["JSON parse error", "{bad"]
         assert data["queue_depth"]["warnings"] == ["ignored 2 malformed dispatcherd worker entries"]
         assert data["queue_depth"]["live_available"] is True
+
+    # Real dispatcherd reply shapes, as captured from a live single-node
+    # dispatcherd 2026.1.27 daemon and from the pg_notify broker with no daemon.
+    # The full literals live in tests/unit/tasks/test_task_diagnostics.py
+    # (REAL_HEALTHY_REPLIES / REAL_ECHO_ONLY_REPLIES); these are trimmed to the
+    # fields the report reads.
+    _NODE_ID = "b605ecf3-7ef0-4aa8-a70b-d94cd6952ae8"
+    _HEALTHY_REPLIES = {
+        "running": [{"node_id": _NODE_ID}],
+        "workers": [
+            {"worker-0": {"worker_id": 0, "status": "ready", "current_task": None}, "node_id": _NODE_ID},
+        ],
+        "producers": [{"pg_notify-producer": {"produced_count": 3}, "node_id": _NODE_ID}],
+    }
+    _ECHO_ONLY_REPLIES = {
+        "running": [{"control": "running", "reply_to": "reply_to_e28c35f9_fdfd_4e49_869e_4e67035c134d"}],
+        "workers": [{"control": "workers", "reply_to": "reply_to_48ed564a_7b62_49b6_ba8c_20fa8974f08d"}],
+        "producers": [{"control": "producers", "reply_to": "reply_to_86b7ead0_4af9_4087_9089_5a604c5cb88d"}],
+    }
+
+    def _diagnose_with_control(self, replies, *args):
+        """Run tasks diagnose end-to-end against canned dispatcherd control replies."""
+
+        class _Control:
+            def control_with_reply(self, command, timeout=None):
+                return list(replies.get(command, []))
+
+        out = StringIO()
+        with (
+            patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured"),
+            patch("dispatcherd.factories.get_control_from_settings", return_value=_Control()),
+        ):
+            call_command("metrics_service", "tasks", "diagnose", *args, stdout=out)
+        return out.getvalue()
+
+    def test_task_diagnose_healthy_reply_reports_counts_without_warnings(self):
+        """A real reply (node_id + one worker + one producer) is not 'malformed'."""
+        output = self._diagnose_with_control(self._HEALTHY_REPLIES)
+
+        assert "Workers: 1 | Producers: 1" in output
+        assert "worker-0: ready" in output
+        assert "pg_notify-producer: produced 3" in output
+        assert "malformed" not in output
+        assert "node_id" not in output
+
+    def test_task_diagnose_echo_only_reply_reports_unavailable(self):
+        """The broker's request echo must never be read as a live dispatcherd."""
+        output = self._diagnose_with_control(self._ECHO_ONLY_REPLIES)
+
+        assert "Live dispatcherd state unavailable: no replies from dispatcherd (control timeout)" in output
+        assert "Workers:" not in output
+
+        raw = self._diagnose_with_control(self._ECHO_ONLY_REPLIES, "--format", "json")
+        data = json.loads(raw)
+        assert data["queue_depth"]["live_available"] is False
+        assert data["queue_depth"]["error"] == "no replies from dispatcherd (control timeout)"
+        assert data["queue_depth"]["warnings"] == []
+        assert data["queue_depth"]["dispatcherd_producers"] == []
 
     def test_task_diagnose_validation_errors_stay_off_stdout(self):
         """Errors must not pollute stdout, which carries JSON in --format json."""
