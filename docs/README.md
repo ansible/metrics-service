@@ -123,6 +123,7 @@ python manage.py metrics_service init-system-tasks
 | [analytics-retention.md](analytics-retention.md) | Controller-aligned analytics payload retention and fallback rules |
 | [ingress.md](ingress.md) | Non-local analytics payload ingress and source semantics |
 | [data-models.md](data-models.md) | Entity relationships across tasks, metrics, and dashboard models |
+| [trace-propagation.md](trace-propagation.md) | Inbound request ID/trace context and outbound propagation on Gateway and Segment calls |
 
 ## Where to Start
 

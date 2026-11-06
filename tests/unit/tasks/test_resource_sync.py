@@ -22,7 +22,7 @@ def test_incomplete_assignment_fetch_still_syncs_resources_but_skips_assignments
     executor = SimpleNamespace(run=Mock(), results={})
     reconcile = Mock()
 
-    monkeypatch.setattr(resource_sync, "create_api_client", lambda: api_client)
+    monkeypatch.setattr(resource_sync, "create_traced_api_client", lambda: api_client)
     monkeypatch.setattr(
         resource_sync,
         "get_remote_assignments",
@@ -51,7 +51,7 @@ def test_retryable_resource_sync_errors_skip_assignment_reconciliation(monkeypat
     reconcile = Mock()
     assignments = Mock()
 
-    monkeypatch.setattr(resource_sync, "create_api_client", lambda: api_client)
+    monkeypatch.setattr(resource_sync, "create_traced_api_client", lambda: api_client)
     monkeypatch.setattr(
         resource_sync,
         "get_remote_assignments",
@@ -76,7 +76,7 @@ def test_complete_fetch_disables_executor_assignment_sync_and_reconciles_snapsho
     assignments = {AssignmentTuple("user-1", "org-1", "Organization Member", "user")}
     reconcile = Mock(return_value={"assignments_created": 0, "assignments_deleted": 0, "assignment_errors": 0})
 
-    monkeypatch.setattr(resource_sync, "create_api_client", lambda: api_client)
+    monkeypatch.setattr(resource_sync, "create_traced_api_client", lambda: api_client)
     monkeypatch.setattr(
         resource_sync,
         "get_remote_assignments",
@@ -102,7 +102,7 @@ def test_resource_conflicts_do_not_block_assignment_reconciliation(monkeypatch):
     assignments = {AssignmentTuple("user-1", "org-1", "Organization Member", "user")}
     reconcile = Mock(return_value={"assignments_created": 1, "assignments_deleted": 0, "assignment_errors": 0})
 
-    monkeypatch.setattr(resource_sync, "create_api_client", lambda: api_client)
+    monkeypatch.setattr(resource_sync, "create_traced_api_client", lambda: api_client)
     monkeypatch.setattr(
         resource_sync,
         "get_remote_assignments",
@@ -167,7 +167,7 @@ def test_assignment_helper_failures_leave_task_retryable(monkeypatch):
     executor = SimpleNamespace(run=Mock(), results={})
     assignments = {AssignmentTuple("user-1", "org-1", "Organization Member", "user")}
 
-    monkeypatch.setattr(resource_sync, "create_api_client", lambda: api_client)
+    monkeypatch.setattr(resource_sync, "create_traced_api_client", lambda: api_client)
     monkeypatch.setattr(
         resource_sync,
         "get_remote_assignments",
@@ -184,6 +184,31 @@ def test_assignment_helper_failures_leave_task_retryable(monkeypatch):
 
     assert result["status"] == "error"
     assert result["summary"]["assignment_errors"] == 1
+
+
+@pytest.mark.unit
+def test_sync_uses_trace_propagating_api_client(monkeypatch):
+    api_client = object()
+    factory = Mock(return_value=api_client)
+    executor = SimpleNamespace(run=Mock(), results={})
+
+    monkeypatch.setattr(resource_sync, "create_traced_api_client", factory)
+    monkeypatch.setattr(
+        resource_sync,
+        "get_remote_assignments",
+        lambda client: SimpleNamespace(assignments=set(), is_complete=True),
+    )
+    monkeypatch.setattr(resource_sync, "SyncExecutor", Mock(return_value=executor))
+    monkeypatch.setattr(
+        resource_sync,
+        "_reconcile_assignments",
+        Mock(return_value={"assignments_created": 0, "assignments_deleted": 0, "assignment_errors": 0}),
+    )
+
+    result = resource_sync.sync_resources_from_gateway()
+
+    assert result["status"] == "success"
+    factory.assert_called_once_with()
 
 
 @pytest.mark.django_db
