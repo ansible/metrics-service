@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 
 # ---------------------------------------------------------------------------
@@ -73,21 +74,17 @@ def test_metrics_service_init_service_id_creates():
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_metrics_service_tasks_cancel_nonexistent(user):
-    """Cancelling a nonexistent task should handle gracefully."""
-    try:
+    """Cancelling a nonexistent task raises CommandError (reported on stderr)."""
+    with pytest.raises(CommandError):
         call_command("metrics_service", "tasks", "cancel", "99999")
-    except SystemExit:
-        pass  # Expected if command exits on error
 
 
 @pytest.mark.unit
 @pytest.mark.django_db
 def test_metrics_service_tasks_retry_nonexistent(user):
-    """Retrying a nonexistent task should handle gracefully."""
-    try:
+    """Retrying a nonexistent task raises CommandError (reported on stderr)."""
+    with pytest.raises(CommandError):
         call_command("metrics_service", "tasks", "retry", "99999")
-    except SystemExit:
-        pass
 
 
 @pytest.mark.unit

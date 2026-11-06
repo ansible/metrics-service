@@ -3,6 +3,12 @@ Fixed Django management command for the metrics service.
 
 This version ensures dispatcherd uses the same configuration as the standalone
 run_dispatcherd command, fixing the configuration inconsistency issue.
+
+The ``tasks`` subcommand manages database tasks (create/list/show/cancel/retry)
+and includes ``tasks diagnose`` for read-only task health diagnostics: stuck
+tasks, last successful run per task type, recent failure counts, and queue
+depth. ``tasks diagnose --format json`` emits machine-readable output for
+support tooling.
 """
 
 import contextlib
@@ -172,6 +178,36 @@ class Command(BaseCommand):
         retry_parser.add_argument("task_id", type=int, help="Task ID")
         retry_parser.add_argument("--force", action="store_true", help="Bypass max_attempts check")
 
+        # Diagnose task health (read-only)
+        diagnose_parser = task_subparsers.add_parser(
+            "diagnose", help="Diagnose task health (stuck tasks, last success, failures, queue depth)"
+        )
+        diagnose_parser.add_argument(
+            "--format",
+            dest="output_format",
+            choices=["text", "json"],
+            default="text",
+            help="Output format (default: text)",
+        )
+        diagnose_parser.add_argument(
+            "--hours",
+            type=int,
+            default=24,
+            help="Failure lookback window in hours (default: 24)",
+        )
+        diagnose_parser.add_argument(
+            "--stuck-timeout",
+            type=int,
+            default=None,
+            help="Stuck threshold in seconds (default: TASK_TIMEOUT setting)",
+        )
+        diagnose_parser.add_argument(
+            "--limit",
+            type=int,
+            default=20,
+            help="Max rows per section (default: 20)",
+        )
+
     def handle(self, *args, **options):
         """
         Handle the command execution.
@@ -194,14 +230,14 @@ class Command(BaseCommand):
             elif command == "tasks":
                 self._handle_task_management_command(options)
             else:
-                self.output.error(f"Unknown command: {command}")
-                sys.exit(1)
-        except CommandError as e:
-            self.output.error(str(e))
-            sys.exit(1)
+                raise CommandError(f"Unknown command: {command}")
+        except CommandError:
+            # Let Django print the message to STDERR and exit 1 (see
+            # BaseCommand.run_from_argv). Never write errors to stdout: that
+            # would corrupt machine-readable output such as --format json.
+            raise
         except Exception as e:
-            self.output.error(f"Unexpected error: {e}")
-            sys.exit(1)
+            raise CommandError(f"Unexpected error: {e}") from e
 
     def _handle_run_command(self, options: dict[str, Any]) -> None:
         """Handle the run command to start the metrics service (API, dispatcherd, scheduler only).
@@ -489,6 +525,45 @@ class Command(BaseCommand):
 
         self.output.success(f"✅ Retrying task: {task.name}")
 
+    def _handle_task_diagnose(self, options: dict[str, Any]) -> None:
+        """Handle read-only task health diagnostics."""
+        from apps.tasks.diagnostics import get_diagnostics
+
+        hours = options.get("hours", 24)
+        limit = options.get("limit", 20)
+        stuck_timeout = options.get("stuck_timeout")
+        output_format = options.get("output_format", "text")
+
+        if hours is None or hours < 1:
+            raise CommandError("--hours must be >= 1")
+        if limit is None or limit < 1:
+            raise CommandError("--limit must be >= 1")
+        if stuck_timeout is not None and stuck_timeout < 1:
+            raise CommandError("--stuck-timeout must be >= 1")
+
+        try:
+            data = get_diagnostics(hours=hours, stuck_timeout=stuck_timeout, limit=limit)
+        except Exception as e:
+            raise CommandError(f"Failed to collect task diagnostics: {e}") from e
+
+        if output_format == "json":
+            # Bypass OutputFormatter so the output stays valid parseable JSON.
+            self.stdout.write(json.dumps(data, indent=2, sort_keys=True, default=str))
+        else:
+            self._render_diagnostics_text(data, limit)
+
+    def _render_diagnostics_text(self, data: dict[str, Any], limit: int) -> None:
+        """Render diagnostics data as human-readable text.
+
+        ``limit`` is the CLI ``--limit`` value: it must match the limit already
+        applied to the data, otherwise the section header count and the number
+        of rendered rows disagree.
+        """
+        from apps.tasks.diagnostics import render_diagnostics_text
+
+        for line in render_diagnostics_text(data, limit=limit).splitlines():
+            self.stdout.write(line)
+
     def _start_services(self, config: dict[str, Any]) -> None:
         """
         Start all 3 services as separate processes and monitor them.
@@ -732,8 +807,12 @@ class Command(BaseCommand):
                 self._handle_task_cancel(options)
             elif action == "retry":
                 self._handle_task_retry(options)
+            elif action == "diagnose":
+                self._handle_task_diagnose(options)
             else:
                 raise CommandError(f"Unknown task action: {action}")
+        except CommandError:
+            # Django's CommandError contract: printed to STDERR, exit code 1.
+            raise
         except Exception as e:
-            self.output.error(f"Task management error: {e}")
-            sys.exit(1)
+            raise CommandError(f"Task management error: {e}") from e

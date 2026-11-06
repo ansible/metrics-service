@@ -229,6 +229,66 @@ python manage.py metrics_service tasks retry <task_id>
 python manage.py metrics_service tasks retry <task_id> --force
 ```
 
+### Diagnosing task health
+
+`tasks diagnose` is a read-only view for support triage. It answers the four
+questions asked first when a task issue is reported:
+
+- **Stuck tasks** — `running` tasks past `TASK_TIMEOUT` (default 3600 s), with
+  duration, attempt count, worker, and whether dispatcherd actually reports the
+  task as running (an empty "reported by" list suggests a dead worker).
+- **Last successful run** per task type (`function_name`), including functions
+  that have never succeeded.
+- **Failure count** per task type in the failure window (`--hours`, default
+  24 h), with the latest error.
+- **Queue depth** — pending `Task` rows per queue plus live dispatcherd
+  queued/blocked/delayed counts.
+
+```bash
+# Human-readable output
+python manage.py metrics_service tasks diagnose
+
+# Machine-readable JSON (stable schema_version field)
+python manage.py metrics_service tasks diagnose --format json
+
+# Options
+python manage.py metrics_service tasks diagnose --hours 6 --stuck-timeout 900 --limit 50
+```
+
+The command never mutates task state — the scheduler owns stuck-task
+transitions. Database-backed sections are always reported, so the command works
+with the database alone.
+
+Live dispatcherd state is only marked available when at least one control
+command gets a genuine answer within the 2 s timeout. Two things are not
+answers: an empty result (the broker times out) and a **request echo** — with
+the pg_notify broker the control *request* is republished on its own reply
+channel, so with no daemon it comes straight back as
+`{"control": ..., "reply_to": ...}`. Echoes are discarded, and a reply only
+counts as evidence when it carries something beyond that envelope (worker ids,
+producer names, or the `node_id` a real daemon always stamps on its reply).
+Reporting on a dispatcherd daemon that is not running (or that never replies)
+therefore sets `queue_depth.live_available` to `false` and fills
+`queue_depth.error`; the text output prints
+`Live dispatcherd state unavailable: …` instead of a misleading
+`Workers: 0 | Producers: 0`. Per-command failures and malformed control replies
+are ignored and surfaced as warnings rather than failing the report.
+
+Reply metadata (`node_id`, `control`, `reply_to`, `control_data`, `data`,
+`error`) is never rendered as a worker or producer, so a healthy single-node
+deployment reports its real counts without a spurious "malformed worker
+entries" warning.
+
+> Note: dispatcherd's `Control` only reaches a daemon when it knows which queue
+> to publish the request to. `get_control_from_settings()` leaves that unset for
+> this project, so live state currently reports `live_available: false` even
+> with a daemon running. Database-backed sections are unaffected; wiring an
+> explicit control queue is a separate follow-up.
+
+JSON output is versioned (`schema_version: 2`) and uses window-neutral keys:
+failure counts are under `failures_in_window`, with the window in `window_hours`.
+Exit status is 0 even when findings exist; diagnostics are informational.
+
 ## Adding a New Background Task
 
 1. Implement the function in `apps/tasks/collectors/`, `cleanup/`, or
