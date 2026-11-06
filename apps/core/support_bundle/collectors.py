@@ -2,9 +2,10 @@
 
 Every collector is safe to run against a live instance: no locks are taken, no
 rows are written, and dispatcherd control calls are bounded and fail open to
-database-only data. The total dispatcherd probe budget is
-:data:`CONTROL_TOTAL_TIMEOUT_SECONDS` per collector, shared across every control
-command, so a hung or absent broker cannot stall the bundle.
+database-only data. All control commands in one collector share a single
+:data:`CONTROL_TOTAL_TIMEOUT_SECONDS` deadline, so a slow or absent broker cannot
+multiply the wait by the number of commands (broker connection setup time is
+still additional).
 """
 
 from __future__ import annotations
