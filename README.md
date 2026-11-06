@@ -202,7 +202,7 @@ effect at task execution time without restart.
 
 If system tasks are missing `_feature_flag` for metrics collection templates, run `python manage.py metrics_service init-system-tasks` to sync them.
 
-### Support and Diagnostics
+## Support and Diagnostics
 
 Three commands cover day-to-day troubleshooting on a live deployment (all
 read-only except `set-log-level`, which is temporary):
@@ -221,7 +221,6 @@ metrics-service set-log-level DEBUG --ttl 900
 The full support-engineer guide — including `oc exec` usage, expected output,
 what is redacted, and what to attach to a ticket — lives in
 [docs/support-tooling.md](docs/support-tooling.md).
-
 
 ## Development
 
@@ -521,9 +520,14 @@ metrics-service set-log-level --show            # check the active override
 metrics-service set-log-level --clear           # revert early
 ```
 
-The change is shared through the database, applies to all service processes
-within one request/task cycle, and reverts on restart to
-`METRICS_SERVICE_LOG_LEVEL`.
+The change is shared through the database. Web requests and the dispatcherd
+main process pick it up within about a second, workers when they start their
+next task, and the scheduler at its next check interval (30 s, or 60 s under
+`metrics-service run`). It expires at the TTL, and a full restart returns every
+process to the configured levels; after a partial restart (rolling update,
+scale-up, one pod killed) old and new pods can run at different levels until
+the override expires or is cleared. See
+[docs/support-tooling.md](docs/support-tooling.md).
 
 **Log Output Format:**
 
