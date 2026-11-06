@@ -46,7 +46,13 @@ New async or outbound HTTP code MUST follow the
 (`X-Request-ID`) are propagated across async task boundaries and outbound
 calls, and all log records carry a `request_id` field. Use its
 [conformance checklist](docs/trace-propagation-standard.md#conformance-checklist)
-when reviewing changes that add task submission or HTTP client code.
+when reviewing changes that add task submission or HTTP client code; record
+the filled-in result in the PR description or the Jira ticket.
+
+The standard is being adopted incrementally. Rules the current implementation
+does not yet meet are listed in
+[Known gaps](docs/trace-propagation-standard.md#known-gaps); they are tracked
+follow-ups, not exemptions for new code.
 
 ## Governance
 
