@@ -34,6 +34,12 @@ def restore_logging_state():
     logging_control.reset_throttle()
 
 
+@pytest.fixture(autouse=True)
+def disable_dispatcherd_control(settings):
+    """Keep these tests off the live dispatcherd control channel (~2 s per call)."""
+    settings.DISPATCHERD_ENABLED = False
+
+
 @pytest.mark.django_db
 def test_request_picks_up_override_after_command(client):
     call_command("set_log_level", "DEBUG", "--ttl", "60", stdout=StringIO())

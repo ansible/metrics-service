@@ -260,6 +260,79 @@ def test_notify_dispatcherd_disabled_is_noop(settings):
 
 
 @pytest.mark.django_db
+def test_notify_dispatcherd_uses_broker_compatible_config(settings, monkeypatch):
+    """Control() must receive the psycopg kwargs nested under ``config``.
+
+    ``Control.control_with_reply`` calls ``get_broker()``, which does
+    ``Broker(**broker_config)``. ``dispatcherd.brokers.pg_notify.Broker`` takes
+    the psycopg arguments as a single ``config`` dict, exactly as the YAML
+    builder writes ``config["brokers"]["pg_notify"]["config"]``. Passing them
+    flat raised ``TypeError: Broker.__init__() got an unexpected keyword
+    argument 'sslmode'``, which ``notify_dispatcherd`` swallowed at DEBUG, so
+    ``set``/``--clear`` never reached the dispatcherd main process.
+    """
+    settings.DISPATCHERD_ENABLED = True
+    import dispatcherd.control
+
+    from apps.tasks.dispatcherd_config import _postgres_connection_config
+
+    captured: dict = {}
+    expected_reply = [{"logger": "dispatcherd", "level": "DEBUG", "previous_level": "INFO"}]
+
+    class RecordingControl:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def control_with_reply(self, command, **kwargs):
+            captured["command"] = command
+            captured["reply_kwargs"] = kwargs
+            return expected_reply
+
+    monkeypatch.setattr(dispatcherd.control, "Control", RecordingControl)
+
+    assert logging_control.notify_dispatcherd("DEBUG") == expected_reply
+
+    expected_pg = _postgres_connection_config(settings.DATABASES["default"])
+    assert captured["broker_name"] == "pg_notify"
+    assert captured["queue"] == "metrics"
+    assert captured["broker_config"] == {"config": expected_pg}
+    # Flat psycopg kwargs are the bug: only the nested key is broker-compatible.
+    assert set(captured["broker_config"]) == {"config"}
+    assert captured["command"] == "set_log_level"
+    assert captured["reply_kwargs"]["data"] == {"level": "DEBUG"}
+
+    # Fail loudly here (rather than at runtime with a swallowed DEBUG message)
+    # if a future dispatcherd release changes Broker.__init__ again.
+    from dispatcherd.brokers.pg_notify import Broker
+
+    broker = Broker(**captured["broker_config"])
+    assert broker._config == expected_pg
+
+
+@pytest.mark.django_db
+def test_notify_dispatcherd_failure_is_non_fatal(settings, monkeypatch):
+    """A broken control channel must not break ``set-log-level``."""
+    settings.DISPATCHERD_ENABLED = True
+    import dispatcherd.control
+
+    def broken_control(**kwargs):
+        raise TypeError("Broker.__init__() got an unexpected keyword argument 'sslmode'")
+
+    monkeypatch.setattr(dispatcherd.control, "Control", broken_control)
+
+    logged: list[str] = []
+    monkeypatch.setattr(
+        logging_control.logger,
+        "debug",
+        lambda msg, *args: logged.append(msg % args if args else msg),
+    )
+
+    assert logging_control.notify_dispatcherd("DEBUG") is None
+
+    assert any("Could not notify dispatcherd" in line and "TypeError" in line for line in logged)
+
+
+@pytest.mark.django_db
 def test_dispatcherd_main_sync_applies_live_override():
     """The dispatcherd main-process refresh applies an active override."""
     logging_control.set_override("DEBUG", ttl_seconds=60)

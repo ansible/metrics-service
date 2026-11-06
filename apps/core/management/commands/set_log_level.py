@@ -85,7 +85,9 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             f"Web requests apply the change within ~{refresh}s. Dispatcherd workers apply it "
-            f"within ~{refresh}s or when they next start a task. The task scheduler picks it up "
+            f"within ~{refresh}s or when they next start a task. The dispatcherd main process "
+            "applies it immediately over its control channel (a TTL expiry reaches it on the "
+            "next control notification or restart). The task scheduler picks it up "
             "at its next check interval (30s by default, 60s when started via metrics-service run). "
             "Restarting the service reverts to the configured log levels."
         )

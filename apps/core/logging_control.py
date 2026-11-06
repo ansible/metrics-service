@@ -341,6 +341,23 @@ def clear_override() -> int:
     return deleted
 
 
+def dispatcherd_control_broker_config() -> dict[str, Any]:
+    """Broker kwargs for ``dispatcherd.control.Control``.
+
+    ``Control`` hands ``broker_config`` straight to ``get_broker()``, which does
+    ``Broker(**broker_config)``. ``dispatcherd.brokers.pg_notify.Broker`` takes
+    the psycopg connection arguments under a single ``config`` key, so the flat
+    psycopg kwargs must be nested exactly as the YAML builder does
+    (``config["brokers"]["pg_notify"]["config"] = pg_config``, see
+    :func:`apps.tasks.dispatcherd_config._load_config_with_django_db`). Passing
+    them flat raises ``TypeError: unexpected keyword argument 'sslmode'`` and
+    the notification never reaches the dispatcherd main process.
+    """
+    from apps.tasks.dispatcherd_config import _postgres_connection_config
+
+    return {"config": _postgres_connection_config(settings.DATABASES["default"])}
+
+
 def notify_dispatcherd(level: str) -> Any | None:
     """Best-effort immediate update of the dispatcherd main-process logger.
 
@@ -353,16 +370,12 @@ def notify_dispatcherd(level: str) -> Any | None:
     try:
         import dispatcherd.control
 
-        from apps.tasks.dispatcherd_config import _postgres_connection_config
-
-        db_config = settings.DATABASES["default"]
-        broker_config = _postgres_connection_config(db_config)
         control = dispatcherd.control.Control(
             broker_name="pg_notify",
-            broker_config=broker_config,
+            broker_config=dispatcherd_control_broker_config(),
             queue="metrics",
         )
         return control.control_with_reply("set_log_level", timeout=2, data={"level": level})
     except Exception as exc:  # noqa: BLE001 - dispatcherd may not be running
-        logger.debug("Could not notify dispatcherd of log level change: %s", exc)
+        logger.debug("Could not notify dispatcherd of log level change: %s: %s", type(exc).__name__, exc)
         return None

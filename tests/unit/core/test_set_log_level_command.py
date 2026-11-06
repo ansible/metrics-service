@@ -30,6 +30,19 @@ def restore_logging_state():
     logging_control.reset_throttle()
 
 
+@pytest.fixture(autouse=True)
+def disable_dispatcherd_control(settings):
+    """Keep command tests off the live dispatcherd control channel.
+
+    ``notify_dispatcherd`` opens a real pg_notify connection and waits out its
+    timeout when no dispatcherd service is running, so with the broker config
+    fixed these tests would each take ~2 s. The exact ``Control``/broker kwargs
+    and the non-fatal failure path are covered by
+    ``tests/unit/core/test_logging_control.py``.
+    """
+    settings.DISPATCHERD_ENABLED = False
+
+
 @pytest.mark.django_db
 def test_set_level_creates_row():
     out = StringIO()
@@ -40,6 +53,8 @@ def test_set_level_creates_row():
     assert override.set_by.startswith("cli:")
     assert override.expires_at > timezone.now() + timedelta(seconds=30)
     assert "Log level set to DEBUG" in out.getvalue()
+    # set/--clear reach the dispatcherd main process over its control channel.
+    assert "dispatcherd main process applies it immediately" in out.getvalue()
 
 
 @pytest.mark.django_db
