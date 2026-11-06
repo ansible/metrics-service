@@ -165,6 +165,32 @@ class TestOutboundHeaders:
         with request_context(request_id, VALID_TRACEPARENT):
             assert outbound_headers() == {REQUEST_ID_HEADER: request_id, TRACEPARENT_HEADER: VALID_TRACEPARENT}
 
+    @pytest.mark.parametrize(
+        "traceparent",
+        [
+            "",
+            "garbage",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7",  # missing flags
+            "00-00000000000000000000000000000000-00f067aa0ba902b7-01",  # zero trace id
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",  # zero span id
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-zz",  # bad flags
+            "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",  # forbidden version
+        ],
+    )
+    def test_invalid_traceparent_never_reaches_outbound_headers(self, traceparent):
+        """A rejected trace context is dropped, but the request ID still propagates."""
+        request_id = str(uuid.uuid4())
+        with request_context(request_id, traceparent):
+            assert current_traceparent() is None
+            assert outbound_headers() == {REQUEST_ID_HEADER: request_id}
+
+    def test_future_version_traceparent_reaches_outbound_headers(self):
+        """W3C requires accepting versions other than ff, so 01-... must survive."""
+        future = "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        request_id = str(uuid.uuid4())
+        with request_context(request_id, future):
+            assert outbound_headers()[TRACEPARENT_HEADER] == future
+
 
 @pytest.mark.unit
 class TestSingleRequestIdContextVar:

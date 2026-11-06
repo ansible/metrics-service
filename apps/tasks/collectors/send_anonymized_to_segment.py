@@ -14,6 +14,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.json_utils import json_size_bytes
+from apps.core.request_context import outbound_headers
 
 from ..utils import (
     create_task_result,
@@ -218,13 +219,19 @@ def send_to_segment(user_id: str, event_name: str, segment_data: dict, segment_m
             f"Sending data to Segment.com using StorageSegment (Size: {data_size} bytes)",
         )
 
-        # Initialize StorageSegment with configuration
-        storage = StorageSegment(
-            write_key=write_key,
-            user_id=user_id,
-            debug=getattr(settings, "DEBUG", False),
-            host=getattr(settings, "SEGMENT_URL", "") or None,
-        )
+        # Initialize StorageSegment with configuration.
+        # ``headers`` is forward-compatible: metrics-utility versions that support
+        # it merge it into the POST headers; older versions ignore the unknown
+        # setting. See docs/trace-propagation.md for the upstream prerequisite.
+        storage_settings = {
+            "write_key": write_key,
+            "user_id": user_id,
+            "debug": getattr(settings, "DEBUG", False),
+            "host": getattr(settings, "SEGMENT_URL", "") or None,
+        }
+        if propagation_headers := outbound_headers():
+            storage_settings["headers"] = propagation_headers
+        storage = StorageSegment(**storage_settings)
 
         # Send data using StorageSegment.put()
         artifact_name = f"metrics_collection_{user_id}"

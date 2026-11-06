@@ -6,12 +6,13 @@ from io import StringIO
 from ansible_base.resource_registry.tasks.sync import (
     AssignmentTuple,
     SyncExecutor,
-    create_api_client,
     create_local_assignment,
     delete_local_assignment,
     get_local_assignments,
     get_remote_assignments,
 )
+
+from apps.core.gateway_client import create_traced_api_client
 
 from ..utils import create_task_result
 
@@ -66,7 +67,7 @@ def sync_resources_from_gateway(**kwargs) -> dict:
     summary = {}
 
     try:
-        api_client = create_api_client()
+        api_client = create_traced_api_client()
         executor = SyncExecutor(api_client=api_client, sync_assignments=False, stdout=stdout)
         executor.run()
 
