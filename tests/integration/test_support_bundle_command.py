@@ -1,8 +1,10 @@
 """Integration tests for the ``support_bundle`` management command."""
 
 import json
+import stat
+import sys
 import tarfile
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 from unittest.mock import patch
 
@@ -11,11 +13,26 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.utils import timezone
 
-from apps.tasks.models import Task
+from apps.core.support_bundle import SupportBundleError, bundle
+from apps.tasks.models import DailyMetricsSummary, HourlyMetricsCollection, Task
 
 pytestmark = pytest.mark.integration
 
 EXPECTED_FILES = {"tasks.json", "ingestion.json", "queues.json", "schema.json", "settings.json"}
+
+
+class FixedDatetime(datetime):
+    """Pin the bundle timestamp so symlink/collision tests are deterministic."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls(2026, 1, 2, 3, 4, 5, tzinfo=tz or UTC)
+
+
+def _read_section(bundle_path, section):
+    with tarfile.open(bundle_path) as archive:
+        member = next(name for name in archive.getnames() if name.endswith(f"/{section}"))
+        return json.loads(archive.extractfile(member).read())
 
 
 @pytest.fixture(autouse=True)
@@ -107,7 +124,92 @@ def test_command_does_not_modify_task_rows(tmp_path):
         assert (task.status, task.modified) == before[task.pk]
 
 
-def test_cli_maps_support_bundle_to_django_command():
-    from metrics_service.cli import _DJANGO_COMMAND_MAP
+@pytest.mark.django_db
+def test_cli_resolves_support_bundle_through_the_metrics_service_command(monkeypatch, capsys):
+    """``metrics-service support-bundle`` must work via the unified command.
 
-    assert _DJANGO_COMMAND_MAP["support-bundle"] == "support_bundle"
+    ``metrics_service/cli.py`` is a framework-protected file, so the subcommand
+    is registered on ``apps.tasks.management.commands.metrics_service`` and
+    reached through the CLI's unknown-subcommand fallback.
+    """
+    from metrics_service import cli
+
+    monkeypatch.setattr(sys, "argv", ["metrics-service", "support-bundle", "--dry-run"])
+
+    assert cli.main() == 0
+
+    manifest = json.loads(capsys.readouterr().out)
+    assert [entry["name"] for entry in manifest] == [
+        "tasks.json",
+        "ingestion.json",
+        "queues.json",
+        "schema.json",
+        "settings.json",
+    ]
+
+
+@pytest.mark.django_db
+def test_metrics_service_command_writes_a_bundle(tmp_path):
+    out = StringIO()
+
+    call_command("metrics_service", "support-bundle", "--output-dir", str(tmp_path), stdout=out)
+
+    assert "Support bundle written to:" in out.getvalue()
+    assert len(list(tmp_path.glob("support-bundle-*.tar.gz"))) == 1
+
+
+@pytest.mark.django_db
+def test_tarball_is_created_with_mode_0600(tmp_path):
+    result = bundle.write_tarball(tmp_path, {"tasks.json": {"ok": True}})
+
+    assert stat.S_IMODE(result.path.stat().st_mode) == 0o600
+    assert result.path.exists()
+
+
+@pytest.mark.django_db
+def test_write_tarball_refuses_a_pre_planted_symlink(tmp_path, monkeypatch):
+    monkeypatch.setattr(bundle, "datetime", FixedDatetime)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("original")
+    (tmp_path / "support-bundle-20260102-030405.tar.gz").symlink_to(victim)
+
+    with pytest.raises(SupportBundleError, match="symlink"):
+        bundle.write_tarball(tmp_path, {"tasks.json": {"ok": True}})
+
+    assert victim.read_text() == "original"
+
+
+@pytest.mark.django_db
+def test_second_bundle_in_the_same_second_gets_a_suffix(tmp_path, monkeypatch):
+    monkeypatch.setattr(bundle, "datetime", FixedDatetime)
+
+    first = bundle.write_tarball(tmp_path, {"tasks.json": {"ok": 1}})
+    second = bundle.write_tarball(tmp_path, {"tasks.json": {"ok": 2}})
+
+    assert first.path.name == "support-bundle-20260102-030405.tar.gz"
+    assert second.path.name == "support-bundle-20260102-030405-2.tar.gz"
+    assert first.path.read_bytes() != second.path.read_bytes()
+
+
+@pytest.mark.django_db
+def test_tarball_redacts_secrets_from_error_messages(tmp_path):
+    """End-to-end: DB error text with a token/DSN must not reach the tarball."""
+    HourlyMetricsCollection.objects.create(
+        collector_type="unified_jobs",
+        collection_timestamp=timezone.now(),
+        status="failed",
+        error_message="failed to POST https://segment/api?token=abc123 (401)",
+    )
+    DailyMetricsSummary.objects.create(
+        summary_date=timezone.now().date(),
+        status="failed",
+        hourly_collections_count=0,
+        error_message="curl --password=hunter2 --user=admin",
+    )
+
+    result = bundle.write_tarball(tmp_path)
+
+    payload = json.dumps(_read_section(result.path, "ingestion.json"))
+    assert "abc123" not in payload
+    assert "hunter2" not in payload
+    assert "failed to POST" in payload

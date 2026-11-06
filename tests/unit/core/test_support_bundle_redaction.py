@@ -66,12 +66,60 @@ def test_url_userinfo_is_redacted_under_innocuous_key():
     assert summary["redacted_paths"] == ["BROKER_URL"]
 
 
+@pytest.mark.parametrize(
+    ("dsn", "expected"),
+    [
+        ("redis://:redispw@cache:6379/0", "redis://**REDACTED**@cache:6379/0"),
+        ("postgres://:pgpw@db:5432/metrics", "postgres://**REDACTED**@db:5432/metrics"),
+        ("amqp://:mqpw@broker:5672/vhost", "amqp://**REDACTED**@broker:5672/vhost"),
+        ("postgresql://metrics_user:s3cr3t@db/x", "postgresql://**REDACTED**@db/x"),
+        ("redis://cache:6379/0", "redis://cache:6379/0"),
+    ],
+)
+def test_url_userinfo_is_redacted_for_every_userinfo_form(dsn, expected):
+    """Password-only DSNs (``scheme://:pw@host``) must not survive redaction."""
+    redacted, summary = redact_settings({"CACHE": {"LOCATION": dsn}})
+
+    assert redacted["CACHE"]["LOCATION"] == expected
+    for secret in ("redispw", "pgpw", "mqpw", "s3cr3t"):
+        assert secret not in str(redacted)
+    assert summary["redacted_key_count"] == (0 if expected == dsn else 1)
+
+
 def test_authorization_header_values_are_redacted():
     data = {"header": "Bearer abc.def.ghi"}
 
     redacted, _ = redact_settings(data)
 
     assert redacted["header"] == "Bearer **REDACTED**"
+
+
+def test_authorization_header_is_redacted_in_the_middle_of_a_string():
+    data = {"detail": "request failed with Authorization: Bearer abc.def.ghi"}
+
+    redacted, _ = redact_settings(data)
+
+    assert redacted["detail"] == "request failed with Authorization: Bearer **REDACTED**"
+
+
+@pytest.mark.parametrize(
+    ("payload", "secret"),
+    [
+        ("failed to POST https://segment/api?token=abc123 (401)", "abc123"),
+        ("curl --password=hunter2 --user=admin", "hunter2"),
+        ("SEGMENT_WRITE_KEY=abc123", "abc123"),
+        ("API_KEY = 'abc123'", "abc123"),
+        ("databases:\n  default:\n    password: abc123", "abc123"),
+        ("https://api.segment.io/v1/batch?access_token=abc123", "abc123"),
+    ],
+)
+def test_secret_key_value_pairs_are_redacted_in_free_text(payload, secret):
+    """Error messages carry ``?token=``/``--password=``/``KEY=`` shapes verbatim."""
+    redacted, summary = redact_settings({"error_message": payload})
+
+    assert secret not in str(redacted)
+    assert redacted["error_message"] != payload
+    assert summary["redacted_paths"] == ["error_message"]
 
 
 def test_redaction_summary_contains_paths_but_no_values():

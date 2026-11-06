@@ -12,7 +12,6 @@ Usage:
   metrics-service init-service-id
   metrics-service init-system-tasks [--list]
   metrics-service tasks create|list|show|cancel|retry ...
-  metrics-service support-bundle [--output-dir PATH] [--dry-run]
 """
 
 import os
@@ -27,7 +26,6 @@ _DJANGO_COMMAND_MAP = {
     "scheduler": "run_task_scheduler",
     "run_dispatcherd": "run_dispatcherd",
     "run_task_scheduler": "run_task_scheduler",
-    "support-bundle": "support_bundle",
 }
 
 # Subcommands that go to the metrics_service management command.

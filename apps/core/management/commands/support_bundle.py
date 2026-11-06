@@ -6,8 +6,12 @@ Usage::
 
 Writes a ``support-bundle-YYYYMMDD-HHMMSS.tar.gz`` containing exactly
 ``tasks.json``, ``ingestion.json``, ``queues.json``, ``schema.json`` and
-``settings.json``. The command never takes locks and never writes outside the
-output tarball, so it is safe to run on a live instance.
+``settings.json``. Every section is redacted before serialisation.
+
+The command never takes locks and never writes outside the output tarball, so it
+is safe to run on a live instance. The tarball is created with mode ``0600`` and
+``O_CREAT | O_EXCL``: an existing file or a pre-planted symlink is never
+overwritten (a same-second run gets a ``-2`` suffix instead).
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.core.support_bundle import build_bundle, manifest, write_tarball
+from apps.core.support_bundle import SupportBundleError, build_bundle, manifest, write_tarball
 
 
 class Command(BaseCommand):
@@ -27,7 +31,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--output-dir",
             default=None,
-            help="Directory to write the tarball into (default: current working directory).",
+            help=(
+                "Directory to write the tarball into. Created files are 0600; existing files are never "
+                "overwritten. Defaults to the current working directory."
+            ),
         )
         parser.add_argument(
             "--dry-run",
@@ -42,8 +49,10 @@ class Command(BaseCommand):
                 self.stdout.write(json.dumps(manifest(build_bundle()), indent=2))
                 return None
 
-            output_dir = options["output_dir"] or Path.cwd()
+            output_dir = Path(options["output_dir"]).expanduser() if options["output_dir"] else Path.cwd()
             result = write_tarball(output_dir)
+        except SupportBundleError as exc:
+            raise CommandError(str(exc)) from exc
         except CommandError:
             raise
         except Exception as exc:  # noqa: BLE001 - surface a clean error, never a traceback

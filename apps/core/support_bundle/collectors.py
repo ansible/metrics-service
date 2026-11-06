@@ -2,7 +2,9 @@
 
 Every collector is safe to run against a live instance: no locks are taken, no
 rows are written, and dispatcherd control calls are bounded and fail open to
-database-only data.
+database-only data. The total dispatcherd probe budget is
+:data:`CONTROL_TOTAL_TIMEOUT_SECONDS` per collector, shared across every control
+command, so a hung or absent broker cannot stall the bundle.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ import importlib.metadata
 import os
 import platform
 import socket
+import time
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -42,7 +45,23 @@ except ImportError:  # pragma: no cover
     get_control_from_settings = None
 
 DEFAULT_TASK_TIMEOUT = 3600
+#: Per-command wait, and the shared budget for all control commands in one collector.
 CONTROL_TIMEOUT_SECONDS = 2
+CONTROL_TOTAL_TIMEOUT_SECONDS = 5
+
+#: Ask for replies from every dispatcherd node; the timeout, not this number, is
+#: the real bound (a single-node deployment simply waits out the command timeout).
+MAX_CONTROL_REPLIES = 64
+
+#: Keys dispatcherd puts in a reply to identify the node that sent it. They are
+#: reported separately in ``nodes`` so multi-node payloads do not overwrite them.
+NODE_ID_KEYS = ("node_id", "node", "hostname")
+
+#: Keys present in an echo of the control *request* (``{"control": ...,
+#: "reply_to": ...}``). A payload carrying nothing else is not evidence that a
+#: worker or producer is alive, so it must not make ``available`` true.
+CONTROL_ECHO_KEYS = frozenset({"control", "reply_to", "data"})
+
 MAX_TASK_ROWS = 500
 MAX_HISTORY_ROWS = 100
 MAX_DAILY_SUMMARIES = 30
@@ -81,16 +100,94 @@ def collect_meta() -> dict:
     }
 
 
-def _control_reply(command: str, timeout: int = CONTROL_TIMEOUT_SECONDS) -> dict:
-    """Send one bounded dispatcherd control command and return its reply payload."""
+def _normalise_reply(reply: Any) -> dict:
+    return reply if isinstance(reply, dict) else {"result": reply}
+
+
+def _is_state_reply(reply: dict) -> bool:
+    """False for a bare echo of the control request (no node state at all)."""
+    return bool(set(reply) - CONTROL_ECHO_KEYS)
+
+
+def _probe_control(
+    commands: tuple[str, ...],
+    timeout: float = CONTROL_TIMEOUT_SECONDS,
+    total_timeout: float = CONTROL_TOTAL_TIMEOUT_SECONDS,
+) -> dict[str, list[dict]]:
+    """Send *commands* over one control connection and collect **every** reply.
+
+    All commands share a single deadline of *total_timeout* seconds, so a dead
+    broker costs at most that once per collector instead of ``len(commands) *
+    timeout``. ``expected_replies`` is set high so multi-node deployments return
+    one reply per node rather than silently reporting only the first; the
+    per-command *timeout* is what actually bounds the wait.
+
+    Returns ``{command: [reply, ...]}``; a command that could not start before
+    the deadline maps to an empty list. Bare control-request echoes are dropped
+    so they cannot be mistaken for a live node.
+    """
     if get_control_from_settings is None:  # pragma: no cover
         raise RuntimeError("dispatcherd is not available")
     control = get_control_from_settings()
-    replies = control.control_with_reply(command, timeout=timeout)
-    if not replies:
-        return {}
-    reply = replies[0]
-    return reply if isinstance(reply, dict) else {"result": reply}
+    deadline = time.monotonic() + total_timeout
+    replies: dict[str, list[dict]] = {}
+    for command in commands:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            replies[command] = []
+            continue
+        raw = control.control_with_reply(
+            command,
+            expected_replies=MAX_CONTROL_REPLIES,
+            timeout=min(timeout, remaining),
+        )
+        replies[command] = [reply for reply in map(_normalise_reply, raw or []) if _is_state_reply(reply)]
+    return replies
+
+
+def _merge_replies(replies: list[dict]) -> dict:
+    """Merge per-node reply mappings into one mapping (first node wins a clash)."""
+    merged: dict = {}
+    for reply in replies:
+        for key, value in reply.items():
+            if key in NODE_ID_KEYS:
+                continue
+            merged.setdefault(str(key), value)
+    return merged
+
+
+def _node_ids(replies: dict[str, list[dict]]) -> list[str]:
+    """Sorted node identifiers seen in any reply (empty when the nodes omit them)."""
+    nodes: set[str] = set()
+    for reply_list in replies.values():
+        for reply in reply_list:
+            for key in NODE_ID_KEYS:
+                value = reply.get(key)
+                if isinstance(value, str) and value:
+                    nodes.add(value)
+    return sorted(nodes)
+
+
+def _dispatcherd_state(replies: dict[str, list[dict]]) -> dict:
+    """Summarise a probe: availability, node count, and per-command reply counts.
+
+    ``available`` is only true when dispatcherd actually answered something --
+    an absent daemon returns ``[]`` from the broker after the timeout without
+    raising, which must not be reported as a healthy idle system.
+    """
+    reply_counts = {command: len(reply_list) for command, reply_list in replies.items()}
+    nodes = _node_ids(replies)
+    available = any(reply_counts.values())
+    state: dict[str, Any] = {
+        "available": available,
+        "partial": available and any(count == 0 for count in reply_counts.values()),
+        "nodes": nodes,
+        "node_count": len(nodes),
+        "reply_counts": reply_counts,
+    }
+    if not available:
+        state["error"] = "no replies from dispatcherd (control timeout)"
+    return state
 
 
 def _dispatcherd_uuid_by_function(running: dict) -> dict[str, str]:
@@ -145,11 +242,23 @@ def collect_tasks() -> dict:
     running: dict = {}
     try:
         ensure_dispatcherd_configured()
-        running = _control_reply("running")
-        workers = _control_reply("workers")
-        dispatcherd = {"available": True, "running": running, "workers": workers}
+        replies = _probe_control(("running", "workers"))
+        running = _merge_replies(replies["running"])
+        dispatcherd = {
+            "running": running,
+            "workers": _merge_replies(replies["workers"]),
+            **_dispatcherd_state(replies),
+        }
     except Exception as exc:  # noqa: BLE001 - never fail the bundle on control errors
-        dispatcherd = {"available": False, "error": f"{type(exc).__name__}: {exc}"}
+        dispatcherd = {
+            "available": False,
+            "partial": False,
+            "nodes": [],
+            "node_count": 0,
+            "error": f"{type(exc).__name__}: {exc}",
+            "running": {},
+            "workers": {},
+        }
 
     tasks = list(Task.objects.filter(status__in=["pending", "running"]).order_by("id")[:MAX_TASK_ROWS])
     worker_ids = _open_worker_ids([task.pk for task in tasks])
@@ -298,22 +407,27 @@ def collect_queues() -> dict:
     live: dict = {"available": False}
     try:
         ensure_dispatcherd_configured()
-        running = _control_reply("running")
-        workers = _control_reply("workers")
-        producers = _control_reply("producers")
-        queued = sum(1 for key in running if key.startswith("queued-"))
-        blocked = sum(1 for key in running if key.startswith("blocked-"))
-        delayed = sum(1 for key in running if key.startswith("delayed-"))
+        replies = _probe_control(("running", "workers", "producers"))
+        running_replies = replies["running"]
+        queued = sum(1 for reply in running_replies for key in reply if str(key).startswith("queued-"))
+        blocked = sum(1 for reply in running_replies for key in reply if str(key).startswith("blocked-"))
+        delayed = sum(1 for reply in running_replies for key in reply if str(key).startswith("delayed-"))
         live = {
-            "available": True,
             "queued": queued,
             "blocked": blocked,
             "delayed": delayed,
-            "workers": workers,
-            "producers": producers,
+            "workers": _merge_replies(replies["workers"]),
+            "producers": _merge_replies(replies["producers"]),
+            **_dispatcherd_state(replies),
         }
     except Exception as exc:  # noqa: BLE001 - control errors fall back to DB-only data
-        live = {"available": False, "error": f"{type(exc).__name__}: {exc}"}
+        live = {
+            "available": False,
+            "partial": False,
+            "nodes": [],
+            "node_count": 0,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
     return {
         "queues": [{"name": name, "db_pending": counts.get(name, 0)} for name in ordered_queues],

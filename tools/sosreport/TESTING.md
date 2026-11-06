@@ -25,20 +25,23 @@ add a wrapper or run sos from the service's virtualenv.
 
 After the report is extracted:
 
-1. The plugin's directory exists in the report:
-   `sosreport-*/sos_commands/metrics_service/` and
-   `sosreport-*/etc/ansible-automation-platform/metrics_service/`.
+1. Only the configuration override files are present in the report:
+   `sosreport-*/etc/ansible-automation-platform/metrics_service/` contains just
+   `settings.*`, `*.yaml`, `*.yml`, `*.toml`, `*.json`, `*.conf`, `*.ini` and
+   `.env` (not the whole directory), plus
+   `sosreport-*/sos_commands/metrics_service/`.
 2. The forbidden Segment key is absent:
    `test ! -e sosreport-*/etc/ansible-automation-platform/metrics/segment-write-key`
+   as is any `*.key`/`*.pem`/`*secret*`/`*credential*`/`*token*` file.
 3. No secret values survive in collected settings overrides:
    ```bash
-   grep -rE "SECRET_KEY|PASSWORD|RESOURCE_SERVER__SECRET_KEY|SEGMENT_WRITE_KEY" \
+   grep -rEi "PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|CREDENTIAL|PRIVATE_?KEY|AUTH" \
        sosreport-*/etc/ansible-automation-platform/metrics_service/ \
      | grep -v '\*\*\*\*\*\*\*\*'
    ```
-   This should produce no output. Assignments are replaced with `********`
-   regardless of spacing or quote style (`KEY='...'`, `KEY = "..."`,
-   `KEY = '''...'''`).
+   This should produce no output. Values are replaced with `********` for both
+   `key=value` and `key: value`, quoted or unquoted (`KEY='...'`,
+   `KEY = "..."`, `SECRET_KEY=abc`, `password: abc`, `AUTH_TOKEN=abc`).
 4. The dry-run manifest was captured under
    `sosreport-*/sos_commands/metrics_service/` (the
    `metrics-service support-bundle --dry-run` command output), and no tarball
