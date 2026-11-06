@@ -520,14 +520,17 @@ metrics-service set-log-level --show            # check the active override
 metrics-service set-log-level --clear           # revert early
 ```
 
-The change is shared through the database. Web requests and the dispatcherd
-main process pick it up within about a second, workers when they start their
-next task, and the scheduler at its next check interval (30 s, or 60 s under
-`metrics-service run`). It expires at the TTL, and a full restart returns every
-process to the configured levels; after a partial restart (rolling update,
-scale-up, one pod killed) old and new pods can run at different levels until
-the override expires or is cleared. See
-[docs/support-tooling.md](docs/support-tooling.md).
+The change is shared through the database. Web requests pick it up within about
+a second, dispatcherd workers within about a second while idle or when they next
+start a task, and the scheduler at its next check interval (30 s, or 60 s under
+`metrics-service run`). The dispatcherd main process is the exception: the
+immediate notify is currently broken and a TTL expiry is never pushed to it, so
+its own logger only changes when that process restarts. It expires at the TTL,
+and a full restart returns every process to the configured levels; after a
+partial restart (rolling update, scale-up, one pod killed) old and new pods can
+run at different levels until the override expires or is cleared. See
+[docs/support-tooling.md](docs/support-tooling.md) for the propagation table and
+the limitation.
 
 **Log Output Format:**
 
