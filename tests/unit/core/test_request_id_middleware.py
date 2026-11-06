@@ -7,15 +7,19 @@ from django.http import HttpResponse
 from django.test import RequestFactory
 
 from apps.core.middleware.request_id import RequestIdMiddleware
-from apps.core.request_context import current_request_id
+from apps.core.request_context import current_request_id, current_traceparent, origin_var
+
+VALID_TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
 def _make_middleware():
-    """Build a middleware with a get_response that records the active request ID."""
+    """Build a middleware with a get_response that records the active context."""
     captured = {}
 
     def get_response(request):
         captured["request_id"] = current_request_id()
+        captured["traceparent"] = current_traceparent()
+        captured["origin"] = origin_var.get()
         captured["request_attr"] = getattr(request, "request_id", None)
         return HttpResponse("ok")
 
@@ -64,3 +68,30 @@ class TestRequestIdMiddleware:
         middleware(RequestFactory().get("/", HTTP_X_REQUEST_ID=str(uuid.uuid4())))
 
         assert current_request_id() is None
+        assert current_traceparent() is None
+        assert origin_var.get() is None
+
+    def test_records_http_origin(self):
+        middleware, captured = _make_middleware()
+
+        middleware(RequestFactory().get("/"))
+
+        assert captured["origin"] == "http"
+
+    def test_binds_valid_traceparent(self):
+        middleware, captured = _make_middleware()
+        request = RequestFactory().get("/", HTTP_TRACEPARENT=VALID_TRACEPARENT)
+
+        middleware(request)
+
+        assert captured["traceparent"] == VALID_TRACEPARENT
+        assert current_traceparent() is None
+
+    def test_drops_malformed_traceparent(self):
+        middleware, captured = _make_middleware()
+        request = RequestFactory().get("/", HTTP_TRACEPARENT="not-a-traceparent")
+
+        response = middleware(request)
+
+        assert captured["traceparent"] is None
+        assert uuid.UUID(response["X-Request-ID"])
