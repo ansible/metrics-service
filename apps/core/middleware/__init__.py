@@ -1,5 +1,11 @@
 from .api_root_view import APIRootViewMiddleware
+from .log_level import LogLevelMiddleware
 from .null_byte import NullByteQueryParamMiddleware
 from .service_prefix import ServicePrefixMiddleware
 
-__all__ = ["ServicePrefixMiddleware", "APIRootViewMiddleware", "NullByteQueryParamMiddleware"]
+__all__ = [
+    "ServicePrefixMiddleware",
+    "APIRootViewMiddleware",
+    "NullByteQueryParamMiddleware",
+    "LogLevelMiddleware",
+]
