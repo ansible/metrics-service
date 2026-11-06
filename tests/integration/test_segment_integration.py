@@ -76,3 +76,4 @@ class TestSegmentIntegration(TestCase):
         assert len(captured) >= 1
         batch = captured[0]["body"]["batch"]
         assert batch[0]["properties"]["data"]["host_count"] == 10
+        assert batch[0]["properties"]["version"] == "v1"
