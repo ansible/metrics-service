@@ -6,6 +6,8 @@ management command including all execution paths and error handling.
 """
 
 import builtins
+import signal
+import threading
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
@@ -493,3 +495,115 @@ def test_handle_closes_db_connections_when_startup_sync_fails():
         command.handle(**_handle_options())
 
     mock_close.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Fork model (AAP-79584): the refresh thread belongs to worker children only
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def log_level_thread():
+    """Guarantee a clean, stopped refresh thread before and after a test."""
+    from apps.core import logging_control
+
+    logging_control.stop_refresh_thread()
+    yield logging_control
+    logging_control.stop_refresh_thread()
+
+
+@pytest.fixture
+def restore_signal_handlers():
+    """Undo the signal handlers TaskWorker installs for its own process."""
+    saved = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGUSR1)}
+    yield
+    for sig, handler in saved.items():
+        signal.signal(sig, handler)
+
+
+@pytest.mark.unit
+def test_handle_does_not_start_refresh_thread_in_parent(log_level_thread):
+    """The pre-fork parent must not have a DB-touching thread when it forks.
+
+    This is the regression guard for the fork-safety risk: dispatcherd calls
+    ``run_service()`` which forks the worker pool, so a thread started in
+    ``handle()`` would be running (and possibly mid-query) at fork time. The old
+    implementation started ``runtime-log-level-sync`` here; this test fails if
+    that comes back.
+    """
+    command = Command()
+    command.stdout = StringIO()
+
+    with (
+        patch("apps.core.logging_control.sync_dispatcherd_log_level"),
+        patch("builtins.__import__", side_effect=_dispatcherd_import_side_effect(MagicMock())),
+        patch(
+            "apps.core.logging_control.start_refresh_thread",
+            wraps=log_level_thread.start_refresh_thread,
+        ) as mock_start,
+    ):
+        command.handle(**_handle_options())
+
+    mock_start.assert_not_called()
+    assert log_level_thread.active_refresh_thread() is None
+    assert log_level_thread.REFRESH_THREAD_NAME not in [t.name for t in threading.enumerate()]
+
+
+@pytest.mark.unit
+def test_worker_child_starts_refresh_thread_after_fork(log_level_thread, restore_signal_handlers):
+    """dispatcherd's post-fork hook starts the thread, and shutdown stops it.
+
+    ``os.fork()`` is not reproducible inside pytest, so the fork boundary is
+    modelled by calling ``on_start()`` directly: ``dispatcherd.worker.target.work_loop``
+    calls nothing but ``worker.on_start()`` first in the child, after
+    ``multiprocessing`` has forked it. Proves (a) the worker bootstraps the
+    refresh thread, i.e. every child gets one, (b) it is a real live thread in
+    this process, and (c) ``on_shutdown()`` leaves nothing behind. It does not
+    prove the OS-level fork ordering; the parent-side assertion above covers
+    the "nothing to inherit" half of that.
+    """
+    from apps.tasks.dispatcherd_worker import LogLevelSyncWorker
+
+    worker = LogLevelSyncWorker(worker_id=0, message_queue=MagicMock(), finished_queue=MagicMock())
+    assert log_level_thread.active_refresh_thread() is None, "premise: child starts without a thread"
+
+    worker.on_start()
+    thread = log_level_thread.active_refresh_thread()
+    assert thread is not None
+    assert thread.is_alive()
+    assert thread.name == log_level_thread.REFRESH_THREAD_NAME
+    assert thread.daemon is True
+
+    # A second bootstrap must not create a second poller.
+    worker.on_start()
+    assert log_level_thread.active_refresh_thread() is thread
+
+    worker.on_shutdown()
+    assert log_level_thread.active_refresh_thread() is None
+
+
+@pytest.mark.unit
+def test_refresh_thread_loop_applies_log_level(log_level_thread, monkeypatch):
+    """The thread polls the shared apply point, so an idle worker still updates."""
+    applied = threading.Event()
+
+    def fake_sync():
+        applied.set()
+        return "DEBUG"
+
+    monkeypatch.setattr(log_level_thread, "sync_dispatcherd_log_level", fake_sync)
+    monkeypatch.setattr(log_level_thread, "refresh_interval_seconds", lambda: 0.01)
+
+    thread = log_level_thread.start_refresh_thread()
+    assert thread is not None
+    assert applied.wait(5.0), "the refresh loop never called sync_dispatcherd_log_level"
+    assert thread.is_alive()
+
+    log_level_thread.stop_refresh_thread()
+    assert log_level_thread.active_refresh_thread() is None
+
+
+@pytest.mark.unit
+def test_stop_refresh_thread_is_safe_without_a_thread(log_level_thread):
+    """Shutdown paths must be idempotent."""
+    log_level_thread.stop_refresh_thread()
+    log_level_thread.stop_refresh_thread()
+    assert log_level_thread.active_refresh_thread() is None

@@ -2,14 +2,20 @@
 Django management command to run dispatcherd worker processes.
 
 This command starts dispatcherd workers to process background tasks from the database.
+
+Fork model (AAP-79584): dispatcherd creates the worker pool with
+``multiprocessing``'s ``fork`` context, so this process must not hold a database
+connection *or* a database-touching thread when it calls
+``dispatcherd.run_service()``. The runtime log level is therefore applied once,
+synchronously, before the fork (and its connection closed), and the periodic
+refresh thread is started by each forked worker child through
+:class:`apps.tasks.dispatcherd_worker.LogLevelSyncWorker`.
 """
 
 import logging
 import os
 import sys
-import threading
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -63,8 +69,10 @@ class Command(BaseCommand):
             # Setup dispatcherd configuration
             setup_dispatcherd_config()
 
-            # Apply any active runtime log level override for the dispatcherd
-            # main process before it starts accepting work.
+            # Apply any active runtime log level override for this process before
+            # it starts accepting work. This is the only database access the
+            # parent performs, it is synchronous, and its connection is closed
+            # below before dispatcherd forks the worker pool.
             try:
                 from apps.core.logging_control import sync_dispatcherd_log_level
 
@@ -92,23 +100,14 @@ class Command(BaseCommand):
                 )
             )
 
-            # The main process has no request/task boundary, so reconcile the
-            # runtime log level in the background; this is how clears and TTL
-            # expiry reach the dispatcherd logger (AAP-79584).
-            stop_event = threading.Event()
-            sync_thread = threading.Thread(
-                target=self._log_level_sync_loop,
-                args=(stop_event,),
-                name="runtime-log-level-sync",
-                daemon=True,
-            )
-            sync_thread.start()
+            # NOTE: do not start any thread here. run_service() forks the worker
+            # pool, and a thread polling the database pre-fork would hand every
+            # child a socket shared with this process. The refresh thread is
+            # started per child in LogLevelSyncWorker.on_start() instead
+            # (see apps/tasks/dispatcherd_worker.py).
 
             # Start dispatcherd service
-            try:
-                dispatcherd.run_service()
-            finally:
-                stop_event.set()
+            dispatcherd.run_service()
 
         except ImportError as e:
             self.stdout.write(self.style.ERROR(f"Failed to import dispatcherd: {e}"))
@@ -116,18 +115,3 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Failed to start dispatcherd: {e}"))
             sys.exit(1)
-
-    @staticmethod
-    def _log_level_sync_loop(stop_event: threading.Event) -> None:
-        """Reconcile the runtime log level in the dispatcherd main process."""
-        interval = float(getattr(settings, "RUNTIME_LOG_LEVEL_REFRESH_SECONDS", 1) or 1)
-        interval = max(interval, 1.0)
-        while not stop_event.wait(interval):
-            try:
-                # Imported in the loop so a failure (or a mocked import in
-                # tests) is caught instead of killing the thread.
-                from apps.core.logging_control import sync_dispatcherd_log_level
-
-                sync_dispatcherd_log_level()
-            except Exception as exc:  # noqa: BLE001 - never kill the sync loop
-                logger.debug(f"Runtime log level sync skipped: {exc}")

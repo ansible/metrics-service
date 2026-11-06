@@ -7,7 +7,9 @@ channel; each process applies it at a bounded refresh point:
 
 * web requests   -> :class:`apps.core.middleware.LogLevelMiddleware`
 * scheduler loop -> ``UnifiedTaskScheduler._periodic_database_sync``
-* task workers   -> ``execute_db_task``
+* task workers   -> ``execute_db_task`` and, so idle workers also notice a
+  clear or TTL expiry, a refresh thread started *after* dispatcherd forks the
+  worker pool (see :func:`start_refresh_thread`)
 
 The override is ephemeral by design:
 
@@ -29,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from datetime import UTC, timedelta
 from typing import Any
@@ -60,6 +63,13 @@ _APPLIED_LEVEL: str | None = None
 # ``django``/``metrics_service``/``ansible_base`` to DEBUG, and deployments may
 # silence ``django.db.backends`` with ``LOGGING__loggers__*__level``).
 _BASELINE_LEVELS: dict[str, int] = {}
+
+# The dispatcherd *worker* refresh thread. Each forked worker owns exactly one
+# thread; the dispatcherd parent never starts one (see start_refresh_thread).
+_REFRESH_THREAD: threading.Thread | None = None
+_REFRESH_STOP_EVENT: threading.Event | None = None
+_REFRESH_THREAD_LOCK = threading.Lock()
+REFRESH_THREAD_NAME = "runtime-log-level-sync"
 
 BASELINE_LEVEL = str(getattr(settings, "LOG_LEVEL", "INFO") or "INFO").upper()
 
@@ -221,12 +231,13 @@ def sync_from_db(respect_process_start: bool = True, force: bool = False) -> str
 
 
 def sync_dispatcherd_log_level() -> str | None:
-    """One refresh cycle for the dispatcherd main process.
+    """One refresh cycle for a dispatcherd process.
 
-    The main process has no request or task boundary, so :mod:`run_dispatcherd`
-    calls this from a background loop. That is what makes clears and TTL
-    expiry propagate to the dispatcherd logger; without it the main process
-    would keep a level applied at startup indefinitely.
+    dispatcherd processes have no request boundary of their own: the worker
+    pool children run :func:`start_refresh_thread`, and each task entry also
+    calls :func:`sync_from_db`. That is what makes clears and TTL expiry
+    propagate to the dispatcherd logger; without it a level applied at startup
+    would persist indefinitely.
     """
     from django.db import close_old_connections, connection
 
@@ -235,6 +246,70 @@ def sync_dispatcherd_log_level() -> str | None:
     if not connection.in_atomic_block:
         close_old_connections()
     return sync_from_db(force=True)
+
+
+def refresh_interval_seconds() -> float:
+    """Refresh interval for the worker thread, never below one second."""
+    interval = float(getattr(settings, "RUNTIME_LOG_LEVEL_REFRESH_SECONDS", 1) or 1)
+    return max(interval, 1.0)
+
+
+def _refresh_loop(stop_event: threading.Event) -> None:
+    """Reconcile the runtime log level until ``stop_event`` is set."""
+    interval = refresh_interval_seconds()
+    while not stop_event.wait(interval):
+        try:
+            sync_dispatcherd_log_level()
+        except Exception as exc:  # noqa: BLE001 - never kill the sync loop
+            logger.debug("Runtime log level sync skipped: %s", exc)
+
+
+def start_refresh_thread(name: str = REFRESH_THREAD_NAME) -> threading.Thread | None:
+    """Start this process's log-level refresh thread (idempotent).
+
+    Call this **only after a dispatcherd worker child has been forked**. The
+    thread polls the database, and dispatcherd creates its worker pool with
+    ``multiprocessing``'s ``fork`` context: a thread living in the parent at
+    that moment leaves the child sharing the parent's in-flight socket, which is
+    the exact fork-safety bug ``connections.close_all()`` in ``run_dispatcherd``
+    exists to prevent. :class:`apps.tasks.dispatcherd_worker.LogLevelSyncWorker`
+    calls this from ``on_start()``, dispatcherd's post-fork hook.
+
+    Returns the running thread, or ``None`` when the current process already has
+    one (so repeat calls are harmless).
+    """
+    global _REFRESH_THREAD, _REFRESH_STOP_EVENT
+
+    with _REFRESH_THREAD_LOCK:
+        if _REFRESH_THREAD is not None and _REFRESH_THREAD.is_alive():
+            return None
+        stop_event = threading.Event()
+        thread = threading.Thread(target=_refresh_loop, args=(stop_event,), name=name, daemon=True)
+        thread.start()
+        _REFRESH_THREAD = thread
+        _REFRESH_STOP_EVENT = stop_event
+        logger.debug("Started runtime log level refresh thread %s", name)
+        return thread
+
+
+def stop_refresh_thread(timeout: float = 5.0) -> None:
+    """Stop this process's refresh thread, if any."""
+    global _REFRESH_THREAD, _REFRESH_STOP_EVENT
+
+    with _REFRESH_THREAD_LOCK:
+        thread, stop_event = _REFRESH_THREAD, _REFRESH_STOP_EVENT
+        _REFRESH_THREAD = None
+        _REFRESH_STOP_EVENT = None
+    if stop_event is not None:
+        stop_event.set()
+    if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+        thread.join(timeout)
+
+
+def active_refresh_thread() -> threading.Thread | None:
+    """Return the running refresh thread for this process, if there is one."""
+    thread = _REFRESH_THREAD
+    return thread if thread is not None and thread.is_alive() else None
 
 
 def set_override(level: str, ttl_seconds: int | None = None, actor: str = "cli"):

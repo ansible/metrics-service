@@ -29,6 +29,12 @@ service:
     max_retries: 3
     retry_delay: 30 # 30 seconds between retries
 
+# Worker class. Worker children are forked by the dispatcherd service process, so
+# the runtime log level refresh thread is started post-fork in each child
+# (on_start) rather than in the parent (AAP-79584).
+worker:
+  worker_cls: 'apps.tasks.dispatcherd_worker.LogLevelSyncWorker'
+
 # Logging configuration
 logging:
   level: INFO

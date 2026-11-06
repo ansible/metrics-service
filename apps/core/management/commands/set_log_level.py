@@ -84,10 +84,10 @@ class Command(BaseCommand):
             )
         )
         self.stdout.write(
-            "Web requests and the dispatcherd main process apply the change within "
-            f"~{refresh}s; dispatcherd workers do so when they next start a task. The task "
-            "scheduler picks it up at its next check interval (30s by default, 60s when "
-            "started via metrics-service run). Restarting the service reverts to the configured log levels."
+            f"Web requests apply the change within ~{refresh}s. Dispatcherd workers apply it "
+            f"within ~{refresh}s or when they next start a task. The task scheduler picks it up "
+            "at its next check interval (30s by default, 60s when started via metrics-service run). "
+            "Restarting the service reverts to the configured log levels."
         )
 
     def _show(self):
@@ -105,8 +105,10 @@ class Command(BaseCommand):
 
     def _clear(self, local: bool = False):
         deleted = logging_control.clear_override()
-        # Tell dispatcherd to restore its main-process logger immediately;
-        # without this it would keep the old level until its next refresh.
+        # Tell dispatcherd to restore its main-process logger immediately. The
+        # dispatcherd main process has no polling thread (only forked worker
+        # children do, for fork safety), so without this it would keep the old
+        # level until it restarts.
         logging_control.notify_dispatcherd(logging_control.BASELINE_LEVEL)
         if local:
             logging_control.revert()
