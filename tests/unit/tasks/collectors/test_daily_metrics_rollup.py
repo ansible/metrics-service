@@ -167,34 +167,28 @@ def test_raw_only_collectors_are_not_processed_by_rollup(monkeypatch):
     """Raw analytics collectors should not be included in anonymized rollups."""
     import importlib
 
+    from apps.tasks.collectors.collect_daily_metrics import _get_daily_collectors
+    from apps.tasks.collectors.collect_hourly_metrics import _get_hourly_collectors
+    from apps.tasks.collectors.collect_snapshot_metrics import _get_snapshot_collectors
+
     rollup_module = importlib.import_module("apps.tasks.collectors.daily_metrics_rollup")
     monkeypatch.setattr(
         rollup_module,
         "_merge_collects",
         lambda collections, processor: {},
     )
+    registries = (_get_hourly_collectors(), _get_snapshot_collectors(), _get_daily_collectors())
     raw_collectors = {
-        "events_table",
-        "workflow_job_node_table",
-        "query_info",
-        "main_host",
-        "counts",
-        "cred_type_counts",
-        "host_metric_summary_monthly_table",
-        "instance_info",
-        "inventory_counts",
-        "org_counts",
-        "projects_by_scm_type",
-        "unified_job_template_table",
-        "workflow_job_template_node_table",
-        "main_host_daily",
-        "main_hostmetric",
+        collector_type
+        for registry in registries
+        for collector_type, config in registry.items()
+        if not config.get("persist_to_hourly", True) or config.get("rollup_processor") is None
     }
 
     daily_rollup, missing_hours = _merge_hourly_rollups({collector: [{}] for collector in raw_collectors})
 
     assert not raw_collectors & daily_rollup.keys()
-    assert not any(collector in missing for collector in raw_collectors for missing in missing_hours)
+    assert not raw_collectors & {missing.split(":", 1)[0] for missing in missing_hours}
 
 
 @pytest.mark.unit
