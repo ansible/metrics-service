@@ -3,8 +3,7 @@ Final tests to push coverage over 80%.
 Targets remaining uncovered sections.
 """
 
-from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

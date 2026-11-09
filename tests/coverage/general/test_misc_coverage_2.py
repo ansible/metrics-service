@@ -3,8 +3,6 @@ Additional miscellaneous coverage tests for small uncovered areas.
 """
 
 import decimal
-from io import StringIO
-from unittest.mock import MagicMock
 
 import pytest
 
