@@ -9,14 +9,9 @@ import pytest
 
 from apps.analytics.models import AnalyticsPayload
 from apps.analytics.persist import persist_analytics_payload
+from tests.test_utils import _times
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db]
-
-
-def _times():
-    started = datetime(2026, 8, 17, 10, 0, tzinfo=UTC)
-    finished = datetime(2026, 8, 17, 10, 1, tzinfo=UTC)
-    return started, finished
 
 
 def test_persist_dataframe_stores_records():

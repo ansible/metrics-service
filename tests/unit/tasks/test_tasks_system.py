@@ -28,7 +28,7 @@ from apps.tasks.tasks import (
     submit_task_to_dispatcher,
 )
 from apps.tasks.tasks_system import execute_db_task
-from tests.test_utils import get_test_password
+from tests.test_utils import _create_task_safely, get_test_password
 
 User = get_user_model()
 
@@ -45,13 +45,7 @@ class TestExecuteDbTask(TestCase):
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser")
-        self.task = self._create_task_safely(name="Test Task", function_name="hello_world", task_data={})
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
+        self.task = _create_task_safely(name="Test Task", function_name="hello_world", task_data={})
 
     @pytest.mark.django_db(transaction=True)
     def test_execute_db_task_success(self):

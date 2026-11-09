@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.test_utils import get_cmd
+
 
 # ---------------------------------------------------------------------------
 # dashboard_reports/serializers.py uncovered methods
@@ -37,24 +39,6 @@ def test_tasks_apps_config():
 
     assert TasksConfig.name == "apps.tasks"
     assert TasksConfig.default_auto_field == "django.db.models.BigAutoField"
-
-
-# ---------------------------------------------------------------------------
-# management command _handle_run_command paths
-# ---------------------------------------------------------------------------
-def get_cmd():
-    from apps.tasks.management.commands.metrics_service import Command
-    from apps.tasks.services.output_formatter import OutputFormatter
-
-    cmd = Command()
-    cmd.stdout = StringIO()
-    mock_style = MagicMock()
-    mock_style.SUCCESS.side_effect = lambda msg: msg
-    mock_style.ERROR.side_effect = lambda msg: msg
-    mock_style.WARNING.side_effect = lambda msg: msg
-    cmd.style = mock_style
-    cmd.output = OutputFormatter(stdout=cmd.stdout, style=cmd.style)
-    return cmd
 
 
 @pytest.mark.unit

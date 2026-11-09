@@ -361,9 +361,13 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     return create_task_result("success", data=result.get("data", {}))
 
 
-def _org_name_backfill_batch_size(kwargs: dict[str, Any]) -> int:
-    """Return a validated ``batch_size`` kwarg for the organization-name backfill."""
-    raw = kwargs.get("batch_size", ORG_NAME_BACKFILL_BATCH_SIZE)
+def _backfill_batch_size(default_batch_size: int, kwargs: dict[str, Any]) -> int:
+    """Return a validated ``batch_size`` kwarg for the organization-name backfill.
+
+    Has one argument, ``default_batch_size``, which is used when the kwargs does not
+    contain ``batch_size``.
+    """
+    raw = kwargs.get("batch_size", default_batch_size)
     # bool is an int subclass and int() would truncate floats, so require a real integer
     # (numeric strings are accepted, as task_data may come from the API as text).
     if isinstance(raw, bool) or not isinstance(raw, int | str):
@@ -459,7 +463,7 @@ def backfill_dashboard_organization_names(**kwargs: Any) -> dict[str, Any]:
     task_name = "backfill_dashboard_organization_names"
     try:
         ignore_database_override(task_name, kwargs)
-        batch_size = _org_name_backfill_batch_size(kwargs)
+        batch_size = _backfill_batch_size(ORG_NAME_BACKFILL_BATCH_SIZE, kwargs)
         stats = fill_missing_organization_names(task_name, batch_size=batch_size)
     except Exception as e:
         logger.exception(f"{task_name}: failed")
@@ -467,20 +471,6 @@ def backfill_dashboard_organization_names(**kwargs: Any) -> dict[str, Any]:
         log_task_execution(task_name=task_name, operation="failed", details=msg)
         return create_task_result("error", error=msg)
     return create_task_result("success", data={"task_type": task_name, **stats})
-
-
-def _job_type_backfill_batch_size(kwargs: dict[str, Any]) -> int:
-    """Return a validated batch_size kwarg for the job-type reconciliation."""
-    raw = kwargs.get("batch_size", JOB_TYPE_BACKFILL_BATCH_SIZE)
-    if isinstance(raw, bool) or not isinstance(raw, int | str):
-        raise ValueError(f"batch_size must be a positive integer, got {raw!r}")
-    try:
-        batch_size = int(raw)
-    except ValueError as e:
-        raise ValueError(f"batch_size must be a positive integer, got {raw!r}") from e
-    if batch_size <= 0:
-        raise ValueError(f"batch_size must be > 0, got {batch_size!r}")
-    return batch_size
 
 
 def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
@@ -497,7 +487,7 @@ def backfill_dashboard_job_types(**kwargs: Any) -> dict[str, Any]:
     unresolved_records = 0
     try:
         ignore_database_override(task_name, kwargs)
-        batch_size = _job_type_backfill_batch_size(kwargs)
+        batch_size = _backfill_batch_size(JOB_TYPE_BACKFILL_BATCH_SIZE, kwargs)
 
         if not JobData.objects.filter(job_type__isnull=True).exists():
             log_task_execution(

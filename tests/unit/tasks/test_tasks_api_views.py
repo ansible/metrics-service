@@ -30,7 +30,7 @@ from apps.tasks.v1.serializers import (
     TaskSerializer,
 )
 from apps.tasks.v1.views import TaskExecutionViewSet, TaskViewSet
-from tests.test_utils import get_test_password
+from tests.test_utils import get_test_password, _create_task_safely
 
 # =============================================================================
 # TaskViewSet Tests - CRUD Operations and Custom Actions
@@ -53,19 +53,13 @@ class TestTaskViewSet(APITestCase):
         )
         self.factory = APIRequestFactory()
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     # List and Detail Tests
     def test_task_list_endpoint(self):
         """Test GET /api/v1/tasks/ returns task list."""
         self.client.force_authenticate(user=self.user)
 
-        self._create_task_safely(name="Task 1", function_name="hello_world", created_by=self.user, status="pending")
-        self._create_task_safely(name="Task 2", function_name="hello_world", created_by=self.user, status="completed")
+        _create_task_safely(name="Task 1", function_name="hello_world", created_by=self.user, status="pending")
+        _create_task_safely(name="Task 2", function_name="hello_world", created_by=self.user, status="completed")
 
         url = reverse("tasks:v1:task-list")
         response = self.client.get(url)
@@ -77,7 +71,7 @@ class TestTaskViewSet(APITestCase):
         """Test GET /api/v1/tasks/{id}/ returns task details."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Detail Task", function_name="hello_world", created_by=self.user, task_data={"days_old": 30}
         )
 
@@ -157,7 +151,7 @@ class TestTaskViewSet(APITestCase):
         """Test PUT /api/v1/tasks/{id}/ updates task."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Original Task", function_name="hello_world", created_by=self.user)
+        task = _create_task_safely(name="Original Task", function_name="hello_world", created_by=self.user)
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Updated Task", "function_name": "hello_world", "task_data": {"days_old": 60}}
@@ -171,7 +165,7 @@ class TestTaskViewSet(APITestCase):
         """Test PATCH /api/v1/tasks/{id}/ partially updates task."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Patch Task", function_name="hello_world", created_by=self.user)
+        task = _create_task_safely(name="Patch Task", function_name="hello_world", created_by=self.user)
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task.pk})
         data = {"name": "Patched Task"}
@@ -187,7 +181,7 @@ class TestTaskViewSet(APITestCase):
         """Test DELETE /api/v1/tasks/{id}/ deletes task."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(name="Delete Task", function_name="hello_world", created_by=self.user)
+        task = _create_task_safely(name="Delete Task", function_name="hello_world", created_by=self.user)
         task_id = task.pk
 
         url = reverse("tasks:v1:task-detail", kwargs={"pk": task_id})
@@ -201,10 +195,10 @@ class TestTaskViewSet(APITestCase):
         """Test GET /api/v1/tasks/running/ returns only running tasks."""
         self.client.force_authenticate(user=self.user)
 
-        self._create_task_safely(
+        _create_task_safely(
             name="Running Task", function_name="hello_world", created_by=self.user, status="running"
         )
-        self._create_task_safely(
+        _create_task_safely(
             name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
         )
 
@@ -219,7 +213,7 @@ class TestTaskViewSet(APITestCase):
         """Test GET /api/v1/tasks/pending/ returns only pending tasks."""
         self.client.force_authenticate(user=self.user)
 
-        self._create_task_safely(
+        _create_task_safely(
             name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
         )
 
@@ -244,7 +238,7 @@ class TestTaskViewSet(APITestCase):
         """Test successful task retry resets task status."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Failed Task",
             function_name="hello_world",
             created_by=self.user,
@@ -271,7 +265,7 @@ class TestTaskViewSet(APITestCase):
         """Test retry fails when max attempts reached."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Failed Task",
             function_name="hello_world",
             created_by=self.user,
@@ -290,7 +284,7 @@ class TestTaskViewSet(APITestCase):
         """Test retry fails for completed tasks."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Completed Task", function_name="hello_world", created_by=self.user, status="completed"
         )
 
@@ -312,7 +306,7 @@ class TestTaskViewSet(APITestCase):
         """Test successful task cancellation."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
         )
 
@@ -330,7 +324,7 @@ class TestTaskViewSet(APITestCase):
         """Test cancel fails for completed tasks."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Completed Task", function_name="hello_world", created_by=self.user, status="completed"
         )
 
@@ -344,7 +338,7 @@ class TestTaskViewSet(APITestCase):
         """Test cancel fails for failed tasks."""
         self.client.force_authenticate(user=self.user)
 
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Failed Task", function_name="hello_world", created_by=self.user, status="failed"
         )
 
@@ -365,7 +359,7 @@ class TestTaskViewSet(APITestCase):
         from django.utils import timezone
 
         old_date = timezone.now() - timedelta(days=40)
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Old Task", function_name="hello_world", created_by=self.user, status="completed"
         )
         task.completed_at = old_date
@@ -388,7 +382,7 @@ class TestTaskViewSet(APITestCase):
         from django.utils import timezone
 
         old_date = timezone.now() - timedelta(days=40)
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Old Task", function_name="hello_world", created_by=self.user, status="completed"
         )
         task.completed_at = old_date
@@ -408,14 +402,14 @@ class TestTaskViewSet(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         old_date = django_timezone.now() - timedelta(days=40)
-        oneshot_task = self._create_task_safely(
+        oneshot_task = _create_task_safely(
             name="initial_dashboard_collection",
             function_name="collect_dashboard_reports_initial_data",
             is_system_task=True,
             status="completed",
             completed_at=old_date,
         )
-        per_run_task = self._create_task_safely(
+        per_run_task = _create_task_safely(
             name="hourly_health_check (Execution 2026-09-01 08:00:00)",
             function_name="hello_world",
             is_system_task=True,
@@ -445,13 +439,13 @@ class TestTaskViewSet(APITestCase):
         """Test list_filtered action with status filter."""
         self.client.force_authenticate(user=self.user)
 
-        self._create_task_safely(
+        _create_task_safely(
             name="Pending Task 1", function_name="hello_world", created_by=self.user, status="pending"
         )
-        self._create_task_safely(
+        _create_task_safely(
             name="Pending Task 2", function_name="hello_world", created_by=self.user, status="pending"
         )
-        self._create_task_safely(
+        _create_task_safely(
             name="Running Task", function_name="hello_world", created_by=self.user, status="running"
         )
 
@@ -469,7 +463,7 @@ class TestTaskViewSet(APITestCase):
 
         # Create 5 tasks
         for i in range(5):
-            self._create_task_safely(
+            _create_task_safely(
                 name=f"Task {i}", function_name="hello_world", created_by=self.user, status="pending"
             )
 
@@ -512,7 +506,7 @@ class TestTaskViewSet(APITestCase):
         """Test perform_destroy prevents deletion of system tasks."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task",
             function_name="cleanup_old_tasks",
             is_system_task=True,
@@ -531,7 +525,7 @@ class TestTaskViewSet(APITestCase):
         """Test perform_update prevents modifying protected system task fields."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task",
             function_name="cleanup_old_tasks",
             cron_expression="0 2 * * *",
@@ -554,7 +548,7 @@ class TestTaskViewSet(APITestCase):
         """Test perform_update prevents modifying cron_expression for system tasks."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task",
             function_name="cleanup_old_tasks",
             cron_expression="0 2 * * *",
@@ -573,7 +567,7 @@ class TestTaskViewSet(APITestCase):
         """Test perform_update prevents modifying name on system tasks (AAP-74803)."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task",
             function_name="cleanup_old_tasks",
             is_system_task=True,
@@ -592,7 +586,7 @@ class TestTaskViewSet(APITestCase):
         """Test perform_update prevents modifying status on system tasks (AAP-74803)."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task",
             function_name="cleanup_old_tasks",
             is_system_task=True,
@@ -612,7 +606,7 @@ class TestTaskViewSet(APITestCase):
         """Test perform_update prevents modifying task_data on system tasks (AAP-74803)."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task",
             function_name="cleanup_old_tasks",
             is_system_task=True,
@@ -632,7 +626,7 @@ class TestTaskViewSet(APITestCase):
         """Test force_delete requires force_confirm parameter."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task", is_system_task=True, function_name="cleanup_old_tasks", created_by=self.user
         )
         url = reverse("tasks:v1:task-force-delete", args=[system_task.id])
@@ -650,7 +644,7 @@ class TestTaskViewSet(APITestCase):
         """Test force_delete deletes system task when confirmation is provided."""
         self.client.force_authenticate(user=self.user)
 
-        system_task = self._create_task_safely(
+        system_task = _create_task_safely(
             name="System Task", is_system_task=True, function_name="cleanup_old_tasks", created_by=self.user
         )
         task_id = system_task.id

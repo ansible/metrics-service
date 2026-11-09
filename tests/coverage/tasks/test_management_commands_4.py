@@ -7,20 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
-def get_cmd():
-    from apps.tasks.management.commands.metrics_service import Command
-    from apps.tasks.services.output_formatter import OutputFormatter
-
-    cmd = Command()
-    cmd.stdout = StringIO()
-    mock_style = MagicMock()
-    mock_style.SUCCESS.side_effect = lambda msg: msg
-    mock_style.ERROR.side_effect = lambda msg: msg
-    mock_style.WARNING.side_effect = lambda msg: msg
-    cmd.style = mock_style
-    cmd.output = OutputFormatter(stdout=cmd.stdout, style=cmd.style)
-    return cmd
+from tests.test_utils import get_cmd
 
 
 # ---------------------------------------------------------------------------

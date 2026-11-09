@@ -44,38 +44,6 @@ django.setup()
 from apps.tasks.models import AnonymizedMetricsPayload, DailyMetricsSummary
 
 
-def generate_daily_summary_filename(summary: DailyMetricsSummary) -> str:
-    """
-    Generate filename for a DailyMetricsSummary record.
-
-    Format: daily_summary_{YYYYMMDD}.json
-
-    Args:
-        summary: DailyMetricsSummary instance
-
-    Returns:
-        str: Generated filename
-    """
-    date_str = summary.summary_date.strftime("%Y%m%d")
-    return f"daily_summary_{date_str}.json"
-
-
-def generate_anonymized_payload_filename(payload: AnonymizedMetricsPayload) -> str:
-    """
-    Generate filename for an AnonymizedMetricsPayload record.
-
-    Format: anonymized_{YYYYMMDD}.json
-
-    Args:
-        payload: AnonymizedMetricsPayload instance
-
-    Returns:
-        str: Generated filename
-    """
-    date_str = payload.summary_date.strftime("%Y%m%d")
-    return f"anonymized_{date_str}.json"
-
-
 def dump_daily_summaries(output_dir: Path, status_filter: str | None = None) -> None:
     """
     Dump all DailyMetricsSummary records to JSON files.
@@ -110,7 +78,7 @@ def dump_daily_summaries(output_dir: Path, status_filter: str | None = None) -> 
     dumped_count = 0
     for summary in queryset:
         try:
-            filename = generate_daily_summary_filename(summary)
+            filename = f"daily_summary_{summary.summary_date.strftime('%Y%m%d')}.json"
             base_name = filename.replace(".json", "")
 
             # Write aggregated_metrics to .data.json file
@@ -183,7 +151,7 @@ def dump_anonymized_payloads(output_dir: Path, status_filter: str | None = None)
     dumped_count = 0
     for payload in queryset:
         try:
-            filename = generate_anonymized_payload_filename(payload)
+            filename = f"anonymized_{payload.summary_date.strftime('%Y%m%d')}.json"
             base_name = filename.replace(".json", "")
 
             # Write anonymized_data to .data.json file

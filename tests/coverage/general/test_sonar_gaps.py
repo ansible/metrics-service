@@ -11,6 +11,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.utils import timezone
 
+from tests.test_utils import get_cmd
+
 
 # ===========================================================================
 # apps/core/authentication.py — 0% (ServiceJWTAuthentication)
@@ -552,24 +554,6 @@ def test_user_serializer_update_with_password(user):
         serializer.save()
         user.refresh_from_db()
         assert user.check_password("new_pass_456")
-
-
-# ===========================================================================
-# apps/tasks/management/commands/metrics_service.py — remaining branches
-# ===========================================================================
-def get_cmd():
-    from apps.tasks.management.commands.metrics_service import Command
-    from apps.tasks.services.output_formatter import OutputFormatter
-
-    cmd = Command()
-    cmd.stdout = StringIO()
-    mock_style = MagicMock()
-    mock_style.SUCCESS.side_effect = lambda msg: msg
-    mock_style.ERROR.side_effect = lambda msg: msg
-    mock_style.WARNING.side_effect = lambda msg: msg
-    cmd.style = mock_style
-    cmd.output = OutputFormatter(stdout=cmd.stdout, style=cmd.style)
-    return cmd
 
 
 @pytest.mark.unit

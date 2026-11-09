@@ -10,6 +10,7 @@ from django.test import TestCase
 from apps.tasks import utils
 from apps.tasks.collectors.send_anonymized_to_segment import send_to_segment
 from apps.tasks.models import Task, TaskExecution
+from tests.test_utils import _create_task_safely
 
 
 class TaskUtilsTestCase(TestCase):
@@ -19,7 +20,7 @@ class TaskUtilsTestCase(TestCase):
         """Set up test data."""
         self.user = self._create_test_user()
         # Create task with signals disabled to prevent automatic submission to dispatcherd
-        self.task = self._create_task_safely(
+        self.task = _create_task_safely(
             name="Test Task", function_name="test_function", task_data={"param": "value"}, created_by=self.user
         )
 
@@ -28,12 +29,6 @@ class TaskUtilsTestCase(TestCase):
         from apps.core.models import User
 
         return User.objects.create_user(username="testuser", email="test@example.com")
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     @patch("apps.tasks.utils.logger")
     def test_ignore_database_override_logs_and_does_not_expose_values(self, mock_logger):

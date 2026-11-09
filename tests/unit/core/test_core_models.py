@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from apps.core.models import Organization, Team
 from apps.tasks.models import Task, TaskExecution
-from tests.test_utils import get_test_password
+from tests.test_utils import _create_task_safely, get_test_password
 
 User = get_user_model()
 
@@ -52,17 +52,11 @@ class CoreModelsTestCase(TestCase):
 class TaskModelTestCase(TestCase):
     """Test cases for Task system models."""
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="taskuser", email="task@example.com")
 
-        self.task = self._create_task_safely(
+        self.task = _create_task_safely(
             name="Test Task",
             function_name="test_function",
             task_data={"param": "value"},
@@ -141,12 +135,6 @@ class TaskModelTestCase(TestCase):
 class ModelValidationTestCase(TestCase):
     """Test cases for model validation and constraints."""
 
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
-
     def setUp(self):
         """Set up test data."""
         self.user = User.objects.create_user(username="validationuser")
@@ -212,12 +200,6 @@ class UserIsPlatformAuditorTestCase(TestCase):
 @pytest.mark.unit
 class ModelMethodsTestCase(TestCase):
     """Test cases for model methods and properties."""
-
-    def _create_task_safely(self, **kwargs):
-        """Create a task without triggering signals."""
-        task = Task(**kwargs)
-        task.save()
-        return task
 
     def setUp(self):
         """Set up test data."""
