@@ -30,7 +30,7 @@ from apps.tasks.v1.serializers import (
     TaskSerializer,
 )
 from apps.tasks.v1.views import TaskExecutionViewSet, TaskViewSet
-from tests.test_utils import get_test_password, _create_task_safely
+from tests.test_utils import _create_task_safely, get_test_password
 
 # =============================================================================
 # TaskViewSet Tests - CRUD Operations and Custom Actions
@@ -195,12 +195,8 @@ class TestTaskViewSet(APITestCase):
         """Test GET /api/v1/tasks/running/ returns only running tasks."""
         self.client.force_authenticate(user=self.user)
 
-        _create_task_safely(
-            name="Running Task", function_name="hello_world", created_by=self.user, status="running"
-        )
-        _create_task_safely(
-            name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
-        )
+        _create_task_safely(name="Running Task", function_name="hello_world", created_by=self.user, status="running")
+        _create_task_safely(name="Pending Task", function_name="hello_world", created_by=self.user, status="pending")
 
         url = reverse("tasks:v1:task-running")
         response = self.client.get(url)
@@ -213,9 +209,7 @@ class TestTaskViewSet(APITestCase):
         """Test GET /api/v1/tasks/pending/ returns only pending tasks."""
         self.client.force_authenticate(user=self.user)
 
-        _create_task_safely(
-            name="Pending Task", function_name="hello_world", created_by=self.user, status="pending"
-        )
+        _create_task_safely(name="Pending Task", function_name="hello_world", created_by=self.user, status="pending")
 
         url = reverse("tasks:v1:task-pending")
         response = self.client.get(url)
@@ -439,15 +433,9 @@ class TestTaskViewSet(APITestCase):
         """Test list_filtered action with status filter."""
         self.client.force_authenticate(user=self.user)
 
-        _create_task_safely(
-            name="Pending Task 1", function_name="hello_world", created_by=self.user, status="pending"
-        )
-        _create_task_safely(
-            name="Pending Task 2", function_name="hello_world", created_by=self.user, status="pending"
-        )
-        _create_task_safely(
-            name="Running Task", function_name="hello_world", created_by=self.user, status="running"
-        )
+        _create_task_safely(name="Pending Task 1", function_name="hello_world", created_by=self.user, status="pending")
+        _create_task_safely(name="Pending Task 2", function_name="hello_world", created_by=self.user, status="pending")
+        _create_task_safely(name="Running Task", function_name="hello_world", created_by=self.user, status="running")
 
         url = reverse("tasks:v1:task-list-filtered")
         response = self.client.get(url, {"status": "pending"})
@@ -463,9 +451,7 @@ class TestTaskViewSet(APITestCase):
 
         # Create 5 tasks
         for i in range(5):
-            _create_task_safely(
-                name=f"Task {i}", function_name="hello_world", created_by=self.user, status="pending"
-            )
+            _create_task_safely(name=f"Task {i}", function_name="hello_world", created_by=self.user, status="pending")
 
         url = reverse("tasks:v1:task-list-filtered")
         response = self.client.get(url, {"limit": 3})
