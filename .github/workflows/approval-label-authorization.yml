@@ -1,8 +1,13 @@
-name: Approval label authorization
+---
+# Caller workflow for breaking-change-approved label authorization.
+# Ensures only ansible-staff-eng-leads members can apply the override label.
+# Consumes reusable workflow from ansible/actions (PR #164).
+# Jira: AAP-97533
+name: "API: Approval Label Authorization"
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [labeled, unlabeled]
 
 permissions:
   contents: read
@@ -10,9 +15,12 @@ permissions:
   pull-requests: write
 
 jobs:
-  approval-label-authorization:
-    uses: ansible/actions/.github/workflows/approval-label-authorization.yml@88a8f7b6c7d5cd318062b87c61254a780e421600
+  authorize:
+    # djyasin/actions for test; production: ansible/actions@<tag>
+    uses: djyasin/actions/.github/workflows/approval-label-authorization.yml@approvers-team-label # PR #164
     with:
-      app-client-id: ${{ vars.ANSIBLE_ORG_MEMBERS_READ_ONLY_APP_CLIENT_ID }}
+      approval-label: breaking-change-approved
+      team-slug: ansible-staff-eng-leads
+      app-client-id: ${{ vars.LABEL_AUTH_APP_CLIENT_ID }}
     secrets:
-      app-private-key: ${{ secrets.ANSIBLE_ORG_MEMBERS_READ_ONLY_APP_PRIVATE_KEY }}
+      app-private-key: ${{ secrets.LABEL_AUTH_APP_PRIVATE_KEY }}
