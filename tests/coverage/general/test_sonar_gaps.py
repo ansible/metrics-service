@@ -558,34 +558,36 @@ def test_user_serializer_update_with_password(user):
 
 @pytest.mark.unit
 def test_handle_command_error_in_handle():
-    """CommandError in handle() logs error and calls sys.exit(1)."""
+    """CommandError in handle() propagates so Django prints it to stderr and exits 1."""
     from django.core.management.base import CommandError
 
     cmd = get_cmd()
     with (
         patch.object(cmd, "_handle_init_default_settings_command", side_effect=CommandError("cfg error")),
-        pytest.raises(SystemExit) as exc_info,
+        pytest.raises(CommandError, match="cfg error"),
     ):
         cmd.handle(command="init-default-settings", overwrite=False)
-    assert exc_info.value.code == 1
 
 
 @pytest.mark.unit
 def test_handle_unknown_command_exits():
-    """Unknown command calls sys.exit(1)."""
+    """Unknown command raises CommandError."""
+    from django.core.management.base import CommandError
+
     cmd = get_cmd()
-    with pytest.raises(SystemExit) as exc_info:
+    with pytest.raises(CommandError, match="Unknown command: unknown-command-xyz"):
         cmd.handle(command="unknown-command-xyz")
-    assert exc_info.value.code == 1
 
 
 @pytest.mark.unit
 def test_handle_exception_in_handle():
-    """Unexpected exception in handle() calls sys.exit(1)."""
+    """Unexpected exception in handle() is wrapped in CommandError."""
+    from django.core.management.base import CommandError
+
     cmd = get_cmd()
     with (
         patch.object(cmd, "_handle_run_command", side_effect=RuntimeError("crash")),
-        pytest.raises(SystemExit) as exc_info,
+        pytest.raises(CommandError, match="Unexpected error: crash"),
     ):
         cmd.handle(
             command="run",
@@ -599,7 +601,6 @@ def test_handle_exception_in_handle():
             log_level="INFO",
             check_interval=60,
         )
-    assert exc_info.value.code == 1
 
 
 @pytest.mark.unit
