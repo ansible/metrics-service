@@ -29,9 +29,18 @@ service:
     max_retries: 3
     retry_delay: 30 # 30 seconds between retries
 
-# Logging configuration
-logging:
-  level: INFO
-  format: '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+# Worker class. Worker children are forked by the dispatcherd service process, so
+# the runtime log level refresh thread is started post-fork in each child
+# (on_start) rather than in the parent (AAP-79584).
+worker:
+  worker_cls: 'apps.tasks.dispatcherd_worker.LogLevelSyncWorker'
+
+# Logging
+# dispatcherd 2026.1.x DispatcherSettings ignores a `logging:` block in this
+# file, so there is no per-component level to set here. In metrics-service the
+# worker is started by `manage.py run_dispatcherd`, which inherits Django's
+# logger configuration; the root logger is already at LOG_LEVEL
+# (METRICS_SERVICE_LOG_LEVEL). Standalone `dispatcherd` CLI use configures
+# logging through its own --log-level flag.
 
 # NOTE: Queue routing is handled in apps/tasks/tasks.py::get_queue_for_function()

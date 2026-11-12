@@ -457,6 +457,60 @@ class TestBuildConfigFromDjangoSettings:
         assert "Failed to build config from Django settings" in str(mock_logger.exception.call_args)
 
 
+class TestWorkerClassConfiguration:
+    """dispatcherd must be told about the post-fork worker class (AAP-79584).
+
+    Without this wiring the child never starts the refresh thread, so the fix
+    would look correct in unit tests while doing nothing in production.
+    """
+
+    def test_yaml_config_names_the_log_level_sync_worker(self):
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+
+        config = _load_config_with_django_db(get_config_file_path())
+
+        assert config["worker"]["worker_cls"] == WORKER_CLS
+
+    def test_django_settings_fallback_names_the_log_level_sync_worker(self):
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+
+        config = build_config_from_django_settings()
+
+        assert config["worker"]["worker_cls"] == WORKER_CLS
+
+    def test_operator_config_without_worker_section_gets_the_sync_worker(self, tmp_path):
+        """A mounted config file must not silently drop the fork-safe worker."""
+        config_file = tmp_path / "dispatcherd.yaml"
+        config_file.write_text("version: 2\nbrokers:\n  pg_notify:\n    channels: [metrics]\n")
+
+        config = _load_config_with_django_db(config_file)
+
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+
+        assert config["worker"]["worker_cls"] == WORKER_CLS
+
+    def test_operator_worker_cls_is_not_overridden(self, tmp_path):
+        config_file = tmp_path / "dispatcherd.yaml"
+        config_file.write_text("version: 2\nworker:\n  worker_cls: my.custom.Worker\n  idle_timeout: 5\n")
+
+        config = _load_config_with_django_db(config_file)
+
+        assert config["worker"] == {"worker_cls": "my.custom.Worker", "idle_timeout": 5}
+
+    def test_configured_worker_cls_resolves_to_the_post_fork_class(self):
+        """The dotted path must import in a worker child, not just look right."""
+        from dispatcherd.utils import resolve_callable
+        from dispatcherd.worker.task import TaskWorker
+
+        from apps.tasks.dispatcherd_config import WORKER_CLS
+        from apps.tasks.dispatcherd_worker import LogLevelSyncWorker
+
+        resolved = resolve_callable(WORKER_CLS)
+
+        assert resolved is LogLevelSyncWorker
+        assert issubclass(resolved, TaskWorker)
+
+
 class TestEnsureDispatcherdConfigured:
     """Tests for ensure_dispatcherd_configured function."""
 
