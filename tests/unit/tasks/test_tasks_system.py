@@ -12,6 +12,7 @@ Organized into clear test classes:
 - TestEdgeCasesAndErrorHandling: Edge cases, error conditions, and resilience
 """
 
+import uuid
 from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -21,6 +22,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.core.request_context import current_request_id
 from apps.tasks import tasks, tasks_system
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.tasks import (
@@ -560,6 +562,91 @@ class TestTaskDispatcher(TestCase):
 
         # Should still have only the one execution
         assert TaskExecution.objects.filter(task=self.task).count() == 1
+
+    @patch("dispatcherd.publish.submit_task")
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch("apps.tasks.tasks.get_queue_for_function", return_value="metrics")
+    def test_submit_includes_request_id_in_payload(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """The originating request ID travels in the dispatcherd task kwargs."""
+        request_id = str(uuid.uuid4())
+        self.task.request_id = request_id
+        self.task.save(update_fields=["request_id"])
+
+        submit_task_to_dispatcher(self.task)
+
+        mock_submit.assert_called_once()
+        assert mock_submit.call_args.kwargs["kwargs"] == {"task_id": self.task.id, "request_id": request_id}
+
+    @patch("dispatcherd.publish.submit_task")
+    @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
+    @patch("apps.tasks.tasks.get_queue_for_function", return_value="metrics")
+    def test_submit_omits_request_id_when_task_has_none(self, mock_get_queue, mock_ensure_config, mock_submit):
+        """Tasks with no originating request submit the original payload shape."""
+        submit_task_to_dispatcher(self.task)
+
+        mock_submit.assert_called_once()
+        assert mock_submit.call_args.kwargs["kwargs"] == {"task_id": self.task.id}
+
+    @pytest.mark.django_db(transaction=True)
+    @patch("apps.tasks.tasks_system.execute_claimed")
+    def test_execute_db_task_sets_request_context(self, mock_execute_claimed):
+        """The worker sets the request contextvar from the dispatcherd payload."""
+        request_id = str(uuid.uuid4())
+        captured = {}
+
+        def fake_execute_claimed(task, execution):
+            captured["request_id"] = current_request_id()
+            return {"status": "completed"}
+
+        mock_execute_claimed.side_effect = fake_execute_claimed
+
+        result = execute_db_task(task_id=self.task.id, request_id=request_id)
+
+        assert result == {"status": "completed"}
+        assert captured["request_id"] == request_id
+        # The context must not leak past the task.
+        assert current_request_id() is None
+
+    @pytest.mark.django_db(transaction=True)
+    @patch("apps.tasks.tasks_system.execute_claimed")
+    def test_execute_db_task_falls_back_to_persisted_request_id(self, mock_execute_claimed):
+        """Old schedulers omit the kwarg; the worker falls back to Task.request_id."""
+        request_id = str(uuid.uuid4())
+        self.task.request_id = request_id
+        self.task.save(update_fields=["request_id"])
+        captured = {}
+
+        def fake_execute_claimed(task, execution):
+            captured["request_id"] = current_request_id()
+            return {"status": "completed"}
+
+        mock_execute_claimed.side_effect = fake_execute_claimed
+
+        execute_db_task(task_id=self.task.id)
+
+        assert captured["request_id"] == request_id
+
+    @pytest.mark.django_db(transaction=True)
+    @patch("apps.tasks.tasks_system.execute_claimed", side_effect=RuntimeError("boom"))
+    def test_execute_db_task_fallback_preserves_id_on_error(self, mock_execute_claimed):
+        """The error handler must run inside the restored context on the fallback path."""
+        request_id = str(uuid.uuid4())
+        self.task.request_id = request_id
+        self.task.save(update_fields=["request_id"])
+        seen = {}
+
+        def fake_handle_task_error(task, execution, **kwargs):
+            seen["request_id"] = current_request_id()
+            return {"status": "error", "error": "handled"}
+
+        with patch("apps.tasks.tasks_system.handle_task_error", side_effect=fake_handle_task_error) as mock_handle:
+            result = execute_db_task(task_id=self.task.id)
+
+        assert result == {"status": "error", "error": "handled"}
+        mock_handle.assert_called_once()
+        assert seen["request_id"] == request_id
+        # The restored context must not leak past the task.
+        assert current_request_id() is None
 
     def test_dispatcherd_decorator_functionality(self):
         """Test dispatcherd decorator is properly configured."""

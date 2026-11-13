@@ -16,6 +16,8 @@ from typing import Any
 from django.conf import settings
 from django.utils import timezone
 
+from apps.core.request_context import current_request_id
+
 from ..task_groups import SEGMENT_MAX_ATTEMPTS, get_feature_enabled_from_db
 from ..utils import create_task_result, generate_salt, log_task_execution
 
@@ -149,6 +151,7 @@ def daily_anonymize_and_prepare(**kwargs) -> dict[str, Any]:
                 scheduled_time=send_scheduled_time,
                 is_system_task=False,
                 max_attempts=SEGMENT_MAX_ATTEMPTS,
+                request_id=current_request_id(),
             )
 
         logger.info(

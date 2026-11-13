@@ -80,6 +80,15 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
 
     task_data = models.JSONField(default=dict, help_text="JSON data to pass to the task function")
 
+    request_id = models.CharField(
+        max_length=36,
+        null=True,
+        blank=True,
+        db_index=True,
+        editable=False,
+        help_text="request_id of the API call that created this task",
+    )
+
     # Scheduling information
     scheduled_time = models.DateTimeField(
         null=True, blank=True, help_text="When the task should be executed (null for immediate execution)"
