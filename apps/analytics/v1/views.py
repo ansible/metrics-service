@@ -28,6 +28,7 @@ from apps.analytics.v1.serializers import (
     CollectorDiscoverySerializer,
     analytics_payload_page_serializer,
 )
+from apps.core.request_context import current_request_id
 from apps.core.url_prefix import replace_api_root
 from apps.tasks.models import Task, TaskExecution
 
@@ -538,5 +539,6 @@ class CollectorCollectView(APIView):
                 max_attempts=1,
                 scheduled_time=None,
                 created_by=request.user if request.user.is_authenticated else None,
+                request_id=current_request_id(),
             )
             return self._response(request, task, "created")
