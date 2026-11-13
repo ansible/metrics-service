@@ -33,6 +33,9 @@ flowchart LR
 
 API-created tasks follow the same path once a `Task` row exists in `pending` status.
 
+The originating request ID travels with the task across this pipeline; see the
+[trace propagation standard](trace-propagation-standard.md) for the contract.
+
 ## Three-Process Runtime
 
 ```mermaid
