@@ -64,6 +64,12 @@ class Command(BaseCommand):
         tasks_parser = subparsers.add_parser("tasks", help="Manage database tasks")
         self._add_task_management_arguments(tasks_parser)
 
+        # Read-only diagnostics
+        support_bundle_parser = subparsers.add_parser(
+            "support-bundle", help="Collect read-only diagnostic data into a support bundle tarball"
+        )
+        self._add_support_bundle_arguments(support_bundle_parser)
+
     def _add_run_arguments(self, parser):
         """Add arguments for the run command."""
         parser.add_argument(
@@ -172,6 +178,22 @@ class Command(BaseCommand):
         retry_parser.add_argument("task_id", type=int, help="Task ID")
         retry_parser.add_argument("--force", action="store_true", help="Bypass max_attempts check")
 
+    def _add_support_bundle_arguments(self, parser):
+        """Add arguments for the support-bundle command."""
+        parser.add_argument(
+            "--output-dir",
+            default=None,
+            help=(
+                "Directory to write the tarball into. Created files are 0600; existing files are never "
+                "overwritten. Defaults to the current working directory."
+            ),
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Print a manifest of the bundle contents without writing any file.",
+        )
+
     def handle(self, *args, **options):
         """
         Handle the command execution.
@@ -193,6 +215,8 @@ class Command(BaseCommand):
                 self._handle_init_system_tasks_command(options)
             elif command == "tasks":
                 self._handle_task_management_command(options)
+            elif command == "support-bundle":
+                self._handle_support_bundle_command(options)
             else:
                 self.output.error(f"Unknown command: {command}")
                 sys.exit(1)
@@ -716,6 +740,18 @@ class Command(BaseCommand):
             "log_level": options.get("log_level", "INFO"),
             "check_interval": options.get("check_interval", 60),
         }
+
+    def _handle_support_bundle_command(self, options: dict[str, Any]) -> None:
+        """Delegate ``support-bundle`` to the read-only support_bundle command."""
+        from django.core.management import call_command
+
+        call_command(
+            "support_bundle",
+            output_dir=options.get("output_dir"),
+            dry_run=options.get("dry_run", False),
+            verbosity=options.get("verbosity", 1),
+            stdout=self.stdout,
+        )
 
     def _handle_task_management_command(self, options: dict[str, Any]) -> None:
         """Handle task management commands."""

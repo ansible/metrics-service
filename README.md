@@ -202,6 +202,25 @@ effect at task execution time without restart.
 
 If system tasks are missing `_feature_flag` for metrics collection templates, run `python manage.py metrics_service init-system-tasks` to sync them.
 
+## Support and Diagnostics
+
+Three commands cover day-to-day troubleshooting on a live deployment (all
+read-only except `set-log-level`, which is temporary):
+
+```bash
+# Collect a redacted diagnostic tarball for a support ticket
+metrics-service support-bundle --output-dir /tmp
+
+# Task health: stuck tasks, last success per task type, failures, queue depth
+metrics-service tasks diagnose [--format json]
+
+# Temporarily change the log level without a restart (auto-reverts)
+metrics-service set-log-level DEBUG --ttl 900
+```
+
+The full support-engineer guide — including `oc exec` usage, expected output,
+what is redacted, and what to attach to a ticket — lives in
+[docs/support-tooling.md](docs/support-tooling.md).
 
 ## Development
 
@@ -492,6 +511,26 @@ METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py runserver
 # Or for the complete service
 METRICS_SERVICE_LOG_LEVEL=DEBUG python manage.py metrics_service run
 ```
+
+**Changing the log level on a running deployment** (no restart required):
+
+```bash
+metrics-service set-log-level DEBUG --ttl 900   # raise; expires automatically
+metrics-service set-log-level --show            # check the active override
+metrics-service set-log-level --clear           # revert early
+```
+
+The change is shared through the database. Web requests pick it up within about
+a second, dispatcherd workers within about a second while idle or when they next
+start a task, and the scheduler at its next check interval (30 s, or 60 s under
+`metrics-service run`). The dispatcherd main process is the exception: the
+immediate notify is currently broken and a TTL expiry is never pushed to it, so
+its own logger only changes when that process restarts. It expires at the TTL,
+and a full restart returns every process to the configured levels; after a
+partial restart (rolling update, scale-up, one pod killed) old and new pods can
+run at different levels until the override expires or is cleared. See
+[docs/support-tooling.md](docs/support-tooling.md) for the propagation table and
+the limitation.
 
 **Log Output Format:**
 

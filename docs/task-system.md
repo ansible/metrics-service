@@ -65,6 +65,7 @@ flowchart TB
 | `python manage.py run_dispatcherd` | Workers only |
 | `python manage.py run_task_scheduler` | Scheduler only |
 | `python manage.py metrics_service init-system-tasks` | Sync `TASK_GROUPS` → DB |
+| `python manage.py metrics_service tasks diagnose` | Read-only task health: stuck tasks, last success per type, recent failures, queue depth (see [support-tooling.md](support-tooling.md)) |
 
 In container platforms, run scheduler and workers as separate deployments if you
 need independent scaling. The web process does not execute background tasks.
@@ -227,6 +228,10 @@ python manage.py metrics_service tasks retry <task_id>
 
 # Force retry (bypass max_attempts)
 python manage.py metrics_service tasks retry <task_id> --force
+
+# Read-only task health diagnostics (stuck tasks, last success, failures, queue depth)
+python manage.py metrics_service tasks diagnose
+python manage.py metrics_service tasks diagnose --format json
 ```
 
 ## Adding a New Background Task
