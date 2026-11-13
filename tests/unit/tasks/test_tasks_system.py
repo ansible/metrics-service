@@ -1179,3 +1179,48 @@ class TestRetryBackoffProgression(TestCase):
         assert second_delay > first_delay, (
             f"Second retry delay ({second_delay:.1f}s) should exceed first ({first_delay:.1f}s)"
         )
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestWorkerRuntimeLogLevel:
+    """Regression coverage for runtime log level handling in a dispatcherd worker (AAP-79584)."""
+
+    def test_restarted_worker_ignores_pre_restart_override(self):
+        """A worker that restarted after an override was written must not re-apply it."""
+        import logging
+
+        from apps.core import logging_control
+        from apps.core.models import RuntimeLogLevelOverride
+
+        task = Task(name="Worker Restart Task", function_name="hello_world", task_data={})
+        task.save()
+
+        managed = ("ansible_base", "metrics_service", "django", "apps")
+        saved = {name: logging.getLogger(name).level for name in managed}
+        try:
+            logging_control.set_override("DEBUG", ttl_seconds=3600)
+            # Override written before the dispatcherd restart...
+            RuntimeLogLevelOverride.objects.update(modified=timezone.now() - timedelta(hours=1))
+            # ...and this worker started after it, inheriting the new epoch.
+            logging_control.reset_process_started_at(timezone.now() - timedelta(minutes=5))
+            logging_control.reset_throttle()
+            logging_control.revert()
+            logging_control._APPLIED_LEVEL = None
+
+            execute_db_task(task_id=task.id)
+
+            assert logging_control._APPLIED_LEVEL is None
+            assert logging.getLogger("apps").level == saved["apps"]
+
+            # A new override written after the worker started is still applied.
+            RuntimeLogLevelOverride.objects.update(modified=timezone.now())
+            logging_control.reset_throttle()
+            execute_db_task(task_id=task.id)
+            assert logging_control._APPLIED_LEVEL == "DEBUG"
+        finally:
+            for name, level in saved.items():
+                logging.getLogger(name).setLevel(level)
+            logging_control._APPLIED_LEVEL = None
+            logging_control.reset_throttle()
+            logging_control.reset_process_started_at()

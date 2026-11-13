@@ -10224,7 +10224,7 @@ components:
       properties:
         database:
           type: string
-          description: '''ok'' or ''error: <message>'''
+          description: '''ok'' or ''error: <stable-reason>'''
         segment_send:
           $ref: '#/components/schemas/SegmentSend'
       required:
@@ -11316,12 +11316,12 @@ components:
       properties:
         status:
           enum:
-          - healthy
-          - unhealthy
+          - good
+          - degraded
           type: string
           description: |-
-            * `healthy` - healthy
-            * `unhealthy` - unhealthy
+            * `good` - good
+            * `degraded` - degraded
         checks:
           $ref: '#/components/schemas/Checks'
       required:

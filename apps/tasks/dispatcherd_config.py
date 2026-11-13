@@ -12,6 +12,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# dispatcherd forks its worker pool, so the runtime log level refresh thread
+# must start in each child after the fork (AAP-79584).
+WORKER_CLS = "apps.tasks.dispatcherd_worker.LogLevelSyncWorker"
+
 
 def get_config_file_path() -> Path:
     """Get the path to the dispatcherd configuration file."""
@@ -129,6 +133,17 @@ def _load_config_with_django_db(config_file: Path) -> dict[str, Any]:
     # Override task timeout with Django setting
     config.setdefault("service", {}).setdefault("task_settings", {})["default_timeout"] = django_settings.TASK_TIMEOUT
 
+    # Worker children are forked, so the runtime log level refresh thread has to
+    # be started post-fork. Keep the worker class even when an operator-supplied
+    # config file does not name one; an explicit worker_cls is left alone.
+    config.setdefault("worker", {}).setdefault("worker_cls", WORKER_CLS)
+
+    # Note: this dict is handed to dispatcherd.config.setup(). dispatcherd
+    # 2026.1.x DispatcherSettings only reads version/brokers/producers/service/
+    # publish/worker and silently drops any "logging" key, so a per-component log
+    # level cannot be configured here. Dispatcherd loggers inherit Django's root
+    # logger, which is already at LOG_LEVEL (see apps/settings/defaults.py).
+
     logger.info(
         f"Configured dispatcherd with Django database settings: "
         f"{pg_config['host']}:{pg_config['port']}/{pg_config['dbname']}"
@@ -172,6 +187,9 @@ def build_config_from_django_settings() -> dict[str, Any]:
                     "default_timeout": django_settings.TASK_TIMEOUT,
                 },
             },
+            # dispatcherd forks its worker pool: the runtime log level refresh
+            # thread must start in each child, post-fork (AAP-79584).
+            "worker": {"worker_cls": WORKER_CLS},
         }
 
         logger.info(

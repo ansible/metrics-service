@@ -9,6 +9,22 @@ from pathlib import Path
 
 from dynaconf import Dynaconf, post_hook
 
+# Runtime log level control (AAP-79584). An ephemeral override row is applied at
+# bounded refresh points; see apps/core/logging_control.py.
+RUNTIME_LOG_LEVEL_REFRESH_SECONDS = 1
+"""Minimum seconds between database checks for a runtime log level override (0 disables throttling)."""
+
+RUNTIME_LOG_LEVEL_MAX_TTL = 3600
+"""Upper bound, in seconds, for a runtime log level override."""
+
+# The `apps` logger level follows METRICS_SERVICE_LOG_LEVEL through the
+# `apps_logger_follows_log_level` post-hook at the bottom of this module. Do not
+# add `LOGGING__loggers__apps__level` here as well: a dotted setting is applied
+# when the key is read, before the LOGGING post-hooks run, so the two mechanisms
+# would silently fight each other (and the dotted form cannot guard test mode,
+# where `apps/settings/test.py` installs a null-handler LOGGING). The post-hook
+# is the single source of truth for ES-SUP-2.
+
 # Extra applications added after PSF templating
 extra_applications = [
     "django_prometheus",
@@ -303,3 +319,29 @@ def setup_json_logging_for_production(settings: Dynaconf) -> dict:
                 h["formatter"] = "json"
         return {"LOGGING": log_cfg}
     return {}
+
+
+@post_hook
+def apps_logger_follows_log_level(settings: Dynaconf) -> dict:
+    """ES-SUP-2: the ``apps`` logger follows METRICS_SERVICE_LOG_LEVEL.
+
+    ``metrics_service/settings.py`` is framework-owned (see ``.protected_files.yaml``),
+    so the override lives here instead. The logger's handlers come from that file;
+    only its level is rewritten. Runs after ``setup_json_logging_for_production`` so
+    the JSON formatter it installs is preserved.
+
+    Guarded twice: it only ever adjusts an ``apps`` logger that the loaded
+    LOGGING already defines, and it does nothing when the app is running tests
+    (``apps/settings/test.py`` swaps in a null-handler configuration that must
+    stay untouched).
+    """
+    import copy
+
+    if settings.get("TESTING") or settings.get("IS_RUNNING_TESTS"):
+        return {}
+    log_cfg = copy.deepcopy(settings.get("LOGGING") or {})
+    loggers = log_cfg.get("loggers")
+    if not isinstance(loggers, dict) or "apps" not in loggers:
+        return {}
+    loggers["apps"]["level"] = str(settings.get("LOG_LEVEL", "INFO")).upper()
+    return {"LOGGING": log_cfg}
