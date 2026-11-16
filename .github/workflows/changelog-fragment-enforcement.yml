@@ -9,7 +9,6 @@ on:
     branches:
       - devel
       - stable-*
-      - AAP-97533-*
     paths:
       - 'tools/openapi-schema/openapi.yaml'
       - 'changelogs/fragments/**'

@@ -9,7 +9,10 @@ on:
     branches:
       - devel
       - stable-*
-      - AAP-97533-*
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      - 'tools/openapi-schema/openapi.yaml'
+      - '.github/workflows/oasdiff-*breaking-change*.yml'
 
 permissions:
   contents: read
