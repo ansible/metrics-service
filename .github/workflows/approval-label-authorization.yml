@@ -11,66 +11,28 @@ permissions:
   pull-requests: write
 
 jobs:
+  resolve-pr:
+    uses: ./.github/workflows/resolve-pr.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   approval-label-authorization:
-    if: github.event.workflow_run.event == 'pull_request'
+    needs: resolve-pr
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      needs.resolve-pr.outputs.pr_number != ''
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ needs.resolve-pr.outputs.pr_number }}
+
     steps:
-      - name: Resolve current pull request
-        id: pr
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const run = context.payload.workflow_run;
-            const repository = `${context.repo.owner}/${context.repo.repo}`;
-            let numbers = (run.pull_requests || [])
-              .map((pullRequest) => pullRequest.number)
-              .filter((number) => Number.isInteger(number));
-
-            if (numbers.length === 0 && run.head_sha) {
-              const repositories = [];
-              if (run.head_repository?.owner?.login && run.head_repository?.name) {
-                repositories.push({
-                  owner: run.head_repository.owner.login,
-                  repo: run.head_repository.name,
-                });
-              }
-              repositories.push({ owner: context.repo.owner, repo: context.repo.repo });
-
-              for (const target of repositories) {
-                const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                  ...target,
-                  commit_sha: run.head_sha,
-                });
-                numbers.push(
-                  ...response.data
-                    .filter((pullRequest) => pullRequest.base?.repo?.full_name === repository)
-                    .map((pullRequest) => pullRequest.number),
-                );
-                if (numbers.length > 0) {
-                  break;
-                }
-              }
-            }
-
-            for (const number of numbers) {
-              const response = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: number,
-              });
-              const pullRequest = response.data;
-              if (
-                pullRequest.state === 'open' &&
-                pullRequest.base.repo.full_name === repository
-              ) {
-                core.setOutput('number', String(pullRequest.number));
-                break;
-              }
-            }
-
       - name: Create GitHub App installation token
         id: app-token
-        if: steps.pr.outputs.number != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         continue-on-error: true
         with:
@@ -80,177 +42,167 @@ jobs:
           permission-members: read
 
       - name: Verify the approval label actor
-        if: steps.pr.outputs.number != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          LABEL_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          set -euo pipefail
+          MEMBERSHIP_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          script: |
+            (async () => {
+            const labelName = 'breaking-change-approved';
+            const markerPrefix = '<!-- approval-label-authorization:v1 label_event_id=';
+            const issue = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+            };
 
-          if [[ "${EVENT_NAME}" != "workflow_run" ]]; then
-            echo "::error::Expected workflow_run; received '${EVENT_NAME}'."
-            exit 1
-          fi
+            const labelEvents = async () => {
+              const events = await github.paginate(
+                github.rest.issues.listEventsForTimeline,
+                {...issue, per_page: 100},
+              );
+              return events
+                .filter((event) =>
+                  (event.event === 'labeled' || event.event === 'unlabeled') &&
+                  event.label?.name === labelName)
+                .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at));
+            };
 
-          api_root="repos/${REPOSITORY}/issues/${PR_NUMBER}"
-          label_name="breaking-change-approved"
-          marker_prefix="<!-- approval-label-authorization:v1 label_event_id="
+            const hasLabel = async () => {
+              const labels = await github.paginate(
+                github.rest.issues.listLabelsOnIssue,
+                {...issue, per_page: 100},
+              );
+              return labels.some((label) => label.name === labelName);
+            };
 
-          label_events() {
-            GH_TOKEN="${LABEL_TOKEN}" gh api --paginate \
-              "${api_root}/timeline" \
-              | jq -s --arg label "$label_name" \
-                '[.[][] | select((.event == "labeled" or .event == "unlabeled") and .label.name == $label)] | sort_by(.created_at)'
-          }
+            const hasMarker = async (eventId) => {
+              const marker = `${markerPrefix}${eventId} -->`;
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {...issue, per_page: 100},
+              );
+              return comments.some((comment) =>
+                comment.user?.login === 'github-actions[bot]' &&
+                (comment.body || '').includes(marker));
+            };
 
-          has_label() {
-            local labels
-            labels=$(GH_TOKEN="${LABEL_TOKEN}" gh api --paginate \
-              "${api_root}/labels" --jq '.[].name') || return 2
-            printf '%s\n' "${labels}" | grep -Fqx -- "${label_name}"
-          }
+            const writeMarker = async (eventId) => {
+              const marker = `${markerPrefix}${eventId} -->`;
+              await github.rest.issues.createComment({
+                ...issue,
+                body: `Approval label authorization verified by the workflow. ${marker}`,
+              });
+            };
 
-          has_marker() {
-            local event_id="$1"
-            local marker="${marker_prefix}${event_id} -->"
-            GH_TOKEN="${LABEL_TOKEN}" gh api --paginate \
-              "${api_root}/comments" \
-              | jq -s --arg marker "$marker" \
-                '[.[][] | select(.user.login == "github-actions[bot]" and ((.body // "") | contains($marker)))] | length > 0' \
-              | grep -qx true
-          }
+            const isMember = async (actor) => {
+              if (!actor || !process.env.MEMBERSHIP_TOKEN) {
+                return false;
+              }
+              try {
+                const response = await github.request(
+                  'GET /orgs/{org}/teams/{team_slug}/memberships/{username}',
+                  {
+                    org: 'ansible',
+                    team_slug: 'ansible-staff-eng-leads',
+                    username: actor,
+                    auth: process.env.MEMBERSHIP_TOKEN,
+                  },
+                );
+                return response.data.state === 'active';
+              } catch {
+                return false;
+              }
+            };
 
-          write_marker() {
-            local event_id="$1"
-            local marker="${marker_prefix}${event_id} -->"
-            GH_TOKEN="${LABEL_TOKEN}" gh api --method POST \
-              "${api_root}/comments" \
-              -f "body=Approval label authorization verified by the workflow. ${marker}" >/dev/null
-          }
+            const removeLabel = () => github.rest.issues.removeLabel({...issue, name: labelName});
+            const failClosed = async (message) => {
+              try {
+                await removeLabel();
+                core.notice('Removed the approval label while failing closed.');
+              } catch {
+                core.error('Could not remove the approval label; the check remains failed.');
+              }
+              throw new Error(message);
+            };
 
-          check_membership() {
-            local actor="$1"
-            [[ -n "${GH_TOKEN}" ]] || return 2
-            local membership
-            membership=$(GH_TOKEN="${GH_TOKEN}" gh api \
-              "orgs/ansible/teams/ansible-staff-eng-leads/memberships/${actor}" \
-              --jq '.state') || return 2
-            [[ "${membership}" == "active" ]]
-          }
+            const restoreLabel = async () => {
+              await github.rest.issues.addLabels({
+                ...issue,
+                labels: [labelName],
+              });
+              if (!(await hasLabel())) {
+                throw new Error('The approval label was not restored.');
+              }
+            };
 
-          remove_label() {
-            GH_TOKEN="${LABEL_TOKEN}" gh api --method DELETE \
-              "${api_root}/labels/${label_name}" >/dev/null
-          }
+            const events = await labelEvents();
+            const latest = events[events.length - 1];
 
-          fail_closed_remove() {
-            echo "::error::$1"
-            if remove_label; then
-              echo "::notice::Removed the approval label while failing closed."
-            else
-              echo "::error::Could not remove the approval label; the check remains failed."
-            fi
-            exit 1
-          }
+            if (!(await hasLabel())) {
+              if (!latest || latest.event !== 'unlabeled') {
+                core.notice('The approval label is absent; no current approval needs authorization.');
+                return;
+              }
 
-          restore_label() {
-            GH_TOKEN="${LABEL_TOKEN}" gh api --method POST \
-              "${api_root}/labels" -f "labels[]=${label_name}" >/dev/null || return 1
-            has_label
-          }
+              const previousAuthorization = [...events]
+                .reverse()
+                .find((event) => event.event === 'labeled');
+              if (previousAuthorization && await hasMarker(previousAuthorization.id)) {
+                if (!await isMember(latest.actor?.login)) {
+                  await restoreLabel();
+                  const restoredEvents = await labelEvents();
+                  const restored = restoredEvents[restoredEvents.length - 1];
+                  if (
+                    !restored ||
+                    restored.event !== 'labeled' ||
+                    restored.actor?.login !== 'github-actions[bot]' ||
+                    restored.id === previousAuthorization.id
+                  ) {
+                    throw new Error('Could not safely record the restored approval label.');
+                  }
+                  await writeMarker(restored.id);
+                }
+                return;
+              }
 
-          mark_restored_label_event() {
-            local previous_event_id="$1"
-            local events event_id event_action event_actor
-            events=$(label_events) || return 1
-            event_id=$(jq -r 'last | .id // empty' <<<"${events}")
-            event_action=$(jq -r 'last | .event // empty' <<<"${events}")
-            event_actor=$(jq -r 'last | .actor.login // empty' <<<"${events}")
-            [[ "${event_action}" == "labeled" && "${event_actor}" == "github-actions[bot]" && -n "${event_id}" && "${event_id}" != "${previous_event_id}" ]] || return 1
-            write_marker "${event_id}"
-          }
+              if (!await isMember(latest.actor?.login)) {
+                throw new Error(`${latest.actor?.login || 'unknown'} could not authorize the approval label.`);
+              }
+              return;
+            }
 
-          current_label_state="absent"
-          if has_label; then
-            current_label_state="present"
-          else
-            label_query_status=$?
-            if [[ "${label_query_status}" -ne 1 ]]; then
-              echo "::error::Could not inspect the current PR labels."
-              exit 1
-            fi
-          fi
+            if (
+              !latest ||
+              latest.event !== 'labeled' ||
+              !latest.id ||
+              !latest.actor?.login
+            ) {
+              await failClosed('The approval label is present, but its latest label event could not be established.');
+            }
 
-          events=$(label_events) || {
-            echo "::error::Could not inspect approval-label history."
-            exit 1
-          }
-          latest_event=$(jq -c 'last // {}' <<<"${events}")
-          latest_action=$(jq -r '.event // empty' <<<"${latest_event}")
-          latest_event_id=$(jq -r '.id // empty' <<<"${latest_event}")
-          latest_actor=$(jq -r '.actor.login // empty' <<<"${latest_event}")
+            if (await hasMarker(latest.id)) {
+              core.notice('The present approval label has a valid authorization marker.');
+              return;
+            }
 
-          if [[ "${current_label_state}" == "absent" ]]; then
-            if [[ "${latest_action}" != "unlabeled" ]]; then
-              echo "::notice::The approval label is absent; no current approval needs authorization."
-              exit 0
-            fi
+            const previousEvent = events[events.length - 2];
+            if (latest.actor.login === 'github-actions[bot]' && previousEvent?.event === 'unlabeled') {
+              const previousAuthorization = events
+                .slice(0, -2)
+                .reverse()
+                .find((event) => event.event === 'labeled');
+              if (previousAuthorization && await hasMarker(previousAuthorization.id)) {
+                await writeMarker(latest.id);
+                return;
+              }
+            }
 
-            prior_event_id=$(jq -r '[.[] | select(.event == "labeled")][-1].id // empty' <<<"${events}")
-            if [[ -n "${prior_event_id}" ]] && has_marker "${prior_event_id}"; then
-              if ! check_membership "${latest_actor}"; then
-                if restore_label && mark_restored_label_event "${prior_event_id}"; then
-                  echo "::notice::Restored the previously authorized approval after an unauthorized or unverifiable removal."
-                  exit 0
-                fi
-                echo "::error::Could not safely restore and mark the authorized approval label."
-                exit 1
-              fi
-            elif ! check_membership "${latest_actor}"; then
-              echo "::error::${latest_actor}'s approval label could not be authorized."
-              exit 1
-            fi
+            if (await isMember(latest.actor.login)) {
+              await writeMarker(latest.id);
+              core.notice(`${latest.actor.login} is an active member of ansible/ansible-staff-eng-leads.`);
+              return;
+            }
 
-            echo "::notice::The approval label is absent after an authorized removal."
-            exit 0
-          fi
-
-          if [[ "${latest_action}" != "labeled" || -z "${latest_event_id}" || -z "${latest_actor}" ]]; then
-            fail_closed_remove "The approval label is present, but its latest label event could not be established."
-          fi
-
-          if has_marker "${latest_event_id}"; then
-            echo "::notice::The present approval label has a valid marker from a successful membership check."
-            exit 0
-          fi
-
-          prior_unlabeled_id=$(jq -r 'if length >= 2 and .[-2].event == "unlabeled" then .[-2].id else empty end' <<<"${events}")
-          if [[ "${latest_actor}" == "github-actions[bot]" && -n "${prior_unlabeled_id}" ]]; then
-            prior_authorized_add=$(jq -r '[.[:-2][] | select(.event == "labeled")][-1].id // empty' <<<"${events}")
-            if [[ -n "${prior_authorized_add}" ]] && has_marker "${prior_authorized_add}"; then
-              if write_marker "${latest_event_id}"; then
-                echo "::notice::Recovered the authorization marker for a restored, previously authorized approval."
-                exit 0
-              fi
-            fi
-          fi
-
-          if check_membership "${latest_actor}"; then
-            if write_marker "${latest_event_id}"; then
-              echo "::notice::${latest_actor} is an active member of ansible/ansible-staff-eng-leads; the current approval label is authorized."
-              exit 0
-            fi
-            echo "::error::Membership was verified, but the authorization marker could not be recorded."
-            exit 1
-          fi
-
-          echo "::error::${latest_actor}'s approval label could not be authorized."
-          if remove_label; then
-            echo "::notice::Removed the approval label because its authorization could not be established."
-          else
-            echo "::error::Could not remove the unauthorized approval label; the check remains failed."
-          fi
-          exit 1
+            await failClosed(`${latest.actor.login}'s approval label could not be authorized.`);
+            })();
