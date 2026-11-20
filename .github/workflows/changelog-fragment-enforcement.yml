@@ -10,7 +10,7 @@ on:
       - devel
       - stable-*
     paths:
-      - 'tools/openapi-schema/openapi.yaml'
+      - 'tools/openapi-schema/metrics-service.yaml'
       - 'changelogs/fragments/**'
 
 permissions:
@@ -21,5 +21,5 @@ jobs:
   enforce:
     uses: ansible/actions/.github/workflows/openapi-changelog-fragment.yml@216419226018c512a37ed606e85b9df6aca50fee
     with:
-      spec-paths: "tools/openapi-schema/openapi.yaml"
+      spec-paths: "tools/openapi-schema/metrics-service.yaml"
       fragment-dir: "changelogs/fragments"
