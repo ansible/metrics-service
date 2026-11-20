@@ -8,8 +8,8 @@
 # Usage (from repo root): bash tools/generate-openapi.sh
 set -euo pipefail
 
-YAML_OUT="tools/openapi-schema/metrics-service.yaml"
-JSON_OUT="tools/openapi-schema/metrics-service.json"
+YAML_OUT="tools/openapi-schema/openapi.yaml"
+JSON_OUT="tools/openapi-schema/openapi.json"
 
 mkdir -p tools/openapi-schema
 
@@ -26,7 +26,7 @@ import json, re, pathlib
 # ── JSON patches ──────────────────────────────────────────────────────────────
 # spectacular generates JSON with indent=4, no trailing newline.
 # Patches are applied by loading, mutating, and writing back with the same format.
-p = pathlib.Path("tools/openapi-schema/metrics-service.json")
+p = pathlib.Path("tools/openapi-schema/openapi.json")
 data = json.loads(p.read_text())
 paths = data["paths"]
 
@@ -94,7 +94,7 @@ p.write_text(json.dumps(data, indent=4))
 print("JSON patches done.")
 
 # ── YAML patches ──────────────────────────────────────────────────────────────
-yp = pathlib.Path("tools/openapi-schema/metrics-service.yaml")
+yp = pathlib.Path("tools/openapi-schema/openapi.yaml")
 content = yp.read_text()
 
 # 1. Path param type: integer → string for the specific operationIds where
