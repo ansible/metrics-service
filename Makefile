@@ -25,8 +25,8 @@ generate-openapi-schema:
 # Validate committed OpenAPI schema files against OpenAPI 3.0 spec (no server required)
 validate-openapi-schema: generate-openapi-schema
 	@echo "Validating generated OpenAPI schema files..."
-	@uv run openapi-spec-validator tools/openapi-schema/metrics-service.yaml
-	@uv run openapi-spec-validator tools/openapi-schema/metrics-service.json
+	@uv run openapi-spec-validator tools/openapi-schema/openapi.yaml
+	@uv run openapi-spec-validator tools/openapi-schema/openapi.json
 	@echo "✓ OpenAPI schema files are valid!"
 
 help:
