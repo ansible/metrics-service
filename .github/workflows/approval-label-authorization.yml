@@ -1,8 +1,9 @@
 name: Approval label authorization
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_run:
+    workflows: ["Approval label authorization event gate"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -10,9 +11,198 @@ permissions:
   pull-requests: write
 
 jobs:
+  resolve-pr:
+    uses: ./.github/workflows/resolve-pr.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   approval-label-authorization:
-    uses: ansible/actions/.github/workflows/approval-label-authorization.yml@88a8f7b6c7d5cd318062b87c61254a780e421600
-    with:
-      app-client-id: ${{ vars.ANSIBLE_ORG_MEMBERS_READ_ONLY_APP_CLIENT_ID }}
-    secrets:
-      app-private-key: ${{ secrets.ANSIBLE_ORG_MEMBERS_READ_ONLY_APP_PRIVATE_KEY }}
+    needs: resolve-pr
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      needs.resolve-pr.outputs.pr_number != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ needs.resolve-pr.outputs.pr_number }}
+
+    steps:
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        continue-on-error: true
+        with:
+          client-id: ${{ vars.ANSIBLE_ORG_MEMBERS_READ_ONLY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ANSIBLE_ORG_MEMBERS_READ_ONLY_APP_PRIVATE_KEY }}
+          owner: ansible
+          permission-members: read
+
+      - name: Verify the approval label actor
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          MEMBERSHIP_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          script: |
+            (async () => {
+            const labelName = 'breaking-change-approved';
+            const markerPrefix = '<!-- approval-label-authorization:v1 label_event_id=';
+            const issue = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+            };
+
+            const labelEvents = async () => {
+              const events = await github.paginate(
+                github.rest.issues.listEventsForTimeline,
+                {...issue, per_page: 100},
+              );
+              return events
+                .filter((event) =>
+                  (event.event === 'labeled' || event.event === 'unlabeled') &&
+                  event.label?.name === labelName)
+                .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at));
+            };
+
+            const hasLabel = async () => {
+              const labels = await github.paginate(
+                github.rest.issues.listLabelsOnIssue,
+                {...issue, per_page: 100},
+              );
+              return labels.some((label) => label.name === labelName);
+            };
+
+            const hasMarker = async (eventId) => {
+              const marker = `${markerPrefix}${eventId} -->`;
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {...issue, per_page: 100},
+              );
+              return comments.some((comment) =>
+                comment.user?.login === 'github-actions[bot]' &&
+                (comment.body || '').includes(marker));
+            };
+
+            const writeMarker = async (eventId) => {
+              const marker = `${markerPrefix}${eventId} -->`;
+              await github.rest.issues.createComment({
+                ...issue,
+                body: `Approval label authorization verified by the workflow. ${marker}`,
+              });
+            };
+
+            const isMember = async (actor) => {
+              if (!actor || !process.env.MEMBERSHIP_TOKEN) {
+                return false;
+              }
+              try {
+                const response = await github.request(
+                  'GET /orgs/{org}/teams/{team_slug}/memberships/{username}',
+                  {
+                    org: 'ansible',
+                    team_slug: 'ansible-staff-eng-leads',
+                    username: actor,
+                    auth: process.env.MEMBERSHIP_TOKEN,
+                  },
+                );
+                return response.data.state === 'active';
+              } catch {
+                return false;
+              }
+            };
+
+            const removeLabel = () => github.rest.issues.removeLabel({...issue, name: labelName});
+            const failClosed = async (message) => {
+              try {
+                await removeLabel();
+                core.notice('Removed the approval label while failing closed.');
+              } catch {
+                core.error('Could not remove the approval label; the check remains failed.');
+              }
+              throw new Error(message);
+            };
+
+            const restoreLabel = async () => {
+              await github.rest.issues.addLabels({
+                ...issue,
+                labels: [labelName],
+              });
+              if (!(await hasLabel())) {
+                throw new Error('The approval label was not restored.');
+              }
+            };
+
+            const events = await labelEvents();
+            const latest = events[events.length - 1];
+
+            if (!(await hasLabel())) {
+              if (!latest || latest.event !== 'unlabeled') {
+                core.notice('The approval label is absent; no current approval needs authorization.');
+                return;
+              }
+
+              const previousAuthorization = [...events]
+                .reverse()
+                .find((event) => event.event === 'labeled');
+              if (previousAuthorization && await hasMarker(previousAuthorization.id)) {
+                if (!await isMember(latest.actor?.login)) {
+                  await restoreLabel();
+                  const restoredEvents = await labelEvents();
+                  const restored = restoredEvents[restoredEvents.length - 1];
+                  if (
+                    !restored ||
+                    restored.event !== 'labeled' ||
+                    restored.actor?.login !== 'github-actions[bot]' ||
+                    restored.id === previousAuthorization.id
+                  ) {
+                    throw new Error('Could not safely record the restored approval label.');
+                  }
+                  await writeMarker(restored.id);
+                }
+                return;
+              }
+
+              if (!await isMember(latest.actor?.login)) {
+                throw new Error(`${latest.actor?.login || 'unknown'} could not authorize the approval label.`);
+              }
+              return;
+            }
+
+            if (
+              !latest ||
+              latest.event !== 'labeled' ||
+              !latest.id ||
+              !latest.actor?.login
+            ) {
+              await failClosed('The approval label is present, but its latest label event could not be established.');
+            }
+
+            if (await hasMarker(latest.id)) {
+              core.notice('The present approval label has a valid authorization marker.');
+              return;
+            }
+
+            const previousEvent = events[events.length - 2];
+            if (latest.actor.login === 'github-actions[bot]' && previousEvent?.event === 'unlabeled') {
+              const previousAuthorization = events
+                .slice(0, -2)
+                .reverse()
+                .find((event) => event.event === 'labeled');
+              if (previousAuthorization && await hasMarker(previousAuthorization.id)) {
+                await writeMarker(latest.id);
+                return;
+              }
+            }
+
+            if (await isMember(latest.actor.login)) {
+              await writeMarker(latest.id);
+              core.notice(`${latest.actor.login} is an active member of ansible/ansible-staff-eng-leads.`);
+              return;
+            }
+
+            await failClosed(`${latest.actor.login}'s approval label could not be authorized.`);
+            })();
