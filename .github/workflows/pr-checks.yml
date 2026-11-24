@@ -72,6 +72,18 @@ jobs:
         run: |
           uv run ruff format --check
 
+      - name: "Check Segment payload schema is up to date"
+        run: |
+          uv run --frozen python tools/generate_segment_schema.py --output /tmp/metrics-service-segment-schema.yaml
+          diff --unified=3 tools/segment-schema/metrics-service.yaml /tmp/metrics-service-segment-schema.yaml
+          uv run --frozen python -c "
+          from openapi_spec_validator import validate
+          import yaml
+          with open('tools/segment-schema/metrics-service.yaml') as schema_file:
+              validate(yaml.safe_load(schema_file))
+          print('Segment payload schema is valid')
+          "
+
       - name: "Check for missing migrations"
         env:
           METRICS_SERVICE_DATABASES__default__HOST: localhost
