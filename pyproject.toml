@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=10.2.0"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=10.2.0", "packaging>=26.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -22,49 +22,46 @@ classifiers = [
 version = "1.0.0"
 
 dependencies = [
+    "apscheduler>=3.10.0",
+    "croniter>=6.2.2",
+    "dispatcherd>=2026.1.27",
     "django~=5.2.17",
     "djangorestframework>=3.18.2",
     # >=2025.12.12 accepts both PyPI releases and the git override (2025.12.16.0.dev4 in uv.lock).
     # Use `uv sync` so [tool.uv.sources] applies; plain `pip install .` will use latest from PyPI.
     "django-ansible-base[rest_filters,jwt_consumer,resource_registry,rbac,feature_flags,api_documentation]>=2026.11.3",
-    "psycopg[binary]>=3.1", # Binary wheel; use [c] only if C build tools available
-    "psycopg2-binary>=2.9.0", # Binary wheel for dispatcherd PostgreSQL LISTEN/NOTIFY (no C compiler in Docker)
-    "dynaconf>=3.1.0",
-    "dispatcherd>=2026.1.27",
-    "croniter>=6.2.2",
-    "apscheduler>=3.10.0",
-    "metrics-utility>=0.8.20261118",
-    "django-prometheus>=2.5.0",
     "django-extensions>=3.2",
-    "gunicorn>=23.0",
-    "whitenoise>=6.6",
-    "pip>=26.1.2",
-    "packaging>=26.2", # Required for setuptools-scm during source builds
     "django-generate-series>=2026.2.1", # Required for generating time series data for dashboard report charts
-    "urllib3~=2.8",
-    "pyjwt~=2.15",
+    "django-prometheus>=2.5.0",
+    "dynaconf>=3.1.0",
+    "gunicorn>=23.0",
+    "metrics-utility>=0.8.20261118",
+    "psycopg[binary]>=3.1", # Binary wheel; use [c] only if C build tools available
+    "pyjwt~=2.15", # TODO move to container 
+    "whitenoise>=6.6",
+    "urllib3~=2.8", # TODO move to container 
 ]
 
 [project.optional-dependencies]
 ldap = [
-    "python-ldap>=3.4.0",
     "django-auth-ldap>=5.2.0",
     "ldap-filter>=1.0.1",
+    "python-ldap>=3.4.0",
 ]
 
 test = [
-    "pytest>=7.4",
-    "pytest-django>=4.5",
-    "pytest-cov>=4.1",
-    "pytest-asyncio>=1.4.0",
     "coverage>=7.3",
     "factory-boy>=3.3",
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-django>=4.5",
 ]
 
 docs = [
     "sphinx>=7.1",
-    "sphinx-rtd-theme>=1.3",
     "sphinx-autodoc-typehints>=1.24",
+    "sphinx-rtd-theme>=1.3",
 ]
 
 [project.scripts]
@@ -89,20 +86,20 @@ exclude = ["tests*"]
 [dependency-groups]
 dev=[
     "coverage>=7.3",
+    "djangorestframework-stubs[compatible-mypy]>=3.14",
     "django-debug-toolbar>=4.2",
     "django-stubs[compatible-mypy]>=4.2",
-    "djangorestframework-stubs[compatible-mypy]>=3.14",
     "factory-boy>=3.3",
     "mypy>=1.5",
+    "openapi-spec-validator>=0.7.2",
     "poethepoet>=0.37.0",
     "pre-commit>=3.4",
     "psutil>=7.2.2",
+    "pytest>=7.4",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=4.1",
     "pytest-django>=4.5",
-    "pytest>=7.4",
     "ruff>=0.16.0",
-    "openapi-spec-validator>=0.7.2"
 ]
 
 [tool.ruff]
