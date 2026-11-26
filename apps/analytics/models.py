@@ -108,15 +108,23 @@ class APIUsageCounter(models.Model):
     @classmethod
     def record_request(cls, usage_date, endpoint_name: str, status_class: int) -> None:
         """Atomically increment one daily endpoint/status counter."""
-        row, _ = cls.objects.get_or_create(
+        updated = cls.objects.filter(
             usage_date=usage_date,
             endpoint_name=endpoint_name,
             status_class=status_class,
-            defaults={"request_count": 0},
+        ).update(request_count=F("request_count") + 1)
+        if updated:
+            return
+
+        row, created = cls.objects.get_or_create(
+            usage_date=usage_date,
+            endpoint_name=endpoint_name,
+            status_class=status_class,
+            defaults={"request_count": 1},
         )
-        cls.objects.filter(pk=row.pk).update(
-            request_count=F("request_count") + 1,
-        )
+        if not created:
+            # Concurrent writer inserted row between UPDATE and get_or_create.
+            cls.objects.filter(pk=row.pk).update(request_count=F("request_count") + 1)
 
     @classmethod
     def empty_daily_summary(cls, available: bool = True) -> dict:
