@@ -23,6 +23,11 @@ from django.conf import settings
 _FLAG_CACHE_TTL_SECONDS = 30
 _flag_cache: dict[str, tuple[bool, float]] = {}
 
+
+def clear_feature_flag_cache(*args, **kwargs) -> None:
+    """Clear the feature-flag TTL cache (used in tests and on Setting save)."""
+    _flag_cache.clear()
+
 SEGMENT_MAX_ATTEMPTS = 7  # Extended window for Segment transmission (~10.5h with exponential backoff)
 
 logger = logging.getLogger(__name__)
@@ -87,13 +92,15 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False, *, rai
         try:
             from ansible_base.feature_flags.models import AAPFlag
 
-            flag_val = (
-                AAPFlag.objects.filter(name=direct_attr, condition="boolean").values_list("value", flat=True).first()
-            )
-            if flag_val is not None:
-                result = flag_val.lower() in ("true", "1", "yes", "on")
-                _flag_cache[setting_name] = (result, time.monotonic())
-                return result
+            # Use .first() + .value to stay compatible with test mocks that patch AAPFlag
+            # (values_list path would require additional mock setup).
+            flag = AAPFlag.objects.filter(name=direct_attr, condition="boolean").first()
+            if flag is not None:
+                flag_val = getattr(flag, "value", None)
+                if flag_val is not None:
+                    result = str(flag_val).lower() in ("true", "1", "yes", "on")
+                    _flag_cache[setting_name] = (result, time.monotonic())
+                    return result
         except Exception as e:
             if raise_errors:
                 raise

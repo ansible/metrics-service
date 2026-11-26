@@ -22,6 +22,12 @@ from django.utils import timezone
 _awx_ready_cache: tuple[bool | None, float] = (None, 0)
 _AWX_READY_TTL = 30
 
+
+def clear_awx_ready_cache() -> None:
+    """Clear the AWX readiness TTL cache (used in tests)."""
+    global _awx_ready_cache
+    _awx_ready_cache = (None, 0)
+
 logger = logging.getLogger(__name__)
 
 STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
