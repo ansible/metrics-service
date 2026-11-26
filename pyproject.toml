@@ -37,9 +37,7 @@ dependencies = [
     "gunicorn>=23.0",
     "metrics-utility>=0.8.20261118",
     "psycopg[binary]>=3.1", # Binary wheel; use [c] only if C build tools available
-    "pyjwt~=2.15", # TODO move to container 
     "whitenoise>=6.6",
-    "urllib3~=2.8", # TODO move to container 
 ]
 
 [project.optional-dependencies]

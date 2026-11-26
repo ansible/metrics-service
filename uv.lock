@@ -732,8 +732,6 @@ dependencies = [
     { name = "gunicorn" },
     { name = "metrics-utility" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "pyjwt" },
-    { name = "urllib3" },
     { name = "whitenoise" },
 ]
 
@@ -795,7 +793,6 @@ requires-dist = [
     { name = "ldap-filter", marker = "extra == 'ldap'", specifier = ">=1.0.1" },
     { name = "metrics-utility", specifier = ">=0.8.20261118" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
-    { name = "pyjwt", specifier = "~=2.15" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.4.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.1" },
@@ -804,7 +801,6 @@ requires-dist = [
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.1" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.24" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.3" },
-    { name = "urllib3", specifier = "~=2.8" },
     { name = "whitenoise", specifier = ">=6.6" },
 ]
 provides-extras = ["ldap", "test", "docs"]
