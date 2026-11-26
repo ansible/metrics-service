@@ -28,6 +28,7 @@ def clear_awx_ready_cache() -> None:
     global _awx_ready_cache
     _awx_ready_cache = (None, 0)
 
+
 logger = logging.getLogger(__name__)
 
 STUCK_TASK_TIMEOUT_SECONDS: int = django_settings.TASK_TIMEOUT
@@ -483,6 +484,7 @@ class UnifiedTaskScheduler:
 
     def _execute_database_task(self, task_id: int):
         """Execute a database task by submitting it to dispatcherd."""
+        close_old_connections()
         try:
             from .models import Task
             from .task_groups import get_feature_enabled_from_db

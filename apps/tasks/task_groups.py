@@ -28,6 +28,7 @@ def clear_feature_flag_cache(*args, **kwargs) -> None:
     """Clear the feature-flag TTL cache (used in tests and on Setting save)."""
     _flag_cache.clear()
 
+
 SEGMENT_MAX_ATTEMPTS = 7  # Extended window for Segment transmission (~10.5h with exponential backoff)
 
 logger = logging.getLogger(__name__)

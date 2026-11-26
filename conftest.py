@@ -15,7 +15,6 @@ def _clear_caches(monkeypatch):
     disable the flag TTL cache in tests so DB writes are observed instantly.
     """
     import apps.tasks.task_groups as tg
-
     from apps.tasks.cron_scheduler import clear_awx_ready_cache
 
     monkeypatch.setattr(tg, "_FLAG_CACHE_TTL_SECONDS", 0)

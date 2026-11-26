@@ -1,6 +1,5 @@
 from ansible_base.lib.abstract_models.user import AbstractDABUser
 from ansible_base.resource_registry.fields import AnsibleResourceField
-from django.utils.functional import cached_property
 
 
 class User(AbstractDABUser):
@@ -17,7 +16,7 @@ class User(AbstractDABUser):
     # this field that lookup fails once a user holds a role.
     resource = AnsibleResourceField(primary_key_field="id")
 
-    @cached_property
+    @property
     def is_platform_auditor(self) -> bool:
         """True if the user holds the Platform Auditor global RBAC role.
 
