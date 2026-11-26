@@ -2,6 +2,29 @@ from django.urls import get_resolver
 
 from apps.core.views import APIRootView
 
+_cached_prefixes: set[str] | None = None
+
+
+def _get_known_prefixes() -> set[str]:
+    """Build and cache the set of all registered URL path prefixes."""
+    global _cached_prefixes
+    if _cached_prefixes is not None:
+        return _cached_prefixes
+
+    resolver = get_resolver()
+    prefixes: set[str] = set()
+
+    def collect(patterns, current_path=""):
+        for pattern in patterns:
+            full_path = current_path + str(pattern.pattern)
+            prefixes.add(full_path)
+            if hasattr(pattern, "url_patterns"):
+                collect(pattern.url_patterns, full_path)
+
+    collect(resolver.url_patterns)
+    _cached_prefixes = prefixes
+    return prefixes
+
 
 class APIRootViewMiddleware:
     """
@@ -36,23 +59,7 @@ class APIRootViewMiddleware:
         return response
 
     def _has_child_routes(self, path):
-        """Check if there are any routes under the given path."""
+        """Check if there are any routes under the given path (uses cached prefix set)."""
         prefix = path.lstrip("/")
-        resolver = get_resolver()
-
-        def check_patterns(patterns, current_path=""):
-            for pattern in patterns:
-                full_path = current_path + str(pattern.pattern)
-
-                # Check if this pattern is under our prefix
-                if full_path.startswith(prefix) and full_path != prefix:
-                    # Found a child route
-                    return True
-
-                # Recurse into includes
-                if hasattr(pattern, "url_patterns") and check_patterns(pattern.url_patterns, full_path):
-                    return True
-
-            return False
-
-        return check_patterns(resolver.url_patterns)
+        known = _get_known_prefixes()
+        return any(p.startswith(prefix) and p != prefix for p in known)

@@ -49,6 +49,9 @@ INSTALLED_APPS = [
 # Enable debug mode
 DEBUG = False
 
+# Cache parent permissions to avoid repeated RBAC ancestor lookups on hot paths.
+ANSIBLE_BASE_CACHE_PARENT_PERMISSIONS = True
+
 # REST framework settings
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -70,9 +73,18 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+    "MAX_PAGE_SIZE": 200,
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ["v1"],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/hour",
+        "user": "1000/hour",
+    },
 }
 
 # Title of Swagger the API documentation
@@ -84,6 +96,7 @@ SPECTACULAR_SETTINGS__VERSION = "v1"
 # Split components into request and response for generating clients
 SPECTACULAR_SETTINGS__COMPONENT_SPLIT_REQUEST = True
 SPECTACULAR_SETTINGS__DEFAULT_GENERATOR_CLASS = "apps.core.openapi.MetricsSchemaGenerator"
+SPECTACULAR_SETTINGS__SERVE_INCLUDE_SCHEMA = False
 
 CACHES = {
     "default": {
@@ -176,6 +189,7 @@ INSTALL_TYPE = "containerized"
 # Project-specific middleware additions
 MIDDLEWARE = [
     "dynaconf_merge_unique",
+    "django.middleware.gzip.GZipMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "apps.analytics.middleware.APIUsageMiddleware",
 ]

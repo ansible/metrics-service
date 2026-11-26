@@ -304,7 +304,6 @@ class TemplateMetadata(CommonModel):
 
     template_id = models.IntegerField(
         unique=True,
-        db_index=True,
         help_text="AWX job template ID (from AWX database main_jobtemplate table)",
     )
 
@@ -562,7 +561,6 @@ class JobData(CommonModel):
 
     job_id = models.IntegerField(
         unique=True,
-        db_index=True,
         help_text="AWX job ID (from AWX database main_unifiedjob table)",
     )
 
@@ -664,6 +662,7 @@ class JobData(CommonModel):
             models.Index(fields=["project_id"], name="dashboard_jd_project_idx"),
             models.Index(fields=["organization_id"], name="dashboard_jd_organization_idx"),
             models.Index(fields=["job_type", "finished"], name="dashboard_jd_type_finished_idx"),
+            models.Index(fields=["-started"], name="jobdata_started_desc_idx"),
         ]
 
     objects = JobDataManager()
@@ -701,6 +700,12 @@ class JobData(CommonModel):
 
         ``default_job_type`` only fills an unclassified existing row or a newly created row;
         it never replaces an explicit Controller model already stored on the row.
+
+        Note: This method is a per-job hot path. Callers iterating over many jobs
+        (e.g. dashboard sync) should batch DB work where possible and avoid
+        enabling per-job INFO logging in production; hot-path logs are gated
+        behind ``logger.isEnabledFor`` and downgraded to DEBUG to avoid
+        eager f-string evaluation on every row.
         """
         template_metadata = TemplateMetadata.get_by_awx_id_or_name(
             name=awx_job["name"], awx_id=awx_job["unified_job_template_id"], elapsed=awx_job["elapsed"]
@@ -746,7 +751,8 @@ class JobData(CommonModel):
                 job_id=awx_job["id"],
                 defaults=defaults,
             )
-        logger.info(f"{'Created' if created else 'Updated'} JobData {job_data}")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info("%s JobData %s", "Created" if created else "Updated", job_data)
 
         if labels is not None:
             existing_labels = {} if created else {o.label_id: o for o in JobLabel.objects.filter(job_data=job_data)}
@@ -765,10 +771,12 @@ class JobData(CommonModel):
         ]
         if to_create:
             JobLabel.objects.bulk_create(to_create)
-            logger.info(f"Created {len(to_create)} new JobLabel records for JobData {job_data}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Created %s new JobLabel records for JobData %s", len(to_create), job_data)
         if existing:
             JobLabel.objects.filter(pk__in=[o.pk for o in existing.values()]).delete()
-            logger.info(f"Deleted {len(existing)} stale JobLabel records for JobData {job_data}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Deleted %s stale JobLabel records for JobData %s", len(existing), job_data)
 
     @classmethod
     def _sync_host_summaries(cls, job_data: "JobData", awx_host_summaries: list, existing: dict) -> None:
@@ -793,13 +801,16 @@ class JobData(CommonModel):
         if to_update:
             # batch_size=500 prevents excessively large SQL statements for jobs with many hosts
             JobHostSummary.objects.bulk_update(to_update, ["host_id", "host_name"], batch_size=500)
-            logger.info(f"Updated {len(to_update)} JobHostSummary records for JobData {job_data}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Updated %s JobHostSummary records for JobData %s", len(to_update), job_data)
         if to_create:
             JobHostSummary.objects.bulk_create(to_create)
-            logger.info(f"Created {len(to_create)} new JobHostSummary records for JobData {job_data}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Created %s new JobHostSummary records for JobData %s", len(to_create), job_data)
         if existing:
             JobHostSummary.objects.filter(pk__in=[o.pk for o in existing.values()]).delete()
-            logger.info(f"Deleted {len(existing)} stale JobHostSummary records for JobData {job_data}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Deleted %s stale JobHostSummary records for JobData %s", len(existing), job_data)
 
 
 class JobLabel(CommonModel):

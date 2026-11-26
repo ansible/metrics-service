@@ -20,11 +20,7 @@ RUN dnf install -y postgresql-libs && \
     mkdir -p /app && \
     chown -R 1001:1001 /app
 
-COPY --chown=1001:1001 . /app/
-
-# Red Hat Certification Requirement: Copy licenses directory to container root
-# This satisfies the HasLicense preflight check
-COPY --chown=root:root licenses /licenses
+COPY --chown=1001:1001 pyproject.toml uv.lock README.md LICENSE ./
 
 USER 1001
 
@@ -34,6 +30,12 @@ USER 1001
 RUN pip install --no-cache-dir uv && \
     uv venv --python python3.12 /app/.venv && \
     uv pip install --python /app/.venv/bin/python --no-cache .
+
+COPY --chown=1001:1001 . /app/
+
+# Red Hat Certification Requirement: Copy licenses directory to container root
+# This satisfies the HasLicense preflight check
+COPY --chown=root:root licenses /licenses
 
 USER root
 COPY --chown=1001:1001 scripts/docker-entrypoint.sh /usr/local/bin/

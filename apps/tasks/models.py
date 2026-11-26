@@ -62,6 +62,14 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         app_label = "tasks"
         ordering = ["id"]
         permissions = [("can_execute_task", "Can execute task")]
+        indexes = [
+            models.Index(fields=["status", "scheduled_time"], name="task_status_sched_idx"),
+            models.Index(fields=["status", "started_at"], name="task_status_started_idx"),
+            models.Index(fields=["is_system_task", "name"], name="task_system_name_idx"),
+            models.Index(fields=["function_name"], name="task_func_name_idx"),
+            models.Index(fields=["name"], name="task_name_idx"),
+            models.Index(fields=["status", "cron_expression"], name="task_status_cron_idx"),
+        ]
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -231,7 +239,14 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
 
     @staticmethod
     def non_recurring_filter() -> models.Q:
-        """Match both database representations of an absent cron expression."""
+        """Match both database representations of an absent cron expression.
+
+        NOTE: This OR (IS NULL vs empty string) cannot be fully covered by a single
+        B-tree index; the composite (status, cron_expression) index helps but the
+        OR prevents a pure index-only scan. Existing rows with \"\" must be migrated
+        to NULL before this can be normalized to IS NULL only. Until then the filter
+        is left as-is for correctness and a data migration can consolidate values later.
+        """
         return models.Q(cron_expression__isnull=True) | models.Q(cron_expression="")
 
     @classmethod
@@ -269,6 +284,11 @@ class TaskExecution(CommonModel, AuditableModel):
     class Meta:
         app_label = "tasks"
         ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["task", "status"], name="taskexec_task_status_idx"),
+            models.Index(fields=["status", "started_at"], name="taskexec_status_started_idx"),
+            models.Index(fields=["completed_at"], name="taskexec_completed_idx"),
+        ]
 
     task = models.ForeignKey(
         Task, on_delete=models.CASCADE, related_name="executions", help_text="The task that was executed"
@@ -330,11 +350,18 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         app_label = "tasks"
         ordering = ["-collection_timestamp"]
         indexes = [
-            models.Index(fields=["collector_type", "collection_timestamp"]),
-            models.Index(fields=["collection_timestamp"]),
-            models.Index(fields=["status"]),
+            models.Index(
+                fields=["collector_type", "collection_timestamp"],
+                name="hmc_collector_timestamp_idx",
+            ),
+            models.Index(fields=["status"], name="hmc_status_idx"),
         ]
-        unique_together = ["collector_type", "collection_timestamp"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["collector_type", "collection_timestamp"],
+                name="hmc_collector_timestamp_uniq",
+            ),
+        ]
         verbose_name = "Hourly Metrics Collection"
         verbose_name_plural = "Hourly Metrics Collections"
 
@@ -361,9 +388,7 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         max_length=50, choices=COLLECTOR_TYPE_CHOICES, help_text="Type of metrics collector"
     )
 
-    collection_timestamp = models.DateTimeField(
-        db_index=True, help_text="When this collection occurred (rounded to hour)"
-    )
+    collection_timestamp = models.DateTimeField(help_text="When this collection occurred (rounded to hour)")
 
     # Data
     raw_data = models.JSONField(default=dict, help_text="Raw metrics data from collector")
@@ -426,10 +451,14 @@ class DailyMetricsSummary(CommonModel, AuditableModel):
         app_label = "tasks"
         ordering = ["-summary_date"]
         indexes = [
-            models.Index(fields=["summary_date"]),
-            models.Index(fields=["status"]),
+            models.Index(fields=["status"], name="dms_status_idx"),
         ]
-        unique_together = ["summary_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["summary_date"],
+                name="dailymetrics_summary_date_uniq",
+            ),
+        ]
         verbose_name = "Daily Metrics Summary"
         verbose_name_plural = "Daily Metrics Summaries"
 
@@ -442,7 +471,7 @@ class DailyMetricsSummary(CommonModel, AuditableModel):
     ]
 
     # Identification
-    summary_date = models.DateField(unique=True, db_index=True, help_text="Date this summary covers (YYYY-MM-DD)")
+    summary_date = models.DateField(unique=True, help_text="Date this summary covers (YYYY-MM-DD)")
 
     # Aggregated Data
     aggregated_metrics = models.JSONField(
@@ -500,8 +529,8 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
         app_label = "tasks"
         ordering = ["-created"]
         indexes = [
-            models.Index(fields=["status", "created"]),
-            models.Index(fields=["summary_date"]),
+            models.Index(fields=["status", "created"], name="amp_status_created_idx"),
+            models.Index(fields=["summary_date"], name="amp_summary_date_idx"),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -523,7 +552,7 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
     ]
 
     # Identification
-    summary_date = models.DateField(db_index=True, help_text="Date this payload covers")
+    summary_date = models.DateField(help_text="Date this payload covers")
 
     # Anonymized Data
     anonymized_data = models.JSONField(help_text="Anonymized metrics payload ready for Segment")

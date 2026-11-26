@@ -2,6 +2,7 @@
 Utility functions for task management and execution.
 """
 
+import contextlib
 import logging
 from datetime import UTC
 from typing import Any
@@ -111,34 +112,50 @@ def handle_task_error(
 
     try:
         with transaction.atomic():
-            # Update task status if we have a task instance
+            # Direct DB update avoids refresh_from_db + save (2 queries) on the error path.
             if task_instance:
-                # Refresh from database to get latest state
-                task_instance.refresh_from_db()
+                now = timezone.now()
+                from django.db.models import Case, F, IntegerField, When
 
-                # Store previous status to determine if we need to increment attempts
-                previous_status = task_instance.status
+                from .models import Task
 
+                previous_status = getattr(task_instance, "status", None)
+                Task.objects.filter(pk=task_instance.pk).update(
+                    status="failed",
+                    error_message=error_message,
+                    completed_at=now,
+                    modified=now,
+                    attempts=Case(
+                        When(status="pending", then=F("attempts") + 1),
+                        default=F("attempts"),
+                        output_field=IntegerField(),
+                    ),
+                )
+                # Keep in-memory instance in sync for can_retry() check below
                 task_instance.status = "failed"
                 task_instance.error_message = error_message
-                task_instance.completed_at = timezone.now()
-
-                # Increment attempts if the task failed before reaching "running" status
-                # This handles errors that occur during task initialization/validation
-                # If the task reached "running" status, attempts was already incremented
-                if previous_status in ["pending"]:
+                task_instance.completed_at = now
+                task_instance.modified = now
+                if previous_status == "pending":
                     task_instance.attempts = getattr(task_instance, "attempts", 0) + 1
 
-                task_instance.save(update_fields=["status", "error_message", "completed_at", "attempts", "modified"])
-
-            # Update execution status if provided
             if execution_instance:
-                execution_instance.status = "failed"
-                execution_instance.error_message = error_message
-                execution_instance.completed_at = timezone.now()
-                execution_instance.save(
-                    update_fields=["status", "error_message", "completed_at", "execution_time_seconds", "modified"]
-                )
+                now = timezone.now()
+                from .models import TaskExecution
+
+                exec_update: dict[str, object] = {
+                    "status": "failed",
+                    "error_message": error_message,
+                    "completed_at": now,
+                    "modified": now,
+                }
+                started_at = getattr(execution_instance, "started_at", None)
+                if started_at is not None:
+                    with contextlib.suppress(Exception):
+                        exec_update["execution_time_seconds"] = (now - started_at).total_seconds()
+                TaskExecution.objects.filter(pk=execution_instance.pk).update(**exec_update)
+                for k, v in exec_update.items():
+                    setattr(execution_instance, k, v)
 
     except Exception as save_error:
         logger.exception(f"Failed to update task status after error: {save_error}")
@@ -186,51 +203,38 @@ def update_task_status(
         raise ValueError("update_task_status cannot set status='running'; use _claim_task to claim a task")
 
     with transaction.atomic():
-        # Refresh from database to get latest state
-        task_instance.refresh_from_db()
+        # Direct filter().update() avoids refresh_from_db + save round-trips.
+        now = timezone.now()
+        from .models import Task, TaskExecution
 
-        # Update task fields
-        task_instance.status = status
+        task_update: dict[str, object] = {"status": status, "modified": now}
         if result_data is not None:
-            task_instance.result_data = result_data
+            task_update["result_data"] = result_data
         if error_message:
-            task_instance.error_message = error_message
+            task_update["error_message"] = error_message
         elif status == "completed":
-            task_instance.error_message = ""
-
+            task_update["error_message"] = ""
         if status in ["completed", "failed"]:
-            task_instance.completed_at = timezone.now()
+            task_update["completed_at"] = now
+        Task.objects.filter(pk=task_instance.pk).update(**task_update)
+        for k, v in task_update.items():
+            setattr(task_instance, k, v)
 
-        task_instance.save(
-            update_fields=[
-                "status",
-                "result_data",
-                "error_message",
-                "completed_at",
-                "modified",
-            ]
-        )
-
-        # Update execution instance if provided
         if execution_instance:
-            execution_instance.refresh_from_db()
-            execution_instance.status = status
+            exec_update: dict[str, object] = {"status": status, "modified": now}
             if result_data is not None:
-                execution_instance.result_data = result_data
+                exec_update["result_data"] = result_data
             if error_message:
-                execution_instance.error_message = error_message
+                exec_update["error_message"] = error_message
             if status in ["completed", "failed"]:
-                execution_instance.completed_at = timezone.now()
-            execution_instance.save(
-                update_fields=[
-                    "status",
-                    "result_data",
-                    "error_message",
-                    "completed_at",
-                    "execution_time_seconds",
-                    "modified",
-                ]
-            )
+                exec_update["completed_at"] = now
+                started_at = getattr(execution_instance, "started_at", None)
+                if started_at is not None:
+                    with contextlib.suppress(Exception):
+                        exec_update["execution_time_seconds"] = (now - started_at).total_seconds()
+            TaskExecution.objects.filter(pk=execution_instance.pk).update(**exec_update)
+            for k, v in exec_update.items():
+                setattr(execution_instance, k, v)
 
 
 def create_task_result(status: str, data: dict[str, Any] | None = None, error: str = "") -> dict[str, Any]:

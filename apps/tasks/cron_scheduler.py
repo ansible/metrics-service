@@ -7,14 +7,20 @@ and database tasks without database polling, using APScheduler for optimal perfo
 
 import logging
 import threading
+import time
 from datetime import timedelta
 
+from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.conf import settings as django_settings
 from django.db import close_old_connections, transaction
 from django.utils import timezone
+
+# Cache awx_db_ready result for 30s when ready to avoid repeated DB checks
+_awx_ready_cache: tuple[bool | None, float] = (None, 0)
+_AWX_READY_TTL = 30
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +73,17 @@ class UnifiedTaskScheduler:
 
     def __init__(self, check_interval: int = 30):
         """Initialize the task scheduler."""
-        self.scheduler = BackgroundScheduler()
+        self.scheduler = BackgroundScheduler(
+            job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 300},
+            executors={"default": ThreadPoolExecutor(max_workers=2)},
+        )
         self.running = False
         self._lock = threading.Lock()
         self.check_interval = check_interval
 
         # Database task tracking
         self._db_task_jobs: dict[int, str] = {}  # task_id -> job_id mapping
+        self._last_lock_cleanup = None
 
         # DB readiness tracking for error escalation
         self._db_not_ready_since = None  # Timestamp when DB first became unready
@@ -88,7 +98,14 @@ class UnifiedTaskScheduler:
         """
         from apps.tasks.utils import awx_db_ready
 
+        # Use TTL cache when ready to avoid repeated checks
+        global _awx_ready_cache
+        cached_val, cached_ts = _awx_ready_cache
+        if cached_val is True and time.monotonic() - cached_ts < _AWX_READY_TTL:
+            return True
+
         if not awx_db_ready():
+            _awx_ready_cache = (False, time.monotonic())
             # Track when DB first became unready
             if self._db_not_ready_since is None:
                 self._db_not_ready_since = timezone.now()
@@ -108,6 +125,7 @@ class UnifiedTaskScheduler:
                     f"skipping task scheduling (will retry in 30s)"
                 )
             return False
+        _awx_ready_cache = (True, time.monotonic())
 
         # DB is ready - clear the tracking timestamp
         if self._db_not_ready_since is not None:
@@ -299,8 +317,10 @@ class UnifiedTaskScheduler:
                     f"Periodic sync: {new_immediate} immediate, {new_scheduled} scheduled, {new_recurring} recurring tasks"
                 )
 
-            # Clean up advisory locks held by sessions that outlived their process
-            self._cleanup_stale_advisory_locks()
+            # Clean up advisory locks held by sessions that outlived their process (at most every 5 min)
+            if self._last_lock_cleanup is None or timezone.now() - self._last_lock_cleanup > timedelta(minutes=5):
+                self._cleanup_stale_advisory_locks()
+                self._last_lock_cleanup = timezone.now()
 
         except Exception as e:
             logger.exception(f"Error in periodic database sync: {e}")
@@ -313,8 +333,8 @@ class UnifiedTaskScheduler:
         stuck_to_fail = Task.objects.filter(
             status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
         )
-        if stuck_to_fail:
-            ids = [t.id for t in stuck_to_fail]
+        ids = list(stuck_to_fail.values_list("id", flat=True))
+        if ids:
             error_msg = "Task timed out — worker died before completion"
             with transaction.atomic():
                 TaskExecution.objects.filter(task__id__in=ids, status="running").update(
@@ -405,7 +425,7 @@ class UnifiedTaskScheduler:
                 self._execute_database_task(task.id)
                 return
 
-            # Create date trigger for the scheduled time
+            # Create date trigger for the scheduled time (misfire handled via job_defaults)
             trigger = DateTrigger(run_date=task.scheduled_time)
 
             # Add job to scheduler
@@ -419,7 +439,8 @@ class UnifiedTaskScheduler:
                 max_instances=1,
             )
 
-            self._db_task_jobs[task.id] = job_id
+            with self._lock:
+                self._db_task_jobs[task.id] = job_id
             logger.info(f"Added scheduled database task: {task.name} (ID: {task.id}) at {task.scheduled_time}")
 
         except Exception as e:
@@ -447,7 +468,8 @@ class UnifiedTaskScheduler:
                 max_instances=1,
             )
 
-            self._db_task_jobs[task.id] = job_id
+            with self._lock:
+                self._db_task_jobs[task.id] = job_id
             logger.info(f"Added recurring database task: {task.name} (ID: {task.id}) with cron: {task.cron_expression}")
 
         except Exception as e:
@@ -455,7 +477,6 @@ class UnifiedTaskScheduler:
 
     def _execute_database_task(self, task_id: int):
         """Execute a database task by submitting it to dispatcherd."""
-        close_old_connections()
         try:
             from .models import Task
             from .task_groups import get_feature_enabled_from_db
@@ -536,13 +557,15 @@ class UnifiedTaskScheduler:
 
     def _remove_database_task(self, task_id: int):
         """Remove a database task from the scheduler."""
-        if task_id in self._db_task_jobs:
+        with self._lock:
+            if task_id not in self._db_task_jobs:
+                return
             job_id = self._db_task_jobs[task_id]
-            try:
-                self.scheduler.remove_job(job_id)
-            except Exception as e:
-                logger.debug(f"Job {job_id} not found in scheduler: {e}")
             del self._db_task_jobs[task_id]
+        try:
+            self.scheduler.remove_job(job_id)
+        except Exception as e:
+            logger.debug(f"Job {job_id} not found in scheduler: {e}")
 
 
 # Global scheduler instance

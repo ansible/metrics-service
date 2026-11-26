@@ -15,16 +15,20 @@ run `manage.py metrics_service init-system-tasks` to update the DB from `TASK_GR
 
 import json
 import logging
+import time
 from typing import Any
 
 from django.conf import settings
+
+_FLAG_CACHE_TTL_SECONDS = 30
+_flag_cache: dict[str, tuple[bool, float]] = {}
 
 SEGMENT_MAX_ATTEMPTS = 7  # Extended window for Segment transmission (~10.5h with exponential backoff)
 
 logger = logging.getLogger(__name__)
 
 
-def get_feature_enabled_from_db(setting_name: str, default: bool = False, *, raise_errors: bool = False) -> bool:
+def get_feature_enabled_from_db(setting_name: str, default: bool = False, *, raise_errors: bool = False) -> bool:  # noqa: PLR0911
     """
     Get a feature enabled value from database settings.
 
@@ -45,18 +49,26 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False, *, rai
     Returns:
         bool: Feature enabled value from database or default
     """
+    # Fast path: TTL cache to avoid repeated DB hits on hot path
+    cached = _flag_cache.get(setting_name)
+    if cached is not None:
+        val, ts = cached
+        if time.monotonic() - ts < _FLAG_CACHE_TTL_SECONDS:
+            return val
+
     try:
         # Avoid circular import by importing here
         from apps.dynamic_settings.models import Setting
 
-        setting = Setting.objects.filter(setting_key=setting_name).first()
-        if setting and setting.current_value:
+        raw_value = Setting.objects.filter(setting_key=setting_name).values_list("current_value", flat=True).first()
+        if raw_value:
             try:
-                value = json.loads(setting.current_value)
+                value = json.loads(raw_value)
             except (json.JSONDecodeError, ValueError):
-                # If not valid JSON, treat as string boolean
-                value = setting.current_value.lower() in ("true", "1", "yes", "on")
-            return bool(value)
+                value = raw_value.lower() in ("true", "1", "yes", "on")
+            result = bool(value)
+            _flag_cache[setting_name] = (result, time.monotonic())
+            return result
 
         feature_enabled = getattr(settings, "FEATURE", {})
         if setting_name in feature_enabled:
@@ -67,20 +79,27 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False, *, rai
         direct_attr = f"FEATURE_{setting_name}_ENABLED"
         direct_value = getattr(settings, direct_attr, None)
         if direct_value is not None:
-            return bool(direct_value)
+            result = bool(direct_value)
+            _flag_cache[setting_name] = (result, time.monotonic())
+            return result
 
         # Platform default from DAB (YAML-seeded), when not overridden above
         try:
             from ansible_base.feature_flags.models import AAPFlag
 
-            flag = AAPFlag.objects.filter(name=direct_attr, condition="boolean").first()
-            if flag is not None:
-                return flag.value.lower() in ("true", "1", "yes", "on")
+            flag_val = (
+                AAPFlag.objects.filter(name=direct_attr, condition="boolean").values_list("value", flat=True).first()
+            )
+            if flag_val is not None:
+                result = flag_val.lower() in ("true", "1", "yes", "on")
+                _flag_cache[setting_name] = (result, time.monotonic())
+                return result
         except Exception as e:
             if raise_errors:
                 raise
             logger.warning(f"Error reading feature enabled setting {setting_name} from AAPFlag: {e}")
 
+        _flag_cache[setting_name] = (default, time.monotonic())
         return default
 
     except Exception as e:

@@ -10,6 +10,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -86,12 +87,13 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     # Combine querysets
     old_tasks = (old_tasks | old_tasks_fallback).exclude(is_system_task=True, name__in=get_oneshot_task_ids())
 
-    task_count = old_tasks.count()
+    # Batch IDs to avoid long-held locks and large IN clauses; delete in chunks of 500.
+    task_ids = list(old_tasks.values_list("id", flat=True))
+    task_count = len(task_ids)
     execution_count = 0
 
-    if include_executions:
-        # Count related executions
-        execution_count = TaskExecution.objects.filter(task__in=old_tasks).count()
+    if include_executions and task_count:
+        execution_count = TaskExecution.objects.filter(task_id__in=task_ids).count()
 
     deleted_tasks = 0
     deleted_executions = 0
@@ -99,18 +101,18 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     if not dry_run and task_count > 0:
         log_task_execution("cleanup_old_tasks", "processing", f"Deleting {task_count} old tasks")
 
-        if include_executions:
-            # Delete executions first (foreign key constraint)
-            _, deletion_info = TaskExecution.objects.filter(task__in=old_tasks).delete()
-            deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
+        for i in range(0, len(task_ids), 500):
+            chunk_ids = task_ids[i : i + 500]
+            with transaction.atomic():
+                if include_executions:
+                    _, deletion_info = TaskExecution.objects.filter(task_id__in=chunk_ids).delete()
+                    deleted_executions += deletion_info.get("tasks.TaskExecution", 0)
 
-        # Delete the tasks
-        _, deletion_info = old_tasks.delete()
-        deleted_tasks = deletion_info.get("tasks.Task", 0)
+                _, deletion_info = Task.objects.filter(id__in=chunk_ids).delete()
+                deleted_tasks += deletion_info.get("tasks.Task", 0)
 
-        # If we didn't manually delete executions, they were cascade deleted
-        if not include_executions:
-            deleted_executions = deletion_info.get("tasks.TaskExecution", 0)
+                if not include_executions:
+                    deleted_executions += deletion_info.get("tasks.TaskExecution", 0)
 
         message = f"Deleted {deleted_tasks} tasks and {deleted_executions} executions"
         if preserve_recurring:

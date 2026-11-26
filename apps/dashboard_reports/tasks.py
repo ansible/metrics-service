@@ -156,7 +156,7 @@ def _sync_jobs_atomically(job_results: list, default_job_type: str | None = None
                     else:
                         JobData.create_or_update_from_awx(job)
                 except Exception as e:
-                    logger.exception(f"Error creating/updating JobData for job {job['id']}: {str(e)}")
+                    logger.exception("Error creating/updating JobData for job %s: %s", job["id"], e)
                     failed_jobs.append(job["id"])
             if failed_jobs:
                 raise _PartialSyncRollbackError()
@@ -800,7 +800,7 @@ def sync_dashboard_host_summaries(**kwargs) -> dict[str, Any]:
                 JobData._sync_host_summaries(job_data, host_summaries, existing)
             synced += 1
         except Exception:
-            logger.exception(f"Error syncing host summaries for job {job_remote_id}")
+            logger.exception("Error syncing host summaries for job %s", job_remote_id)
             failed += 1
 
     duration_ms = (time.monotonic() - start_time) * 1000

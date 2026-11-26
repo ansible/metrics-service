@@ -113,5 +113,9 @@ class APIUsageMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        record_api_usage(request, response.status_code)
+        try:
+            record_api_usage(request, response.status_code)
+        except Exception:
+            # Middleware failure must never block the response.
+            logger.exception("APIUsageMiddleware failed to record usage")
         return response

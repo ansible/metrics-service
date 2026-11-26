@@ -44,6 +44,14 @@ docker-compose*.yml
 *.log
 logs/
 
+# Documentation and tests (not needed in production image)
+tests/
+docs/
+.copier-answers.yml
+.mypy_cache/
+codegraph.db
+.serena/
+
 # Database
 *.db
 *.sqlite3

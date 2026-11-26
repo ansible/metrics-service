@@ -27,13 +27,8 @@ RUN dnf update -y && \
 # Create app directory and set permissions
 RUN mkdir -p /app && chown -R 1001:1001 /app
 
-# Copy the application code
-COPY --chown=1001:1001 . /app/
-
-# Red Hat Certification Requirement: Copy licenses directory to container root
-# This satisfies the HasLicense preflight check
-COPY --chown=root:root licenses /licenses
-# Switch to non-root user for install
+# Leverage layer cache: copy dependency manifests first, install, then copy source
+COPY --chown=1001:1001 pyproject.toml uv.lock README.md LICENSE ./
 
 USER 1001
 
@@ -41,6 +36,13 @@ USER 1001
 # Prefer binary packages to avoid compilation during build
 RUN pip install --no-cache-dir --prefer-binary --only-binary :all: . || \
     pip install --no-cache-dir --prefer-binary .
+
+# Copy the rest of the application code
+COPY --chown=1001:1001 . /app/
+
+# Red Hat Certification Requirement: Copy licenses directory to container root
+# This satisfies the HasLicense preflight check
+COPY --chown=root:root licenses /licenses
 
 # Copy and set up entrypoint scripts, Nginx config, and supervisord configs
 USER root

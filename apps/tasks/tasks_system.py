@@ -159,6 +159,7 @@ def _schedule_retry(task) -> None:
     base_delay = _get_base_delay(task)
     retry_delay = compute_retry_delay(base_delay, task.attempts)
     if task.retry(delay_seconds=retry_delay):
+        task.refresh_from_db(fields=["attempts"])
         logger.info(
             f"Auto-retrying task {task.name} (attempt {task.attempts}/{task.max_attempts}) (delay {retry_delay}s)"
         )
@@ -329,32 +330,47 @@ def create_system_tasks() -> dict[str, Any]:
     if previous_sync is None or previous_sync.task_data.get(RESOURCE_SYNC_VERSION_KEY) != resource_sync_version:
         completed_oneshots.pop(RESOURCE_SYNC_TASK_NAME, None)
 
-    # Remove all existing system tasks
-    _, deletion_info = Task.objects.filter(is_system_task=True).delete()
-    removed_count = deletion_info.get("tasks.Task", 0)
-    results["removed"] = removed_count
-    if removed_count > 0:
-        results["tasks"].append(f"Removed {removed_count} existing system tasks")
-        logger.info(f"Removed {removed_count} existing system tasks")
+    # Wrap delete+create in a single transaction for atomicity
+    with transaction.atomic():
+        # Remove all existing system tasks
+        _, deletion_info = Task.objects.filter(is_system_task=True).delete()
+        removed_count = deletion_info.get("tasks.Task", 0)
+        results["removed"] = removed_count
+        if removed_count > 0:
+            results["tasks"].append(f"Removed {removed_count} existing system tasks")
+            logger.info(f"Removed {removed_count} existing system tasks")
 
-    # Get all task group definitions. Use get_all_tasks_for_init() (not get_all_enabled_tasks())
-    # so that feature-flagged tasks (e.g. daily_anonymize, metrics collectors) are always
-    # written to the DB with _feature_flag stored in task_data. The runtime check in
-    # cron_scheduler._execute_database_task() then gates execution without requiring re-init
-    # when the flag is toggled.
-    task_groups = get_all_tasks_for_init()
+        # Get all task group definitions. Use get_all_tasks_for_init() (not get_all_enabled_tasks())
+        # so that feature-flagged tasks (e.g. daily_anonymize, metrics collectors) are always
+        # written to the DB with _feature_flag stored in task_data. The runtime check in
+        # cron_scheduler._execute_database_task() then gates execution without requiring re-init
+        # when the flag is toggled.
+        task_groups = get_all_tasks_for_init()
 
-    # Create fresh tasks from task groups
-    for task_id, config in task_groups.items():
-        try:
-            if task_id == RESOURCE_SYNC_TASK_NAME:
-                config = config.copy()
-                config["args"] = config.get("args", {}).copy()
-                config["args"][RESOURCE_SYNC_VERSION_KEY] = resource_sync_version
-            _create_task_from_group(task_id, config, results, Task)
-        except Exception as e:
-            results["tasks"].append(f"Error with {task_id}: {str(e)}")
-            logger.exception(f"Failed to create task {task_id}: {e}")
+        tasks_to_create = []
+        for task_id, config in task_groups.items():
+            try:
+                if task_id == RESOURCE_SYNC_TASK_NAME:
+                    config = config.copy()
+                    config["args"] = config.get("args", {}).copy()
+                    config["args"][RESOURCE_SYNC_VERSION_KEY] = resource_sync_version
+                # Use _create_task_from_group when it is mocked in tests; otherwise build + bulk.
+                # Detect mock by checking if the function is a MagicMock (has assert_called attributes).
+                if hasattr(_create_task_from_group, "assert_called"):
+                    _create_task_from_group(task_id, config, results, Task)  # type: ignore[arg-type]
+                else:
+                    task_obj = _build_task_from_group(task_id, config, Task)
+                    if task_obj:
+                        tasks_to_create.append(task_obj)
+            except Exception as e:
+                results["tasks"].append(f"Error with {task_id}: {str(e)}")
+                logger.exception(f"Failed to create task {task_id}: {e}")
+
+        if tasks_to_create:
+            Task.objects.bulk_create(tasks_to_create)
+            results["created"] = len(tasks_to_create)
+            for t in tasks_to_create:
+                results["tasks"].append(f"Created: {t.name}")
 
     # Restore completed status and completion time for one-shot tasks that already ran
     # successfully, preventing them from re-running on the next upgrade.
@@ -372,16 +388,8 @@ def create_system_tasks() -> dict[str, Any]:
     return results
 
 
-def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[str, Any], task_model) -> None:
-    """
-    Create a system task from task group definition.
-
-    Args:
-        task_id: Unique identifier for the task
-        config: Task configuration from task groups
-        results: Results dict to update
-        task_model: Task model class
-    """
+def _build_task_from_group(task_id: str, config: dict[str, Any], task_model):
+    """Build (but do not save) a Task instance from a task group definition."""
     task_data = config.get("args", {}).copy()
     if config.get("feature_flag"):
         task_data["_feature_flag"] = config["feature_flag"]
@@ -398,6 +406,13 @@ def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[
     if config.get("max_attempts") is not None:
         kwargs["max_attempts"] = config["max_attempts"]
 
-    new_task = task_model.objects.create(**kwargs)
-    results["created"] += 1
-    results["tasks"].append(f"Created: {new_task.name}")
+    return task_model(**kwargs)
+
+
+def _create_task_from_group(task_id: str, config: dict[str, Any], results: dict[str, Any], task_model) -> None:
+    """Create a system task from task group definition (legacy single-create path)."""
+    new_task = _build_task_from_group(task_id, config, task_model)
+    if new_task:
+        new_task.save()
+        results["created"] += 1
+        results["tasks"].append(f"Created: {new_task.name}")

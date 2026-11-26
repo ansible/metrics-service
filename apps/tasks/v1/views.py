@@ -31,6 +31,7 @@ from datetime import timedelta
 from typing import Any
 
 from ansible_base.rbac.api.permissions import IsSystemAdminOrAuditor
+from django.db.models import Count
 from django.http import HttpRequest
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -89,7 +90,7 @@ class TaskViewSet(BaseViewSet):
     and control.
     """
 
-    queryset = Task.objects.select_related("created_by").all()
+    queryset = Task.objects.select_related("created_by").annotate(executions_count=Count("executions"))
     serializer_class = TaskSerializer
     permission_classes = [IsSystemAdminOrAuditor]
     ordering_fields = ["id", "name", "status", "scheduled_time", "created", "started_at", "completed_at"]
@@ -157,8 +158,12 @@ class TaskViewSet(BaseViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
-        # Apply limit (default 20)
-        limit = int(request.query_params.get("limit", 20))
+        # Apply limit (default 20, max 100)
+        try:
+            limit = int(request.query_params.get("limit", 20))
+        except ValueError:
+            return Response({"detail": "Invalid limit parameter."}, status=status.HTTP_400_BAD_REQUEST)
+        limit = min(max(1, limit), 100)
         queryset = queryset.order_by("-id")[:limit]
 
         serializer = self.get_serializer(queryset, many=True)
@@ -177,7 +182,7 @@ class TaskViewSet(BaseViewSet):
         Returns:
             Response: List of tasks with status 'running'
         """
-        running_tasks = self.get_queryset().filter(status="running")
+        running_tasks = self.get_queryset().filter(status="running")[:100]
         serializer = self.get_serializer(running_tasks, many=True)
         return Response(serializer.data)
 
@@ -194,7 +199,7 @@ class TaskViewSet(BaseViewSet):
         Returns:
             Response: List of tasks with status 'pending'
         """
-        pending_tasks = self.get_queryset().filter(status="pending")
+        pending_tasks = self.get_queryset().filter(status="pending")[:100]
         serializer = self.get_serializer(pending_tasks, many=True)
         return Response(serializer.data)
 
