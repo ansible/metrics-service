@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
-from django.db import connection
+from django.db import IntegrityError, connection
 from django.db.models import QuerySet
 from django.test.utils import CaptureQueriesContext
 
@@ -125,28 +125,75 @@ def test_api_usage_counter_steady_state_increment_uses_single_query():
     assert counter.request_count == 42
 
 
-def test_api_usage_counter_increments_when_get_or_create_loses_race():
+def test_api_usage_counter_increments_when_row_inserted_between_update_and_get_or_create():
     usage_date = datetime(2026, 8, 17, tzinfo=UTC).date()
-    counter = APIUsageCounter.objects.create(
-        usage_date=usage_date,
-        endpoint_name="analytics:v1:root",
-        status_class=2,
-        request_count=7,
-    )
     real_update = QuerySet.update
-    update_calls = []
+    update_calls = 0
 
-    def fake_update(self, **kwargs):
-        update_calls.append(kwargs)
-        if len(update_calls) == 1:
-            # Simulate a concurrent insert between UPDATE and get_or_create.
-            return 0
-        return real_update(self, **kwargs)
+    def update_then_competing_insert(self, **kwargs):
+        nonlocal update_calls
+        update_calls += 1
+        updated = real_update(self, **kwargs)
+        if update_calls == 1:
+            # The first UPDATE finds no row; a competing writer inserts it before
+            # get_or_create runs, so get_or_create() returns created=False.
+            assert updated == 0
+            APIUsageCounter.objects.create(
+                usage_date=usage_date,
+                endpoint_name="analytics:v1:root",
+                status_class=2,
+                request_count=1,
+            )
+        return updated
 
-    with patch.object(QuerySet, "update", fake_update):
+    with patch.object(QuerySet, "update", update_then_competing_insert):
         APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
 
-    assert len(update_calls) == 2
-    assert APIUsageCounter.objects.filter(usage_date=usage_date).count() == 1
-    counter.refresh_from_db()
-    assert counter.request_count == 8
+    rows = APIUsageCounter.objects.filter(usage_date=usage_date)
+    assert rows.count() == 1
+    assert rows.get().request_count == 2
+
+
+def test_api_usage_counter_increments_on_unique_conflict_in_get_or_create():
+    usage_date = datetime(2026, 8, 17, tzinfo=UTC).date()
+    real_get = QuerySet.get
+    real_create = QuerySet.create
+    get_calls = 0
+    conflicts = []
+
+    def get_then_competing_insert(self, *args, **kwargs):
+        nonlocal get_calls
+        get_calls += 1
+        try:
+            return real_get(self, *args, **kwargs)
+        except APIUsageCounter.DoesNotExist:
+            if get_calls == 1:
+                # The initial get() misses; a competing writer inserts the row before
+                # create() runs, so create() hits the real unique constraint.
+                APIUsageCounter.objects.create(
+                    usage_date=usage_date,
+                    endpoint_name="analytics:v1:root",
+                    status_class=2,
+                    request_count=1,
+                )
+            raise
+
+    def record_conflicts(self, **kwargs):
+        try:
+            return real_create(self, **kwargs)
+        except IntegrityError as exc:
+            conflicts.append(exc)
+            raise
+
+    with (
+        patch.object(QuerySet, "get", get_then_competing_insert),
+        patch.object(QuerySet, "create", record_conflicts),
+    ):
+        APIUsageCounter.record_request(usage_date, "analytics:v1:root", 2)
+
+    # One real IntegrityError from the unique constraint; the second get() recovers the row.
+    assert len(conflicts) == 1
+    assert get_calls == 2
+    rows = APIUsageCounter.objects.filter(usage_date=usage_date)
+    assert rows.count() == 1
+    assert rows.get().request_count == 2
