@@ -244,18 +244,30 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
 
     @classmethod
     def immediate_tasks(cls):
-        """Pending tasks with no scheduled time and no cron expression (run ASAP)."""
-        return cls.objects.filter(cls.non_recurring_filter(), status="pending", scheduled_time__isnull=True)
+        """Pending tasks with no scheduled time and no cron expression (run ASAP).
+
+        Large/unused columns are deferred so the periodic scheduler sync does not
+        fetch result payloads for tasks it only needs to identify and dispatch.
+        """
+        return cls.objects.filter(cls.non_recurring_filter(), status="pending", scheduled_time__isnull=True).defer(
+            "result_data", "error_message", "description"
+        )
 
     @classmethod
     def scheduled_tasks(cls):
         """Pending tasks that have a specific scheduled_time set."""
-        return cls.objects.filter(status="pending", scheduled_time__isnull=False)
+        return cls.objects.filter(status="pending", scheduled_time__isnull=False).defer(
+            "result_data", "error_message", "description"
+        )
 
     @classmethod
     def recurring_tasks(cls):
         """Pending tasks driven by a cron expression."""
-        return cls.objects.filter(status="pending").exclude(cls.non_recurring_filter())
+        return (
+            cls.objects.filter(status="pending")
+            .exclude(cls.non_recurring_filter())
+            .defer("result_data", "error_message", "description")
+        )
 
 
 class TaskExecution(CommonModel, AuditableModel):
@@ -402,6 +414,11 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         """
         Auto-calculate data size on save.
 
+        Normalization and size calculation are skipped when the save explicitly targets other
+        fields, so status-only updates do not rewrite the JSONB column or pay the conversion
+        cost. When ``raw_data`` is written, ``data_size_bytes`` is added to ``update_fields`` so
+        the stored size stays accurate.
+
         Args:
             *args: Positional arguments
             *kwargs: Keyword arguments
@@ -409,8 +426,16 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         Returns:
             None
         """
-        self.raw_data = to_jsonable(self.raw_data)
-        self.data_size_bytes = json_size_bytes(self.raw_data)
+        update_fields = kwargs.get("update_fields")
+        writes_raw_data = update_fields is None or "raw_data" in update_fields
+
+        if writes_raw_data:
+            self.raw_data = to_jsonable(self.raw_data)
+            self.data_size_bytes = json_size_bytes(self.raw_data, normalized=True)
+
+            if update_fields is not None and "data_size_bytes" not in update_fields:
+                kwargs["update_fields"] = [*update_fields, "data_size_bytes"]
+
         super().save(*args, **kwargs)
 
 
@@ -591,6 +616,11 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
         """
         Auto-calculate payload size on save.
 
+        Normalization and size calculation are skipped when the save explicitly targets other
+        fields, so status-only updates do not rewrite the JSONB column or pay the conversion
+        cost. When ``anonymized_data`` is written, ``payload_size_bytes`` is added to
+        ``update_fields`` so the stored size stays accurate.
+
         Args:
             *args: Positional arguments
             *kwargs: Keyword arguments
@@ -598,6 +628,14 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
         Returns:
             None
         """
-        self.anonymized_data = to_jsonable(self.anonymized_data)
-        self.payload_size_bytes = json_size_bytes(self.anonymized_data)
+        update_fields = kwargs.get("update_fields")
+        writes_anonymized_data = update_fields is None or "anonymized_data" in update_fields
+
+        if writes_anonymized_data:
+            self.anonymized_data = to_jsonable(self.anonymized_data)
+            self.payload_size_bytes = json_size_bytes(self.anonymized_data, normalized=True)
+
+            if update_fields is not None and "payload_size_bytes" not in update_fields:
+                kwargs["update_fields"] = [*update_fields, "payload_size_bytes"]
+
         super().save(*args, **kwargs)
