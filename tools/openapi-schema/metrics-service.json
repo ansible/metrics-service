@@ -9181,8 +9181,8 @@
         "/api/v1/tasks/cleanup/": {
             "post": {
                 "operationId": "tasks_cleanup_create",
-                "description": "This endpoint replicates the functionality of: 'python manage.py manage_tasks cleanup --days=30 --dry-run'",
-                "summary": "Clean up old completed tasks",
+                "description": "Delete old completed, failed and cancelled non-recurring tasks. Recurring schedule definitions and task-group one-shot system tasks are preserved. A dry run returns a preview without deleting anything.",
+                "summary": "Clean up old task history.",
                 "tags": [
                     "tasks"
                 ],

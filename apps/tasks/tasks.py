@@ -139,7 +139,7 @@ TASK_METADATA = {
     "cleanup_old_tasks": {
         "queue": "maintenance",
         "category": "Maintenance",  # task system records
-        "description": "Clean up old completed and failed tasks (preserves recurring tasks by default)",
+        "description": "Clean up old completed, failed and cancelled tasks (preserves recurring tasks by default)",
         "parameters": {
             "days_old": {
                 "type": "integer",

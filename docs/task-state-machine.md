@@ -298,6 +298,19 @@ A recurring task adds a second layer: each cron fire creates a new child `Task`
 (not just a `TaskExecution`), and that child owns its own `TaskExecution` rows.
 The recurring template itself never gains executions — see §2.
 
+### Task history retention
+
+Both cleanup paths include completed, failed and cancelled one-shot history.
+The cleanup API preserves recurring schedule definitions; scheduled
+`cleanup_old_tasks` also preserves them by default (`preserve_recurring=True`).
+The latter supports explicitly opting out of that protection. Both paths always
+preserve task-group one-shot system tasks.
+
+Scheduled cleanup uses `completed_at` when present and otherwise falls back to
+`modified`. This also covers cancelled history from before cancellation recorded
+`completed_at`, without a timestamp backfill. It does not infer an exact completion
+time for those legacy rows.
+
 ## 8. Terminal vs Non-Terminal States
 
 ```mermaid

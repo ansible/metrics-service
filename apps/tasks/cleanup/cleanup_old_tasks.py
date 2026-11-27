@@ -1,7 +1,7 @@
 """
-Clean up old completed and failed tasks from the database.
+Clean up old completed, failed and cancelled tasks from the database.
 
-This task removes tasks that have been completed or failed for more than
+This task removes tasks that have been completed, failed or cancelled for more than
 the specified number of days. This helps maintain database performance
 and prevents unlimited growth of task history.
 """
@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 
 def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     """
-    Clean up old completed and failed tasks from the database.
+    Clean up old completed, failed and cancelled tasks from the database.
 
-    This task removes tasks that have been completed or failed for more than
+    This task removes tasks that have been completed, failed or cancelled for more than
     the specified number of days. This helps maintain database performance
     and prevents unlimited growth of task history.
 
-    IMPORTANT: Recurring tasks are automatically preserved and will NOT be deleted,
+    IMPORTANT: By default, recurring tasks are preserved and will NOT be deleted,
     regardless of their age, to ensure scheduled tasks continue to function.
 
     One-shot system tasks from the task groups (e.g. initial_dashboard_collection) are never deleted:
@@ -56,10 +56,10 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
     # Calculate cutoff date
     cutoff_date = timezone.now() - timedelta(days=days_old)
 
-    # Find tasks that are completed or failed and older than cutoff date
+    # Find terminal tasks older than the cutoff date.
     # Use completed_at if available, otherwise fall back to modified date
     old_tasks_filter = Q(
-        status__in=["completed", "failed"],
+        status__in=["completed", "failed", "cancelled"],
         completed_at__lt=cutoff_date,
         completed_at__isnull=False,
     )
@@ -72,7 +72,7 @@ def cleanup_old_tasks(**kwargs) -> dict[str, Any]:
 
     # Also include tasks that don't have completed_at but are old based on modified date
     old_tasks_fallback_filter = Q(
-        status__in=["completed", "failed"],
+        status__in=["completed", "failed", "cancelled"],
         completed_at__isnull=True,
         modified__lt=cutoff_date,
     )
