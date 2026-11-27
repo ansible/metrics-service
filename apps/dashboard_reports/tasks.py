@@ -26,10 +26,10 @@ from django.db.models import Case, CharField, QuerySet, Value, When
 from metrics_utility.library.collectors.controller import unified_jobs_dashboard
 from metrics_utility.library.collectors.dashboard.queries import get_job_host_summaries_for_ids_query
 
-from apps.dashboard_reports.awx_queries import fetch_job_types_for_ids, fetch_organizations, fetch_retention_settings
+from apps.dashboard_reports.awx_queries import fetch_job_types_for_ids, fetch_organizations
 from apps.dashboard_reports.job_definition import prepare_dashboard_records, select_dashboard_jobs
 from apps.dashboard_reports.models import DashboardTelemetry, JobData, JobHostSummary, TemplateMetadata
-from apps.tasks.retention import DEFAULT_RETENTION_DAYS, _parse_dt, resolve_retention_days
+from apps.tasks.retention import DEFAULT_RETENTION_DAYS, _parse_dt, get_controller_retention_days
 from apps.tasks.utils import create_task_result, get_db_connection, ignore_database_override, log_task_execution
 
 ORG_NAME_BACKFILL_BATCH_SIZE = 5_000
@@ -66,40 +66,6 @@ def _use_controller_retention() -> bool:
     """Return True when DASHBOARD_COLLECTION['USE_CONTROLLER_RETENTION'] is set in settings."""
     dashboard_cfg = getattr(settings, "DASHBOARD_COLLECTION", None) or {}
     return bool(dashboard_cfg.get("USE_CONTROLLER_RETENTION", True))
-
-
-def get_retention_days() -> int:
-    """
-    Return the effective retention period in days derived from active AWX cleanup schedules.
-
-    Connects to the AWX database and queries
-    ``cleanup_jobs`` system job schedules (which govern job-run retention),
-    then applies the most aggressive (lowest) retention policy:
-
-    - Only enabled schedules (``schedule_enabled = True``) are considered.
-    - Schedules whose ``retention_days`` is missing or not a valid integer are skipped
-      individually, so one malformed schedule doesn't affect the others.
-    - When multiple schedules exist, the one with the lowest ``retention_days`` wins;
-      ties are broken by the soonest ``next_run``.
-    - Falls back to ``DEFAULT_RETENTION_DAYS`` if the query fails or no valid active rows remain.
-
-    Always returns a valid int, so callers don't need to re-validate the return value.
-
-    Note: ``cleanup_activitystream`` schedules are intentionally excluded — they govern
-    a different resource (activity stream entries) and must not drive ``JobData`` retention.
-    """
-    try:
-        db_connection = get_db_connection("awx")
-        retention_data, _ = fetch_retention_settings(db_connection=db_connection)
-    except Exception:
-        logger.exception(f"Error fetching retention settings; using default {DEFAULT_RETENTION_DAYS} days")
-        return DEFAULT_RETENTION_DAYS
-
-    retention_days = resolve_retention_days(retention_data)
-    if retention_days is None:
-        logger.warning("No valid Controller cleanup_jobs retention schedule found; using 90-day fallback")
-        return DEFAULT_RETENTION_DAYS
-    return retention_days
 
 
 def _collect_jobs(db_connection, since: datetime, until: datetime, after_id: int, batch_size: int):
@@ -249,7 +215,7 @@ def _sync_jobs_atomically(job_results: list) -> list:
 def _retention_window_start(until: datetime) -> datetime:
     """Return the UTC midnight at which the retention window ending at *until* starts."""
     if _use_controller_retention():
-        retention_days = get_retention_days()
+        retention_days = get_controller_retention_days()
         if retention_days <= 0:
             raise ValueError(f"Retention days must be > 0, got {retention_days!r}")
     else:
@@ -288,7 +254,7 @@ def _resolve_collection_params(
     When ``since`` is not provided and no prior ``JobData`` timestamp exists, the backfill
     window defaults to ``DEFAULT_RETENTION_DAYS`` (90 days). When the
     ``DASHBOARD_COLLECTION['USE_CONTROLLER_RETENTION']`` setting is enabled, the window is
-    derived from active AWX cleanup_jobs schedules via ``get_retention_days`` instead.
+    derived from active AWX cleanup_jobs schedules via ``get_controller_retention_days`` instead.
     ``use_watermark=False`` ignores the stored ``JobData`` timestamp, so a retried backfill replays the
     whole window: pages are ordered by job ID and commit independently, so the watermark of a partly
     committed run can sit past rows that were never stored.
@@ -425,7 +391,7 @@ def collect_dashboard_reports_initial_data(**kwargs) -> dict[str, Any]:
     """
     Collect historical AWX job data as a one-time backfill.
 
-    The retention window is determined by ``get_retention_days`` (queried from active AWX
+    The retention window is determined by ``get_controller_retention_days`` (queried from active AWX
     cleanup schedules), falling back to ``DEFAULT_RETENTION_DAYS`` when the AWX DB is
     unreachable or no active schedules exist. The window can be overridden by passing
     ``since`` or ``until`` in kwargs. A retry replays the whole window (upserts by ``job_id`` make that
@@ -1227,8 +1193,8 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     Delete JobData records with a finished date older than retention_days.
 
     The default retention period is resolved from active AWX ``cleanup_jobs`` schedules via
-    ``get_retention_days`` (lowest ``retention_days`` across enabled schedules), falling back
-    to ``DEFAULT_RETENTION_DAYS`` when the AWX DB is unreachable or no active schedules exist.
+    ``get_controller_retention_days`` (lowest ``retention_days`` across enabled schedules), falling
+    back to ``DEFAULT_RETENTION_DAYS`` when the AWX DB is unreachable or no active schedules exist.
     The caller may override this default by passing ``retention_days`` in kwargs.
 
     Returns a task result dict with the number of deleted records, cutoff date, and any error details.
@@ -1237,7 +1203,7 @@ def cleanup_dashboard_reports_old_data(**kwargs) -> dict[str, Any]:
     ignore_database_override(task_name, kwargs)
     retention_days = _get_renamed_kwarg(kwargs, "retention_days", "retention_period_days", task_name)
     if retention_days is _MISSING:
-        retention_days = get_retention_days() if _use_controller_retention() else DEFAULT_RETENTION_DAYS
+        retention_days = get_controller_retention_days() if _use_controller_retention() else DEFAULT_RETENTION_DAYS
     retention_days, error_result = _normalize_retention_days(task_name, retention_days)
     if error_result is not None:
         return error_result

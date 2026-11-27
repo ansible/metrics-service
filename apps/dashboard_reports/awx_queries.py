@@ -9,8 +9,6 @@ import enum
 import logging
 from typing import Any
 
-from apps.tasks.retention import RETENTION_SETTINGS_QUERY
-
 logger = logging.getLogger(__name__)
 
 
@@ -42,8 +40,6 @@ class AWXQuery(enum.Enum):
         "FROM main_label l "
         "JOIN main_organization o ON o.id = l.organization_id"
     )
-
-    RETENTION_SETTINGS = RETENTION_SETTINGS_QUERY
 
 
 def _ilike_contains_pattern(search_str: str) -> str:
@@ -226,31 +222,6 @@ def fetch_labels(**kwargs) -> tuple[list[dict[str, Any]], int]:
         logger.exception("Error fetching labels from AWX database")
         raise
     return format_label_rows(rows, duplicate_names), total
-
-
-def fetch_retention_settings(**kwargs) -> tuple[list[dict[str, Any]], int]:
-    """Fetch retention settings from DB, returning ``(items, total_count)``."""
-    rows, total = fetch_data_from_db(
-        AWXQuery.RETENTION_SETTINGS,
-        join_alias="s.",
-        db_connection=kwargs.get("db_connection"),
-    )
-    items = sorted(
-        [
-            {
-                "job_type": row[0],
-                "template_name": row[1],
-                "schedule_name": row[2],
-                "schedule_enabled": row[3],
-                "rrule": row[4],
-                "next_run": row[5],
-                "retention_days": row[6],
-            }
-            for row in rows
-        ],
-        key=lambda r: (r["job_type"] or "", r["schedule_name"] or ""),
-    )
-    return items, total
 
 
 # Report filter field -> the query that lists its filter options (id and name columns first).
