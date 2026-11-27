@@ -29,7 +29,8 @@ from apps.analytics.v1.serializers import (
     analytics_payload_page_serializer,
 )
 from apps.core.url_prefix import replace_api_root
-from apps.tasks.models import Task, TaskExecution
+from apps.tasks.models import Task
+from apps.tasks.utils import fail_stuck_tasks
 
 _ANALYTICS_ROW_FIELDS_DESCRIPTION = """The linked collector row endpoints return paginated collection envelopes. Each row contains:
 
@@ -113,7 +114,6 @@ def _default_window(mode, now):
 
 
 COLLECT_FUNCTION = "collect_analytics_on_demand"
-_STALE_ERROR = "Task timed out — worker died before completion"
 
 _COLLECT_RESPONSE_FIELDS = {
     "task_id": drf_serializers.IntegerField(help_text="Identifier of the collection task."),
@@ -133,24 +133,10 @@ _COLLECT_RESPONSE = inline_serializer(name="AnalyticsCollectResponse", fields=_C
 
 def _fail_stale(task, now):
     """Fail a stuck running task the way the scheduler does, then requeue it."""
-    timeout = timedelta(seconds=settings.TASK_TIMEOUT)
-    cutoff = now - timeout
-    with transaction.atomic():
-        # Match scheduler recovery lock order (TaskExecution -> Task) to avoid deadlocks when
-        # both paths recover the same overdue task concurrently.
-        TaskExecution.objects.filter(
-            task=task,
-            status="running",
-            task__status="running",
-            task__started_at__lt=cutoff,
-        ).update(status="failed", error_message=_STALE_ERROR, completed_at=now)
-
-        updated = Task.objects.filter(pk=task.pk, status="running", started_at__lt=cutoff).update(
-            status="failed", error_message=_STALE_ERROR, completed_at=now
-        )
-        if updated == 0:
-            return False
-        return task.retry(force=True)
+    failed_ids = fail_stuck_tasks(Task.objects.filter(pk=task.pk), now, settings.TASK_TIMEOUT)
+    if not failed_ids:
+        return False
+    return task.retry(force=True)
 
 
 def _collector_discovery_example() -> dict[str, list[dict[str, object]]]:

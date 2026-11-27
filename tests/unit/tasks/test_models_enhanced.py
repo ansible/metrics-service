@@ -10,6 +10,7 @@ Tests cover:
 - AnonymizedMetricsPayload.__str__(), can_retry(), save() (lines 575, 584, 597-600)
 """
 
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -542,3 +543,130 @@ class TestAnonymizedMetricsPayload:
         payload.refresh_from_db()
 
         assert payload.anonymized_data == {"cpu": "1.0", "count": 2, "missing": None}
+
+
+class _JsonSizeUpdateFieldsCases:
+    """Contract tests shared by every model using JsonSizeTrackingMixin."""
+
+    source_field = ""
+    size_field = ""
+
+    def make_instance(self, payload):  # pragma: no cover - overridden by subclasses
+        raise NotImplementedError
+
+    def test_save_without_update_fields_recomputes_size(self):
+        instance = self.make_instance({"cpu": Decimal("1.0")})
+        instance.save()
+        instance.refresh_from_db()
+
+        assert getattr(instance, self.source_field) == {"cpu": "1.0"}
+        assert getattr(instance, self.size_field) == len(json.dumps({"cpu": "1.0"}).encode("utf-8"))
+
+    def test_save_with_explicit_none_update_fields_recomputes_size(self):
+        instance = self.make_instance({"before": True})
+        instance.save()
+        setattr(instance, self.source_field, {"after": 2})
+
+        instance.save(update_fields=None)
+        instance.refresh_from_db()
+
+        assert getattr(instance, self.size_field) == len(json.dumps({"after": 2}).encode("utf-8"))
+
+    def test_update_fields_with_source_field_persists_recomputed_size(self):
+        instance = self.make_instance({"before": True})
+        instance.save()
+        initial_size = getattr(instance, self.size_field)
+
+        payload = {"after": ["a", "b", "c"]}
+        setattr(instance, self.source_field, payload)
+        instance.save(update_fields=[self.source_field])
+        instance.refresh_from_db()
+
+        expected_size = len(json.dumps(payload).encode("utf-8"))
+        assert expected_size != initial_size
+        assert getattr(instance, self.size_field) == expected_size
+        assert getattr(instance, self.source_field) == payload
+
+    @pytest.mark.parametrize("container", [tuple, set], ids=["tuple", "set"])
+    def test_update_fields_accepts_tuple_and_set(self, container):
+        instance = self.make_instance({"before": True})
+        instance.save()
+
+        setattr(instance, self.source_field, {"after": 1})
+        instance.save(update_fields=container([self.source_field]))
+        instance.refresh_from_db()
+
+        assert getattr(instance, self.size_field) == len(json.dumps({"after": 1}).encode("utf-8"))
+        assert getattr(instance, self.source_field) == {"after": 1}
+
+    def test_update_fields_with_size_field_alone_recomputes_size(self):
+        instance = self.make_instance({"before": True})
+        instance.save()
+
+        payload = {"after": [1, 2, 3]}
+        setattr(instance, self.source_field, payload)
+        instance.save(update_fields=[self.size_field])
+        instance.refresh_from_db()
+
+        assert getattr(instance, self.size_field) == len(json.dumps(payload).encode("utf-8"))
+
+    def test_update_fields_list_is_not_mutated(self):
+        instance = self.make_instance({"before": True})
+        instance.save()
+
+        setattr(instance, self.source_field, {"after": 1})
+        update_fields = [self.source_field]
+        instance.save(update_fields=update_fields)
+        instance.refresh_from_db()
+
+        assert update_fields == [self.source_field]
+        assert getattr(instance, self.size_field) == len(json.dumps({"after": 1}).encode("utf-8"))
+
+    def test_unrelated_update_fields_skips_reserializing(self):
+        instance = self.make_instance({"payload": "x" * 4096})
+        instance.save()
+        initial_size = getattr(instance, self.size_field)
+        initial_payload = getattr(instance, self.source_field)
+
+        instance.status = "failed"
+        with (
+            patch("apps.tasks.models.to_jsonable") as to_jsonable_mock,
+            patch("apps.tasks.models.json_size_bytes") as size_mock,
+        ):
+            instance.save(update_fields=["status"])
+
+        to_jsonable_mock.assert_not_called()
+        size_mock.assert_not_called()
+
+        instance.refresh_from_db()
+        assert instance.status == "failed"
+        assert getattr(instance, self.size_field) == initial_size
+        assert getattr(instance, self.source_field) == initial_payload
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestHourlyCollectionJsonSizeUpdateFields(_JsonSizeUpdateFieldsCases):
+    """save(update_fields=...) keeps HourlyMetricsCollection.data_size_bytes in sync."""
+
+    source_field = "raw_data"
+    size_field = "data_size_bytes"
+
+    def make_instance(self, payload):
+        return HourlyMetricsCollection(
+            collector_type="job_host_summary_service",
+            collection_timestamp=timezone.now(),
+            raw_data=payload,
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestAnonymizedPayloadJsonSizeUpdateFields(_JsonSizeUpdateFieldsCases):
+    """save(update_fields=...) keeps AnonymizedMetricsPayload.payload_size_bytes in sync."""
+
+    source_field = "anonymized_data"
+    size_field = "payload_size_bytes"
+
+    def make_instance(self, payload):
+        return AnonymizedMetricsPayload(summary_date=date(2024, 1, 15), anonymized_data=payload)

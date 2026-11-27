@@ -13,6 +13,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from apscheduler.triggers.date import DateTrigger
 from django.conf import settings
 from django.db import OperationalError, connection
 from django.test.utils import CaptureQueriesContext
@@ -1031,3 +1032,58 @@ class TestRetryFailedTasks:
         task.refresh_from_db()
         assert task.status == "pending"
         assert task.scheduled_time is not None
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestRegisterTaskJob:
+    """Test _register_task_job success and failure handling."""
+
+    def test_tracks_job_after_successful_registration(self):
+        scheduler = UnifiedTaskScheduler()
+        task = MagicMock(id=7)
+        trigger = DateTrigger(run_date=timezone.now() + timedelta(hours=1))
+
+        with patch.object(scheduler.scheduler, "add_job") as add_job:
+            assert scheduler._register_task_job(task, "db_task_7", trigger, "DB Task: seven", "scheduled") is True
+
+        add_job.assert_called_once()
+        assert scheduler._db_task_jobs[7] == "db_task_7"
+
+    def test_returns_false_and_skips_tracking_when_registration_fails(self):
+        scheduler = UnifiedTaskScheduler()
+        task = MagicMock(id=8)
+        trigger = DateTrigger(run_date=timezone.now() + timedelta(hours=1))
+
+        with patch.object(scheduler.scheduler, "add_job", side_effect=Exception("scheduler unavailable")):
+            assert scheduler._register_task_job(task, "db_task_8", trigger, "DB Task: eight", "scheduled") is False
+
+        assert 8 not in scheduler._db_task_jobs
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestTaskFeatureFlagCache:
+    """Test _task_feature_flag_enabled caching semantics."""
+
+    def test_caches_flag_lookup_in_supplied_dict(self):
+        scheduler = UnifiedTaskScheduler()
+        task = MagicMock(task_data={"_feature_flag": "CACHED_FLAG"})
+        feature_flags = {}
+
+        with patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=False) as mock_get:
+            assert scheduler._task_feature_flag_enabled(task, feature_flags) is False
+            assert scheduler._task_feature_flag_enabled(task, feature_flags) is False
+
+        mock_get.assert_called_once_with("CACHED_FLAG")
+        assert feature_flags == {"CACHED_FLAG": False}
+
+    def test_bypasses_cache_without_a_flag_dict(self):
+        scheduler = UnifiedTaskScheduler()
+        task = MagicMock(task_data={"_feature_flag": "UNCACHED_FLAG"})
+
+        with patch("apps.tasks.task_groups.get_feature_enabled_from_db", return_value=True) as mock_get:
+            assert scheduler._task_feature_flag_enabled(task) is True
+            assert scheduler._task_feature_flag_enabled(task) is True
+
+        assert mock_get.call_count == 2

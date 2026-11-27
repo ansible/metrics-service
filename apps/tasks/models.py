@@ -331,7 +331,55 @@ class TaskExecution(CommonModel, AuditableModel):
         super().save(*args, **kwargs)
 
 
-class HourlyMetricsCollection(CommonModel, AuditableModel):
+class JsonSizeTrackingMixin(models.Model):
+    """Persist a JSON payload together with its normalized serialized size.
+
+    Subclasses set ``json_size_source_field`` to the JSONField they normalize and
+    ``json_size_field`` to the BigInt field holding its UTF-8 JSON byte size.
+    """
+
+    json_size_source_field: str
+    json_size_field: str
+
+    class Meta:
+        abstract = True
+
+    def _sync_json_size(self) -> None:
+        """Normalize the source payload and recompute the tracked size field."""
+        payload = to_jsonable(getattr(self, self.json_size_source_field))
+        setattr(self, self.json_size_source_field, payload)
+        setattr(self, self.json_size_field, json_size_bytes(payload, normalized=True))
+
+    def save(self, *args, **kwargs):
+        """Normalize the JSON payload and record its byte size before saving.
+
+        Normalization and size calculation are skipped when the save explicitly targets
+        unrelated fields, so status-only updates do not rewrite the JSONB column or pay the
+        conversion cost. When the source payload (or the tracked size) is written, the size
+        field is added to a copied ``update_fields`` list so the stored size stays accurate
+        without mutating the caller's list/tuple/set.
+
+        Args:
+            *args: Positional arguments
+            **kwargs: Keyword arguments
+
+        Returns:
+            None
+        """
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None:
+            self._sync_json_size()
+        else:
+            # Copy before mutating so the caller's list/tuple/set is left untouched.
+            fields = set(update_fields)
+            if self.json_size_source_field in fields or self.json_size_field in fields:
+                self._sync_json_size()
+                fields.add(self.json_size_field)
+                kwargs["update_fields"] = list(fields)
+        super().save(*args, **kwargs)
+
+
+class HourlyMetricsCollection(JsonSizeTrackingMixin, CommonModel, AuditableModel):
     """
     Store raw hourly metrics collection data.
 
@@ -403,6 +451,9 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
         help_text="TaskExecution that created this collection",
     )
 
+    json_size_source_field = "raw_data"
+    json_size_field = "data_size_bytes"
+
     def __str__(self):
         """
         Return string representation of the hourly collection.
@@ -411,34 +462,6 @@ class HourlyMetricsCollection(CommonModel, AuditableModel):
             str: Collector type and collection timestamp
         """
         return f"{self.get_collector_type_display()} - {self.collection_timestamp}"
-
-    def save(self, *args, **kwargs):
-        """
-        Auto-calculate data size on save.
-
-        Normalization and size calculation are skipped when the save explicitly targets other
-        fields, so status-only updates do not rewrite the JSONB column or pay the conversion
-        cost. When ``raw_data`` is written, ``data_size_bytes`` is added to ``update_fields`` so
-        the stored size stays accurate.
-
-        Args:
-            *args: Positional arguments
-            *kwargs: Keyword arguments
-
-        Returns:
-            None
-        """
-        update_fields = kwargs.get("update_fields")
-        writes_raw_data = update_fields is None or "raw_data" in update_fields
-
-        if writes_raw_data:
-            self.raw_data = to_jsonable(self.raw_data)
-            self.data_size_bytes = json_size_bytes(self.raw_data, normalized=True)
-
-            if update_fields is not None and "data_size_bytes" not in update_fields:
-                kwargs["update_fields"] = [*update_fields, "data_size_bytes"]
-
-        super().save(*args, **kwargs)
 
 
 class DailyMetricsSummary(CommonModel, AuditableModel):
@@ -515,7 +538,7 @@ class DailyMetricsSummary(CommonModel, AuditableModel):
         return f"Daily Summary - {self.summary_date} ({self.get_status_display()})"
 
 
-class AnonymizedMetricsPayload(CommonModel, AuditableModel):
+class AnonymizedMetricsPayload(JsonSizeTrackingMixin, CommonModel, AuditableModel):
     """
     Store anonymized metrics payloads before sending to Segment.
 
@@ -577,6 +600,9 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
 
     payload_size_bytes = models.BigIntegerField(default=0, help_text="Size of anonymized_data in bytes")
 
+    json_size_source_field = "anonymized_data"
+    json_size_field = "payload_size_bytes"
+
     # Relationships
     daily_summary = models.ForeignKey(
         "DailyMetricsSummary",
@@ -613,31 +639,3 @@ class AnonymizedMetricsPayload(CommonModel, AuditableModel):
             bool: True if retry is allowed, False otherwise
         """
         return self.retry_count < self.max_retries and self.status in ["failed", "retry"]
-
-    def save(self, *args, **kwargs):
-        """
-        Auto-calculate payload size on save.
-
-        Normalization and size calculation are skipped when the save explicitly targets other
-        fields, so status-only updates do not rewrite the JSONB column or pay the conversion
-        cost. When ``anonymized_data`` is written, ``payload_size_bytes`` is added to
-        ``update_fields`` so the stored size stays accurate.
-
-        Args:
-            *args: Positional arguments
-            *kwargs: Keyword arguments
-
-        Returns:
-            None
-        """
-        update_fields = kwargs.get("update_fields")
-        writes_anonymized_data = update_fields is None or "anonymized_data" in update_fields
-
-        if writes_anonymized_data:
-            self.anonymized_data = to_jsonable(self.anonymized_data)
-            self.payload_size_bytes = json_size_bytes(self.anonymized_data, normalized=True)
-
-            if update_fields is not None and "payload_size_bytes" not in update_fields:
-                kwargs["update_fields"] = [*update_fields, "payload_size_bytes"]
-
-        super().save(*args, **kwargs)
