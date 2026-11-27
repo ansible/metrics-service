@@ -34,10 +34,11 @@ class FilterOptionsViewSet(GenericViewSet):
 
     list_error_msg = "Failed to fetch records"
     retrieve_error_msg = "Failed to fetch record"
+    not_found_label = "Record"
 
     def not_found_msg(self, pk: int) -> str:
         """Returns a formatted not found message for a missing record."""
-        return f"Record with id {pk} not found"
+        return f"{self.not_found_label} with id {pk} not found"
 
     def get_queryset(self) -> None:
         """Override to disable queryset (not used for filter dropdowns)."""

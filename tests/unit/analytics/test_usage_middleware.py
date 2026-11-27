@@ -95,6 +95,22 @@ def test_preflight_request_resolves_endpoint_with_service_url_prefix(path):
     assert counter.request_count == 1
 
 
+@override_settings(URL_PREFIX=None)
+def test_request_is_normalized_when_url_prefix_is_unset():
+    """With URL_PREFIX unset the derived /api/metrics-service prefix is still normalized."""
+    request = RequestFactory().options("/api/metrics-service/v1/analytics/")
+    usage_date = timezone.now().date()
+
+    record_api_usage(request, 200)
+
+    counter = APIUsageCounter.objects.get(
+        usage_date=usage_date,
+        endpoint_name="analytics:v1:root",
+        status_class=2,
+    )
+    assert counter.request_count == 1
+
+
 def test_counter_increment_uses_atomic_addition_for_repeated_calls():
     usage_date = datetime(2026, 8, 17, tzinfo=UTC).date()
 

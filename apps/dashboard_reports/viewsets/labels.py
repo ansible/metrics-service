@@ -42,7 +42,4 @@ class LabelsViewSet(FilterOptionsViewSet):
     awx_query_function = staticmethod(fetch_labels)
     list_error_msg = "Failed to fetch labels"
     retrieve_error_msg = "Failed to fetch label"
-
-    def not_found_msg(self, pk: int) -> str:
-        """Return a formatted not-found error message for a missing label."""
-        return f"Label with id {pk} not found"
+    not_found_label = "Label"

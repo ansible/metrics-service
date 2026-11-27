@@ -19,7 +19,7 @@ gives service_prefix="/metrics"), falling back to a name derived from ROOT_URLCO
 from django.conf import settings
 from django.urls import set_script_prefix
 
-from apps.core.url_prefix import replace_api_root
+from apps.core.url_prefix import replace_api_root, resolve_service_prefixes
 
 
 class ServicePrefixMiddleware:
@@ -36,17 +36,9 @@ class ServicePrefixMiddleware:
 
     def __init__(self, get_response):
         self.get_response = get_response
-        url_prefix = getattr(settings, "URL_PREFIX", None)
-        if url_prefix:
-            # URL_PREFIX is the full API prefix, e.g. "/api/metrics"
-            self.api_prefix = url_prefix.rstrip("/")
-            # Derive the bare service prefix by stripping the leading "/api" segment
-            self.service_prefix = self.api_prefix[4:] if self.api_prefix.startswith("/api/") else self.api_prefix
-        else:
-            # Fall back to deriving from ROOT_URLCONF (e.g. "metrics_service" → "/metrics-service")
-            service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
-            self.service_prefix = f"/{service_name}"
-            self.api_prefix = f"/api{self.service_prefix}"
+        self.api_prefix, self.service_prefix = resolve_service_prefixes(
+            getattr(settings, "URL_PREFIX", None), settings.ROOT_URLCONF
+        )
 
     def __call__(self, request):
         path = request.path_info

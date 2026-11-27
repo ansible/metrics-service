@@ -42,7 +42,4 @@ class OrganizationsViewSet(FilterOptionsViewSet):
     awx_query_function = staticmethod(fetch_organizations)
     list_error_msg = "Failed to fetch organizations"
     retrieve_error_msg = "Failed to fetch organization"
-
-    def not_found_msg(self, pk: int) -> str:
-        """Return a formatted not-found error message for a missing organization."""
-        return f"Organization with id {pk} not found"
+    not_found_label = "Organization"
