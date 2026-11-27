@@ -98,6 +98,34 @@ def test_task_list_actions_query_count_is_constant(user, url, task_status, desce
 
 @pytest.mark.unit
 @pytest.mark.django_db
+def test_task_list_filtered_by_execution_status_reports_exact_executions_count(user):
+    """Filtering by an execution field must not inflate the annotated executions count."""
+    client = _client_for(user)
+    task = Task.objects.create(
+        name="filtered-task",
+        function_name="hello_world",
+        task_data={},
+        created_by=user,
+        status="completed",
+    )
+    TaskExecution.objects.bulk_create(
+        [
+            TaskExecution(task=task, status="completed", worker_id="worker-completed-1"),
+            TaskExecution(task=task, status="completed", worker_id="worker-completed-2"),
+            TaskExecution(task=task, status="failed", worker_id="worker-failed-1"),
+        ]
+    )
+
+    response = client.get(f"{TASK_LIST_URL}?executions__status=completed")
+
+    assert response.status_code == 200, response.content
+    results = response.json()["results"]
+    assert [item["id"] for item in results] == [task.id]
+    assert results[0]["executions_count"] == 3
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
 def test_serializer_executions_count_without_annotation(user):
     """Standalone TaskSerializer still returns the accurate executions count."""
     task = _create_task_with_executions(user, "standalone-task", execution_count=3)

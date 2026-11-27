@@ -120,7 +120,7 @@ class TaskViewSet(BaseViewSet):
         queryset = super().get_queryset()
         if self.action in self._executions_annotated_actions:
             # annotate() clears Meta.ordering
-            queryset = queryset.annotate(_executions_count=Count("executions")).order_by("id")
+            queryset = queryset.annotate(_executions_count=Count("executions", distinct=True)).order_by("id")
         return queryset
 
     def get_serializer_class(self):
