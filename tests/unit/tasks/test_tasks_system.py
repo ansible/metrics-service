@@ -547,8 +547,8 @@ class TestTaskDispatcher(TestCase):
     @patch("apps.tasks.dispatcherd_config.ensure_dispatcherd_configured")
     @patch("apps.tasks.tasks.get_queue_for_function")
     def test_submit_skips_when_active_execution_exists(self, mock_get_queue, mock_ensure_config, mock_submit):
-        """Test that submit_task_to_dispatcher is a no-op when a pending/running execution exists."""
-        # Create an existing pending execution
+        """A persisted legacy pending execution still suppresses duplicate submission."""
+        # Removing a producer does not remove rows stored by earlier versions.
         from apps.tasks.models import TaskExecution
 
         TaskExecution.objects.create(task=self.task, status="pending", worker_id="other-worker")

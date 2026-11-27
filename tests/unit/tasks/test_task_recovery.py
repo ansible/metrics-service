@@ -1,5 +1,6 @@
 """Recovery and finalization interleavings against real PostgreSQL connections."""
 
+import logging
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -410,3 +411,47 @@ def test_claim_updates_modified_with_its_start_time() -> None:
 
     assert claimed.modified == claimed.started_at
     assert claimed.modified > old
+
+
+def test_discarded_superseded_result_warns_without_logging_payload(caplog: pytest.LogCaptureFixture) -> None:
+    """A result accepted by neither lifecycle row is visible without exposing its data."""
+    task, execution = _claimed_task()
+    handle_task_error(task, execution, "original attempt failed")
+    assert task.retry()
+    next_task, next_execution = _claim_task(task.pk)
+    caplog.clear()
+    marker = "payload content must not enter logs"
+
+    with caplog.at_level(logging.INFO, logger="apps.tasks.utils"):
+        update_task_status(task, execution, "completed", result_data={"private_result": marker})
+
+    warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert "Discarded" in message
+    assert f"task {task.pk}" in message
+    assert f"execution {execution.pk}" in message
+    assert marker not in caplog.text
+    assert "private_result" not in caplog.text
+    next_task.refresh_from_db()
+    next_execution.refresh_from_db()
+    assert next_task.status == next_execution.status == "running"
+    assert next_task.result_data == {}
+
+
+@pytest.mark.parametrize("parent_status", ["cancelled", "completed", "failed"])
+def test_result_preserved_in_execution_does_not_warn(parent_status: str, caplog: pytest.LogCaptureFixture) -> None:
+    """A rejected parent write is routine when its attempt still records the result."""
+    task, execution = _claimed_task()
+    Task.objects.filter(pk=task.pk).update(status=parent_status, completed_at=timezone.now())
+
+    with caplog.at_level(logging.INFO, logger="apps.tasks.utils"):
+        update_task_status(task, execution, "completed", result_data={"recorded": True})
+
+    assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
+    assert any("Dropped stale" in record.getMessage() for record in caplog.records)
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == parent_status
+    assert execution.status == "completed"
+    assert execution.result_data == {"recorded": True}

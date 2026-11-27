@@ -293,7 +293,8 @@ def submit_task_to_dispatcher(task: Any) -> None:
     """
     from .models import TaskExecution
 
-    # Guard against duplicate submissions
+    # Guard against duplicate submissions. Legacy pending executions can survive
+    # upgrades even though new claims are created directly as running.
     if TaskExecution.objects.filter(task=task, status__in=["pending", "running"]).exists():
         logger.warning(f"Task {task.name} (ID: {task.id}) already has a pending or running execution, skipping")
         return

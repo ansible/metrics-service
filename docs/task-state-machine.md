@@ -299,6 +299,9 @@ TaskExecution (one per attempt)
 Shared timeout recovery only updates executions with `status="running"`.
 The execution API is read-only; only `_claim_task()` creates attempt records.
 Non-fatal collector-hook failures are logged and do not create synthetic attempts.
+New attempts start as `running`; the submission guard still recognizes legacy
+`pending` execution rows that may remain after an upgrade. This is compatibility
+handling, not a new pending-attempt phase.
 
 The paired states below describe one claimed attempt, not additional database
 status values. Cancellation terminates the Task's lifecycle without pretending
@@ -336,6 +339,11 @@ locks batches in Task primary-key order and reads only small identifying fields,
 not task/result JSONB payloads. Reversing the model order in one path can deadlock
 against another path holding the opposite row. `transaction.atomic()` alone does
 not impose a lock order.
+
+Expected stale-write diagnostics are logged at INFO. If neither the Task nor its
+execution accepts a supplied result, a warning identifies the discarded result's
+Task/execution IDs without logging the payload. A rejected Task write is not a
+lost result when the execution successfully records it.
 
 Recovery retains the supplied scan time for its timeout cutoff, but samples a
 fresh completion time after acquiring the Task locks. A lock wait must not backdate

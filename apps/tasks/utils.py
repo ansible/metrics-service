@@ -153,8 +153,10 @@ def _log_dropped_writes(
     task_updated: int,
     execution_instance: Any,
     execution_updated: int,
+    *,
+    result_provided: bool = False,
 ) -> None:
-    """Record which halves of a worker result were rejected by their compare-and-set guard."""
+    """Record rejected writes, warning only when a supplied result was not stored."""
     if task_instance is not None and not task_updated:
         logger.info(
             f"Dropped stale '{status}' result for task {task_instance.pk}: "
@@ -164,6 +166,13 @@ def _log_dropped_writes(
         logger.info(
             f"Dropped stale '{status}' result for execution {execution_instance.pk}: "
             f"execution is '{execution_instance.status}', not running"
+        )
+    if result_provided and not task_updated and not execution_updated:
+        logger.warning(
+            "Discarded stale '%s' result for task %s, execution %s: neither lifecycle write was accepted",
+            status,
+            task_instance.pk if task_instance is not None else None,
+            execution_instance.pk if execution_instance is not None else None,
         )
 
 
@@ -366,7 +375,14 @@ def update_task_status(
     if execution_instance:
         execution_instance.refresh_from_db()
 
-    _log_dropped_writes(status, task_instance, task_updated, execution_instance, execution_updated)
+    _log_dropped_writes(
+        status,
+        task_instance,
+        task_updated,
+        execution_instance,
+        execution_updated,
+        result_provided=result_data is not None,
+    )
 
 
 def create_task_result(status: str, data: dict[str, Any] | None = None, error: str = "") -> dict[str, Any]:
