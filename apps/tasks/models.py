@@ -8,6 +8,9 @@ and models for collects, rollups, and anonymized metrics.
 import logging
 from datetime import datetime, timedelta
 
+from ansible_base.activitystream.models import AuditableModel
+from ansible_base.lib.abstract_models import CommonModel, NamedCommonModel
+from croniter import croniter
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -16,36 +19,6 @@ from apps.core.json_utils import json_size_bytes, to_jsonable
 
 # Import base classes and mixins from core
 from apps.tasks.mixins import StatusTrackingMixin
-
-# Import base classes, handling both DAB and simple fallbacks
-try:
-    from ansible_base.activitystream.models import AuditableModel
-    from ansible_base.lib.abstract_models import CommonModel, NamedCommonModel
-
-    DAB_AVAILABLE = True
-except ImportError:
-    # Provide simple alternatives for immediate setup
-    DAB_AVAILABLE = False
-
-    # Simple base classes when DAB is not available
-    class CommonModel(models.Model):
-        created = models.DateTimeField(auto_now_add=True)
-        modified = models.DateTimeField(auto_now=True)
-
-        class Meta:
-            abstract = True
-
-    class NamedCommonModel(CommonModel):
-        name = models.CharField(max_length=512)
-        description = models.TextField(blank=True, default="")
-
-        class Meta:
-            abstract = True
-
-    class AuditableModel(models.Model):
-        class Meta:
-            abstract = True
-
 
 logger = logging.getLogger(__name__)
 
@@ -222,12 +195,8 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
             return None
 
         try:
-            from croniter import croniter
-
             cron = croniter(self.cron_expression, timezone.now())
             return cron.get_next(datetime).isoformat()
-        except ImportError:
-            return "croniter not available"
         except Exception:
             return "Invalid cron_expression"
 

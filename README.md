@@ -346,7 +346,6 @@ METRICS_SERVICE_DATABASES__default__OPTIONS__sslmode=prefer
 # Task App
 METRICS_SERVICE_FEATURE__ANONYMIZED_DATA_COLLECTION="true"
 DISPATCHERD_CONFIG_FILE=/app/apps/settings/dispatcherd.yaml
-DISPATCHERD_ENABLED="true"
 ```
 
 ```bash

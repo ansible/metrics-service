@@ -3,7 +3,6 @@ Comprehensive edge case tests for tasks/models.py
 """
 
 from datetime import timedelta
-from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -183,28 +182,6 @@ class TestTaskExecutionModel:
         execution.save()
 
         assert execution.execution_time_seconds is None
-
-
-@pytest.mark.django_db
-class TestDABFallback:
-    """Test DAB fallback classes for ImportError path"""
-
-    @patch("apps.tasks.models.DAB_AVAILABLE", False)
-    def test_dab_fallback_classes_exist(self):
-        """Test that fallback classes are available when DAB is not"""
-        # This test ensures the fallback path is exercised
-        # The models module should import successfully even without DAB
-        #
-        # NOTE: We avoid actually reloading the module as it causes model registry
-        # issues that affect other tests. Instead, we just verify the fallback
-        # classes exist in the current module.
-        import apps.tasks.models as models_module
-
-        # Verify that DAB fallback classes are defined
-        assert hasattr(models_module, "Task")
-        assert hasattr(models_module, "TaskExecution")
-
-        # If we get here, the model classes are available
 
 
 @pytest.mark.django_db

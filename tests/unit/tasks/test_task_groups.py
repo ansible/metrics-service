@@ -437,3 +437,31 @@ class TestTaskGroupIntegration(TestCase):
 
         # Only this must be absent when flag is disabled
         assert "daily_anonymize" not in task_ids
+
+
+class TestRegistryParity:
+    """Ensure task group definitions stay in sync with the dispatcher registries."""
+
+    def test_every_group_task_function_is_registered(self):
+        """Every task group function exists in TASK_FUNCTIONS and TASK_METADATA."""
+        from apps.tasks.tasks import TASK_FUNCTIONS, TASK_METADATA
+
+        missing_functions = []
+        missing_metadata = []
+        for group in TASK_GROUPS:
+            for task_config in group.tasks:
+                function_name = task_config["function"]
+                if function_name not in TASK_FUNCTIONS:
+                    missing_functions.append(f"{group.name}/{task_config['task_id']} -> {function_name}")
+                if function_name not in TASK_METADATA:
+                    missing_metadata.append(f"{group.name}/{task_config['task_id']} -> {function_name}")
+
+        assert not missing_functions, f"Task group functions missing from TASK_FUNCTIONS: {missing_functions}"
+        assert not missing_metadata, f"Task group functions missing from TASK_METADATA: {missing_metadata}"
+
+    def test_task_locks_reference_registered_functions(self):
+        """TASK_LOCKS must only contain keys that exist in TASK_FUNCTIONS."""
+        from apps.tasks.tasks import TASK_FUNCTIONS, TASK_LOCKS
+
+        unknown_locks = sorted(TASK_LOCKS - TASK_FUNCTIONS.keys())
+        assert not unknown_locks, f"TASK_LOCKS references unknown TASK_FUNCTIONS keys: {unknown_locks}"

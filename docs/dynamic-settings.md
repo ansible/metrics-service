@@ -45,11 +45,11 @@ flowchart TB
 |-------|---------|
 | `setting_key` | Unique key (e.g. `METRICS_COLLECTION`) |
 | `current_value` | JSON-serialized value |
-| `previous_value` | Previous value for rollback |
+| `previous_value` | Previous value recorded by change logging |
 | `last_modified_by` | User who made the change (nullable for system) |
 
-Sensitive keys (`SECRET_KEY`, `PASSWORD`, `DATABASES`, etc.) are redacted as
-`***REDACTED***` when logged via `log_setting_change()`.
+Sensitive keys (`SECRET_KEY`, `PASSWORD`, `DATABASES`, etc.) are stored redacted as
+`***REDACTED***`.
 
 There is **no public REST API** for settings today (`apps/dynamic_settings/urls.py`
 is empty). Changes are made via:
@@ -57,7 +57,6 @@ is empty). Changes are made via:
 - Environment variables (`METRICS_SERVICE_FEATURE__*`)
 - Django admin (`SettingAdmin`)
 - Direct DB updates (`dbshell`, automation)
-- `rollback_configuration_change()` for audited rollbacks
 
 ## Feature Enablement Settings
 
@@ -118,16 +117,6 @@ Standalone:
 ```bash
 python manage.py dynamic_settings reload_config
 ```
-
-## Rollback
-
-`rollback_configuration_change(change_id, user)` in `apps/dynamic_settings/utils.py`:
-
-1. Loads the `Setting` row by ID
-2. Applies `previous_value` via `DYNACONF.set()`
-3. Logs a new `Setting` row for the rollback action
-
-Cannot rollback redacted sensitive settings.
 
 ## init-default-settings behavior
 

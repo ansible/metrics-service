@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Self
 
+from ansible_base.lib.abstract_models import CommonModel
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import IntegrityError, models, transaction
@@ -20,27 +21,6 @@ from django.db.models import Exists, F, Lookup, OuterRef, Q, Sum
 from metrics_utility.library.collectors.dashboard import AWXJobType
 
 from apps.dashboard_reports.job_definition import dashboard_visibility_filter
-
-# Import base classes, handling both DAB and simple fallbacks
-try:
-    from ansible_base.lib.abstract_models import CommonModel
-
-    DAB_AVAILABLE = True
-except ImportError:
-    # Provide simple alternative when DAB is not available
-    DAB_AVAILABLE = False
-
-    class CommonModel(models.Model):
-        """Minimal fallback base model providing created/modified timestamps when DAB is unavailable."""
-
-        created = models.DateTimeField(auto_now_add=True)
-        modified = models.DateTimeField(auto_now=True)
-
-        class Meta:
-            """Mark CommonModel as abstract so it is not created as a DB table."""
-
-            abstract = True
-
 
 logger = logging.getLogger(__name__)
 DEFAULT_TIME_TAKEN_TO_CREATE_AUTOMATION_MINUTES = 60

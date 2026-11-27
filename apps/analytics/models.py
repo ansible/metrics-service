@@ -1,25 +1,9 @@
 """Analytics storage models (ANSTRAT-1587 / AAP-87799)."""
 
+from ansible_base.activitystream.models import AuditableModel
+from ansible_base.lib.abstract_models import CommonModel
 from django.db import models
 from django.db.models import F, Sum
-
-# Reuse the same DAB base classes / fallbacks as the tasks app.
-try:
-    from ansible_base.activitystream.models import AuditableModel
-    from ansible_base.lib.abstract_models import CommonModel
-except ImportError:  # pragma: no cover - simple fallback for setups without DAB
-
-    class CommonModel(models.Model):
-        created = models.DateTimeField(auto_now_add=True)
-        modified = models.DateTimeField(auto_now=True)
-
-        class Meta:
-            abstract = True
-
-    class AuditableModel(models.Model):
-        class Meta:
-            abstract = True
-
 
 # Default origin for a local install.
 LOCAL_SOURCE = "local"

@@ -41,7 +41,7 @@ def test_collect_and_group_hourly_collections_empty():
     yesterday = date.today() - timedelta(days=1)
     HourlyMetricsCollection.objects.filter(collection_timestamp__date=yesterday).delete()
 
-    collections_by_type, start, end = _collect_and_group_hourly_collections(yesterday)
+    collections_by_type = _collect_and_group_hourly_collections(yesterday)
     assert isinstance(collections_by_type, dict)
 
 
@@ -59,7 +59,7 @@ def test_collect_and_group_hourly_collections_with_data():
         defaults={"raw_data": {"jobs": []}, "status": "collected"},
     )
 
-    collections_by_type, start, end = _collect_and_group_hourly_collections(yesterday)
+    collections_by_type = _collect_and_group_hourly_collections(yesterday)
     assert isinstance(collections_by_type, dict)
 
 

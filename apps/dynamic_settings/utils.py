@@ -1,8 +1,7 @@
 """
 Utility functions for dynamic settings management.
 
-This module provides functions for logging setting changes and
-rolling back configuration changes.
+This module provides functions for removing and initializing default settings.
 """
 
 import json
@@ -11,134 +10,6 @@ import logging
 from .models import Setting
 
 logger = logging.getLogger(__name__)
-
-REDACTED = "***REDACTED***"
-SENSITIVE_SETTINGS = ("SECRET_KEY", "PASSWORD", "DATABASES", "JWT_SECRET", "API_KEY")
-
-
-def _serialize_setting_value(value):
-    if value is None:
-        return None
-    try:
-        return json.dumps(value)
-    except (TypeError, ValueError):
-        return str(value)
-
-
-def log_setting_change(user, setting_key: str, new_value, old_value=None):
-    """
-    Log a settings change to the database.
-
-    Args:
-        user: User making the change
-        setting_key: The setting key being changed
-        new_value: The new value
-        old_value: Optional old value from DYNACONF (before the change)
-
-    Returns:
-        Setting object if successful, None if failed
-    """
-
-    is_sensitive = any(sensitive in setting_key.upper() for sensitive in SENSITIVE_SETTINGS)
-    if is_sensitive:
-        new_value_to_store = REDACTED
-        old_value_to_store = REDACTED if old_value is not None else None
-    else:
-        new_value_to_store = _serialize_setting_value(new_value)
-        old_value_to_store = _serialize_setting_value(old_value)
-
-    try:
-        setting, created = Setting.objects.get_or_create(
-            setting_key=setting_key,
-            defaults={
-                "last_modified_by": user,
-                "previous_value": old_value_to_store,  # Use the actual DYNACONF value
-                "current_value": new_value_to_store,
-            },
-        )
-
-        # If setting already existed, update it with new values
-        if not created:
-            # Use old_value if provided (actual DYNACONF value), otherwise use DB's current_value
-            setting.previous_value = old_value_to_store if old_value is not None else setting.current_value
-            setting.current_value = new_value_to_store
-            setting.last_modified_by = user
-            setting.save()
-
-        logger.info(
-            "Setting change logged: %s changed to %s by %s",
-            setting_key,
-            REDACTED if is_sensitive else new_value,
-            user.username if user else "System",
-        )
-
-        return setting
-
-    except Exception as e:
-        logger.exception(f"Failed to log setting change for {setting_key}: {str(e)}")
-        return None
-
-
-def _parse_setting_value(value_str):
-    """
-    Helper to parse a setting value from JSON string.
-    Returns the parsed value or the original string if parsing fails.
-    """
-    if not value_str:
-        return None
-    try:
-        return json.loads(value_str)
-    except (json.JSONDecodeError, TypeError):
-        return value_str
-
-
-def rollback_configuration_change(change_id, user):
-    """
-    Undo a settings change by its key id.
-    """
-    from metrics_service.settings import DYNACONF
-
-    try:
-        setting = Setting.objects.get(id=change_id)
-    except Setting.DoesNotExist:
-        logger.error(f"Configuration change with ID {change_id} not found")
-        return {"success": False, "error": f"Configuration change with ID {change_id} not found"}
-
-    # Check if we can actually rollback this setting
-    if REDACTED in (setting.previous_value, setting.current_value):
-        logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
-        return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
-
-    try:
-        # Parse values from JSON
-        previous_value = _parse_setting_value(setting.previous_value)
-        current_value = _parse_setting_value(setting.current_value)
-
-        # Rollback - set it back to the old value!
-        DYNACONF.set(setting.setting_key, previous_value)
-
-        # Write new entry about the rollback to the db
-        log_setting_change(
-            user=user,
-            setting_key=setting.setting_key,
-            new_value=previous_value,
-            old_value=current_value,  # The value before rollback
-        )
-
-        logger.info(
-            f"Rolled back {setting.setting_key} to previous value {setting.previous_value} by {user.username if user else 'System'}"
-        )
-
-        return {
-            "success": True,
-            "setting_key": setting.setting_key,
-            "rolled_back_to": previous_value,
-            "message": f"Successfully rolled back {setting.setting_key}",
-        }
-
-    except Exception as e:
-        logger.exception(f"Failed to rollback configuration change {change_id}: {str(e)}")
-        return {"success": False, "error": f"Failed to rollback: {str(e)}"}
 
 
 # uv run ./manage.py metrics_service remove-default-settings [--all-settings]

@@ -565,14 +565,13 @@ class TestTaskDispatcher(TestCase):
         """Test dispatcherd decorator is properly configured."""
         assert callable(tasks_system.task)
 
-    def test_fallback_decorator(self):
-        """Test fallback decorator when dispatcherd is not available."""
+    def test_task_decorator_preserves_return_value(self):
+        """Test dispatcherd task decorator does not interfere with direct calls."""
 
         @tasks_system.task()
         def test_function():
             return "test"
 
-        # Decorator should not interfere with function
         result = test_function()
         assert result == "test"
 
@@ -918,29 +917,6 @@ class TestTaskRetryBehavior(TestCase):
 # =============================================================================
 # Additional Coverage Tests - Merged from Enhanced Test File
 # =============================================================================
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-class TestImportErrorFallback(TestCase):
-    """Test ImportError fallback for dispatcherd decorator."""
-
-    def test_fallback_decorator_when_dispatcherd_not_available(self):
-        """Test task decorator fallback when dispatcherd.publish is not available."""
-        # The fallback decorator is defined in lines 28-34 of tasks_system.py
-        # It should just return the function unchanged
-
-        # Import with dispatcherd available would use the real decorator
-        # But when ImportError occurs, it uses the fallback
-        # The fallback is already imported in tasks_system module
-
-        # Test that the fallback decorator works
-        @tasks_system.task()
-        def dummy_task():
-            return "executed"
-
-        result = dummy_task()
-        assert result == "executed"
 
 
 @pytest.mark.unit
