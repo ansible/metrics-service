@@ -95,25 +95,6 @@ def test_collect_snapshot_metrics_invalid_timestamp():
 
 
 # ---------------------------------------------------------------------------
-# dynamic_settings/utils.py — remaining methods
-# ---------------------------------------------------------------------------
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_log_setting_change_non_json_value(user):
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import log_setting_change
-
-    class NonSerializable:
-        def __str__(self):
-            return "non-serializable"
-
-    result = log_setting_change(user, "NON_JSON_KEY", NonSerializable())
-    # Should store as string fallback
-    setting = Setting.objects.filter(setting_key="NON_JSON_KEY").first()
-    assert setting is not None
-
-
-# ---------------------------------------------------------------------------
 # tasks/v1/serializers.py — TaskCleanupSerializer
 # ---------------------------------------------------------------------------
 @pytest.mark.unit

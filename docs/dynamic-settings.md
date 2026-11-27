@@ -45,11 +45,16 @@ flowchart TB
 |-------|---------|
 | `setting_key` | Unique key (e.g. `METRICS_COLLECTION`) |
 | `current_value` | JSON-serialized value |
-| `previous_value` | Previous value for rollback |
+| `previous_value` | Legacy/unpopulated field; not written automatically |
 | `last_modified_by` | User who made the change (nullable for system) |
 
-Sensitive keys (`SECRET_KEY`, `PASSWORD`, `DATABASES`, etc.) are redacted as
-`***REDACTED***` when logged via `log_setting_change()`.
+`Setting` has no save hook, signal, or admin override that records history: a write only
+sets the fields you provide. `previous_value` is a legacy column that is not populated by
+the application, so it is `NULL` unless set explicitly (e.g. by automation or tests).
+
+For the same reason, writes do **not** redact sensitive keys (`SECRET_KEY`, `PASSWORD`,
+`DATABASES`, etc.) or log changes: whatever value is written to `current_value` is stored
+as-is.
 
 There is **no public REST API** for settings today (`apps/dynamic_settings/urls.py`
 is empty). Changes are made via:
@@ -57,7 +62,6 @@ is empty). Changes are made via:
 - Environment variables (`METRICS_SERVICE_FEATURE__*`)
 - Django admin (`SettingAdmin`)
 - Direct DB updates (`dbshell`, automation)
-- `rollback_configuration_change()` for audited rollbacks
 
 ## Feature Enablement Settings
 
@@ -118,16 +122,6 @@ Standalone:
 ```bash
 python manage.py dynamic_settings reload_config
 ```
-
-## Rollback
-
-`rollback_configuration_change(change_id, user)` in `apps/dynamic_settings/utils.py`:
-
-1. Loads the `Setting` row by ID
-2. Applies `previous_value` via `DYNACONF.set()`
-3. Logs a new `Setting` row for the rollback action
-
-Cannot rollback redacted sensitive settings.
 
 ## init-default-settings behavior
 

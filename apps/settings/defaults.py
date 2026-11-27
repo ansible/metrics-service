@@ -64,6 +64,7 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
+    # Single authoritative definition — do not redefine in app settings.
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
         "apps.core.renderers.ServiceBrowsableAPIRenderer",
@@ -204,7 +205,6 @@ TEMPLATES = [
 
 # Dashboard collection schedule configuration
 DASHBOARD_COLLECTION = {
-    "COLLECTION_SCHEDULE_CRON": "0 */6 * * *",
     # Set to True to derive the backfill/retention window from the Controller's active
     # cleanup_jobs schedules instead of the fixed 90-day default.
     "USE_CONTROLLER_RETENTION": True,

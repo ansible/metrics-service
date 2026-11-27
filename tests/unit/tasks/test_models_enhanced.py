@@ -3,7 +3,7 @@ Enhanced unit tests for apps/tasks/models.py to improve coverage.
 
 Tests cover:
 - Task.retry() with submission failures (lines 158-186)
-- Task.get_next_run_time() with croniter import and exceptions (lines 218-229)
+- Task.get_next_run_time() with croniter exceptions
 - Task classmethod queries (lines 233, 237, 241)
 - HourlyMetricsCollection.__str__() and save() (lines 378, 391-394)
 - DailyMetricsSummary.__str__() (line 468)
@@ -166,14 +166,10 @@ class TestTaskGetNextRunTime:
 
         datetime.fromisoformat(result)  # Should not raise
 
-    # Note: test_handles_croniter_import_error removed
-    # Lines 226-227 handle ImportError when croniter is not installed, but this is not easily
-    # testable since croniter is imported locally inside a try block. Mocking local imports
-    # requires module reloading which breaks other tests in Django's app registry.
-    # This code path is defensive programming for environments without croniter installed.
+    # Note: croniter is a required dependency, so there is no ImportError path to test.
 
     def test_handles_invalid_cron_expression(self, user):
-        """Test get_next_run_time handles invalid cron expression (lines 228-229)."""
+        """Test get_next_run_time handles invalid cron expression."""
         # Arrange
         task = Task.objects.create(
             name="Bad Cron Task",

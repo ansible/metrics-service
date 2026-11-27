@@ -53,7 +53,7 @@ def _merge_collects(collections: list, rollup_processor) -> dict:
     return rollup_processor.base(merged).get("json", {})
 
 
-def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str, list], datetime, datetime]:
+def _collect_and_group_hourly_collections(summary_date: date) -> dict[str, list]:
     """
     Query and group hourly collections by collector type.
 
@@ -61,7 +61,7 @@ def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str,
         summary_date: Date to query collections for
 
     Returns:
-        tuple: (collections_by_type dict, start_datetime, end_datetime)
+        dict: Collections grouped by collector type
     """
     from apps.tasks.models import HourlyMetricsCollection
 
@@ -79,7 +79,7 @@ def _collect_and_group_hourly_collections(summary_date: date) -> tuple[dict[str,
             collections_by_type[collection.collector_type] = []
         collections_by_type[collection.collector_type].append(collection)
 
-    return collections_by_type, start_datetime, end_datetime
+    return collections_by_type
 
 
 def _build_rollup_processors(*collector_registries: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -289,7 +289,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
     try:
         # Query and group hourly collections by type
-        collections_by_type, _, _ = _collect_and_group_hourly_collections(summary_date)
+        collections_by_type = _collect_and_group_hourly_collections(summary_date)
 
         # Extract config snapshot from daily collections
         config_collections = collections_by_type.pop("config", [])

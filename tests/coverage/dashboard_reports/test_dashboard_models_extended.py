@@ -4,7 +4,6 @@ Extended unit tests for apps/dashboard_reports/models.py.
 Targets the ~108 uncovered lines from the 67% baseline, aiming to push
 coverage above 80%.  Covers:
   - _get_month_overlap_days helper
-  - CommonModel fallback (DAB unavailable path)
   - SubscriptionCostObjectManager.create (singleton upsert)
   - SubscriptionCost.__str__, per_second_subscription_cost
   - TemplateMetadata._lookup_by_id, _lookup_or_create_by_name (all branches),

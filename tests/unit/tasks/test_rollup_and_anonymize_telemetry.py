@@ -142,7 +142,7 @@ class TestDailyMetricsRollupTelemetry:
             patch("apps.tasks.collectors.daily_metrics_rollup.create_task_result") as mock_result,
         ):
             mock_hourly.objects.filter.return_value.exists.return_value = True
-            mock_collections.return_value = ({}, None, None)
+            mock_collections.return_value = {}
             mock_merge.return_value = ({}, [])
             mock_save.return_value = (MagicMock(aggregated_metrics={}), True, 0)
             mock_result.return_value = {"status": "success"}
@@ -179,7 +179,7 @@ class TestDailyMetricsRollupTelemetry:
             patch("apps.tasks.collectors.daily_metrics_rollup.create_task_result") as mock_result,
         ):
             mock_hourly.objects.filter.return_value.exists.return_value = True
-            mock_collections.return_value = ({}, None, None)
+            mock_collections.return_value = {}
             mock_merge.return_value = ({}, [])
             mock_save.return_value = (MagicMock(aggregated_metrics={}), True, 0)
             mock_result.return_value = {"status": "success"}

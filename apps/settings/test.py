@@ -69,9 +69,6 @@ LOGGING = {
     },
 }
 
-# Disable dispatcherd during tests to avoid background processes
-DISPATCHERD_ENABLED = False
-
 # Disable feature enables during tests
 # NOTE: relies on get_feature_enabled_from_db falling back to directly using these settings when not in DB...
 # ...and on init-default-settings never happening during tests. If it does, @override_settings won't work.
@@ -80,7 +77,7 @@ FEATURE = {
 }
 
 # REST Framework overrides for tests - use __ syntax to avoid replacing the whole dict
-# (which would drop DEFAULT_RENDERER_CLASSES and other keys set by defaults.py / core/settings.py)
+# (which would drop DEFAULT_RENDERER_CLASSES and other keys set by defaults.py)
 REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = [
     "rest_framework.authentication.SessionAuthentication",
 ]

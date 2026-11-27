@@ -324,28 +324,6 @@ def test_execute_db_task_outer_exception_calls_handle_error(user):
 
 
 @pytest.mark.unit
-def test_dispatcherd_task_decorator_fallback():
-    """When dispatcherd.publish is not importable, the fallback task decorator is used."""
-    from apps.tasks import tasks_system
-
-    # The module already handles the ImportError at import time.
-    # Verify the fallback was applied: execute_db_task must be callable.
-    assert callable(tasks_system.execute_db_task)
-
-
-# ===========================================================================
-# apps/tasks/models.py — DAB fallback classes and specific branches
-# ===========================================================================
-@pytest.mark.unit
-def test_dab_fallback_classes_available():
-    """DAB fallback classes exist and are abstract."""
-    from apps.tasks.models import DAB_AVAILABLE
-
-    # Either DAB is available (True) or fallback classes exist (False)
-    assert isinstance(DAB_AVAILABLE, bool)
-
-
-@pytest.mark.unit
 @pytest.mark.django_db
 def test_task_get_next_run_time_invalid_expression(user):
     """get_next_run_time returns 'Invalid cron_expression' for bad cron."""
@@ -376,58 +354,6 @@ def test_anonymized_payload_str():
         status="pending",
     )
     assert str(payload.summary_date) in str(payload)
-
-
-# ===========================================================================
-# apps/dynamic_settings/utils.py — uncovered exception paths
-# ===========================================================================
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_log_setting_change_non_json_old_value(user):
-    """Old value that can't be JSON-serialized falls back to str()."""
-    from apps.dynamic_settings.utils import log_setting_change
-
-    class Unserializable:
-        def __str__(self):
-            return "unserializable-obj"
-
-    result = log_setting_change(user, "OLD_VAL_TEST", "new_value", old_value=Unserializable())
-    assert result is not None
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_log_setting_change_db_exception(user):
-    """When DB save fails, log_setting_change returns None."""
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import log_setting_change
-
-    with patch.object(Setting.objects, "get_or_create", side_effect=Exception("db crash")):
-        result = log_setting_change(user, "CRASH_KEY", "value")
-
-    assert result is None
-
-
-@pytest.mark.unit
-@pytest.mark.django_db
-def test_rollback_configuration_change_exception(user):
-    """When DYNACONF.set raises, rollback returns error dict."""
-    from apps.dynamic_settings.models import Setting
-    from apps.dynamic_settings.utils import rollback_configuration_change
-
-    setting = Setting.objects.create(
-        setting_key="ROLLBACK_EXC",
-        current_value='"new"',
-        previous_value='"old"',
-        last_modified_by=user,
-    )
-
-    with patch("metrics_service.settings.DYNACONF") as mock_dynaconf:
-        mock_dynaconf.set.side_effect = Exception("dynaconf crash")
-        result = rollback_configuration_change(setting.id, user)
-
-    assert result["success"] is False
-    assert "Failed to rollback" in result["error"]
 
 
 @pytest.mark.unit

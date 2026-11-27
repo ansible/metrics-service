@@ -12,6 +12,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
+from dispatcherd.publish import task
 from django.db import models, transaction
 
 from .utils import (
@@ -73,17 +74,6 @@ def compute_retry_delay(base_delay: int, attempts: int) -> int:
     """Seconds before next retry: min(base_delay * 2**max(0, attempts - 1), RETRY_MAX_DELAY_SECONDS)."""
     exponent = max(0, attempts - 1)
     return min(base_delay * (2**exponent), RETRY_MAX_DELAY_SECONDS)
-
-
-try:
-    from dispatcherd.publish import task
-except ImportError:
-
-    def task():
-        def decorator(func):
-            return func
-
-        return decorator
 
 
 def _claim_task(task_id):

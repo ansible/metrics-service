@@ -136,7 +136,7 @@ class TestCollectAndGroupHourlyCollections:
             )
 
         # Act
-        collections_by_type, _, _ = _collect_and_group_hourly_collections(summary_date)
+        collections_by_type = _collect_and_group_hourly_collections(summary_date)
 
         # Assert
         assert "job_host_summary_service" in collections_by_type
@@ -156,7 +156,7 @@ class TestCollectAndGroupHourlyCollections:
         )
 
         # Act
-        collections_by_type, _, _ = _collect_and_group_hourly_collections(summary_date)
+        collections_by_type = _collect_and_group_hourly_collections(summary_date)
 
         # Assert
         assert len(collections_by_type) == 1

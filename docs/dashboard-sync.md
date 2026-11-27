@@ -257,9 +257,6 @@ It is in `TASK_FUNCTIONS` only (not in `task_groups.py`).
 the last known timestamp. Ongoing sync now uses hooks. The function remains in
 `TASK_FUNCTIONS` for manual/API invocation only — it is **not** in `task_groups.py`.
 
-`DASHBOARD_COLLECTION.COLLECTION_SCHEDULE_CRON` in `apps/settings/defaults.py`
-(`"0 */6 * * *"`) is unused legacy configuration from the pre-hook design.
-
 ## Cleanup Tasks
 
 | Task | Cron | Function |
