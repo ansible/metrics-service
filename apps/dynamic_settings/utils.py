@@ -12,6 +12,18 @@ from .models import Setting
 
 logger = logging.getLogger(__name__)
 
+REDACTED = "***REDACTED***"
+SENSITIVE_SETTINGS = ("SECRET_KEY", "PASSWORD", "DATABASES", "JWT_SECRET", "API_KEY")
+
+
+def _serialize_setting_value(value):
+    if value is None:
+        return None
+    try:
+        return json.dumps(value)
+    except (TypeError, ValueError):
+        return str(value)
+
 
 def log_setting_change(user, setting_key: str, new_value, old_value=None):
     """
@@ -27,35 +39,13 @@ def log_setting_change(user, setting_key: str, new_value, old_value=None):
         Setting object if successful, None if failed
     """
 
-    # List of sensitive settings that should be redacted
-    sensitive_settings = [
-        "SECRET_KEY",
-        "PASSWORD",
-        "DATABASES",
-        "JWT_SECRET",
-        "API_KEY",
-    ]
-
-    # Check if this setting is sensitive
-    is_sensitive = any(sensitive in setting_key.upper() for sensitive in sensitive_settings)
-
-    # Redact sensitive values
+    is_sensitive = any(sensitive in setting_key.upper() for sensitive in SENSITIVE_SETTINGS)
     if is_sensitive:
-        new_value_to_store = "***REDACTED***"
-        old_value_to_store = "***REDACTED***" if old_value is not None else None
+        new_value_to_store = REDACTED
+        old_value_to_store = REDACTED if old_value is not None else None
     else:
-        # Convert values to JSON strings for storage
-        try:
-            new_value_to_store = json.dumps(new_value) if new_value is not None else None
-        except (TypeError, ValueError):
-            # If we can't convert to JSON, just convert to string
-            new_value_to_store = str(new_value) if new_value is not None else None
-
-        try:
-            old_value_to_store = json.dumps(old_value) if old_value is not None else None
-        except (TypeError, ValueError):
-            # If we can't convert to JSON, just convert to string
-            old_value_to_store = str(old_value) if old_value is not None else None
+        new_value_to_store = _serialize_setting_value(new_value)
+        old_value_to_store = _serialize_setting_value(old_value)
 
     try:
         setting, created = Setting.objects.get_or_create(
@@ -76,7 +66,10 @@ def log_setting_change(user, setting_key: str, new_value, old_value=None):
             setting.save()
 
         logger.info(
-            f"Setting change logged: {setting_key} changed to {new_value} by {user.username if user else 'System'}"
+            "Setting change logged: %s changed to %s by %s",
+            setting_key,
+            REDACTED if is_sensitive else new_value,
+            user.username if user else "System",
         )
 
         return setting
@@ -112,7 +105,7 @@ def rollback_configuration_change(change_id, user):
         return {"success": False, "error": f"Configuration change with ID {change_id} not found"}
 
     # Check if we can actually rollback this setting
-    if setting.previous_value == "***REDACTED***" or setting.current_value == "***REDACTED***":
+    if REDACTED in (setting.previous_value, setting.current_value):
         logger.warning(f"Cannot rollback sensitive setting: {setting.setting_key}")
         return {"success": False, "error": f"Cannot rollback sensitive setting: {setting.setting_key}"}
 

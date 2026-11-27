@@ -3,6 +3,7 @@ Unit tests for apps/dynamic_settings/utils.py.
 Targets 0% → ~90% coverage.
 """
 
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -248,14 +249,18 @@ def test_log_setting_change_updates_existing(user):
 
 @pytest.mark.unit
 @pytest.mark.django_db
-def test_log_setting_change_redacts_sensitive(user):
+def test_log_setting_change_redacts_sensitive(user, caplog, monkeypatch):
     from apps.dynamic_settings.models import Setting
     from apps.dynamic_settings.utils import log_setting_change
 
-    result = log_setting_change(user, "SECRET_KEY", "super_secret_value")
+    monkeypatch.setattr(logging.getLogger("apps"), "propagate", True)
+    with caplog.at_level(logging.INFO, logger="apps.dynamic_settings.utils"):
+        log_setting_change(user, "SECRET_KEY", "super_secret_value")
 
     setting = Setting.objects.get(setting_key="SECRET_KEY")
     assert setting.current_value == "***REDACTED***"
+    assert "***REDACTED***" in caplog.text
+    assert "super_secret_value" not in caplog.text
 
 
 @pytest.mark.unit

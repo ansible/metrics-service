@@ -113,6 +113,9 @@ def get_queue_for_function(function_name: str) -> str:
 
 
 _DASHBOARD_REPORTS_CATEGORY = "Dashboard Reports"
+_SMALLER_BATCHES = "Smaller batches"
+_EXAMPLE_TIMESTAMP = "2024-01-01T00:00:00Z"
+_EXAMPLE_TIMESTAMP_WITH_OFFSET = "2024-01-01T00:00:00+00:00"
 
 # Enhanced task metadata for dashboard display
 TASK_METADATA = {
@@ -273,7 +276,7 @@ TASK_METADATA = {
             {"name": "Organization credentials", "data": {"collector_type": "credentials_service_org"}},
             {
                 "name": "Specific hour",
-                "data": {"collector_type": "job_host_summary_service", "hour_timestamp": "2024-01-01T00:00:00Z"},
+                "data": {"collector_type": "job_host_summary_service", "hour_timestamp": _EXAMPLE_TIMESTAMP},
             },
             {"name": "Raw automation events", "data": {"collector_type": "events_table"}},
             {"name": "Workflow job nodes", "data": {"collector_type": "workflow_job_node_table"}},
@@ -306,7 +309,7 @@ TASK_METADATA = {
                 "name": "Task executions (specific day)",
                 "data": {
                     "collector_type": "task_executions_service",
-                    "since": "2024-01-01T00:00:00Z",
+                    "since": _EXAMPLE_TIMESTAMP,
                     "until": "2024-01-02T00:00:00Z",
                 },
             },
@@ -496,7 +499,7 @@ TASK_METADATA = {
             {"name": "Default (Controller retention period)", "data": {}},
             {
                 "name": "Custom date range",
-                "data": {"since": "2024-01-01T00:00:00Z", "until": "2024-03-31T23:59:59Z"},
+                "data": {"since": _EXAMPLE_TIMESTAMP, "until": "2024-03-31T23:59:59Z"},
             },
         ],
     },
@@ -512,7 +515,7 @@ TASK_METADATA = {
                 "min": 1,
             },
         },
-        "examples": [{"name": "Default", "data": {}}, {"name": "Smaller batches", "data": {"batch_size": 1000}}],
+        "examples": [{"name": "Default", "data": {}}, {"name": _SMALLER_BATCHES, "data": {"batch_size": 1000}}],
     },
     "backfill_dashboard_job_types": {
         "queue": "dashboard",
@@ -528,7 +531,7 @@ TASK_METADATA = {
         },
         "examples": [
             {"name": "Default", "data": {}},
-            {"name": "Smaller batches", "data": {"batch_size": 500}},
+            {"name": _SMALLER_BATCHES, "data": {"batch_size": 500}},
         ],
     },
     "update_dashboard_job_definition": {
@@ -543,7 +546,7 @@ TASK_METADATA = {
                 "min": 1,
             },
         },
-        "examples": [{"name": "Default", "data": {}}, {"name": "Smaller batches", "data": {"batch_size": 1000}}],
+        "examples": [{"name": "Default", "data": {}}, {"name": _SMALLER_BATCHES, "data": {"batch_size": 1000}}],
     },
     "sync_dashboard_job_records": {
         "queue": "dashboard",
@@ -563,7 +566,7 @@ TASK_METADATA = {
             {
                 "name": "Sync one hour of job records",
                 "data": {
-                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "hour_timestamp": _EXAMPLE_TIMESTAMP_WITH_OFFSET,
                     "raw_jobs": [
                         {
                             "id": 1,
@@ -607,7 +610,7 @@ TASK_METADATA = {
             {
                 "name": "Sync one hour of host summary records",
                 "data": {
-                    "hour_timestamp": "2024-01-01T00:00:00+00:00",
+                    "hour_timestamp": _EXAMPLE_TIMESTAMP_WITH_OFFSET,
                     "raw_host_summaries": [
                         {
                             "id": 1,
@@ -638,7 +641,7 @@ TASK_METADATA = {
             {"name": "Incremental (since last sync)", "data": {}},
             {
                 "name": "Backfill a specific range",
-                "data": {"since": "2024-01-01T00:00:00+00:00", "until": "2024-01-02T00:00:00+00:00"},
+                "data": {"since": _EXAMPLE_TIMESTAMP_WITH_OFFSET, "until": "2024-01-02T00:00:00+00:00"},
             },
         ],
     },
