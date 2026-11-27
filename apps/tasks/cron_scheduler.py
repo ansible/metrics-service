@@ -13,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.conf import settings as django_settings
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -237,29 +237,26 @@ class UnifiedTaskScheduler:
                 new_immediate += 1
         return new_immediate
 
+    def _process_new_tasks(self, tasks, feature_flags: dict[str, bool], add_task, task_type: str) -> int:
+        """Add new untracked tasks of one type and return the count handled."""
+        new_tasks = 0
+        for task in tasks:
+            if task.id in self._db_task_jobs:
+                continue
+            if not self._task_feature_flag_enabled(task, feature_flags):
+                continue
+            logger.info(f"Found new {task_type} task: {task.name} (ID: {task.id})")
+            add_task(task)
+            new_tasks += 1
+        return new_tasks
+
     def _process_scheduled_tasks(self, tasks, feature_flags: dict[str, bool]) -> int:
         """Add new scheduled tasks and return the count handled."""
-        new_scheduled = 0
-        for task in tasks:
-            if task.id not in self._db_task_jobs:
-                if not self._task_feature_flag_enabled(task, feature_flags):
-                    continue
-                logger.info(f"Found new scheduled task: {task.name} (ID: {task.id})")
-                self._add_database_scheduled_task(task)
-                new_scheduled += 1
-        return new_scheduled
+        return self._process_new_tasks(tasks, feature_flags, self._add_database_scheduled_task, "scheduled")
 
     def _process_recurring_tasks(self, tasks, feature_flags: dict[str, bool]) -> int:
         """Add new recurring tasks and return the count handled."""
-        new_recurring = 0
-        for task in tasks:
-            if task.id not in self._db_task_jobs:
-                if not self._task_feature_flag_enabled(task, feature_flags):
-                    continue
-                logger.info(f"Found new recurring task: {task.name} (ID: {task.id})")
-                self._add_database_recurring_task(task)
-                new_recurring += 1
-        return new_recurring
+        return self._process_new_tasks(tasks, feature_flags, self._add_database_recurring_task, "recurring")
 
     def _periodic_database_sync(self):
         """Periodically check for new database tasks and add them to the scheduler."""
@@ -310,25 +307,11 @@ class UnifiedTaskScheduler:
 
     def _fail_stuck_tasks(self):
         """Mark tasks stuck in running status as failed after their timeout."""
-        from .models import Task, TaskExecution
+        from .models import Task
+        from .utils import fail_stuck_tasks
 
-        now = timezone.now()
-        # Select only IDs so large task_data/result_data JSONB columns are never
-        # fetched from the database just to reconcile stuck tasks.
-        ids = list(
-            Task.objects.filter(
-                status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-            ).values_list("id", flat=True)
-        )
+        ids = fail_stuck_tasks(Task.objects.all(), timezone.now(), STUCK_TASK_TIMEOUT_SECONDS)
         if ids:
-            error_msg = "Task timed out — worker died before completion"
-            with transaction.atomic():
-                TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                    status="failed", error_message=error_msg, completed_at=now
-                )
-                Task.objects.filter(id__in=ids, status="running").update(
-                    status="failed", error_message=error_msg, completed_at=now
-                )
             logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
     def _retry_failed_tasks(self):
@@ -395,15 +378,30 @@ class UnifiedTaskScheduler:
         except Exception as e:
             logger.exception(f"Error cleaning up stale advisory locks: {e}")
 
+    def _register_task_job(self, task, job_id: str, trigger, job_name: str, task_type: str) -> bool:
+        """Register a database task job with APScheduler and track it on success."""
+        try:
+            self.scheduler.add_job(
+                func=self._execute_database_task,
+                trigger=trigger,
+                args=[task.id],
+                id=job_id,
+                name=job_name,
+                replace_existing=True,
+                max_instances=1,
+            )
+            self._db_task_jobs[task.id] = job_id
+            return True
+        except Exception as e:
+            logger.exception(f"Failed to add {task_type} database task {task.id}: {e}")
+            return False
+
     def _add_database_scheduled_task(self, task):
         """Add a one-time scheduled database task to the scheduler."""
         if task.id in self._db_task_jobs:
             return  # Already scheduled
 
         try:
-            job_id = f"db_task_{task.id}"
-
-            # Check if the scheduled time is in the past
             now = timezone.now()
             if task.scheduled_time <= now:
                 # Execute immediately if past due. Not added to _db_task_jobs, so
@@ -414,22 +412,14 @@ class UnifiedTaskScheduler:
                 self._execute_database_task(task.id)
                 return
 
-            # Create date trigger for the scheduled time
-            trigger = DateTrigger(run_date=task.scheduled_time)
-
-            # Add job to scheduler
-            self.scheduler.add_job(
-                func=self._execute_database_task,
-                trigger=trigger,
-                args=[task.id],
-                id=job_id,
-                name=f"DB Task: {task.name}",
-                replace_existing=True,
-                max_instances=1,
-            )
-
-            self._db_task_jobs[task.id] = job_id
-            logger.info(f"Added scheduled database task: {task.name} (ID: {task.id}) at {task.scheduled_time}")
+            if self._register_task_job(
+                task,
+                f"db_task_{task.id}",
+                DateTrigger(run_date=task.scheduled_time),
+                f"DB Task: {task.name}",
+                "scheduled",
+            ):
+                logger.info(f"Added scheduled database task: {task.name} (ID: {task.id}) at {task.scheduled_time}")
 
         except Exception as e:
             logger.exception(f"Failed to add scheduled database task {task.id}: {e}")
@@ -440,24 +430,16 @@ class UnifiedTaskScheduler:
             return  # Already scheduled
 
         try:
-            job_id = f"db_recurring_{task.id}"
-
-            # Create cron trigger from expression
-            trigger = CronTrigger.from_crontab(task.cron_expression)
-
-            # Add job to scheduler
-            self.scheduler.add_job(
-                func=self._execute_database_task,
-                trigger=trigger,
-                args=[task.id],
-                id=job_id,
-                name=f"DB Recurring: {task.name}",
-                replace_existing=True,
-                max_instances=1,
-            )
-
-            self._db_task_jobs[task.id] = job_id
-            logger.info(f"Added recurring database task: {task.name} (ID: {task.id}) with cron: {task.cron_expression}")
+            if self._register_task_job(
+                task,
+                f"db_recurring_{task.id}",
+                CronTrigger.from_crontab(task.cron_expression),
+                f"DB Recurring: {task.name}",
+                "recurring",
+            ):
+                logger.info(
+                    f"Added recurring database task: {task.name} (ID: {task.id}) with cron: {task.cron_expression}"
+                )
 
         except Exception as e:
             logger.exception(f"Failed to add recurring database task {task.id}: {e}")
@@ -467,7 +449,6 @@ class UnifiedTaskScheduler:
         close_old_connections()
         try:
             from .models import Task
-            from .task_groups import get_feature_enabled_from_db
 
             # Get the task (don't filter by status for recurring tasks)
             try:
@@ -483,8 +464,8 @@ class UnifiedTaskScheduler:
                 return
 
             # Check feature flag at runtime so toggling takes effect without restart
-            feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
-            if feature_flag and not get_feature_enabled_from_db(feature_flag):
+            if not self._task_feature_flag_enabled(task):
+                feature_flag = task.task_data.get("_feature_flag") if task.task_data else None
                 logger.debug(f"Skipping task '{task.name}': feature flag '{feature_flag}' is disabled")
                 if not task.cron_expression:
                     self._remove_database_task(task_id)

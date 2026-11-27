@@ -3,13 +3,47 @@ Utility functions for task management and execution.
 """
 
 import logging
-from datetime import UTC
+from datetime import UTC, timedelta
 from typing import Any
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+STUCK_TASK_ERROR_MESSAGE = "Task timed out — worker died before completion"
+
+
+def fail_stuck_tasks(task_queryset: Any, now: Any, timeout_seconds: int | None = None) -> list[int]:
+    """Fail running tasks older than the timeout and return the affected task IDs.
+
+    ``task_queryset`` narrows the candidate set (all tasks for the scheduler, a single
+    task for API recovery). Only IDs are selected so large ``task_data``/``result_data``
+    JSONB columns are never fetched just to reconcile stuck tasks. Task executions are
+    updated before tasks to match the scheduler recovery lock order, avoiding deadlocks
+    when both paths recover the same overdue task concurrently.
+    """
+    from .models import Task, TaskExecution
+
+    if timeout_seconds is None:
+        timeout_seconds = settings.TASK_TIMEOUT
+    cutoff = now - timedelta(seconds=timeout_seconds)
+
+    with transaction.atomic():
+        ids = list(task_queryset.filter(status="running", started_at__lt=cutoff).values_list("id", flat=True))
+        if not ids:
+            return []
+        TaskExecution.objects.filter(
+            task__id__in=ids,
+            status="running",
+            task__status="running",
+            task__started_at__lt=cutoff,
+        ).update(status="failed", error_message=STUCK_TASK_ERROR_MESSAGE, completed_at=now)
+        updated = Task.objects.filter(id__in=ids, status="running", started_at__lt=cutoff).update(
+            status="failed", error_message=STUCK_TASK_ERROR_MESSAGE, completed_at=now
+        )
+    return ids if updated else []
 
 
 def ignore_database_override(task_name: str, kwargs: dict[str, Any]) -> None:
