@@ -21,6 +21,10 @@ from apps.dashboard_reports.filters import (
 )
 from apps.dashboard_reports.job_definition import HIDDEN_LAUNCH_TYPES
 from apps.dashboard_reports.viewsets.filter_options import FilterOptionsViewSet
+from apps.dashboard_reports.viewsets.job_templates import JobTemplatesViewSet
+from apps.dashboard_reports.viewsets.labels import LabelsViewSet
+from apps.dashboard_reports.viewsets.organizations import OrganizationsViewSet
+from apps.dashboard_reports.viewsets.projects import ProjectsViewSet
 
 _HIDE_SYNC_WORKFLOW = ~models.Q(launch_type__in=HIDDEN_LAUNCH_TYPES)
 
@@ -389,9 +393,19 @@ class TestFilterOptionsViewSet:
         response = FilterOptionsViewSet.retrieve_response([], "Record with id 99 not found")
         assert response.status_code == 404
 
-    def test_not_found_msg(self, viewset):
-        """not_found_msg formats the pk correctly."""
-        assert "42" in viewset.not_found_msg(42)
+    @pytest.mark.parametrize(
+        "viewset_class,expected",
+        [
+            (FilterOptionsViewSet, "Record with id 42 not found"),
+            (JobTemplatesViewSet, "Job template with id 42 not found"),
+            (LabelsViewSet, "Label with id 42 not found"),
+            (OrganizationsViewSet, "Organization with id 42 not found"),
+            (ProjectsViewSet, "Project with id 42 not found"),
+        ],
+    )
+    def test_not_found_msg(self, viewset_class, expected):
+        """not_found_msg uses each viewset's own label and formats the pk."""
+        assert viewset_class().not_found_msg(42) == expected
 
 
 @pytest.mark.unit

@@ -42,7 +42,4 @@ class JobTemplatesViewSet(FilterOptionsViewSet):
     awx_query_function = staticmethod(fetch_templates)
     list_error_msg = "Failed to fetch job templates"
     retrieve_error_msg = "Failed to fetch job template"
-
-    def not_found_msg(self, pk: int) -> str:
-        """Return a formatted not-found error message for a missing job template."""
-        return f"Job template with id {pk} not found"
+    not_found_label = "Job template"

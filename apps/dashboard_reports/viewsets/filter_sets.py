@@ -81,25 +81,23 @@ class FilterSetsViewSet(ListModelMixin, CreateModelMixin, UpdateModelMixin, Dest
             queryset = queryset.exclude(pk=exclude_pk)
         queryset.update(is_default=False)
 
-    def perform_create(self, serializer: FilterSetSerializer) -> None:
-        """Create a filter set, clearing any existing default if the new one is marked default."""
+    def _save_with_default_handling(self, serializer: FilterSetSerializer, exclude_pk: int | None = None) -> None:
+        """Save a filter set, clearing any existing default when the new one is marked default."""
         try:
             with transaction.atomic():
                 if serializer.validated_data.get("is_default", False):
-                    self._clear_other_defaults()
+                    self._clear_other_defaults(exclude_pk=exclude_pk)
                 serializer.save(user=self.request.user)
         except IntegrityError as exc:
             raise ValidationError({"is_default": "Unable to set this filter set as default."}) from exc
 
+    def perform_create(self, serializer: FilterSetSerializer) -> None:
+        """Create a filter set, clearing any existing default if the new one is marked default."""
+        self._save_with_default_handling(serializer)
+
     def perform_update(self, serializer: FilterSetSerializer) -> None:
         """Update a filter set, clearing any existing default if the new one is marked default."""
-        try:
-            with transaction.atomic():
-                if serializer.validated_data.get("is_default", False):
-                    self._clear_other_defaults(exclude_pk=serializer.instance.pk)
-                serializer.save(user=self.request.user)
-        except IntegrityError as exc:
-            raise ValidationError({"is_default": "Unable to set this filter set as default."}) from exc
+        self._save_with_default_handling(serializer, exclude_pk=serializer.instance.pk)
 
     def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """

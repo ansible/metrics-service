@@ -175,6 +175,11 @@ class TaskViewSet(BaseViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+    def _tasks_with_status(self, status_value: str) -> Response:
+        """Return serialized tasks filtered by status."""
+        tasks = self.get_queryset().filter(status=status_value)
+        return Response(self.get_serializer(tasks, many=True).data)
+
     @extend_schema(
         summary="Get list of currently running tasks.",
         description="This endpoint returns a list of currently running tasks.",
@@ -188,9 +193,7 @@ class TaskViewSet(BaseViewSet):
         Returns:
             Response: List of tasks with status 'running'
         """
-        running_tasks = self.get_queryset().filter(status="running")
-        serializer = self.get_serializer(running_tasks, many=True)
-        return Response(serializer.data)
+        return self._tasks_with_status("running")
 
     @extend_schema(
         summary="Get list of pending tasks waiting to run.",
@@ -205,9 +208,7 @@ class TaskViewSet(BaseViewSet):
         Returns:
             Response: List of tasks with status 'pending'
         """
-        pending_tasks = self.get_queryset().filter(status="pending")
-        serializer = self.get_serializer(pending_tasks, many=True)
-        return Response(serializer.data)
+        return self._tasks_with_status("pending")
 
     @extend_schema(
         summary="Retry a failed task.",
@@ -589,6 +590,30 @@ class TaskViewSet(BaseViewSet):
             error_response = build_error_response(f"Failed to get scheduler status: {str(e)}", status_code=500)
             return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    def _create_scheduled_task(
+        self,
+        request: HttpRequest,
+        serializer: TaskCreateSerializer,
+        *,
+        default_name: str,
+        success_message: str,
+        error_prefix: str,
+        cron_expression: str | None = None,
+    ) -> Response:
+        """Create a task from validated request data and build its API response."""
+        try:
+            task = Task.objects.create(
+                name=serializer.validated_data.get("name", default_name),
+                function_name=serializer.validated_data["function_name"],
+                task_data=serializer.validated_data.get("task_data", {}),
+                cron_expression=cron_expression,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+            return Response({"message": success_message, "task_id": str(task.id)})
+        except Exception as e:
+            error_response = build_error_response(f"{error_prefix}: {str(e)}", status_code=500)
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @extend_schema(
         summary="Schedule a task to run immediately using the simple scheduler.",
         description="Schedule a task to run immediately using the simple scheduler.",
@@ -616,20 +641,14 @@ class TaskViewSet(BaseViewSet):
         serializer = TaskCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            # Create task in database — scheduler periodic sync picks up immediate tasks
-            task = Task.objects.create(
-                name=serializer.validated_data.get("name", "Immediate Task"),
-                function_name=serializer.validated_data["function_name"],
-                task_data=serializer.validated_data.get("task_data", {}),
-                created_by=request.user if request.user.is_authenticated else None,
-                # No scheduled_time means immediate execution
-            )
-
-            return Response({"message": "Task scheduled for immediate execution", "task_id": str(task.id)})
-        except Exception as e:
-            error_response = build_error_response(f"Failed to schedule task: {str(e)}", status_code=500)
-            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # No scheduled_time means immediate execution; the scheduler periodic sync picks it up.
+        return self._create_scheduled_task(
+            request,
+            serializer,
+            default_name="Immediate Task",
+            success_message="Task scheduled for immediate execution",
+            error_prefix="Failed to schedule task",
+        )
 
     @extend_schema(
         summary="Schedule a recurring task using cron expression.",
@@ -675,20 +694,14 @@ class TaskViewSet(BaseViewSet):
             error_response = build_error_response("cron_expression is required for recurring tasks", status_code=400)
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            # Create recurring task directly in database - simple scheduler will handle it
-            task = Task.objects.create(
-                name=serializer.validated_data.get("name", "Recurring Task"),
-                function_name=serializer.validated_data["function_name"],
-                task_data=serializer.validated_data.get("task_data", {}),
-                cron_expression=cron_expression,
-                created_by=request.user if request.user.is_authenticated else None,
-            )
-
-            return Response({"message": "Recurring task scheduled successfully", "task_id": str(task.id)})
-        except Exception as e:
-            error_response = build_error_response(f"Failed to schedule recurring task: {str(e)}", status_code=500)
-            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return self._create_scheduled_task(
+            request,
+            serializer,
+            default_name="Recurring Task",
+            success_message="Recurring task scheduled successfully",
+            error_prefix="Failed to schedule recurring task",
+            cron_expression=cron_expression,
+        )
 
 
 @extend_schema_view(

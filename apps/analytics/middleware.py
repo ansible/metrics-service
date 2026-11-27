@@ -6,6 +6,8 @@ from django.conf import settings
 from django.urls import Resolver404, resolve
 from django.utils import timezone
 
+from apps.core.url_prefix import resolve_service_prefixes
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,14 +37,8 @@ def _normalize_prefixed_path(path, api_prefix, service_prefix):
 
 def _normalize_request_path(path):
     """Remove the configured service prefix before resolving a request path."""
-    url_prefix = getattr(settings, "URL_PREFIX", None)
-    if url_prefix:
-        api_prefix = url_prefix.rstrip("/")
-        service_prefix = api_prefix[4:] if api_prefix.startswith("/api/") else api_prefix
-        return _normalize_prefixed_path(path, api_prefix, service_prefix)
-
-    service_name = settings.ROOT_URLCONF.split(".")[0].replace("_", "-")
-    return _strip_path_prefix(path, f"/{service_name}")
+    api_prefix, service_prefix = resolve_service_prefixes(getattr(settings, "URL_PREFIX", None), settings.ROOT_URLCONF)
+    return _normalize_prefixed_path(path, api_prefix, service_prefix)
 
 
 def _resolve_request_match(request):
