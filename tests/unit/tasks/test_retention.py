@@ -5,6 +5,7 @@ import pytest
 
 from apps.tasks.retention import (
     DEFAULT_RETENTION_DAYS,
+    _select_retention_schedule,
     get_controller_retention_days,
     resolve_retention_days,
 )
@@ -33,12 +34,40 @@ class TestResolveRetentionDays:
     def test_returns_none_when_no_valid_schedule_remains(self):
         assert resolve_retention_days([_row(days=0), _row(days=-1), _row(days="bad")]) is None
 
+    def test_zero_retention_days_alone_is_rejected(self):
+        assert resolve_retention_days([_row(days=0)]) is None
+
+    def test_negative_retention_days_alone_is_rejected(self):
+        assert resolve_retention_days([_row(days=-5)]) is None
+
+    def test_none_retention_days_alone_is_rejected(self):
+        assert resolve_retention_days([_row(days=None)]) is None
+
+    def test_boolean_retention_days_alone_is_rejected(self):
+        assert resolve_retention_days([_row(days=True)]) is None
+
     def test_ties_use_soonest_next_run(self):
         rows = [
             _row(days=30, next_run="2024-06-10T00:00:00+00:00"),
             _row(days=30, next_run="2024-06-05T00:00:00+00:00"),
         ]
         assert resolve_retention_days(rows) == 30
+
+    def test_tie_break_selects_row_with_sooner_next_run(self):
+        later = _row(days=30, next_run="2024-06-10T00:00:00+00:00")
+        sooner = _row(days=30, next_run="2024-06-05T00:00:00+00:00")
+        assert _select_retention_schedule([later, sooner]) is sooner
+
+    @pytest.mark.parametrize("malformed_next_run", [12345, object(), {"run": "soon"}])
+    def test_tie_break_skips_row_with_malformed_next_run(self, malformed_next_run):
+        best = _row(days=30, next_run=None)
+        malformed = _row(days=30, next_run=malformed_next_run)
+        assert _select_retention_schedule([best, malformed]) is best
+
+    def test_tie_break_skips_row_with_unparseable_next_run_string(self):
+        best = _row(days=30, next_run=None)
+        malformed = _row(days=30, next_run="not-a-timestamp")
+        assert _select_retention_schedule([best, malformed]) is best
 
     def test_ignores_non_cleanup_jobs(self):
         assert resolve_retention_days([_row(days=7, job_type="cleanup_activitystream")]) is None
@@ -58,7 +87,7 @@ class TestGetControllerRetentionDays:
         with patch("apps.tasks.retention.logger") as mock_logger:
             assert get_controller_retention_days() == DEFAULT_RETENTION_DAYS
         mock_logger.warning.assert_called_once_with(
-            "No valid Controller cleanup_jobs retention schedule found; using 90-day fallback"
+            f"No valid Controller cleanup_jobs retention schedule found; using {DEFAULT_RETENTION_DAYS}-day fallback"
         )
 
     @patch("apps.tasks.retention.get_db_connection")
@@ -66,7 +95,9 @@ class TestGetControllerRetentionDays:
     def test_logs_and_falls_back_when_controller_query_fails(self, mock_fetch, mock_connection):
         with patch("apps.tasks.retention.logger") as mock_logger:
             assert get_controller_retention_days() == DEFAULT_RETENTION_DAYS
-        mock_logger.exception.assert_called_once_with("Unable to read Controller retention; using 90-day fallback")
+        mock_logger.exception.assert_called_once_with(
+            f"Unable to read Controller retention; using {DEFAULT_RETENTION_DAYS}-day fallback"
+        )
 
     @patch("apps.tasks.retention._fetch_retention_settings")
     def test_uses_fixed_awx_database_alias(self, mock_fetch):

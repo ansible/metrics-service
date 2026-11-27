@@ -95,15 +95,17 @@ def _fetch_retention_settings(db_connection) -> list[dict[str, Any]]:
 
 
 def get_controller_retention_days() -> int:
-    """Return Controller retention, logging and falling back to 90 days when necessary."""
+    """Return Controller retention, logging and falling back to ``DEFAULT_RETENTION_DAYS`` when necessary."""
     try:
         retention_data = _fetch_retention_settings(get_db_connection("awx"))
     except Exception:
-        logger.exception("Unable to read Controller retention; using 90-day fallback")
+        logger.exception(f"Unable to read Controller retention; using {DEFAULT_RETENTION_DAYS}-day fallback")
         return DEFAULT_RETENTION_DAYS
 
     retention_days = resolve_retention_days(retention_data)
     if retention_days is None:
-        logger.warning("No valid Controller cleanup_jobs retention schedule found; using 90-day fallback")
+        logger.warning(
+            f"No valid Controller cleanup_jobs retention schedule found; using {DEFAULT_RETENTION_DAYS}-day fallback"
+        )
         return DEFAULT_RETENTION_DAYS
     return retention_days
