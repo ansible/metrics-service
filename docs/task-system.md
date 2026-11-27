@@ -76,7 +76,7 @@ Defined in `apps/tasks/models.py`:
 | Model | Role |
 |-------|------|
 | `Task` | Scheduler queue row: status, attempts, `scheduled_time`, `cron_expression`, `task_data` |
-| `TaskExecution` | Immutable record of one execution attempt |
+| `TaskExecution` | One execution attempt; its finalized outcome is preserved |
 | `HourlyMetricsCollection` | Stored rollup data from collectors |
 | `DailyMetricsSummary` | Merged daily rollup |
 | `AnonymizedMetricsPayload` | Payload prepared for Segment transmission |

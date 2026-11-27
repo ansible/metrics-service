@@ -1,8 +1,9 @@
 # Task State Machine
 
-The task system uses five states. Every non-terminal state is self-recovering
-via the 30-second periodic sync — if the process crashes at any point, the
-database state alone is enough to resume.
+The task system uses five Task states. The periodic sync uses persisted state to
+recover interrupted submission and execution, subject to scheduling gates and
+the retry budget. Task status and execution-attempt status are distinct: cancelling
+a Task does not stop its worker or immediately finalize its execution.
 
 ## 1. Core State Machine
 
@@ -11,19 +12,26 @@ stateDiagram-v2
     [*] --> pending: Task created
 
     pending --> running: _claim_task()<br/>attempts++ (atomic)
-    running --> completed: Worker success
-    running --> failed: Worker error / exception
-    running --> failed: _fail_stuck_tasks()<br/>timeout > TASK_TIMEOUT
+    pending --> failed: Claimless early failure<br/>attempts++ (atomic)
+    running --> completed: Worker success<br/>live claim only
+    running --> failed: Worker error / exception<br/>live claim only
+    running --> failed: Shared timeout recovery<br/>scheduler or analytics caller
 
     failed --> pending: _retry_failed_tasks()<br/>if attempts < max_attempts<br/>with exponential backoff
     failed --> pending: API/CLI retry<br/>via task.retry() (immediate)
-    failed --> pending: API/CLI retry(force=True)<br/>bypasses max_attempts
+    failed --> pending: Explicit forced retry<br/>API, CLI or analytics collect POST
 
     pending --> cancelled: API POST /cancel<br/>or CLI cancel
     running --> cancelled: API POST /cancel<br/>or CLI cancel
 
     completed --> [*]
     cancelled --> [*]
+
+    note right of cancelled
+        Task stays cancelled.
+        Its running execution can still
+        finish or be timed out.
+    end note
 
     note right of failed
         Terminal when attempts ≥ max_attempts
@@ -32,12 +40,17 @@ stateDiagram-v2
     end note
 ```
 
+This is the executable Task's state machine, not its worker's lifetime. Worker
+result writes require the live execution claim; rejected late writes leave the
+Task unchanged. Forced retry still requires `failed` status and bypasses only the
+attempt budget, not the terminal-state guards.
+
 ## 2. Task Types and Entry Paths
 
 Every task is a `Task` row. Three shapes exist, distinguished by `scheduled_time`
-and `cron_expression`. They differ only in *how they enter* the state machine —
-once a task is `pending` and due, all three flow through the same
-`pending → running → completed/failed` cycle from §1.
+and `cron_expression`. Immediate and scheduled rows are executable tasks; a
+recurring row is a schedule definition that creates executable one-shot children.
+Those children follow the same state machine as other one-shot tasks.
 
 | Type | `scheduled_time` | `cron_expression` | Query | How it enters |
 |------|------------------|-------------------|-------|---------------|
@@ -47,18 +60,22 @@ once a task is `pending` and due, all three flow through the same
 
 ### Recurring tasks are templates
 
-A recurring task (`cron_expression` set) **never runs itself**. On each cron fire,
+A recurring task (non-empty `cron_expression`) **never runs itself**. On each cron fire,
 `_execute_database_task()` creates a fresh one-shot child `Task`
 (`cron_expression=None`, `scheduled_time=None`) and submits *that*; the recurring
-row stays `pending` forever as a template.
+row remains `pending` while active. A template can also be cancelled: the scheduler
+stops dispatching it when it observes that status. Cancellation does not undo a
+dispatch already in progress or cancel children already created.
 
 The child is therefore an ordinary **immediate** task and runs through the full
 state machine — claim, execute, fail, retry — exactly like any other. It is not a
 special case; only the *template* is:
 
-- `_fail_stuck_tasks()` only touches `status="running"`, and a template is never running
-- `_retry_failed_tasks()` excludes `cron_expression IS NOT NULL` — a template never
-  fails, so it never needs retrying; its children fail and retry normally
+- Timeout recovery cannot fail a template: it is never claimed and has no running
+  execution of its own.
+- `_retry_failed_tasks()` uses `Task.non_recurring_filter()` to exclude templates;
+  their children fail and retry normally. The helper treats both null and legacy
+  empty cron expressions as non-recurring.
 
 Wherever this doc says a transition is "non-recurring only," it means the special-cased
 template is skipped — the recurring task's spawned children are still fully processed.
@@ -77,10 +94,10 @@ its backoff delay is effectively a **scheduled** task until the delay elapses
 | 2 | `running` | `completed` | Task function returns success | `utils.py:update_task_status()` | no |
 | 3 | `running` | `failed` | Task function returns error | `utils.py:update_task_status()` | no |
 | 4 | `running` | `failed` | Unhandled exception in worker | `utils.py:handle_task_error()` | no |
-| 5 | `running` | `failed` | Stuck beyond TASK_TIMEOUT (1h) | `cron_scheduler.py:_fail_stuck_tasks()` | no |
-| 6 | `pending` | `failed` | Error before _claim_task runs | `utils.py:handle_task_error()` | +1 |
+| 5 | `running` | `failed` | Stuck beyond TASK_TIMEOUT (1h) | `cron_scheduler.py:_fail_stuck_tasks()` → shared recovery | no |
+| 6 | `pending` | `failed` | Error without a claim while still pending | `utils.py:handle_task_error()` | +1 |
 | 7 | `failed` | `pending` | Periodic retry (auto, non-recurring only) | `cron_scheduler.py:_retry_failed_tasks()` → `task.retry()` | no (already counted) |
-| 8 | `failed` | `pending` | API `POST /retry` | `v1/views.py` → `task.retry()` | no |
+| 8 | `failed` | `pending` | API `POST /retry` (optional `force`) | `v1/views.py` → `task.retry(force=...)` | no |
 | 9 | `failed` | `pending` | CLI `tasks retry <id>` | `metrics_service.py` → `task.retry()` | no |
 | 10 | `failed` | `pending` | CLI `tasks retry <id> --force` | `metrics_service.py` → `task.retry(force=True)` | no |
 | 11 | `pending` | `cancelled` | API `POST /cancel` or CLI | `v1/views.py` / `metrics_service.py` | no |
@@ -98,7 +115,7 @@ dispatcher.
 | Caller | Guard | Delay | Notes |
 |--------|-------|-------|-------|
 | `_retry_failed_tasks` (periodic) | `can_retry()` | exponential backoff | sole automatic retry mechanism |
-| API `POST /retry` | `can_retry()` | none (immediate) | user-initiated |
+| API `POST /retry` | failed; within budget unless `force=True` | none (immediate) | user-initiated |
 | CLI `tasks retry` | `can_retry()` | none (immediate) | user-initiated |
 | CLI `tasks retry --force` | `status == "failed"` only | none (immediate) | `retry(force=True)`, bypasses max_attempts |
 | Repeated analytics collect POST | same resolved window; no other live window for the collector | none (immediate) | `retry(force=True)` for failed/stale work; caller-driven |
@@ -129,36 +146,32 @@ the POST, using the same timeout-recovery implementation before requeueing it.
 
 ```mermaid
 flowchart TD
-    subgraph "What if the system crashes while..."
-        A["Submitting to dispatcher"]
-        B["Worker executing task"]
-        C["Worker saving result"]
-        D["_retry_failed_tasks calling retry()"]
-        E["retry() saving to DB"]
+    subgraph Persisted["DB state left behind"]
+        Pending["Task pending<br/>submission interrupted"]
+        Running["Task running past timeout<br/>worker or result transaction interrupted"]
+        Failed["Task failed<br/>retry not committed yet"]
+        Cancelled["Task cancelled<br/>running execution past timeout"]
     end
 
-    subgraph "DB state left behind"
-        A1["pending<br/>(submit never reached broker)"]
-        B1["running<br/>(worker died)"]
-        C1["running<br/>(txn didn't commit)"]
-        D1["failed<br/>(save didn't commit)"]
-        E1["failed<br/>(save didn't commit)"]
+    subgraph Recovery["Automatic recovery during periodic sync"]
+        Submit["Submit when eligible"]
+        Fail["Fail Task and its running execution"]
+        Budget{"Attempts remaining?"}
+        Retry["retry() to pending<br/>with backoff"]
+        Exhausted["Leave failed<br/>explicit forced retry needed"]
+        CloseAttempt["Fail overdue running execution only<br/>Task stays cancelled; no retry"]
     end
 
-    subgraph "Recovery (next periodic sync)"
-        R1["Re-submitted to dispatcher"]
-        R2["_fail_stuck_tasks → failed<br/>then _retry_failed_tasks → pending"]
-        R3["retry() called again"]
-    end
-
-    A --> A1 --> R1
-    B --> B1 --> R2
-    C --> C1 --> R2
-    D --> D1 --> R3
-    E --> E1 --> R3
+    Pending --> Submit
+    Running --> Fail --> Budget
+    Failed --> Budget
+    Budget -->|Yes| Retry
+    Budget -->|No| Exhausted
+    Cancelled --> CloseAttempt
 ```
 
-The periodic sync has three distinct, non-overlapping recovery handlers:
+The chart concerns executable one-shot Tasks, including recurring templates'
+children. The periodic sync handles the persisted state as follows:
 
 - **Orphaned `pending`** (submit never reached the broker) → recovered by the
   `immediate_tasks()` re-submission scan, **not** the retry path. A `pending`
@@ -166,7 +179,8 @@ The periodic sync has three distinct, non-overlapping recovery handlers:
   applies to **past-due scheduled** tasks until a worker claims them (see
   [apscheduler.md](apscheduler.md)).
 - **Stuck `running`** (worker died) → `_fail_stuck_tasks()` moves it to `failed`,
-  then `_retry_failed_tasks()` retries it on the next pass.
+  then `_retry_failed_tasks()` may requeue it in the same sync if attempts remain.
+  Execution waits for the configured backoff.
 - **`failed` with attempts remaining** → `_retry_failed_tasks()` → `retry()`.
 
 The last two involve the retry path; `_retry_failed_tasks()` acts solely on
@@ -178,6 +192,11 @@ the Task's cancellation, `completed_at`, and attempt count. A fresh execution ca
 still record the worker's actual outcome; an already-finalized execution is never
 rewritten.
 
+These are lifecycle-state guarantees, not at-most-once execution guarantees. A
+timeout cannot distinguish a dead worker from a slow one, and cancellation does
+not undo side effects. Task functions still need appropriate idempotency or
+function-specific execution locks.
+
 ## 5. Periodic Sync Flow
 
 `_periodic_database_sync()` runs every 30–60 seconds (class default 30s,
@@ -187,7 +206,7 @@ management command default 60s) and handles all state recovery in a single pass.
 flowchart TD
     Start["_periodic_database_sync()"] --> Stuck
 
-    Stuck["_fail_stuck_tasks()<br/>running tasks past TASK_TIMEOUT → failed"]
+    Stuck["_fail_stuck_tasks() via shared recovery<br/>overdue running Task → failed<br/>cancelled Task: overdue execution → failed only"]
     Stuck --> Retry
 
     Retry["_retry_failed_tasks()<br/>failed tasks with attempts < max_attempts → pending<br/>(excludes recurring templates)<br/>with exponential backoff delay"]
@@ -202,8 +221,11 @@ flowchart TD
     Scheduled["Register scheduled tasks<br/>Task.scheduled_tasks() → APScheduler DateTrigger<br/>(submit now if past due)"]
     Scheduled --> Recurring
 
-    Recurring["Sync recurring task jobs<br/>add/remove APScheduler cron jobs"]
-    Recurring --> End
+    Recurring["Register recurring templates<br/>APScheduler CronTrigger"]
+    Recurring --> Locks
+
+    Locks["Clean up stale task advisory locks"]
+    Locks --> End
 ```
 
 ## 6. Attempt Counting and Backoff
@@ -237,20 +259,22 @@ base_delay = task_data["retry_delay_seconds"] or RETRY_BASE_DELAY_SECONDS (480s 
 max_delay  = RETRY_MAX_DELAY_SECONDS (28800s / 8h)
 ```
 
-| Failure # | attempts | Delay before next run |
+| Failure # | attempts | Computed delay if another attempt is allowed |
 |-----------|----------|-----------------------|
 | 1st | 1 | 8 min |
 | 2nd | 2 | 16 min |
-| **3rd** | **3** | **32 min** ← default max_attempts (terminal after this) |
+| **3rd** | **3** | **32 min** (not scheduled with the default budget of 3) |
 | 4th | 4 | 64 min |
 | 5th | 5 | 128 min |
 | 6th | 6 | 256 min |
-| **7th+** | **7+** | **8h (capped)** ← `daily_anonymize_and_prepare` max_attempts |
+| **7th+** | **7+** | **8h (capped)** |
 
-Each individual delay is capped at `RETRY_MAX_DELAY_SECONDS` (8h).
+Each individual delay is capped at `RETRY_MAX_DELAY_SECONDS` (8h), but no delay is
+scheduled once the attempt budget is exhausted. A budget of 3 permits two automatic
+retries; a budget of 7, as used by `daily_anonymize_and_prepare`, permits six.
 
-After `max_attempts` failures, the task stays `failed` permanently
-(until a manual retry via CLI `--force`, i.e. `task.retry(force=True)`).
+After `max_attempts` failures, automatic retry stops. An explicit forced API/CLI
+retry or repeated analytics collect POST can still call `task.retry(force=True)`.
 
 ## 7. Data Model: Task vs TaskExecution
 
@@ -259,7 +283,7 @@ Task (one per logical task)
 ├── status, attempts, max_attempts
 ├── started_at, completed_at          ← current/last run timestamps
 ├── error_message                     ← cleared on retry()
-└── executions → [TaskExecution, ...] ← one row per attempt, never overwritten
+└── executions → [TaskExecution, ...] ← one row per attempt; final outcomes preserved
 
 TaskExecution (one per attempt)
 ├── status
@@ -275,6 +299,30 @@ TaskExecution (one per attempt)
 Shared timeout recovery only updates executions with `status="running"`.
 The execution API is read-only; only `_claim_task()` creates attempt records.
 Non-fatal collector-hook failures are logged and do not create synthetic attempts.
+
+The paired states below describe one claimed attempt, not additional database
+status values. Cancellation terminates the Task's lifecycle without pretending
+that its worker has already stopped:
+
+```mermaid
+stateDiagram-v2
+    state "Task running / execution running" as Live
+    state "Task completed / execution completed" as Completed
+    state "Task failed / execution failed" as Failed
+    state "Task cancelled / execution running" as CancelledLive
+    state "Task cancelled / execution completed" as CancelledCompleted
+    state "Task cancelled / execution failed" as CancelledFailed
+
+    [*] --> Live: Claim one attempt
+    Live --> Completed: Worker success wins
+    Live --> Failed: Worker error or timeout recovery wins
+    Live --> CancelledLive: Cancel Task only
+    CancelledLive --> CancelledCompleted: Worker success wins
+    CancelledLive --> CancelledFailed: Worker error or overdue-execution recovery wins
+```
+
+A retry changes the failed parent back to `pending`, leaving the old execution
+failed; the next successful claim creates a new execution row.
 
 The `TaskExecution` row **is** the claim identity. A worker first locks its parent
 Task, then guards the Task write on `EXISTS (its execution is still running)`.
@@ -345,7 +393,7 @@ The `/state-machine-review` skill checks these automatically.
 2. **`retry()` is an atomic state writer** — conditional `UPDATE WHERE status='failed'`, never calls submit, never touches TaskExecution
 3. **Periodic sync is the sole automatic retry** — `execute_claimed` and `execute_db_task` never call retry
 4. **`attempts` increments exactly once per attempt** — in `_claim_task` (atomic) or `handle_task_error` (pre-claim failure)
-5. **Terminal states are never overwritten** — `_claim_task` filters `status='pending'`, `_fail_stuck_tasks` filters `status='running'`
+5. **Terminal Task states are never overwritten** — `_claim_task` filters `status='pending'`; timeout recovery changes only running Tasks, while separately finalizing overdue running executions of cancelled Tasks.
 6. **All retry callers go through `task.retry()`** — API, CLI, and periodic scheduler; no manual field setting
 7. **Only `_claim_task` sets `running`** — `update_task_status` raises `ValueError` on `status="running"`; the `pending → running` claim (set `started_at`, increment `attempts`) is owned exclusively by `_claim_task`, atomically
 8. **Status writes are conditional on the current state** — cancellation updates only pending/running tasks; worker completion/failure updates only while its own `TaskExecution` is still running. The first atomic update wins, and a late worker cannot overwrite cancellation or a newer retry. Rejected writes are logged, not raised.
