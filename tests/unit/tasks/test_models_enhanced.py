@@ -599,16 +599,48 @@ class _JsonSizeUpdateFieldsCases:
         assert getattr(instance, self.size_field) == len(json.dumps({"after": 1}).encode("utf-8"))
         assert getattr(instance, self.source_field) == {"after": 1}
 
-    def test_update_fields_with_size_field_alone_recomputes_size(self):
+    def test_update_fields_with_size_field_alone_preserves_size(self):
+        """save(update_fields=[size_field]) keeps #555 behavior: no re-serialization."""
         instance = self.make_instance({"before": True})
         instance.save()
+        initial_size = getattr(instance, self.size_field)
 
         payload = {"after": [1, 2, 3]}
         setattr(instance, self.source_field, payload)
-        instance.save(update_fields=[self.size_field])
+        with (
+            patch("apps.tasks.models.to_jsonable") as to_jsonable_mock,
+            patch("apps.tasks.models.json_size_bytes") as size_mock,
+        ):
+            instance.save(update_fields=[self.size_field])
+
+        to_jsonable_mock.assert_not_called()
+        size_mock.assert_not_called()
+        # The in-memory source payload is neither re-serialized nor normalized.
+        assert getattr(instance, self.source_field) is payload
+
+        instance.refresh_from_db()
+        assert getattr(instance, self.size_field) == initial_size
+        assert getattr(instance, self.source_field) == {"before": True}
+
+    def test_empty_payload_size_is_two_bytes(self):
+        instance = self.make_instance({})
+        instance.save()
         instance.refresh_from_db()
 
-        assert getattr(instance, self.size_field) == len(json.dumps(payload).encode("utf-8"))
+        assert getattr(instance, self.source_field) == {}
+        assert getattr(instance, self.size_field) == 2
+
+    @pytest.mark.parametrize("text", ["é", "🎉"], ids=["accented", "emoji"])
+    def test_size_counts_utf8_bytes_not_characters(self, text):
+        payload = {"text": text}
+        instance = self.make_instance(payload)
+        instance.save()
+        instance.refresh_from_db()
+
+        escaped_size = len(json.dumps(payload).encode("utf-8"))
+        character_size = len(json.dumps(payload, ensure_ascii=False))
+        assert getattr(instance, self.size_field) == escaped_size
+        assert getattr(instance, self.size_field) > character_size
 
     def test_update_fields_list_is_not_mutated(self):
         instance = self.make_instance({"before": True})

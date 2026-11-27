@@ -353,11 +353,12 @@ class JsonSizeTrackingMixin(models.Model):
     def save(self, *args, **kwargs):
         """Normalize the JSON payload and record its byte size before saving.
 
-        Normalization and size calculation are skipped when the save explicitly targets
-        unrelated fields, so status-only updates do not rewrite the JSONB column or pay the
-        conversion cost. When the source payload (or the tracked size) is written, the size
-        field is added to a copied ``update_fields`` list so the stored size stays accurate
-        without mutating the caller's list/tuple/set.
+        Normalization and size calculation only run when the whole row is written or when the
+        source payload is written; any other ``update_fields`` (including the tracked size field
+        alone) is persisted verbatim, so status-only updates and explicit size writes do not
+        rewrite the JSONB column or pay the conversion cost. When the source payload is written,
+        the size field is added to a copied ``update_fields`` list so the stored size stays
+        accurate without mutating the caller's list/tuple/set.
 
         Args:
             *args: Positional arguments
@@ -369,13 +370,12 @@ class JsonSizeTrackingMixin(models.Model):
         update_fields = kwargs.get("update_fields")
         if update_fields is None:
             self._sync_json_size()
-        else:
+        elif self.json_size_source_field in update_fields:
+            self._sync_json_size()
             # Copy before mutating so the caller's list/tuple/set is left untouched.
             fields = set(update_fields)
-            if self.json_size_source_field in fields or self.json_size_field in fields:
-                self._sync_json_size()
-                fields.add(self.json_size_field)
-                kwargs["update_fields"] = list(fields)
+            fields.add(self.json_size_field)
+            kwargs["update_fields"] = list(fields)
         super().save(*args, **kwargs)
 
 
