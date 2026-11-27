@@ -256,8 +256,8 @@ class TestCleanupOldTasks:
         # Assert
         assert result["tasks_deleted"] == 1
 
-    def test_only_deletes_completed_and_failed_tasks(self, user):
-        """Test only deletes tasks with completed or failed status."""
+    def test_preserves_unfinished_tasks(self, user):
+        """Cleanup must not delete old pending or running work."""
         # Arrange
         from apps.tasks.models import Task
 

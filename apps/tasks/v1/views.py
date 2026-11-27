@@ -44,7 +44,7 @@ from apps.tasks.api_utils import ErrorResponseSerializer, build_error_response
 from apps.tasks.models import Task, TaskExecution
 from apps.tasks.task_groups import get_oneshot_task_ids
 
-from .base_views import BaseViewSet
+from .base_views import BaseViewSet, ReadOnlyBaseViewSet
 from .serializers import (
     TaskCleanupSerializer,
     TaskCreateSerializer,
@@ -276,18 +276,20 @@ class TaskViewSet(BaseViewSet):
         """
         task = self.get_object()
 
-        if task.status in ["completed", "cancelled", "failed"]:
+        if not task.cancel():
+            task.refresh_from_db()
             error_response = build_error_response(f"Cannot cancel task with status: {task.status}", status_code=400)
             return Response(error_response, status=status.HTTP_400_BAD_REQUEST)
-
-        task.status = "cancelled"
-        task.save(update_fields=["status", "modified"])
 
         return Response({"message": f"Task '{task.name}' cancelled"})
 
     @extend_schema(
-        summary="Clean up old completed tasks",
-        description="This endpoint replicates the functionality of: 'python manage.py manage_tasks cleanup --days=30 --dry-run'",
+        summary="Clean up old task history.",
+        description=(
+            "Delete old completed, failed and cancelled non-recurring tasks. "
+            "Recurring schedule definitions and task-group one-shot system tasks are preserved. "
+            "A dry run returns a preview without deleting anything."
+        ),
         request=TaskCleanupSerializer,
         responses={
             200: inline_serializer(
@@ -304,10 +306,7 @@ class TaskViewSet(BaseViewSet):
     @action(detail=False, methods=["post"])
     def cleanup(self, request: HttpRequest) -> Response:
         """
-        Clean up old completed tasks.
-
-        This endpoint replicates the functionality of:
-        python manage.py manage_tasks cleanup --days=30 --dry-run
+        Clean up old non-recurring task history without removing schedule definitions.
 
         Args:
             request: HTTP request with cleanup parameters
@@ -325,7 +324,7 @@ class TaskViewSet(BaseViewSet):
         # Task-group one-shot system tasks are kept, as in cleanup_old_tasks: init-system-tasks relies on them
         # (and their completed_at) to keep completed one-shot work from running again.
         old_tasks = Task.objects.filter(
-            status__in=["completed", "failed", "cancelled"], completed_at__lt=cutoff_date
+            Task.non_recurring_filter(), status__in=["completed", "failed", "cancelled"], completed_at__lt=cutoff_date
         ).exclude(is_system_task=True, name__in=get_oneshot_task_ids())
 
         count = old_tasks.count()
@@ -700,25 +699,8 @@ class TaskViewSet(BaseViewSet):
         summary="Get specific task execution by ID.",
         description="Returns a specific task execution by ID.",
     ),
-    create=extend_schema(
-        summary="Create a task execution.",
-        description="Create a new task execution object.",
-        request=TaskExecutionSerializer,
-    ),
-    update=extend_schema(
-        summary="Update a specific task execution by ID.",
-        description="Update a specific task execution by ID.",
-    ),
-    partial_update=extend_schema(
-        summary="Partially update a specific task execution by ID.",
-        description="Partially update a specific task execution by ID.",
-    ),
-    destroy=extend_schema(
-        summary="Delete a specific task execution by ID.",
-        description="Delete a specific task execution record by ID.",
-    ),
 )
-class TaskExecutionViewSet(BaseViewSet):
+class TaskExecutionViewSet(ReadOnlyBaseViewSet):
     """
     ViewSet for TaskExecution model to monitor task execution history.
     """

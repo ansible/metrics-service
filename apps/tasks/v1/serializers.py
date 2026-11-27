@@ -282,6 +282,11 @@ class TaskExecutionSerializer(BaseModelSerializer):
         read_only_fields = [
             "id",
             "url",
+            "task",
+            "status",
+            "worker_id",
+            "result_data",
+            "error_message",
             "task_name",
             "task_function",
             "duration",

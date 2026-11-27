@@ -95,12 +95,14 @@ def _claim_task(task_id):
     from .models import Task, TaskExecution
 
     with transaction.atomic():
+        now = timezone.now()
         claimed = (
             Task.ready_to_run()
             .filter(id=task_id)
             .update(
                 status="running",
-                started_at=timezone.now(),
+                started_at=now,
+                modified=now,
                 attempts=models.F("attempts") + 1,
             )
         )
@@ -109,6 +111,8 @@ def _claim_task(task_id):
 
         task = Task.objects.get(id=task_id)
 
+        # This row is the claim identity: finalizers compare-and-set against it
+        # to tell a live attempt from one a timeout or retry has superseded.
         execution = TaskExecution.objects.create(
             task=task,
             status="running",
@@ -289,7 +293,8 @@ def submit_task_to_dispatcher(task: Any) -> None:
     """
     from .models import TaskExecution
 
-    # Guard against duplicate submissions
+    # Guard against duplicate submissions. Legacy pending executions can survive
+    # upgrades even though new claims are created directly as running.
     if TaskExecution.objects.filter(task=task, status__in=["pending", "running"]).exists():
         logger.warning(f"Task {task.name} (ID: {task.id}) already has a pending or running execution, skipping")
         return

@@ -127,6 +127,40 @@ class TestTaskRetry:
 
 @pytest.mark.unit
 @pytest.mark.django_db
+class TestTaskCancel:
+    """Test Task.cancel() compare-and-set behavior."""
+
+    def test_cancel_pending_task(self, user):
+        task = Task.objects.create(name="Pending Task", function_name="hello_world", created_by=user)
+
+        assert task.cancel() is True
+
+        task.refresh_from_db()
+        assert task.status == "cancelled"
+
+    def test_cancel_sets_completed_at(self, user):
+        """Cancellation is terminal, so it records completed_at for duration and cleanup."""
+        task = Task.objects.create(name="Running Task", function_name="hello_world", status="running", created_by=user)
+
+        assert task.cancel() is True
+
+        assert task.completed_at is not None
+        task.refresh_from_db()
+        assert task.completed_at is not None
+
+    def test_cancel_does_not_overwrite_concurrent_completion(self, user):
+        task = Task.objects.create(name="Running Task", function_name="hello_world", status="running", created_by=user)
+        stale_task = Task.objects.get(pk=task.pk)
+        Task.objects.filter(pk=task.pk).update(status="completed")
+
+        assert stale_task.cancel() is False
+
+        task.refresh_from_db()
+        assert task.status == "completed"
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
 class TestTaskGetNextRunTime:
     """Test Task.get_next_run_time() method."""
 
