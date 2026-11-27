@@ -77,7 +77,7 @@ FEATURE = {
 }
 
 # REST Framework overrides for tests - use __ syntax to avoid replacing the whole dict
-# (which would drop DEFAULT_RENDERER_CLASSES and other keys set by defaults.py / core/settings.py)
+# (which would drop DEFAULT_RENDERER_CLASSES and other keys set by defaults.py)
 REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES = [
     "rest_framework.authentication.SessionAuthentication",
 ]

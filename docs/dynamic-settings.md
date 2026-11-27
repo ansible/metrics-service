@@ -45,11 +45,16 @@ flowchart TB
 |-------|---------|
 | `setting_key` | Unique key (e.g. `METRICS_COLLECTION`) |
 | `current_value` | JSON-serialized value |
-| `previous_value` | Previous value recorded by change logging |
+| `previous_value` | Legacy/unpopulated field; not written automatically |
 | `last_modified_by` | User who made the change (nullable for system) |
 
-Sensitive keys (`SECRET_KEY`, `PASSWORD`, `DATABASES`, etc.) are stored redacted as
-`***REDACTED***`.
+`Setting` has no save hook, signal, or admin override that records history: a write only
+sets the fields you provide. `previous_value` is a legacy column that is not populated by
+the application, so it is `NULL` unless set explicitly (e.g. by automation or tests).
+
+For the same reason, writes do **not** redact sensitive keys (`SECRET_KEY`, `PASSWORD`,
+`DATABASES`, etc.) or log changes: whatever value is written to `current_value` is stored
+as-is.
 
 There is **no public REST API** for settings today (`apps/dynamic_settings/urls.py`
 is empty). Changes are made via:
