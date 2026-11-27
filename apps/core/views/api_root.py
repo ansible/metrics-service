@@ -1,8 +1,13 @@
+from contextlib import suppress
+from weakref import WeakKeyDictionary
+
 from ansible_base.lib.utils.views.ansible_base import AnsibleBaseView
 from django.contrib.admindocs.views import simplify_regex
 from django.urls import URLPattern, URLResolver, get_resolver
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+_EXTRACTED_PATTERNS_CACHE: WeakKeyDictionary[URLResolver, tuple[tuple[str, str | None], ...]] = WeakKeyDictionary()
 
 
 class APIRootView(AnsibleBaseView):
@@ -38,8 +43,16 @@ class APIRootView(AnsibleBaseView):
         # Get the current view's URL name to exclude it from results
         current_url_name = getattr(request.resolver_match, "url_name", None)
 
-        # Collect all patterns in traversal order (like show_urls --unsorted)
-        all_patterns = list(self._extract_patterns(resolver.url_patterns, ""))
+        # Collect all patterns in traversal order (like show_urls --unsorted).
+        try:
+            all_patterns = _EXTRACTED_PATTERNS_CACHE.get(resolver)
+        except TypeError:
+            all_patterns = None
+
+        if all_patterns is None:
+            all_patterns = tuple(self._extract_patterns(resolver.url_patterns, ""))
+            with suppress(TypeError):
+                _EXTRACTED_PATTERNS_CACHE[resolver] = all_patterns
 
         # Track seen paths - first occurrence wins (matches Django routing)
         seen_paths = set()
