@@ -744,6 +744,33 @@ class TestTaskViewSet(APITestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_schedule_immediate_unexpected_error_uses_immediate_prefix(self):
+        """Unexpected task-creation errors from schedule_immediate use its own error prefix."""
+        from unittest.mock import patch
+
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-schedule-immediate")
+
+        with patch("apps.tasks.models.Task.objects.create", side_effect=RuntimeError("boom")):
+            response = self.client.post(url, {"name": "Immediate Task", "function_name": "hello_world"}, format="json")
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.data["error"] == "Failed to schedule task: boom"
+
+    def test_schedule_recurring_unexpected_error_uses_recurring_prefix(self):
+        """Unexpected task-creation errors from schedule_recurring use its own error prefix."""
+        from unittest.mock import patch
+
+        self.client.force_authenticate(user=self.user)
+        url = reverse("tasks:v1:task-schedule-recurring")
+        data = {"name": "Recurring Task", "function_name": "hello_world", "cron_expression": "0 * * * *"}
+
+        with patch("apps.tasks.models.Task.objects.create", side_effect=RuntimeError("boom")):
+            response = self.client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.data["error"] == "Failed to schedule recurring task: boom"
+
     # ViewSet Initialization Tests
     def test_viewset_initialization(self):
         """Test TaskViewSet can be initialized."""

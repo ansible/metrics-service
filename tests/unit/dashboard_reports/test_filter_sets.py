@@ -11,11 +11,14 @@ Covers:
 """
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import resolve, reverse
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from apps.core.models import User
@@ -194,6 +197,73 @@ class TestFilterSetsViewSetConfig(TestCase):
         from ansible_base.rest_pagination import DefaultPaginator
 
         assert FilterSetsViewSet.pagination_class is DefaultPaginator
+
+
+# =============================================================================
+# _save_with_default_handling unit tests
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestFilterSetsSaveWithDefaultHandling(TestCase):
+    """Direct unit tests for FilterSetsViewSet._save_with_default_handling."""
+
+    def setUp(self) -> None:
+        self.user = _create_user()
+        self.viewset = FilterSetsViewSet()
+        self.viewset.request = SimpleNamespace(user=self.user)
+
+    def tearDown(self) -> None:
+        FilterSet.objects.all().delete()
+        User.objects.all().delete()
+
+    @staticmethod
+    def _serializer(*, is_default: bool, instance: FilterSet | None = None) -> MagicMock:
+        serializer = MagicMock()
+        serializer.validated_data = {"name": "Set", "is_default": is_default}
+        serializer.instance = instance
+        return serializer
+
+    @patch.object(FilterSetsViewSet, "_clear_other_defaults")
+    def test_create_passes_none_as_exclude_pk(self, mock_clear: MagicMock) -> None:
+        """Creating a default filter set clears other defaults without excluding any pk."""
+        serializer = self._serializer(is_default=True)
+
+        self.viewset.perform_create(serializer)
+
+        mock_clear.assert_called_once_with(exclude_pk=None)
+        serializer.save.assert_called_once_with(user=self.user)
+
+    @patch.object(FilterSetsViewSet, "_clear_other_defaults")
+    def test_update_passes_instance_pk_as_exclude_pk(self, mock_clear: MagicMock) -> None:
+        """Updating a filter set to default excludes the instance itself from clearing."""
+        instance = _create_filter_set(self.user, "Existing")
+        serializer = self._serializer(is_default=True, instance=instance)
+
+        self.viewset.perform_update(serializer)
+
+        mock_clear.assert_called_once_with(exclude_pk=instance.pk)
+        serializer.save.assert_called_once_with(user=self.user)
+
+    @patch.object(FilterSetsViewSet, "_clear_other_defaults")
+    def test_non_default_save_does_not_clear_other_defaults(self, mock_clear: MagicMock) -> None:
+        """Saving with is_default=False (or omitted) leaves existing defaults untouched."""
+        serializer = self._serializer(is_default=False)
+
+        self.viewset.perform_create(serializer)
+
+        mock_clear.assert_not_called()
+        serializer.save.assert_called_once_with(user=self.user)
+
+    def test_integrity_error_is_converted_to_validation_error(self) -> None:
+        """IntegrityError raised while saving surfaces as a DRF ValidationError on is_default."""
+        serializer = self._serializer(is_default=True)
+        serializer.save.side_effect = IntegrityError("duplicate default")
+
+        with pytest.raises(ValidationError) as exc_info:
+            self.viewset.perform_create(serializer)
+
+        assert exc_info.value.detail == {"is_default": "Unable to set this filter set as default."}
 
 
 # =============================================================================
