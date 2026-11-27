@@ -85,6 +85,8 @@ class Task(NamedCommonModel, AuditableModel, StatusTrackingMixin):
         null=True, blank=True, help_text="When the task should be executed (null for immediate execution)"
     )
 
+    # NULL denotes a one-shot task. The create serializer normalizes blank cron
+    # expressions to None, and cleanup queries select these rows with IS NULL.
     cron_expression = models.CharField(
         max_length=100, null=True, blank=True, help_text="Cron expression for recurring tasks (e.g., '0 2 * * *')"
     )

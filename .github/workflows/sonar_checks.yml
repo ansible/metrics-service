@@ -94,8 +94,8 @@ jobs:
             "https://api.github.com/repos/$GITHUB_REPO/pulls/$PR_NUMBER")
 
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "Error: GitHub API returned HTTP $HTTP_CODE when checking PR state"
-            cat pr_response.json
+            echo "Error: GitHub API returned HTTP $HTTP_CODE when checking PR state" >&2
+            cat pr_response.json >&2
             exit 1
           fi
 
@@ -103,7 +103,7 @@ jobs:
           echo "PR $PR_NUMBER state: $PR_STATE"
 
           if [ "$PR_STATE" = "not_found" ]; then
-            echo "Cannot determine PR state from API response"
+            echo "Cannot determine PR state from API response" >&2
             exit 1
           fi
 
@@ -128,7 +128,7 @@ jobs:
           if [ "$PR_HEAD_BRANCH" != "$WORKFLOW_BRANCH" ] || \
              [ "$PR_HEAD_SHA" != "$WORKFLOW_HEAD_SHA" ] || \
              [ "$PR_HEAD_REPO" != "$WORKFLOW_HEAD_REPO" ]; then
-            echo "Error: Workflow run no longer matches PR #$PR_NUMBER head (branch/SHA/repo mismatch)"
+            echo "Error: Workflow run no longer matches PR #$PR_NUMBER head (branch/SHA/repo mismatch)" >&2
             echo "should_scan=false" >> $GITHUB_OUTPUT
             exit 0
           fi
