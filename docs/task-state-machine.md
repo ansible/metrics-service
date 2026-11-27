@@ -85,6 +85,7 @@ its backoff delay is effectively a **scheduled** task until the delay elapses
 | 10 | `failed` | `pending` | CLI `tasks retry <id> --force` | `metrics_service.py` → `task.retry(force=True)` | no |
 | 11 | `pending` | `cancelled` | API `POST /cancel` or CLI | `v1/views.py` / `metrics_service.py` | no |
 | 12 | `running` | `cancelled` | API `POST /cancel` or CLI | `v1/views.py` / `metrics_service.py` | no |
+| 13 | stale `running` | `failed` | Repeated analytics collect POST for the same window | `analytics/v1/views.py:_fail_stale()` → shared timeout recovery | no |
 
 ### Retry paths
 
@@ -100,11 +101,19 @@ dispatcher.
 | API `POST /retry` | `can_retry()` | none (immediate) | user-initiated |
 | CLI `tasks retry` | `can_retry()` | none (immediate) | user-initiated |
 | CLI `tasks retry --force` | `status == "failed"` only | none (immediate) | `retry(force=True)`, bypasses max_attempts |
+| Repeated analytics collect POST | same resolved window; no other live window for the collector | none (immediate) | `retry(force=True)` for failed/stale work; caller-driven |
+
+The analytics collect endpoint creates tasks with `max_attempts=1` deliberately:
+automatic retries could overlap a newer window for the same collector. A repeated
+POST may explicitly requeue the failed task; stale running work is first failed
+through shared timeout recovery. This is not a second automatic retry loop.
+Submission and execution remain scheduler-owned.
 
 Key invariant: `attempts` is incremented exactly once per execution attempt,
 in `_claim_task()`, via an atomic `UPDATE ... SET attempts = attempts + 1
-WHERE status = 'pending'`. This guarantees convergence — every retry burns
-one attempt, and `max_attempts` (default 3) caps the total.
+WHERE status = 'pending'`. Every retry burns one attempt, and `max_attempts`
+(default 3) caps automatic retries. Explicit forced retries can exceed that budget;
+they never reset the attempts counter.
 
 Exception: `handle_task_error()` increments attempts when a task fails before
 reaching `_claim_task` (previous_status == "pending"), since the atomic
@@ -112,8 +121,9 @@ increment never ran.
 
 ## 4. Crash Recovery
 
-Every state is self-recovering. The periodic sync
-(`_periodic_database_sync`) is the sole recovery mechanism.
+The periodic sync (`_periodic_database_sync`) handles automatic crash recovery.
+The analytics collect endpoint can also recover stale work when a caller repeats
+the POST, using the same timeout-recovery implementation before requeueing it.
 
 ```mermaid
 flowchart TD
@@ -157,8 +167,14 @@ The periodic sync has three distinct, non-overlapping recovery handlers:
   then `_retry_failed_tasks()` retries it on the next pass.
 - **`failed` with attempts remaining** → `_retry_failed_tasks()` → `retry()`.
 
-Only the last two involve the retry path; `_retry_failed_tasks()` acts solely on
-`status="failed"`.
+The last two involve the retry path; `_retry_failed_tasks()` acts solely on
+`status="failed"`. A cancelled Task is never retried. However, cancellation does
+not kill its worker: an execution that remains `running` beyond `TASK_TIMEOUT`,
+measured from the execution's own `started_at`, is failed by timeout recovery even
+when its parent is cancelled. This changes only the overdue execution, preserving
+the Task's cancellation, `completed_at`, and attempt count. A fresh execution can
+still record the worker's actual outcome; an already-finalized execution is never
+rewritten.
 
 ## 5. Periodic Sync Flow
 
@@ -254,14 +270,22 @@ TaskExecution (one per attempt)
 
 `_claim_task()` creates a new `TaskExecution` per attempt.
 `retry()` only touches the `Task` — old `TaskExecution` records are preserved.
-`_fail_stuck_tasks()` only updates executions with `status="running"`.
+Shared timeout recovery only updates executions with `status="running"`.
 The execution API is read-only; only `_claim_task()` creates attempt records.
 Non-fatal collector-hook failures are logged and do not create synthetic attempts.
 
-The `TaskExecution` row **is** the claim identity. A worker finalizing its
-result guards the `Task` write on `EXISTS (execution still running)`, evaluated
-inside the same `UPDATE`, so no state has to be mirrored between the two models
-and a superseded attempt cannot be mistaken for the live one.
+The `TaskExecution` row **is** the claim identity. A worker first locks its parent
+Task, then guards the Task write on `EXISTS (its execution is still running)`.
+The claim check is a separate statement **after** acquiring the Task lock:
+an `UPDATE` predicate evaluated before a lock wait can otherwise retain an older
+snapshot while recovery and a newer claim commit.
+
+All paths that touch both models lock **Task before TaskExecution**: claiming,
+worker completion/error handling, and scheduler/API timeout recovery. Recovery
+locks batches in Task primary-key order and reads only small identifying fields,
+not task/result JSONB payloads. Reversing the model order in one path can deadlock
+against another path holding the opposite row. `transaction.atomic()` alone does
+not impose a lock order.
 
 A recurring task adds a second layer: each cron fire creates a new child `Task`
 (not just a `TaskExecution`), and that child owns its own `TaskExecution` rows.
@@ -289,7 +313,8 @@ flowchart LR
 ```
 
 Non-terminal states all have a periodic sync handler that drives them
-toward resolution. Terminal states are ignored by the sync.
+toward resolution. Terminal Task states are preserved; overdue running executions
+of cancelled Tasks are still reconciled as described in §4.
 
 ## 9. Design Invariants
 
@@ -305,3 +330,4 @@ The `/state-machine-review` skill checks these automatically.
 7. **Only `_claim_task` sets `running`** — `update_task_status` raises `ValueError` on `status="running"`; the `pending → running` claim (set `started_at`, increment `attempts`) is owned exclusively by `_claim_task`, atomically
 8. **Status writes are conditional on the current state** — cancellation updates only pending/running tasks; worker completion/failure updates only while its own `TaskExecution` is still running. The first atomic update wins, and a late worker cannot overwrite cancellation or a newer retry. Rejected writes are logged, not raised.
 9. **Every terminal state records `completed_at`** — including `cancel()`, since a worker finishing after cancellation no longer writes to the task and cleanup selects on `completed_at`
+10. **One lock order for lifecycle writers** — lock Task before checking its live claim or writing TaskExecution, including both scheduler and request-driven timeout recovery.

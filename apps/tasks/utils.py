@@ -3,14 +3,73 @@ Utility functions for task management and execution.
 """
 
 import logging
-from datetime import UTC
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
-from django.db.models import Exists, F
+from django.db.models import Exists, F, Q, QuerySet, Value
+from django.db.models.functions import Extract
 from django.utils import timezone
 
+if TYPE_CHECKING:
+    from .models import Task
+
 logger = logging.getLogger(__name__)
+
+STUCK_TASK_ERROR_MESSAGE = "Task timed out — worker died before completion"
+
+
+def fail_stuck_tasks(
+    task_queryset: QuerySet["Task"],
+    now: datetime,
+    timeout_seconds: int,
+    *,
+    include_cancelled: bool = False,
+) -> list[int]:
+    """Fail overdue work while locking parent Tasks before their executions.
+
+    Return only the IDs of Tasks changed from running to failed. Scheduler recovery
+    can also close overdue executions of cancelled Tasks, without changing those
+    Tasks or making them retryable. Analytics uses the same locking protocol but
+    keeps its caller-driven retry policy.
+    """
+    from .models import Task, TaskExecution
+
+    cutoff = now - timedelta(seconds=timeout_seconds)
+    candidates = Q(status="running", started_at__lt=cutoff)
+    if include_cancelled:
+        overdue_executions = TaskExecution.objects.filter(status="running", started_at__lt=cutoff)
+        candidates |= Q(status="cancelled", pk__in=overdue_executions.values("task_id"))
+
+    with transaction.atomic():
+        # Lock in a stable order and never load the potentially large JSONB columns.
+        rows = list(task_queryset.filter(candidates).order_by("pk").select_for_update().values_list("pk", "status"))
+        failed_ids = [pk for pk, status in rows if status == "running"]
+        cancelled_ids = [pk for pk, status in rows if status == "cancelled"]
+        if not rows:
+            return []
+
+        updates = {
+            "status": "failed",
+            "error_message": STUCK_TASK_ERROR_MESSAGE,
+            "completed_at": now,
+            "modified": now,
+        }
+        Task.objects.filter(pk__in=failed_ids, status="running").update(**updates)
+        TaskExecution.objects.filter(status="running").filter(
+            Q(task_id__in=failed_ids) | Q(task_id__in=cancelled_ids, started_at__lt=cutoff)
+        ).update(**updates, execution_time_seconds=Extract(Value(now) - F("started_at"), "epoch"))
+
+    if cancelled_ids:
+        logger.warning("Reconciled overdue executions for cancelled tasks: %s", cancelled_ids)
+    return failed_ids
+
+
+def _lock_task_row(task_pk: int) -> None:
+    """Acquire the lifecycle lock before evaluating claim state on a fresh snapshot."""
+    from .models import Task
+
+    Task.objects.select_for_update().only("id").get(pk=task_pk)
 
 
 def ignore_database_override(task_name: str, kwargs: dict[str, Any]) -> None:
@@ -192,14 +251,13 @@ def handle_task_error(
     execution_updated = 0
 
     try:
-        # Read the current state before branching on it: a stale in-memory copy
-        # would pick the wrong branch and silently drop the failure.
-        if task_instance:
-            task_instance.refresh_from_db()
-        if execution_instance:
-            execution_instance.refresh_from_db()
-
         with transaction.atomic():
+            # Lock even a terminal parent before touching its still-running attempt.
+            # Read status/claim state only after any lock wait has finished.
+            if task_instance or execution_instance:
+                _lock_task_row(task_instance.pk if task_instance else execution_instance.task_id)
+            if task_instance:
+                task_instance.refresh_from_db(fields=["status"])
             now = timezone.now()
 
             # Task before TaskExecution, matching _claim_task and
@@ -269,6 +327,9 @@ def update_task_status(
     with transaction.atomic():
         from .models import Task, TaskExecution
 
+        # A predicate in a blocked UPDATE can retain a pre-wait execution snapshot.
+        # Acquire Task first, then evaluate the live-claim guard in a new statement.
+        _lock_task_row(task_instance.pk)
         now = timezone.now()
         task_updates = {"status": status, "completed_at": now, "modified": now}
         if result_data is not None:

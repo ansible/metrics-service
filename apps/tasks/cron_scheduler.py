@@ -13,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from django.conf import settings as django_settings
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -309,31 +309,13 @@ class UnifiedTaskScheduler:
             logger.exception(f"Error in periodic database sync: {e}")
 
     def _fail_stuck_tasks(self):
-        """Mark tasks stuck in running status as failed after their timeout."""
-        from .models import Task, TaskExecution
+        """Recover overdue running tasks and attempts whose parent was cancelled."""
+        from .models import Task
+        from .utils import fail_stuck_tasks
 
-        now = timezone.now()
-        error_msg = "Task timed out — worker died before completion"
-        with transaction.atomic():
-            # Lock tasks before executions, matching worker completion order so
-            # timeout recovery and a late worker result cannot split their state.
-            # Keep discovery ID-only: task_data/result_data can be multi-MB JSONB.
-            ids = list(
-                Task.objects.select_for_update().filter(
-                    status="running", started_at__lt=now - timedelta(seconds=STUCK_TASK_TIMEOUT_SECONDS)
-                ).order_by("pk").values_list("pk", flat=True)
-            )
-            if not ids:
-                return
-
-            Task.objects.filter(id__in=ids, status="running").update(
-                status="failed", error_message=error_msg, completed_at=now, modified=now
-            )
-            TaskExecution.objects.filter(task__id__in=ids, status="running").update(
-                status="failed", error_message=error_msg, completed_at=now, modified=now
-            )
-
-        logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
+        ids = fail_stuck_tasks(Task.objects.all(), timezone.now(), STUCK_TASK_TIMEOUT_SECONDS, include_cancelled=True)
+        if ids:
+            logger.warning(f"Failed {len(ids)} stuck task(s): {ids}")
 
     def _retry_failed_tasks(self):
         """Schedule retries for failed tasks that still have attempts remaining."""

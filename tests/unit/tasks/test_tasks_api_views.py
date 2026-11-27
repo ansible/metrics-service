@@ -346,7 +346,7 @@ class TestTaskViewSet(APITestCase):
     def test_task_cancel_does_not_overwrite_concurrent_completion(self):
         """Cancellation uses the database status, not a stale object status."""
         self.client.force_authenticate(user=self.user)
-        task = self._create_task_safely(
+        task = _create_task_safely(
             name="Running Task",
             function_name="hello_world",
             created_by=self.user,
