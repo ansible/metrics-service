@@ -25,6 +25,7 @@ from apps.tasks.models import Task
 from apps.tasks.services import OutputFormatter
 
 User = get_user_model()
+TASK_ID_HELP = "Task ID"
 
 
 class Command(BaseCommand):
@@ -161,15 +162,15 @@ class Command(BaseCommand):
 
         # Show task details
         show_parser = task_subparsers.add_parser("show", help="Show task details")
-        show_parser.add_argument("task_id", type=int, help="Task ID")
+        show_parser.add_argument("task_id", type=int, help=TASK_ID_HELP)
 
         # Cancel task
         cancel_parser = task_subparsers.add_parser("cancel", help="Cancel a task")
-        cancel_parser.add_argument("task_id", type=int, help="Task ID")
+        cancel_parser.add_argument("task_id", type=int, help=TASK_ID_HELP)
 
         # Retry task
         retry_parser = task_subparsers.add_parser("retry", help="Retry a failed task")
-        retry_parser.add_argument("task_id", type=int, help="Task ID")
+        retry_parser.add_argument("task_id", type=int, help=TASK_ID_HELP)
         retry_parser.add_argument("--force", action="store_true", help="Bypass max_attempts check")
 
     def handle(self, *args, **options):
@@ -613,19 +614,42 @@ class Command(BaseCommand):
 
     def _read_remaining_output(self, process: subprocess.Popen, process_name: str) -> None:
         """Read any remaining output from a process that has exited."""
-        if process.stdout:
-            try:
-                remaining = process.stdout.read()
-                if remaining:
-                    self.output.write(f"\n{process_name} final output:")
-                    for line in remaining.splitlines():
-                        if line.strip():
-                            self.output.write(f"  {line}")
-            except (OSError, ValueError) as e:
-                # Output stream may already be closed
-                # Log only if it's an unexpected error type
-                if "Bad file descriptor" not in str(e) and "I/O operation on closed file" not in str(e):
-                    self.output.write(f"  (Note: Could not read remaining output: {e})")
+        if not process.stdout:
+            return
+        try:
+            remaining = process.stdout.read()
+            if not remaining:
+                return
+            self.output.write(f"\n{process_name} final output:")
+            for line in remaining.splitlines():
+                if line.strip():
+                    self.output.write(f"  {line}")
+        except (OSError, ValueError) as e:
+            # Closed output streams are expected during shutdown.
+            if "Bad file descriptor" not in str(e) and "I/O operation on closed file" not in str(e):
+                self.output.write(f"  (Note: Could not read remaining output: {e})")
+
+    def _check_for_process_exit(self, processes: list[subprocess.Popen], process_names: list[str]) -> None:
+        for process, name in zip(processes, process_names, strict=True):
+            if process.poll() is None:
+                continue
+            exit_code = process.returncode
+            self.output.write("")
+            self.output.error(f"❌ {name} process exited with code {exit_code}")
+            self._read_remaining_output(process, name)
+            self._cleanup_all_processes(processes)
+            sys.exit(exit_code)
+
+    def _read_ready_output(self, process: subprocess.Popen, name: str) -> None:
+        if process.poll() is not None or process.stdout is None:
+            return
+        try:
+            line = process.stdout.readline().rstrip()
+            if line:
+                self.output.write(f"[{name}] {line}")
+        except (OSError, ValueError) as e:
+            if process.poll() is None:
+                self.output.warning(f"[{name}] Error reading output: {e}")
 
     def _monitor_processes_with_select(
         self,
@@ -643,36 +667,9 @@ class Command(BaseCommand):
 
         try:
             while True:
-                # Check if any process has exited
-                for i, process in enumerate(processes):
-                    if process.poll() is not None:
-                        exit_code = process.returncode
-                        self.output.write("")  # Empty line for separation
-                        self.output.error(f"❌ {process_names[i]} process exited with code {exit_code}")
-
-                        # Read any remaining output
-                        self._read_remaining_output(process, process_names[i])
-
-                        self._cleanup_all_processes(processes)
-                        sys.exit(exit_code)
-
-                # Wait for data to be available (with timeout)
-                events = selector.select(timeout=0.5)
-
-                # Read available data from all ready file descriptors
-                for key, _mask in events:
-                    process, name = key.data
-                    if process.poll() is None:  # Process still running
-                        try:
-                            line = process.stdout.readline()
-                            if line:
-                                line = line.rstrip()
-                                if line:
-                                    self.output.write(f"[{name}] {line}")
-                        except (OSError, ValueError) as e:
-                            # Pipe may have closed
-                            if process.poll() is None:
-                                self.output.warning(f"[{name}] Error reading output: {e}")
+                self._check_for_process_exit(processes, process_names)
+                for key, _mask in selector.select(timeout=0.5):
+                    self._read_ready_output(*key.data)
         finally:
             # Clean up selector
             selector.close()

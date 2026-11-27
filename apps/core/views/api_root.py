@@ -43,74 +43,47 @@ class APIRootView(AnsibleBaseView):
         # Get the current view's URL name to exclude it from results
         current_url_name = getattr(request.resolver_match, "url_name", None)
 
-        # Collect all patterns in traversal order (like show_urls --unsorted).
-        try:
-            all_patterns = _EXTRACTED_PATTERNS_CACHE.get(resolver)
-        except TypeError:
-            all_patterns = None
+        # ServicePrefixMiddleware supplies the external /api/<service> prefix.
+        api_service_prefix = getattr(request, "_api_service_prefix", None)
+        if api_service_prefix:
+            child_prefix = api_service_prefix + prefix[len("/api") :]
+        else:
+            child_prefix = request.META.get("SCRIPT_NAME", "") + prefix
 
-        if all_patterns is None:
-            all_patterns = tuple(self._extract_patterns(resolver.url_patterns, ""))
-            with suppress(TypeError):
-                _EXTRACTED_PATTERNS_CACHE[resolver] = all_patterns
-
-        # Track seen paths - first occurrence wins (matches Django routing)
-        seen_paths = set()
         endpoints = {}
-
-        for clean_path, pattern_name in all_patterns:
-            # Must start with our prefix
-            if not clean_path.startswith(prefix):
+        excluded_names = {current_url_name, "api-root"}
+        for clean_path, pattern_name in self._patterns_for_resolver(resolver):
+            if pattern_name in excluded_names:
                 continue
-
-            # Get the path relative to our prefix
-            relative_path = clean_path[len(prefix) :]
-
-            # Skip empty relative path (this is the index itself)
-            if not relative_path or relative_path == "/":
+            if pattern_name and pattern_name.endswith("-index"):
                 continue
-
-            # Skip debug toolbar and similar internal paths
-            if "__debug__" in relative_path or relative_path.startswith("_"):
-                continue
-
-            # Extract the first path segment (direct child)
-            first_segment = relative_path.strip("/").split("/")[0]
-
-            # Skip if first segment has parameters like <pk>
-            if "<" in first_segment:
-                continue
-
-            # Skip index views
-            if pattern_name and (pattern_name.endswith("-index") or pattern_name == "api-root"):
-                continue
-
-            # Skip the current view itself
-            if pattern_name == current_url_name:
-                continue
-
-            # First occurrence wins - skip if we've seen this path
-            if first_segment in seen_paths:
-                continue
-            seen_paths.add(first_segment)
-
-            # Build the URL for this direct child
-            # Check for API service prefix (set by ServicePrefixMiddleware for /api/<service>/...)
-            # or fall back to SCRIPT_NAME (set for /<service>/...)
-            api_service_prefix = getattr(request, "_api_service_prefix", None)
-            if api_service_prefix:
-                # For /api/<service>/... URLs, use the stored API prefix
-                child_url = request.build_absolute_uri(api_service_prefix + prefix[len("/api") :] + first_segment + "/")
-            else:
-                # For /<service>/... URLs, SCRIPT_NAME is already set
-                script_name = request.META.get("SCRIPT_NAME", "")
-                child_url = request.build_absolute_uri(script_name + prefix + first_segment + "/")
-
-            # Use the path segment as the name (cleaner than pattern names)
-            endpoints[first_segment] = child_url
+            child = self._direct_child(clean_path, prefix)
+            if child is not None and child not in endpoints:
+                endpoints[child] = request.build_absolute_uri(f"{child_prefix}{child}/")
 
         # Sort alphabetically for consistent output
         return Response(dict(sorted(endpoints.items())))
+
+    def _patterns_for_resolver(self, resolver):
+        """Cache traversal order per resolver, falling back when it cannot be weak-keyed."""
+        try:
+            return _EXTRACTED_PATTERNS_CACHE[resolver]
+        except (KeyError, TypeError):
+            patterns = tuple(self._extract_patterns(resolver.url_patterns, ""))
+            with suppress(TypeError):
+                _EXTRACTED_PATTERNS_CACHE[resolver] = patterns
+            return patterns
+
+    @staticmethod
+    def _direct_child(clean_path, prefix):
+        """Return the first public, static segment under this prefix."""
+        if not clean_path.startswith(prefix):
+            return None
+        relative_path = clean_path[len(prefix) :]
+        if "__debug__" in relative_path or relative_path.startswith("_"):
+            return None
+        child = relative_path.strip("/").partition("/")[0]
+        return child if child and "<" not in child else None
 
     def _extract_patterns(self, patterns, current_path):
         """

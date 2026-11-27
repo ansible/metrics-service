@@ -52,6 +52,7 @@ from apps.dashboard_reports.utils import sec2time
 from apps.tasks.api_utils import build_error_response
 
 logger = logging.getLogger(__name__)
+JSON_MEDIA_TYPE = "application/json"
 
 
 class AliasedOrderingFilter(filters.OrderingFilter):
@@ -144,7 +145,7 @@ class PassthroughRenderer(BaseRenderer):
         if isinstance(data, dict | list):
             response = (renderer_context or {}).get("response")
             if response is not None:
-                response["Content-Type"] = "application/json"
+                response["Content-Type"] = JSON_MEDIA_TYPE
             return json.dumps(data, cls=DjangoJSONEncoder)
         return data
 
@@ -406,7 +407,7 @@ DETAIL_QUERY_PARAMETERS = [
 
 # Error responses of the POST query actions. Always JSON, also on export/query/.
 QUERY_ERROR_RESPONSES = {
-    (400, "application/json"): OpenApiResponse(
+    (400, JSON_MEDIA_TYPE): OpenApiResponse(
         response=OpenApiTypes.OBJECT,
         description=(
             "Invalid request. Body validation errors (unknown keys, wrong types, an invalid period or date "
@@ -415,7 +416,7 @@ QUERY_ERROR_RESPONSES = {
             '{"error": "<message>", "status_code": 400, "timestamp": "<ISO 8601>"}.'
         ),
     ),
-    (503, "application/json"): OpenApiResponse(
+    (503, JSON_MEDIA_TYPE): OpenApiResponse(
         response=OpenApiTypes.OBJECT,
         description="The search terms could not be resolved because the AWX database is unavailable.",
     ),
