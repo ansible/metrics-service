@@ -289,7 +289,7 @@ def daily_metrics_rollup(**kwargs) -> dict[str, Any]:
 
     try:
         # Query and group hourly collections by type
-        collections_by_type, start_datetime, end_datetime = _collect_and_group_hourly_collections(summary_date)
+        collections_by_type, _, _ = _collect_and_group_hourly_collections(summary_date)
 
         # Extract config snapshot from daily collections
         config_collections = collections_by_type.pop("config", [])
