@@ -53,7 +53,7 @@ def get_feature_enabled_from_db(setting_name: str, default: bool = False, *, rai
         if setting and setting.current_value:
             try:
                 value = json.loads(setting.current_value)
-            except (json.JSONDecodeError, ValueError):
+            except ValueError:
                 # If not valid JSON, treat as string boolean
                 value = setting.current_value.lower() in ("true", "1", "yes", "on")
             return bool(value)

@@ -59,7 +59,7 @@ class HealthView(AnsibleBaseView):
         try:
             from apps.tasks.models import AnonymizedMetricsPayload
 
-            most_recent = AnonymizedMetricsPayload.objects.all().order_by("-modified").first()
+            most_recent = AnonymizedMetricsPayload.objects.only("status", "modified").order_by("-modified").first()
             if most_recent is not None:
                 health_status["checks"]["segment_send"] = {}
 

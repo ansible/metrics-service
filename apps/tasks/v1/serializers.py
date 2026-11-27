@@ -99,6 +99,9 @@ class TaskSerializer(BaseModelSerializer, StatusFieldMixin):
 
     def get_executions_count(self, obj) -> int:
         """Get count of task executions."""
+        annotated_count = getattr(obj, "_executions_count", None)
+        if annotated_count is not None:
+            return annotated_count
         return obj.executions.count()
 
     def get_can_retry(self, obj) -> bool:

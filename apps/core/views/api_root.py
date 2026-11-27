@@ -1,8 +1,13 @@
+from contextlib import suppress
+from weakref import WeakKeyDictionary
+
 from ansible_base.lib.utils.views.ansible_base import AnsibleBaseView
 from django.contrib.admindocs.views import simplify_regex
 from django.urls import URLPattern, URLResolver, get_resolver
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+_EXTRACTED_PATTERNS_CACHE: WeakKeyDictionary[URLResolver, tuple[tuple[str, str | None], ...]] = WeakKeyDictionary()
 
 
 class APIRootView(AnsibleBaseView):
@@ -47,7 +52,7 @@ class APIRootView(AnsibleBaseView):
 
         endpoints = {}
         excluded_names = {current_url_name, "api-root"}
-        for clean_path, pattern_name in self._extract_patterns(resolver.url_patterns, ""):
+        for clean_path, pattern_name in self._patterns_for_resolver(resolver):
             if pattern_name in excluded_names:
                 continue
             if pattern_name and pattern_name.endswith("-index"):
@@ -58,6 +63,16 @@ class APIRootView(AnsibleBaseView):
 
         # Sort alphabetically for consistent output
         return Response(dict(sorted(endpoints.items())))
+
+    def _patterns_for_resolver(self, resolver):
+        """Cache traversal order per resolver, falling back when it cannot be weak-keyed."""
+        try:
+            return _EXTRACTED_PATTERNS_CACHE[resolver]
+        except (KeyError, TypeError):
+            patterns = tuple(self._extract_patterns(resolver.url_patterns, ""))
+            with suppress(TypeError):
+                _EXTRACTED_PATTERNS_CACHE[resolver] = patterns
+            return patterns
 
     @staticmethod
     def _direct_child(clean_path, prefix):

@@ -672,8 +672,6 @@ class Command(BaseCommand):
                     self._read_ready_output(*key.data)
         finally:
             # Clean up selector
-            for key in list(selector.get_map().values()):
-                selector.unregister(key.fileobj)
             selector.close()
 
     def _handle_keyboard_interrupt(self, processes: list[subprocess.Popen]) -> None:
