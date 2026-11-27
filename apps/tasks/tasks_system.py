@@ -95,12 +95,14 @@ def _claim_task(task_id):
     from .models import Task, TaskExecution
 
     with transaction.atomic():
+        now = timezone.now()
         claimed = (
             Task.ready_to_run()
             .filter(id=task_id)
             .update(
                 status="running",
-                started_at=timezone.now(),
+                started_at=now,
+                modified=now,
                 attempts=models.F("attempts") + 1,
             )
         )

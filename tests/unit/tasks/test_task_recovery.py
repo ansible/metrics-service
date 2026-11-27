@@ -6,6 +6,7 @@ from datetime import timedelta
 from queue import Queue
 from threading import Event
 from time import monotonic
+from unittest.mock import patch
 
 import pytest
 from django.conf import settings
@@ -15,8 +16,8 @@ from django.utils import timezone
 from apps.analytics.v1.views import _fail_stale
 from apps.tasks.cron_scheduler import UnifiedTaskScheduler
 from apps.tasks.models import Task, TaskExecution
-from apps.tasks.tasks_system import _claim_task
-from apps.tasks.utils import handle_task_error, update_task_status
+from apps.tasks.tasks_system import _claim_task, execute_db_task
+from apps.tasks.utils import fail_stuck_tasks, handle_task_error, update_task_status
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db(transaction=True)]
 
@@ -273,3 +274,139 @@ def test_cancelled_worker_and_recovery_preserve_the_first_execution_outcome(winn
     assert execution.completed_at is not None
     if winner == "worker":
         assert execution.result_data == {"winner": "worker"}
+
+
+def test_failed_dispatch_without_a_claim_cannot_fail_another_dispatch() -> None:
+    """A rolled-back claim must not fail a different dispatch's successful claim."""
+    task = Task.objects.create(name="Competing dispatches", function_name="hello_world")
+    winning_claim: list[tuple[Task, TaskExecution]] = []
+
+    def lose_claim(task_id: int) -> None:
+        try:
+            with patch("apps.tasks.models.TaskExecution.objects.create", side_effect=RuntimeError("claim failed")):
+                _claim_task(task_id)
+        except RuntimeError:
+            winning_claim.append(_claim_task(task_id))
+            raise
+        pytest.fail("The injected claim failure did not occur")
+
+    with patch("apps.tasks.tasks_system._claim_task", side_effect=lose_claim):
+        result = execute_db_task(task_id=task.pk)
+
+    assert result["status"] == "error"
+    assert "claim failed" in result["error"]
+    task.refresh_from_db()
+    winner, execution = winning_claim[0]
+    execution.refresh_from_db()
+    assert task.status == "running"
+    assert task.attempts == 1
+    assert task.error_message == ""
+    assert execution.status == "running"
+    assert task.executions.count() == 1
+
+    update_task_status(winner, execution, "completed")
+    task.refresh_from_db()
+    assert task.status == "completed"
+
+
+def test_old_execution_error_preserves_a_pending_retry() -> None:
+    """An execution-bearing late error is not a claimless pre-claim failure."""
+    task, execution = _claimed_task()
+    handle_task_error(task, execution, "original failure")
+    assert task.retry()
+
+    handle_task_error(task, execution, "late error")
+
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == "pending"
+    assert task.attempts == 1
+    assert task.error_message == ""
+    assert execution.status == "failed"
+    assert execution.error_message == "original failure"
+    task, next_execution = _claim_task(task.pk)
+    assert task.attempts == 2
+    assert next_execution.pk != execution.pk
+
+
+@pytest.mark.parametrize("parent_status", ["completed", "failed"])
+@pytest.mark.parametrize("finalizer", ["completed", "exception"])
+def test_terminal_parent_can_preserve_its_state_while_recording_a_running_attempt(
+    parent_status: str, finalizer: str
+) -> None:
+    """Task and attempt outcomes are independent even when the parent is not cancelled."""
+    task, execution = _claimed_task()
+    Task.objects.filter(pk=task.pk).update(
+        status=parent_status, completed_at=timezone.now(), result_data={"preserved": True}
+    )
+
+    if finalizer == "exception":
+        handle_task_error(task, execution, "worker error")
+    else:
+        update_task_status(task, execution, "completed", result_data={"worker": True})
+
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    assert task.status == parent_status
+    assert task.result_data == {"preserved": True}
+    assert task.attempts == 1
+    assert execution.status == ("failed" if finalizer == "exception" else "completed")
+    assert execution.completed_at is not None
+    if finalizer == "completed":
+        assert execution.result_data == {"worker": True}
+
+
+def test_recovery_samples_terminal_time_after_waiting_for_the_task_lock() -> None:
+    """A pre-lock cutoff must not become a pre-attempt completion timestamp."""
+    scan_time = timezone.now()
+    execution_start = scan_time + timedelta(seconds=5)
+    terminal_time = scan_time + timedelta(seconds=10)
+    task = Task.objects.create(
+        name="Slow claim transaction",
+        function_name="hello_world",
+        status="running",
+        started_at=scan_time - timedelta(seconds=settings.TASK_TIMEOUT + 1),
+    )
+    fresh = Task.objects.create(
+        name="Fresh at scan time",
+        function_name="hello_world",
+        status="running",
+        started_at=scan_time - timedelta(seconds=settings.TASK_TIMEOUT - 1),
+    )
+    backend: Queue[int] = Queue()
+
+    def recover() -> list[int]:
+        return fail_stuck_tasks(Task.objects.all(), scan_time, settings.TASK_TIMEOUT)
+
+    with (
+        patch("apps.tasks.utils.timezone.now", return_value=terminal_time),
+        ThreadPoolExecutor(max_workers=1) as executor,
+    ):
+        with transaction.atomic():
+            Task.objects.select_for_update().get(pk=task.pk)
+            future = executor.submit(_on_connection, recover, backend)
+            _wait_for_database_lock(backend.get(timeout=5))
+            with patch("django.utils.timezone.now", return_value=execution_start):
+                execution = TaskExecution.objects.create(task=task, status="running")
+        assert future.result(timeout=10) == [task.pk]
+
+    task.refresh_from_db()
+    execution.refresh_from_db()
+    fresh.refresh_from_db()
+    assert task.completed_at == task.modified == terminal_time
+    assert execution.started_at == execution_start
+    assert execution.completed_at == execution.modified == terminal_time
+    assert execution.execution_time_seconds == pytest.approx(5)
+    assert fresh.status == "running"
+
+
+def test_claim_updates_modified_with_its_start_time() -> None:
+    """Claiming is a lifecycle transition, not an invisible queryset update."""
+    task = Task.objects.create(name="Claim timestamp", function_name="hello_world")
+    old = timezone.now() - timedelta(days=2)
+    Task.objects.filter(pk=task.pk).update(modified=old)
+
+    claimed, _execution = _claim_task(task.pk)
+
+    assert claimed.modified == claimed.started_at
+    assert claimed.modified > old

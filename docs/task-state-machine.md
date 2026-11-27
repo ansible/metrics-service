@@ -116,8 +116,10 @@ WHERE status = 'pending'`. Every retry burns one attempt, and `max_attempts`
 they never reset the attempts counter.
 
 Exception: `handle_task_error()` increments attempts when a task fails before
-reaching `_claim_task` (previous_status == "pending"), since the atomic
-increment never ran.
+claiming (no execution and status still `pending`), since the atomic increment
+never ran. A failed dispatch without a claim cannot fail a Task another dispatch
+has already claimed. A late error carrying an older execution must likewise leave
+a pending retry alone rather than treating it as a new pre-claim failure.
 
 ## 4. Crash Recovery
 
@@ -286,6 +288,11 @@ locks batches in Task primary-key order and reads only small identifying fields,
 not task/result JSONB payloads. Reversing the model order in one path can deadlock
 against another path holding the opposite row. `transaction.atomic()` alone does
 not impose a lock order.
+
+Recovery retains the supplied scan time for its timeout cutoff, but samples a
+fresh completion time after acquiring the Task locks. A lock wait must not backdate
+`completed_at`/`modified` or produce a negative duration for an execution created
+after the scan began.
 
 A recurring task adds a second layer: each cron fire creates a new child `Task`
 (not just a `TaskExecution`), and that child owns its own `TaskExecution` rows.

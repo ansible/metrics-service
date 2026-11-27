@@ -44,21 +44,23 @@ def fail_stuck_tasks(
     with transaction.atomic():
         # Lock in a stable order and never load the potentially large JSONB columns.
         rows = list(task_queryset.filter(candidates).order_by("pk").select_for_update().values_list("pk", "status"))
-        failed_ids = [pk for pk, status in rows if status == "running"]
-        cancelled_ids = [pk for pk, status in rows if status == "cancelled"]
         if not rows:
             return []
+        failed_ids = [pk for pk, status in rows if status == "running"]
+        cancelled_ids = [pk for pk, status in rows if status == "cancelled"]
 
+        # Keep the scan cutoff stable, but do not backdate completion across a lock wait.
+        completed_at = timezone.now()
         updates = {
             "status": "failed",
             "error_message": STUCK_TASK_ERROR_MESSAGE,
-            "completed_at": now,
-            "modified": now,
+            "completed_at": completed_at,
+            "modified": completed_at,
         }
         Task.objects.filter(pk__in=failed_ids, status="running").update(**updates)
         TaskExecution.objects.filter(status="running").filter(
             Q(task_id__in=failed_ids) | Q(task_id__in=cancelled_ids, started_at__lt=cutoff)
-        ).update(**updates, execution_time_seconds=Extract(Value(now) - F("started_at"), "epoch"))
+        ).update(**updates, execution_time_seconds=Extract(Value(completed_at) - F("started_at"), "epoch"))
 
     if cancelled_ids:
         logger.warning("Reconciled overdue executions for cancelled tasks: %s", cancelled_ids)
@@ -122,8 +124,7 @@ def _fail_task_row(task_instance: Any, execution_instance: Any, error_message: s
         # Failed before reaching "running", so no claim incremented attempts.
         task_updates["attempts"] = F("attempts") + 1
         return task_queryset.filter(status="pending").update(**task_updates)
-    if task_instance.status == "running":
-        return task_queryset.filter(status="running").update(**task_updates)
+    # A dispatch whose claim rolled back does not own another dispatch's running Task.
     return 0
 
 
@@ -137,8 +138,7 @@ def _fail_execution_row(task_instance: Any, execution_instance: Any, error_messa
     from .models import TaskExecution
 
     execution_updates = {"status": "failed", "error_message": error_message, "completed_at": now, "modified": now}
-    if execution_instance.started_at:
-        execution_updates["execution_time_seconds"] = (now - execution_instance.started_at).total_seconds()
+    execution_updates["execution_time_seconds"] = (now - execution_instance.started_at).total_seconds()
 
     return TaskExecution.objects.filter(
         pk=execution_instance.pk,
@@ -355,8 +355,7 @@ def update_task_status(
                 execution_updates["result_data"] = result_data
             if error_message or status == "completed":
                 execution_updates["error_message"] = error_message
-            if execution_instance.started_at:
-                execution_updates["execution_time_seconds"] = (now - execution_instance.started_at).total_seconds()
+            execution_updates["execution_time_seconds"] = (now - execution_instance.started_at).total_seconds()
             execution_updated = TaskExecution.objects.filter(
                 pk=execution_instance.pk,
                 task_id=task_instance.pk,
